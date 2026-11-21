@@ -1403,6 +1403,44 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       }, 1000);
     };
   }
+  // Itinéraire fixe : la mini-carte ouvre aussi la carte complète, à consulter seulement (parcours restant, position).
+  if (!nav && source.open && graphOk) {
+    const open = source.open;
+    const o93 = source.originL93 ?? { x: 0, y: 0 };
+    const areas = source.areas ?? [source.bounds];
+    const allBounds = { minX: Math.min(...areas.map((a) => a.minX)), minZ: Math.min(...areas.map((a) => a.minZ)), maxX: Math.max(...areas.map((a) => a.maxX)), maxZ: Math.max(...areas.map((a) => a.maxZ)) };
+    const wmap = new WorldMap({
+      graph: open.graph,
+      places: open.places ?? [],
+      bounds: allBounds,
+      ...(open.map ? { image: open.map } : source.originL93 ? { basemap: (b: { minX: number; minZ: number; maxX: number; maxZ: number }, px: number) => basemapUrl({ minE: o93.x + b.minX, minN: o93.y - b.maxZ, maxE: o93.x + b.maxX, maxN: o93.y - b.minZ }, px) } : {}),
+      fr: getLang() === 'fr',
+      viewOnly: true,
+      snap: () => null,
+      onGo: () => undefined,
+      onRestart: () => undefined,
+      onClear: () => undefined,
+    });
+    const mapState = () => {
+      const d = track.wrap(ride.state.distM);
+      // Parcours restant (le tour entier sur une boucle), un point tous les 25 m.
+      const end = track.route.loop ? d + track.length : track.length;
+      const ahead: number[] = [];
+      for (let x = d; x <= end; x += 25) {
+        const q = track.sample(x);
+        ahead.push(q.x, q.z);
+      }
+      const me = track.sample(d);
+      return { me: { x: me.x, z: me.z }, ahead, destination: null };
+    };
+    hud.onMapClick = () => {
+      wmap.open(mapState());
+      const tick = window.setInterval(() => {
+        if (!wmap.isOpen) window.clearInterval(tick);
+        else wmap.update(mapState());
+      }, 1000);
+    };
+  }
   // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
   hud.riderFilter = mp ? 'real' : 'all';
   // Musique plus discrète en sortie ; titres Spotify annoncés dans le HUD.

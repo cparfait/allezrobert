@@ -34,7 +34,16 @@ export const EZ_NEAR_M = 60;
 export interface EzTreeOptions {
   nearM: number;
   nearShadows: boolean;
+  /**
+   * Rayon de houppier (m) de l'arbre du jeu à l'échelle 1 : l'échelle horizontale d'une instance fois ce rayon
+   * donne la place que le placement lui a laissée (houppier rétréci près d'une route). Absent : pas de limite.
+   */
+  crownRefM?: number;
 }
+/** Le houppier d'un vrai arbre peut dépasser de 10 % la place laissée par le placement, pas plus (routes dégagées). */
+const CROWN_ROOM_SLACK = 1.1;
+/** Plancher de l'amincissement : en dessous, l'arbre deviendrait un fuseau. */
+const MIN_CROWN_RATIO = 0.4;
 /** Rayon des imposteurs (m) : au-delà, les arbres du jeu. */
 export const EZ_IMPOSTOR_M = 200;
 /** Demi-largeur des bandes de fondu 3D / imposteur et imposteur / arbres du jeu (m). */
@@ -445,11 +454,18 @@ export class EzTreeNear {
         const sp = this.species[Math.floor(k * this.species.length) % this.species.length] as Species;
         const tone = (k * 7.31) % 1;
         const sc = topOf(mesh, i) / sp.h0;
+        // Largeur bornée par la place du houppier d'origine : mis à l'échelle sur la seule hauteur, les vrais arbres
+        // plantés au bord d'une route laissaient pendre leurs branches basses sur la chaussée.
+        let scW = sc;
+        if (this.opts.crownRefM) {
+          const room = Math.hypot(a[i * 16] as number, a[i * 16 + 1] as number, a[i * 16 + 2] as number) * this.opts.crownRefM;
+          scW = Math.min(sc, Math.max(sc * MIN_CROWN_RATIO, (room * CROWN_ROOM_SLACK) / (sp.w0 / 2)));
+        }
         if (d2 <= rn2 && sp.nearCount < CAP_NEAR) {
           sp.iFoot.setXYZ(sp.nearCount, x, z, tone);
           this.m.fromArray(a, i * 16);
           this.m.decompose(this.p, this.q, this.s);
-          this.s.set(sc, sc, sc);
+          this.s.set(scW, sc, scW);
           this.m.compose(this.p, this.q, this.s);
           sp.branches.setMatrixAt(sp.nearCount, this.m);
           sp.leaves.setMatrixAt(sp.nearCount, this.m);
@@ -460,7 +476,7 @@ export class EzTreeNear {
           if (sp.impCount >= CAP_IMPOSTOR) continue;
           const j = sp.impCount++;
           sp.iPos.setXYZ(j, x, a[i * 16 + 13] as number, z);
-          sp.iSize.setXY(j, sp.w0 * 1.1 * sc, sp.h0 * 1.02 * sc);
+          sp.iSize.setXY(j, sp.w0 * 1.1 * scW, sp.h0 * 1.02 * sc);
           // rotation autour de la verticale : (sin, cos) dans la 3e colonne
           sp.iYaw.setXY(j, Math.atan2(a[i * 16 + 8] as number, a[i * 16 + 10] as number), tone);
           growBounds(sp.impBox, x, a[i * 16 + 13] as number, z, Math.max(sp.h0, sp.w0) * 1.1 * sc);

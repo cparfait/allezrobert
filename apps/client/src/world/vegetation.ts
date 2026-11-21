@@ -1305,6 +1305,7 @@ export class Vegetation {
         this.ezNear = new EzTreeNear(this.leafA.node as unknown as THREE.Node<'vec3'>, this.leafB.node as unknown as THREE.Node<'vec3'>, this.leafAmount, this.ezFocus, {
           nearM: this.q.ezNearM,
           nearShadows: this.q.ezNearShadows,
+          crownRefM: SEEDED_CROWN.decid,
         });
         this.group.add(this.ezNear.group);
       }

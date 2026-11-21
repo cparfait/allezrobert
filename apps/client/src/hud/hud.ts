@@ -486,7 +486,7 @@ export class Hud {
     const m = this.root.querySelector<HTMLElement>('.minimap');
     if (!m) return;
     m.classList.toggle('map-click', !!fn);
-    m.title = fn ? (getLang() === 'fr' ? 'Carte complète : choisir où aller' : 'Full map: choose where to go') : '';
+    m.title = fn ? (getLang() === 'fr' ? 'Carte complète' : 'Full map') : '';
     m.onclick = fn ? () => fn() : null;
   }
 

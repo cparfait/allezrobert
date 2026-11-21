@@ -25,6 +25,8 @@ export interface WorldMapOptions {
   /** Fond de carte d'une emprise quelconque, `px` de large (Plan IGN des zones réelles). */
   basemap?: (box: Box, px: number) => string;
   fr: boolean;
+  /** Itinéraire fixe : carte à consulter seulement (ni destination ni nouveau départ). */
+  viewOnly?: boolean;
   /** Point de route roulable le plus proche (null : trop loin d'une route). */
   snap: (x: number, z: number) => WorldMapPick | null;
   onGo: (p: WorldMapPick) => void;
@@ -84,10 +86,10 @@ export class WorldMap {
     const places = [...this.o.places].sort((a, b) => (PLACE_RANK[a.kind] ?? 5) - (PLACE_RANK[b.kind] ?? 5) || a.name.localeCompare(b.name));
     root.innerHTML = `<div class="wm-panel">
       <header><h2>${L ? 'Carte' : 'Map'}</h2><button class="wm-x" data-wm-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-      <p class="wm-hint">${L ? 'Clique sur une route pour choisir où aller. Molette : zoom, glisser : se déplacer.' : 'Click a road to choose where to go. Scroll to zoom, drag to move.'}</p>
+      <p class="wm-hint">${this.o.viewOnly ? (L ? 'Molette : zoom, glisser : se déplacer.' : 'Scroll to zoom, drag to move.') : L ? 'Clique sur une route pour choisir où aller. Molette : zoom, glisser : se déplacer.' : 'Click a road to choose where to go. Scroll to zoom, drag to move.'}</p>
       <div class="wm-dest"></div>
-      <h3>${L ? 'Lieux' : 'Places'}</h3>
-      <div class="wm-places">${places.map((p, i) => `<button data-wm-place="${i}"><b>${esc(p.name)}</b><span>${esc(kindLabel(p.kind, L))}</span></button>`).join('')}</div>
+      <h3${this.o.viewOnly ? ' style="display:none"' : ''}>${L ? 'Lieux' : 'Places'}</h3>
+      <div class="wm-places"${this.o.viewOnly ? ' style="display:none"' : ''}>${places.map((p, i) => `<button data-wm-place="${i}"><b>${esc(p.name)}</b><span>${esc(kindLabel(p.kind, L))}</span></button>`).join('')}</div>
     </div>
     <div class="wm-stage"><canvas></canvas><div class="wm-card" hidden></div>
       <div class="wm-tools"><button data-wm-zoom="1" aria-label="+">+</button><button data-wm-zoom="-1" aria-label="−">−</button><button data-wm-me>${L ? 'Moi' : 'Me'}</button><button data-wm-all>${L ? 'Tout' : 'All'}</button></div>
@@ -226,6 +228,10 @@ export class WorldMap {
     const el = this.root?.querySelector<HTMLElement>('.wm-dest');
     const d = this.state?.destination;
     if (!el) return;
+    if (this.o.viewOnly) {
+      el.innerHTML = '';
+      return;
+    }
     const L = this.o.fr;
     el.innerHTML = d ? `<span>${L ? 'Destination' : 'Destination'}</span><b>${esc(d.name)}</b><button data-wm-clear>${L ? 'Annuler le guidage' : 'Cancel guidance'}</button>` : `<span>${L ? 'Parcours libre : tout droit à chaque carrefour, ← / → pour tourner.' : 'Free ride: straight on at each junction, ← / → to turn.'}</span>`;
     el.querySelector('[data-wm-clear]')?.addEventListener('click', () => {
