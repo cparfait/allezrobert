@@ -785,5 +785,6 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 
 /* Aspiration, vent, altitude et tour : à droite, sous le groupe et les coureurs à proximité. */
 .hud-col-right > .hud-left { align-self: stretch; grid-template-columns: 1fr auto; flex: none; }
+.hud-col-right > .hud-left.panel { background: rgba(10, 14, 22, 0.38); }
 .hud-col-right > .hud-left .hud-note { max-width: none; }
 .hud.compact .hud-col-right > .hud-left { width: auto; }
