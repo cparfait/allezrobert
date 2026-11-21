@@ -48,7 +48,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1179464
+   "bytes": 1179436
   },
   {
    "id": "-8_-7",
@@ -62,21 +62,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1246728
+   "bytes": 1246781
   },
   {
    "id": "-8_-6",
    "tx": -8,
    "tz": -6,
-   "baseM": 108,
-   "minM": 109.01,
+   "baseM": 107,
+   "minM": 108.97,
    "maxM": 134.57,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 821405
+   "bytes": 821304
   },
   {
    "id": "-8_-5",
@@ -90,7 +90,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1098955
+   "bytes": 1098908
   },
   {
    "id": "-8_-4",
@@ -104,7 +104,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1614629
+   "bytes": 1614539
   },
   {
    "id": "-8_-3",
@@ -118,7 +118,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 900527
+   "bytes": 900524
   },
   {
    "id": "-8_-2",
@@ -132,7 +132,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1200312
+   "bytes": 1200260
   },
   {
    "id": "-8_-1",
@@ -146,7 +146,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 991132
+   "bytes": 991130
   },
   {
    "id": "-8_0",
@@ -160,7 +160,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1207731
+   "bytes": 1207682
   },
   {
    "id": "-8_1",
@@ -174,7 +174,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 786045
+   "bytes": 786072
   },
   {
    "id": "-8_2",
@@ -188,7 +188,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 884899
+   "bytes": 884846
   },
   {
    "id": "-8_3",
@@ -202,7 +202,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 960171
+   "bytes": 960161
   },
   {
    "id": "-8_4",
@@ -216,7 +216,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 885311
+   "bytes": 885262
   },
   {
    "id": "-8_5",
@@ -230,7 +230,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1120110
+   "bytes": 1120086
   },
   {
    "id": "-8_6",
@@ -244,7 +244,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 855388
+   "bytes": 855387
   },
   {
    "id": "-8_7",
@@ -258,7 +258,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 821981
+   "bytes": 821960
   },
   {
    "id": "-7_-8",
@@ -342,7 +342,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 993601
+   "bytes": 993602
   },
   {
    "id": "-7_-2",
@@ -384,7 +384,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1175557
+   "bytes": 1175556
   },
   {
    "id": "-7_1",
@@ -398,7 +398,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1184056
+   "bytes": 1184055
   },
   {
    "id": "-7_2",
@@ -608,7 +608,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1428361
+   "bytes": 1428360
   },
   {
    "id": "-6_1",
@@ -622,7 +622,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1094682
+   "bytes": 1094681
   },
   {
    "id": "-6_2",
@@ -636,7 +636,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1133425
+   "bytes": 1133433
   },
   {
    "id": "-6_3",
@@ -790,7 +790,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1142396
+   "bytes": 1142395
   },
   {
    "id": "-5_-2",
@@ -832,7 +832,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1467901
+   "bytes": 1467899
   },
   {
    "id": "-5_1",
@@ -846,7 +846,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1632867
+   "bytes": 1632865
   },
   {
    "id": "-5_2",
@@ -854,13 +854,13 @@
    "tz": 2,
    "baseM": 57,
    "minM": 58.37,
-   "maxM": 113.01,
+   "maxM": 114.77,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1052257
+   "bytes": 1052256
   },
   {
    "id": "-5_3",
@@ -874,7 +874,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 920924
+   "bytes": 920933
   },
   {
    "id": "-5_4",
@@ -1070,7 +1070,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1670759
+   "bytes": 1670757
   },
   {
    "id": "-4_2",
@@ -1098,7 +1098,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1234184
+   "bytes": 1234197
   },
   {
    "id": "-4_4",
@@ -1392,7 +1392,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1216271
+   "bytes": 1216270
   },
   {
    "id": "-2_-7",
@@ -1406,7 +1406,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 777652
+   "bytes": 777651
   },
   {
    "id": "-2_-6",
@@ -1434,7 +1434,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1265270
+   "bytes": 1265269
   },
   {
    "id": "-2_-4",
@@ -1644,7 +1644,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1234533
+   "bytes": 1234531
   },
   {
    "id": "-1_-5",
@@ -1826,7 +1826,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1032077
+   "bytes": 1032076
   },
   {
    "id": "0_-8",
@@ -1854,7 +1854,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1059726
+   "bytes": 1059725
   },
   {
    "id": "0_-6",
@@ -2022,7 +2022,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1712334
+   "bytes": 1712333
   },
   {
    "id": "0_6",
@@ -2688,7 +2688,7 @@
    "tz": 5,
    "baseM": 17,
    "minM": 18.32,
-   "maxM": 40.27,
+   "maxM": 40.35,
    "lods": [
     "lo",
     "hi",
@@ -2722,7 +2722,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1457726
+   "bytes": 1457728
   },
   {
    "id": "4_-8",
@@ -2890,7 +2890,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1365632
+   "bytes": 1365627
   },
   {
    "id": "4_4",
@@ -2946,7 +2946,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1533081
+   "bytes": 1533075
   },
   {
    "id": "5_-8",
@@ -3170,7 +3170,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2133656
+   "bytes": 2133636
   },
   {
    "id": "6_-8",
@@ -3254,7 +3254,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1133270
+   "bytes": 1133268
   },
   {
    "id": "6_-2",
@@ -3366,7 +3366,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1529286
+   "bytes": 1529288
   },
   {
    "id": "6_6",
@@ -3394,7 +3394,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1620714
+   "bytes": 1620718
   },
   {
    "id": "7_-8",
@@ -3627,7 +3627,7 @@
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Mantes-la-Jolie",
    "lengthM": 21035.81,
-   "elevationGainM": 187.26,
+   "elevationGainM": 178.18,
    "loop": true,
    "main": true
   },
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Mantes-la-Jolie",
    "lengthM": 31694,
-   "elevationGainM": 260.05,
+   "elevationGainM": 250.96,
    "loop": false,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Mantes-la-Jolie",
    "lengthM": 40768,
-   "elevationGainM": 327.51,
+   "elevationGainM": 320.09,
    "loop": false,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Mantes-la-Jolie",
    "lengthM": 52848,
-   "elevationGainM": 651.9,
+   "elevationGainM": 647.73,
    "loop": false,
    "main": false
   }

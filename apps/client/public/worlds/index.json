@@ -16,10 +16,10 @@
     }
    ],
    "pack": {
-    "version": "05f7ab08d6a4",
-    "bytes": 337284399,
+    "version": "81eeb9b3383c",
+    "bytes": 337284406,
     "files": 1090,
-    "gzBytes": 176162397
+    "gzBytes": 176163147
    },
    "l93": {
     "minE": 932000,
@@ -39,15 +39,15 @@
      "name": "La route des vins de Riquewihr à Kaysersberg",
      "nameEn": "The wine road from Riquewihr to Kaysersberg",
      "lengthM": 24832,
-     "elevationGainM": 404.82,
+     "elevationGainM": 399.84,
      "loop": false
     }
    ],
    "pack": {
-    "version": "5d979d828133",
-    "bytes": 156260692,
+    "version": "f1ce34a05869",
+    "bytes": 156259961,
     "files": 486,
-    "gzBytes": 72901105
+    "gzBytes": 72901205
    },
    "l93": {
     "minE": 1014000,
@@ -67,15 +67,15 @@
      "name": "Le tour du lac d'Annecy",
      "nameEn": "Lake Annecy loop",
      "lengthM": 43042,
-     "elevationGainM": 528.03,
+     "elevationGainM": 523.75,
      "loop": false
     }
    ],
    "pack": {
-    "version": "79e951303650",
-    "bytes": 327745145,
+    "version": "019dd9f8fcb7",
+    "bytes": 327744700,
     "files": 1082,
-    "gzBytes": 161666738
+    "gzBytes": 161667593
    },
    "l93": {
     "minE": 940000,
@@ -95,15 +95,15 @@
      "name": "La corniche basque par Ciboure, Urrugne et Ascain",
      "nameEn": "Basque corniche via Ciboure, Urrugne and Ascain",
      "lengthM": 31028.19,
-     "elevationGainM": 621.13,
+     "elevationGainM": 615.66,
      "loop": true
     }
    ],
    "pack": {
-    "version": "1673c068d547",
-    "bytes": 201603801,
+    "version": "d9d95bf6ee5b",
+    "bytes": 201603812,
     "files": 669,
-    "gzBytes": 81756671
+    "gzBytes": 81756540
    },
    "l93": {
     "minE": 314000,
@@ -131,7 +131,7 @@
      "name": "Billom – Pont-du-Château par Vertaizon",
      "nameEn": "Billom – Pont-du-Château via Vertaizon",
      "lengthM": 26284,
-     "elevationGainM": 302.74,
+     "elevationGainM": 300.53,
      "loop": false
     },
     {
@@ -192,10 +192,10 @@
     }
    ],
    "pack": {
-    "version": "5774250402fa",
-    "bytes": 260454137,
+    "version": "75d410f07919",
+    "bytes": 260454135,
     "files": 902,
-    "gzBytes": 115958925
+    "gzBytes": 115958895
    },
    "l93": {
     "minE": 714000,
@@ -323,7 +323,7 @@
      "name": "Les châteaux perchés de la Comté",
      "nameEn": "The hilltop castles of the Comté",
      "lengthM": 56602.38,
-     "elevationGainM": 1140.92,
+     "elevationGainM": 1126.8,
      "loop": true
     },
     {
@@ -339,15 +339,15 @@
      "name": "Comté d'Auvergne — gravel de Lignat à Corent",
      "nameEn": "Comté d'Auvergne — gravel from Lignat to Corent",
      "lengthM": 52781.37,
-     "elevationGainM": 1430.38,
+     "elevationGainM": 1421.6,
      "loop": true
     }
    ],
    "pack": {
-    "version": "12a4a49e7373",
-    "bytes": 275306164,
+    "version": "db8abb30c834",
+    "bytes": 275320204,
     "files": 962,
-    "gzBytes": 128823857
+    "gzBytes": 128827805
    },
    "l93": {
     "minE": 712000,
@@ -372,10 +372,10 @@
     }
    ],
    "pack": {
-    "version": "b3cc8dc959d6",
-    "bytes": 191150984,
+    "version": "f02d566b2193",
+    "bytes": 191150982,
     "files": 722,
-    "gzBytes": 84113877
+    "gzBytes": 84113763
    },
    "l93": {
     "minE": 842000,
@@ -395,15 +395,15 @@
      "name": "La corniche de l'Estérel par Agay et Valescure",
      "nameEn": "Estérel corniche via Agay and Valescure",
      "lengthM": 23639.47,
-     "elevationGainM": 290.23,
+     "elevationGainM": 289.01,
      "loop": true
     }
    ],
    "pack": {
-    "version": "5b8e774d7fdf",
-    "bytes": 209174908,
+    "version": "dba6ebf9d73c",
+    "bytes": 209174915,
     "files": 454,
-    "gzBytes": 72904738
+    "gzBytes": 72904790
    },
    "l93": {
     "minE": 1003000,
@@ -436,10 +436,10 @@
     }
    ],
    "pack": {
-    "version": "39bec73fefd9",
-    "bytes": 104990977,
+    "version": "f8805382e0de",
+    "bytes": 104989316,
     "files": 471,
-    "gzBytes": 41770813
+    "gzBytes": 41770598
    },
    "l93": {
     "minE": 495000,
@@ -458,16 +458,16 @@
      "id": "foret-de-fontainebleau",
      "name": "La forêt de Fontainebleau par Barbizon et Arbonne",
      "nameEn": "Fontainebleau forest via Barbizon and Arbonne",
-     "lengthM": 40502,
-     "elevationGainM": 252.46,
+     "lengthM": 40726,
+     "elevationGainM": 264.43,
      "loop": false
     },
     {
      "id": "vtt-fontainebleau",
      "name": "Fontainebleau — VTT dans la forêt",
      "nameEn": "Fontainebleau — MTB loop in the forest",
-     "lengthM": 28614.43,
-     "elevationGainM": 429.57,
+     "lengthM": 28614.71,
+     "elevationGainM": 429.54,
      "loop": true
     },
     {
@@ -480,10 +480,10 @@
     }
    ],
    "pack": {
-    "version": "6bbe710169fb",
-    "bytes": 279862513,
+    "version": "914b28e6f32d",
+    "bytes": 279791493,
     "files": 886,
-    "gzBytes": 123692258
+    "gzBytes": 123683205
    },
    "l93": {
     "minE": 666000,
@@ -532,10 +532,10 @@
     }
    ],
    "pack": {
-    "version": "4b5b579ddf4a",
-    "bytes": 177333824,
+    "version": "1513c30b52f0",
+    "bytes": 177332816,
     "files": 1026,
-    "gzBytes": 65399657
+    "gzBytes": 65400060
    },
    "l93": {
     "minE": 608000,
@@ -607,7 +607,7 @@
      "name": "Boucle de 20 km depuis Aubergenville",
      "nameEn": "20 km loop from Aubergenville",
      "lengthM": 19926.11,
-     "elevationGainM": 206.81,
+     "elevationGainM": 199.13,
      "loop": true
     },
     {
@@ -615,7 +615,7 @@
      "name": "Boucle de 30 km depuis Aubergenville",
      "nameEn": "30 km loop from Aubergenville",
      "lengthM": 29711.52,
-     "elevationGainM": 307.8,
+     "elevationGainM": 306.61,
      "loop": true
     },
     {
@@ -623,7 +623,7 @@
      "name": "Boucle de 40 km depuis Aubergenville",
      "nameEn": "40 km loop from Aubergenville",
      "lengthM": 38797.78,
-     "elevationGainM": 441.94,
+     "elevationGainM": 440.75,
      "loop": true
     },
     {
@@ -636,10 +636,10 @@
     }
    ],
    "pack": {
-    "version": "a7efa0b061ff",
-    "bytes": 264616794,
+    "version": "3f30f339529a",
+    "bytes": 264614433,
     "files": 1026,
-    "gzBytes": 112893552
+    "gzBytes": 112891577
    },
    "l93": {
     "minE": 608000,
@@ -667,7 +667,7 @@
      "name": "Boucle de 30 km depuis Ballancourt-sur-Essonne",
      "nameEn": "30 km loop from Ballancourt-sur-Essonne",
      "lengthM": 31172,
-     "elevationGainM": 269.17,
+     "elevationGainM": 267.6,
      "loop": false
     },
     {
@@ -675,7 +675,7 @@
      "name": "Boucle de 40 km depuis Ballancourt-sur-Essonne",
      "nameEn": "40 km loop from Ballancourt-sur-Essonne",
      "lengthM": 39424,
-     "elevationGainM": 313.55,
+     "elevationGainM": 312.02,
      "loop": false
     },
     {
@@ -683,15 +683,15 @@
      "name": "Boucle de 50 km depuis Ballancourt-sur-Essonne",
      "nameEn": "50 km loop from Ballancourt-sur-Essonne",
      "lengthM": 49154,
-     "elevationGainM": 449.39,
+     "elevationGainM": 449.61,
      "loop": false
     }
    ],
    "pack": {
-    "version": "79d11a7619e3",
-    "bytes": 276382627,
+    "version": "df70a7d54c8c",
+    "bytes": 276382605,
     "files": 1026,
-    "gzBytes": 116581179
+    "gzBytes": 116581607
    },
    "l93": {
     "minE": 640000,
@@ -792,10 +792,10 @@
     }
    ],
    "pack": {
-    "version": "fb4b2c9b3e4f",
-    "bytes": 188640918,
+    "version": "cc812f70d876",
+    "bytes": 188640844,
     "files": 1026,
-    "gzBytes": 73715914
+    "gzBytes": 73716390
    },
    "l93": {
     "minE": 656000,
@@ -815,7 +815,7 @@
      "name": "Boucle de 20 km depuis Blaru",
      "nameEn": "20 km loop from Blaru",
      "lengthM": 19196.16,
-     "elevationGainM": 186.09,
+     "elevationGainM": 185.63,
      "loop": true
     },
     {
@@ -831,7 +831,7 @@
      "name": "Boucle de 40 km depuis Blaru",
      "nameEn": "40 km loop from Blaru",
      "lengthM": 39268,
-     "elevationGainM": 408.96,
+     "elevationGainM": 403.78,
      "loop": false
     },
     {
@@ -844,10 +844,10 @@
     }
    ],
    "pack": {
-    "version": "c2ec90abdc6d",
-    "bytes": 269462178,
+    "version": "72d29ac5e3b6",
+    "bytes": 269465463,
     "files": 1026,
-    "gzBytes": 116665190
+    "gzBytes": 116363540
    },
    "l93": {
     "minE": 576000,
@@ -867,7 +867,7 @@
      "name": "Boucle de 20 km depuis Boulogne-Billancourt",
      "nameEn": "20 km loop from Boulogne-Billancourt",
      "lengthM": 18924,
-     "elevationGainM": 240.52,
+     "elevationGainM": 223.16,
      "loop": false
     },
     {
@@ -875,7 +875,7 @@
      "name": "Boucle de 30 km depuis Boulogne-Billancourt",
      "nameEn": "30 km loop from Boulogne-Billancourt",
      "lengthM": 28746,
-     "elevationGainM": 380.37,
+     "elevationGainM": 368.15,
      "loop": false
     },
     {
@@ -883,7 +883,7 @@
      "name": "Boucle de 40 km depuis Boulogne-Billancourt",
      "nameEn": "40 km loop from Boulogne-Billancourt",
      "lengthM": 39836,
-     "elevationGainM": 453.87,
+     "elevationGainM": 446.8,
      "loop": false
     },
     {
@@ -891,15 +891,15 @@
      "name": "Boucle de 50 km depuis Boulogne-Billancourt",
      "nameEn": "50 km loop from Boulogne-Billancourt",
      "lengthM": 50362,
-     "elevationGainM": 634.56,
+     "elevationGainM": 621.62,
      "loop": false
     }
    ],
    "pack": {
-    "version": "0f0f9a664c72",
-    "bytes": 439870631,
+    "version": "0fafa92bd647",
+    "bytes": 439870981,
     "files": 1026,
-    "gzBytes": 175372769
+    "gzBytes": 175371285
    },
    "l93": {
     "minE": 640000,
@@ -948,10 +948,10 @@
     }
    ],
    "pack": {
-    "version": "6d3b8eeb906a",
-    "bytes": 262480389,
+    "version": "85418066c05c",
+    "bytes": 262479917,
     "files": 1026,
-    "gzBytes": 114904299
+    "gzBytes": 114904145
    },
    "l93": {
     "minE": 624000,
@@ -971,7 +971,7 @@
      "name": "Boucle de 20 km depuis Bussy-Saint-Georges",
      "nameEn": "20 km loop from Bussy-Saint-Georges",
      "lengthM": 20336,
-     "elevationGainM": 97.11,
+     "elevationGainM": 94.32,
      "loop": false
     },
     {
@@ -979,7 +979,7 @@
      "name": "Boucle de 30 km depuis Bussy-Saint-Georges",
      "nameEn": "30 km loop from Bussy-Saint-Georges",
      "lengthM": 31434,
-     "elevationGainM": 136.1,
+     "elevationGainM": 133.3,
      "loop": false
     },
     {
@@ -995,15 +995,15 @@
      "name": "Boucle de 50 km depuis Bussy-Saint-Georges",
      "nameEn": "50 km loop from Bussy-Saint-Georges",
      "lengthM": 48170,
-     "elevationGainM": 203.71,
+     "elevationGainM": 195.88,
      "loop": false
     }
    ],
    "pack": {
-    "version": "dcfb1c28ebef",
-    "bytes": 286311133,
+    "version": "4fd77e48984f",
+    "bytes": 286310881,
     "files": 1026,
-    "gzBytes": 121252343
+    "gzBytes": 121254216
    },
    "l93": {
     "minE": 672000,
@@ -1023,7 +1023,7 @@
      "name": "Boucle de 20 km depuis Cergy",
      "nameEn": "20 km loop from Cergy",
      "lengthM": 20068,
-     "elevationGainM": 229.32,
+     "elevationGainM": 217.58,
      "loop": false
     },
     {
@@ -1031,7 +1031,7 @@
      "name": "Boucle de 30 km depuis Cergy",
      "nameEn": "30 km loop from Cergy",
      "lengthM": 29178,
-     "elevationGainM": 419.91,
+     "elevationGainM": 411.39,
      "loop": false
     },
     {
@@ -1052,10 +1052,10 @@
     }
    ],
    "pack": {
-    "version": "1e892376a260",
-    "bytes": 330437215,
+    "version": "d7be1db5bdf9",
+    "bytes": 330437388,
     "files": 1026,
-    "gzBytes": 136496804
+    "gzBytes": 136497734
    },
    "l93": {
     "minE": 624000,
@@ -1127,7 +1127,7 @@
      "name": "Boucle de 20 km depuis Créteil",
      "nameEn": "20 km loop from Créteil",
      "lengthM": 20082,
-     "elevationGainM": 142.07,
+     "elevationGainM": 135.15,
      "loop": false
     },
     {
@@ -1135,7 +1135,7 @@
      "name": "Boucle de 30 km depuis Créteil",
      "nameEn": "30 km loop from Créteil",
      "lengthM": 30290,
-     "elevationGainM": 265.3,
+     "elevationGainM": 265.2,
      "loop": false
     },
     {
@@ -1143,7 +1143,7 @@
      "name": "Boucle de 40 km depuis Créteil",
      "nameEn": "40 km loop from Créteil",
      "lengthM": 37858,
-     "elevationGainM": 370.13,
+     "elevationGainM": 365.42,
      "loop": false
     },
     {
@@ -1151,15 +1151,15 @@
      "name": "Boucle de 50 km depuis Créteil",
      "nameEn": "50 km loop from Créteil",
      "lengthM": 50630,
-     "elevationGainM": 396.79,
+     "elevationGainM": 378.92,
      "loop": false
     }
    ],
    "pack": {
-    "version": "d409cd3e445a",
-    "bytes": 441158823,
+    "version": "18c05ff513ca",
+    "bytes": 441134337,
     "files": 1026,
-    "gzBytes": 171196421
+    "gzBytes": 171191514
    },
    "l93": {
     "minE": 656000,
@@ -1247,7 +1247,7 @@
      "name": "Boucle de 40 km depuis Dammarie-les-Lys",
      "nameEn": "40 km loop from Dammarie-les-Lys",
      "lengthM": 39980,
-     "elevationGainM": 208.95,
+     "elevationGainM": 208.49,
      "loop": false
     },
     {
@@ -1260,10 +1260,10 @@
     }
    ],
    "pack": {
-    "version": "c7b7396f42c4",
-    "bytes": 268012039,
+    "version": "4faa95030651",
+    "bytes": 268011888,
     "files": 1026,
-    "gzBytes": 112137293
+    "gzBytes": 111890079
    },
    "l93": {
     "minE": 656000,
@@ -1291,7 +1291,7 @@
      "name": "Boucle de 30 km depuis Dammartin-en-Goële",
      "nameEn": "30 km loop from Dammartin-en-Goële",
      "lengthM": 29889.95,
-     "elevationGainM": 281.39,
+     "elevationGainM": 280.7,
      "loop": true
     },
     {
@@ -1299,7 +1299,7 @@
      "name": "Boucle de 40 km depuis Dammartin-en-Goële",
      "nameEn": "40 km loop from Dammartin-en-Goële",
      "lengthM": 40993.65,
-     "elevationGainM": 405.32,
+     "elevationGainM": 398.47,
      "loop": true
     },
     {
@@ -1307,15 +1307,15 @@
      "name": "Boucle de 50 km depuis Dammartin-en-Goële",
      "nameEn": "50 km loop from Dammartin-en-Goële",
      "lengthM": 48736,
-     "elevationGainM": 408.76,
+     "elevationGainM": 404.39,
      "loop": false
     }
    ],
    "pack": {
-    "version": "9b76aede3c0b",
-    "bytes": 221751926,
+    "version": "b152a4e2277b",
+    "bytes": 221750335,
     "files": 1026,
-    "gzBytes": 91064715
+    "gzBytes": 91065657
    },
    "l93": {
     "minE": 672000,
@@ -1364,10 +1364,10 @@
     }
    ],
    "pack": {
-    "version": "24762cfecebc",
-    "bytes": 187053087,
+    "version": "c2ffa172c32a",
+    "bytes": 187052782,
     "files": 1026,
-    "gzBytes": 76972686
+    "gzBytes": 76973188
    },
    "l93": {
     "minE": 704000,
@@ -1416,10 +1416,10 @@
     }
    ],
    "pack": {
-    "version": "e3fd14d2b42e",
-    "bytes": 196451724,
+    "version": "fdc787c4a964",
+    "bytes": 196451583,
     "files": 1026,
-    "gzBytes": 74619602
+    "gzBytes": 74619644
    },
    "l93": {
     "minE": 688000,
@@ -1468,10 +1468,10 @@
     }
    ],
    "pack": {
-    "version": "736ce1f092d6",
-    "bytes": 208346815,
+    "version": "5555a06c60d0",
+    "bytes": 208347019,
     "files": 1026,
-    "gzBytes": 85690892
+    "gzBytes": 85693932
    },
    "l93": {
     "minE": 624000,
@@ -1572,10 +1572,10 @@
     }
    ],
    "pack": {
-    "version": "11a91c7e1b36",
-    "bytes": 193618910,
+    "version": "ef07e0f03a5e",
+    "bytes": 193614500,
     "files": 1026,
-    "gzBytes": 77948902
+    "gzBytes": 77949658
    },
    "l93": {
     "minE": 688000,
@@ -1595,7 +1595,7 @@
      "name": "Boucle de 20 km depuis Goussainville",
      "nameEn": "20 km loop from Goussainville",
      "lengthM": 19452,
-     "elevationGainM": 216.34,
+     "elevationGainM": 212.14,
      "loop": false
     },
     {
@@ -1603,7 +1603,7 @@
      "name": "Boucle de 30 km depuis Goussainville",
      "nameEn": "30 km loop from Goussainville",
      "lengthM": 29890,
-     "elevationGainM": 259.1,
+     "elevationGainM": 251.07,
      "loop": false
     },
     {
@@ -1611,7 +1611,7 @@
      "name": "Boucle de 40 km depuis Goussainville",
      "nameEn": "40 km loop from Goussainville",
      "lengthM": 41634,
-     "elevationGainM": 326.82,
+     "elevationGainM": 323.57,
      "loop": false
     },
     {
@@ -1619,15 +1619,15 @@
      "name": "Boucle de 50 km depuis Goussainville",
      "nameEn": "50 km loop from Goussainville",
      "lengthM": 50308,
-     "elevationGainM": 507.83,
+     "elevationGainM": 500.1,
      "loop": false
     }
    ],
    "pack": {
-    "version": "a3851882be55",
-    "bytes": 266478756,
+    "version": "23a7edce3dcf",
+    "bytes": 266478378,
     "files": 1026,
-    "gzBytes": 111235984
+    "gzBytes": 111235372
    },
    "l93": {
     "minE": 656000,
@@ -1655,7 +1655,7 @@
      "name": "Boucle de 30 km depuis Hermeray",
      "nameEn": "30 km loop from Hermeray",
      "lengthM": 30152,
-     "elevationGainM": 228.17,
+     "elevationGainM": 226.29,
      "loop": false
     },
     {
@@ -1663,7 +1663,7 @@
      "name": "Boucle de 40 km depuis Hermeray",
      "nameEn": "40 km loop from Hermeray",
      "lengthM": 38244,
-     "elevationGainM": 323.25,
+     "elevationGainM": 320.88,
      "loop": false
     },
     {
@@ -1671,15 +1671,15 @@
      "name": "Boucle de 50 km depuis Hermeray",
      "nameEn": "50 km loop from Hermeray",
      "lengthM": 49614,
-     "elevationGainM": 401.1,
+     "elevationGainM": 397.33,
      "loop": false
     }
    ],
    "pack": {
-    "version": "41ddfe7563c0",
-    "bytes": 239938737,
+    "version": "c85836256e3e",
+    "bytes": 239938570,
     "files": 1026,
-    "gzBytes": 104499801
+    "gzBytes": 104499754
    },
    "l93": {
     "minE": 592000,
@@ -1728,10 +1728,10 @@
     }
    ],
    "pack": {
-    "version": "158e51bac1c4",
-    "bytes": 249713602,
+    "version": "a98b657ff7b8",
+    "bytes": 249713521,
     "files": 1026,
-    "gzBytes": 108224231
+    "gzBytes": 108224184
    },
    "l93": {
     "minE": 592000,
@@ -1780,10 +1780,10 @@
     }
    ],
    "pack": {
-    "version": "85720f1d3a10",
-    "bytes": 176394742,
+    "version": "1ec27d5a0c8a",
+    "bytes": 176394884,
     "files": 1026,
-    "gzBytes": 67451051
+    "gzBytes": 67452459
    },
    "l93": {
     "minE": 704000,
@@ -1832,10 +1832,10 @@
     }
    ],
    "pack": {
-    "version": "954a845d16a1",
-    "bytes": 194256007,
+    "version": "eefae62c0810",
+    "bytes": 194255858,
     "files": 1026,
-    "gzBytes": 82662544
+    "gzBytes": 82662540
    },
    "l93": {
     "minE": 720000,
@@ -1884,10 +1884,10 @@
     }
    ],
    "pack": {
-    "version": "a94b35edd5e0",
-    "bytes": 191983321,
+    "version": "a8f69b72dc06",
+    "bytes": 191982792,
     "files": 1026,
-    "gzBytes": 81189278
+    "gzBytes": 81190863
    },
    "l93": {
     "minE": 704000,
@@ -1936,10 +1936,10 @@
     }
    ],
    "pack": {
-    "version": "2802681b32c7",
-    "bytes": 258868522,
+    "version": "1215d21cdcb4",
+    "bytes": 258868050,
     "files": 1026,
-    "gzBytes": 113156349
+    "gzBytes": 113156240
    },
    "l93": {
     "minE": 608000,
@@ -2035,15 +2035,15 @@
      "name": "Boucle de 50 km depuis Magny-en-Vexin",
      "nameEn": "50 km loop from Magny-en-Vexin",
      "lengthM": 46063.06,
-     "elevationGainM": 503.92,
+     "elevationGainM": 501.71,
      "loop": true
     }
    ],
    "pack": {
-    "version": "e1527f0d555c",
-    "bytes": 226231449,
+    "version": "3ca95735069a",
+    "bytes": 226230603,
     "files": 1026,
-    "gzBytes": 100676016
+    "gzBytes": 100675409
    },
    "l93": {
     "minE": 608000,
@@ -2092,10 +2092,10 @@
     }
    ],
    "pack": {
-    "version": "98ea476f981c",
-    "bytes": 206949054,
+    "version": "9cba4df5ec06",
+    "bytes": 206948307,
     "files": 1026,
-    "gzBytes": 84464224
+    "gzBytes": 84464898
    },
    "l93": {
     "minE": 640000,
@@ -2115,7 +2115,7 @@
      "name": "Boucle de 20 km depuis Mantes-la-Jolie",
      "nameEn": "20 km loop from Mantes-la-Jolie",
      "lengthM": 21035.81,
-     "elevationGainM": 187.26,
+     "elevationGainM": 178.18,
      "loop": true
     },
     {
@@ -2123,7 +2123,7 @@
      "name": "Boucle de 30 km depuis Mantes-la-Jolie",
      "nameEn": "30 km loop from Mantes-la-Jolie",
      "lengthM": 31694,
-     "elevationGainM": 260.05,
+     "elevationGainM": 250.96,
      "loop": false
     },
     {
@@ -2131,7 +2131,7 @@
      "name": "Boucle de 40 km depuis Mantes-la-Jolie",
      "nameEn": "40 km loop from Mantes-la-Jolie",
      "lengthM": 40768,
-     "elevationGainM": 327.51,
+     "elevationGainM": 320.09,
      "loop": false
     },
     {
@@ -2139,15 +2139,15 @@
      "name": "Boucle de 50 km depuis Mantes-la-Jolie",
      "nameEn": "50 km loop from Mantes-la-Jolie",
      "lengthM": 52848,
-     "elevationGainM": 651.9,
+     "elevationGainM": 647.73,
      "loop": false
     }
    ],
    "pack": {
-    "version": "d8879e543ac3",
-    "bytes": 294806973,
+    "version": "d7bc375482a9",
+    "bytes": 294806509,
     "files": 1026,
-    "gzBytes": 126996313
+    "gzBytes": 126994560
    },
    "l93": {
     "minE": 592000,
@@ -2183,7 +2183,7 @@
      "name": "Boucle de 40 km depuis Mantes-la-Ville",
      "nameEn": "40 km loop from Mantes-la-Ville",
      "lengthM": 39942,
-     "elevationGainM": 451.82,
+     "elevationGainM": 452.1,
      "loop": false
     },
     {
@@ -2196,10 +2196,10 @@
     }
    ],
    "pack": {
-    "version": "f886f15e65f2",
-    "bytes": 231735094,
+    "version": "c65037bdb436",
+    "bytes": 231735359,
     "files": 1026,
-    "gzBytes": 98473849
+    "gzBytes": 98474842
    },
    "l93": {
     "minE": 592000,
@@ -2219,7 +2219,7 @@
      "name": "Boucle de 20 km depuis Marines",
      "nameEn": "20 km loop from Marines",
      "lengthM": 21894,
-     "elevationGainM": 337.19,
+     "elevationGainM": 336.74,
      "loop": false
     },
     {
@@ -2248,10 +2248,10 @@
     }
    ],
    "pack": {
-    "version": "cb563c98445b",
-    "bytes": 237416432,
+    "version": "5a76ebab5814",
+    "bytes": 237416311,
     "files": 1026,
-    "gzBytes": 106650039
+    "gzBytes": 106648725
    },
    "l93": {
     "minE": 624000,
@@ -2300,10 +2300,10 @@
     }
    ],
    "pack": {
-    "version": "7b8ecdfed8dd",
-    "bytes": 205284899,
+    "version": "d1d5f3ad692a",
+    "bytes": 205277747,
     "files": 1026,
-    "gzBytes": 87393767
+    "gzBytes": 87392766
    },
    "l93": {
     "minE": 688000,
@@ -2347,15 +2347,15 @@
      "name": "Boucle de 50 km depuis Melun",
      "nameEn": "50 km loop from Melun",
      "lengthM": 50466.95,
-     "elevationGainM": 369.48,
+     "elevationGainM": 369.08,
      "loop": true
     }
    ],
    "pack": {
-    "version": "d2acd462fa78",
-    "bytes": 302974686,
+    "version": "e69196784dc7",
+    "bytes": 302933011,
     "files": 1026,
-    "gzBytes": 129310244
+    "gzBytes": 129275462
    },
    "l93": {
     "minE": 672000,
@@ -2404,10 +2404,10 @@
     }
    ],
    "pack": {
-    "version": "c61f8947a016",
-    "bytes": 254104861,
-    "files": 1024,
-    "gzBytes": 105802938
+    "version": "7fa31280bf2c",
+    "bytes": 258663320,
+    "files": 1026,
+    "gzBytes": 110066762
    },
    "l93": {
     "minE": 656000,
@@ -2456,10 +2456,10 @@
     }
    ],
    "pack": {
-    "version": "f3db1657c9dd",
-    "bytes": 191422085,
+    "version": "312e8b82683d",
+    "bytes": 191421982,
     "files": 1026,
-    "gzBytes": 79764341
+    "gzBytes": 79764788
    },
    "l93": {
     "minE": 688000,
@@ -2479,7 +2479,7 @@
      "name": "Boucle de 20 km depuis Montreuil",
      "nameEn": "20 km loop from Montreuil",
      "lengthM": 20072,
-     "elevationGainM": 190.94,
+     "elevationGainM": 188.25,
      "loop": false
     },
     {
@@ -2487,7 +2487,7 @@
      "name": "Boucle de 30 km depuis Montreuil",
      "nameEn": "30 km loop from Montreuil",
      "lengthM": 29364,
-     "elevationGainM": 310.88,
+     "elevationGainM": 307.45,
      "loop": false
     },
     {
@@ -2495,7 +2495,7 @@
      "name": "Boucle de 40 km depuis Montreuil",
      "nameEn": "40 km loop from Montreuil",
      "lengthM": 40856,
-     "elevationGainM": 331.4,
+     "elevationGainM": 321.34,
      "loop": false
     },
     {
@@ -2503,15 +2503,15 @@
      "name": "Boucle de 50 km depuis Montreuil",
      "nameEn": "50 km loop from Montreuil",
      "lengthM": 49066,
-     "elevationGainM": 427.25,
+     "elevationGainM": 411.48,
      "loop": false
     }
    ],
    "pack": {
-    "version": "89a2d177cf3b",
-    "bytes": 464865290,
+    "version": "3b597de6d9d8",
+    "bytes": 464856490,
     "files": 1026,
-    "gzBytes": 176715989
+    "gzBytes": 176716183
    },
    "l93": {
     "minE": 656000,
@@ -2607,15 +2607,15 @@
      "name": "Boucle de 50 km depuis Nemours",
      "nameEn": "50 km loop from Nemours",
      "lengthM": 51038,
-     "elevationGainM": 401.89,
+     "elevationGainM": 399.59,
      "loop": false
     }
    ],
    "pack": {
-    "version": "ec5d9b378ca1",
-    "bytes": 243754099,
+    "version": "1c3ddf53f231",
+    "bytes": 243754096,
     "files": 1026,
-    "gzBytes": 101885543
+    "gzBytes": 101883250
    },
    "l93": {
     "minE": 672000,
@@ -2635,7 +2635,7 @@
      "name": "Boucle de 20 km depuis Paris",
      "nameEn": "20 km loop from Paris",
      "lengthM": 18828.84,
-     "elevationGainM": 115.82,
+     "elevationGainM": 112.04,
      "loop": true
     },
     {
@@ -2643,7 +2643,7 @@
      "name": "Boucle de 30 km depuis Paris",
      "nameEn": "30 km loop from Paris",
      "lengthM": 29860.64,
-     "elevationGainM": 209.99,
+     "elevationGainM": 196.86,
      "loop": true
     },
     {
@@ -2651,7 +2651,7 @@
      "name": "Boucle de 40 km depuis Paris",
      "nameEn": "40 km loop from Paris",
      "lengthM": 38533.85,
-     "elevationGainM": 318.53,
+     "elevationGainM": 308.4,
      "loop": true
     },
     {
@@ -2659,15 +2659,15 @@
      "name": "Boucle de 50 km depuis Paris",
      "nameEn": "50 km loop from Paris",
      "lengthM": 51155.56,
-     "elevationGainM": 361.57,
+     "elevationGainM": 343.87,
      "loop": true
     }
    ],
    "pack": {
-    "version": "de970b1f0331",
-    "bytes": 491832164,
+    "version": "ec6bfee918d9",
+    "bytes": 491830052,
     "files": 1026,
-    "gzBytes": 189445421
+    "gzBytes": 189449981
    },
    "l93": {
     "minE": 640000,
@@ -2695,7 +2695,7 @@
      "name": "Boucle de 30 km depuis Persan",
      "nameEn": "30 km loop from Persan",
      "lengthM": 31458,
-     "elevationGainM": 238.78,
+     "elevationGainM": 232.74,
      "loop": false
     },
     {
@@ -2716,10 +2716,10 @@
     }
    ],
    "pack": {
-    "version": "3e5fe250eca1",
-    "bytes": 267949278,
+    "version": "dde9c4012330",
+    "bytes": 267949256,
     "files": 1026,
-    "gzBytes": 117115951
+    "gzBytes": 117116039
    },
    "l93": {
     "minE": 640000,
@@ -2768,10 +2768,10 @@
     }
    ],
    "pack": {
-    "version": "ed1fd623a6c8",
-    "bytes": 292366639,
+    "version": "d68379ba736b",
+    "bytes": 292366051,
     "files": 1026,
-    "gzBytes": 125279440
+    "gzBytes": 125278685
    },
    "l93": {
     "minE": 608000,
@@ -2872,10 +2872,10 @@
     }
    ],
    "pack": {
-    "version": "e1bc37c61cca",
-    "bytes": 254613511,
+    "version": "350a9fd6399a",
+    "bytes": 254613294,
     "files": 1026,
-    "gzBytes": 109318767
+    "gzBytes": 109318623
    },
    "l93": {
     "minE": 608000,
@@ -2895,7 +2895,7 @@
      "name": "Boucle de 20 km depuis Rueil-Malmaison",
      "nameEn": "20 km loop from Rueil-Malmaison",
      "lengthM": 19804,
-     "elevationGainM": 138.18,
+     "elevationGainM": 127.54,
      "loop": false
     },
     {
@@ -2903,7 +2903,7 @@
      "name": "Boucle de 30 km depuis Rueil-Malmaison",
      "nameEn": "30 km loop from Rueil-Malmaison",
      "lengthM": 32112,
-     "elevationGainM": 432.86,
+     "elevationGainM": 426.55,
      "loop": false
     },
     {
@@ -2911,7 +2911,7 @@
      "name": "Boucle de 40 km depuis Rueil-Malmaison",
      "nameEn": "40 km loop from Rueil-Malmaison",
      "lengthM": 41445.11,
-     "elevationGainM": 654.96,
+     "elevationGainM": 640.42,
      "loop": true
     },
     {
@@ -2919,15 +2919,15 @@
      "name": "Boucle de 50 km depuis Rueil-Malmaison",
      "nameEn": "50 km loop from Rueil-Malmaison",
      "lengthM": 50018.28,
-     "elevationGainM": 736.92,
+     "elevationGainM": 731.7,
      "loop": true
     }
    ],
    "pack": {
-    "version": "548798b347c5",
-    "bytes": 379725419,
+    "version": "c133f3d6f3ee",
+    "bytes": 379724530,
     "files": 1026,
-    "gzBytes": 159516036
+    "gzBytes": 159515968
    },
    "l93": {
     "minE": 624000,
@@ -3051,7 +3051,7 @@
      "name": "Boucle de 20 km depuis Sarcelles",
      "nameEn": "20 km loop from Sarcelles",
      "lengthM": 21156,
-     "elevationGainM": 242.57,
+     "elevationGainM": 236.18,
      "loop": false
     },
     {
@@ -3075,15 +3075,15 @@
      "name": "Boucle de 50 km depuis Sarcelles",
      "nameEn": "50 km loop from Sarcelles",
      "lengthM": 50718,
-     "elevationGainM": 649.67,
+     "elevationGainM": 645.7,
      "loop": false
     }
    ],
    "pack": {
-    "version": "9168568cc58a",
-    "bytes": 354842262,
+    "version": "6707a3bee1dd",
+    "bytes": 354842032,
     "files": 1026,
-    "gzBytes": 145293487
+    "gzBytes": 145293328
    },
    "l93": {
     "minE": 640000,
@@ -3103,7 +3103,7 @@
      "name": "Boucle de 20 km depuis Savigny-sur-Orge",
      "nameEn": "20 km loop from Savigny-sur-Orge",
      "lengthM": 20698,
-     "elevationGainM": 165.64,
+     "elevationGainM": 162.52,
      "loop": false
     },
     {
@@ -3111,7 +3111,7 @@
      "name": "Boucle de 30 km depuis Savigny-sur-Orge",
      "nameEn": "30 km loop from Savigny-sur-Orge",
      "lengthM": 31602,
-     "elevationGainM": 222.45,
+     "elevationGainM": 218.28,
      "loop": false
     },
     {
@@ -3119,7 +3119,7 @@
      "name": "Boucle de 40 km depuis Savigny-sur-Orge",
      "nameEn": "40 km loop from Savigny-sur-Orge",
      "lengthM": 38902,
-     "elevationGainM": 443.42,
+     "elevationGainM": 432.35,
      "loop": false
     },
     {
@@ -3127,15 +3127,15 @@
      "name": "Boucle de 50 km depuis Savigny-sur-Orge",
      "nameEn": "50 km loop from Savigny-sur-Orge",
      "lengthM": 51494,
-     "elevationGainM": 425.99,
+     "elevationGainM": 413.68,
      "loop": false
     }
    ],
    "pack": {
-    "version": "c9d0fd9cc4f5",
-    "bytes": 361255691,
+    "version": "84d463dbe3bc",
+    "bytes": 361256332,
     "files": 1026,
-    "gzBytes": 146668060
+    "gzBytes": 146667440
    },
    "l93": {
     "minE": 640000,
@@ -3171,7 +3171,7 @@
      "name": "Boucle de 40 km depuis Sourdun",
      "nameEn": "40 km loop from Sourdun",
      "lengthM": 37473.34,
-     "elevationGainM": 326.25,
+     "elevationGainM": 326.44,
      "loop": true
     },
     {
@@ -3179,15 +3179,15 @@
      "name": "Boucle de 50 km depuis Sourdun",
      "nameEn": "50 km loop from Sourdun",
      "lengthM": 50150.07,
-     "elevationGainM": 491.09,
+     "elevationGainM": 491.28,
      "loop": true
     }
    ],
    "pack": {
-    "version": "4b1cfd06554b",
-    "bytes": 214715973,
+    "version": "2b14774d5e48",
+    "bytes": 214715978,
     "files": 1026,
-    "gzBytes": 88096611
+    "gzBytes": 88101318
    },
    "l93": {
     "minE": 720000,
@@ -3207,7 +3207,7 @@
      "name": "Boucle de 20 km depuis Versailles",
      "nameEn": "20 km loop from Versailles",
      "lengthM": 18862.51,
-     "elevationGainM": 263.63,
+     "elevationGainM": 257.86,
      "loop": true
     },
     {
@@ -3215,7 +3215,7 @@
      "name": "Boucle de 30 km depuis Versailles",
      "nameEn": "30 km loop from Versailles",
      "lengthM": 30085.52,
-     "elevationGainM": 281.59,
+     "elevationGainM": 280.59,
      "loop": true
     },
     {
@@ -3223,7 +3223,7 @@
      "name": "Boucle de 40 km depuis Versailles",
      "nameEn": "40 km loop from Versailles",
      "lengthM": 39599.86,
-     "elevationGainM": 400.56,
+     "elevationGainM": 396.4,
      "loop": true
     },
     {
@@ -3231,15 +3231,15 @@
      "name": "Boucle de 50 km depuis Versailles",
      "nameEn": "50 km loop from Versailles",
      "lengthM": 50701.1,
-     "elevationGainM": 433.19,
+     "elevationGainM": 424.43,
      "loop": true
     }
    ],
    "pack": {
-    "version": "737b6f24fa30",
-    "bytes": 345507882,
+    "version": "f3842ef60a0d",
+    "bytes": 345506736,
     "files": 1026,
-    "gzBytes": 146449119
+    "gzBytes": 146448460
    },
    "l93": {
     "minE": 624000,
@@ -3407,7 +3407,7 @@
   },
   {
    "id": "idf-villeparisis",
-   "name": "Île-de-France — Villeparisis",
+   "name": "Villeparisis",
    "region": "Seine-et-Marne · Île-de-France",
    "routes": [
     {
@@ -3423,7 +3423,7 @@
      "name": "Boucle de 30 km depuis Villeparisis",
      "nameEn": "30 km loop from Villeparisis",
      "lengthM": 31876,
-     "elevationGainM": 311.79,
+     "elevationGainM": 310.26,
      "loop": false
     },
     {
@@ -3431,7 +3431,7 @@
      "name": "Boucle de 40 km depuis Villeparisis",
      "nameEn": "40 km loop from Villeparisis",
      "lengthM": 40122,
-     "elevationGainM": 409.8,
+     "elevationGainM": 410.37,
      "loop": false
     },
     {
@@ -3439,15 +3439,15 @@
      "name": "Boucle de 50 km depuis Villeparisis",
      "nameEn": "50 km loop from Villeparisis",
      "lengthM": 51465.52,
-     "elevationGainM": 502.2,
+     "elevationGainM": 499.9,
      "loop": true
     }
    ],
    "pack": {
-    "version": "6a0c2130340e",
-    "bytes": 301617210,
+    "version": "29c45ec99fbc",
+    "bytes": 301609850,
     "files": 1026,
-    "gzBytes": 123194692
+    "gzBytes": 123194012
    },
    "l93": {
     "minE": 672000,
@@ -3566,7 +3566,7 @@
      "name": "Usson et Sauxillanges, au pays de la reine Margot",
      "nameEn": "Usson and Sauxillanges, Queen Margot country",
      "lengthM": 56541.63,
-     "elevationGainM": 1085.81,
+     "elevationGainM": 1083.16,
      "loop": true
     },
     {
@@ -3574,7 +3574,7 @@
      "name": "Issoire — VTT par Montaigner, Poux et Bansat",
      "nameEn": "Issoire — MTB via Montaigner, Poux and Bansat",
      "lengthM": 28642.12,
-     "elevationGainM": 787.81,
+     "elevationGainM": 785.58,
      "loop": true
     },
     {
@@ -3582,15 +3582,15 @@
      "name": "Issoire — gravel par Sauxillanges et Saint-Genès-la-Tourette",
      "nameEn": "Issoire — gravel via Sauxillanges and Saint-Genès-la-Tourette",
      "lengthM": 51562.07,
-     "elevationGainM": 1364.42,
+     "elevationGainM": 1363.23,
      "loop": true
     }
    ],
    "pack": {
-    "version": "c44a056fe74f",
-    "bytes": 196377415,
+    "version": "fe1410031f14",
+    "bytes": 196378675,
     "files": 722,
-    "gzBytes": 96806395
+    "gzBytes": 96806733
    },
    "l93": {
     "minE": 722000,
@@ -3719,8 +3719,8 @@
     }
    ],
    "pack": {
-    "version": "0a6811f6cc34",
-    "bytes": 65141755,
+    "version": "aa8e50220eaf",
+    "bytes": 65141053,
     "files": 146,
     "gzBytes": 26418962
    },
@@ -3747,10 +3747,10 @@
     }
    ],
    "pack": {
-    "version": "7ca132df5163",
-    "bytes": 121800277,
+    "version": "87165f3db4f0",
+    "bytes": 121797506,
     "files": 282,
-    "gzBytes": 49869197
+    "gzBytes": 49868686
    },
    "l93": {
     "minE": 639000,
@@ -3777,16 +3777,16 @@
      "id": "vtt-ventoux",
      "name": "Ventoux — VTT par Flassan et Saint-Estève",
      "nameEn": "Ventoux — MTB via Flassan and Saint-Estève",
-     "lengthM": 27462.84,
-     "elevationGainM": 1011.38,
+     "lengthM": 27462.82,
+     "elevationGainM": 1011.12,
      "loop": true
     }
    ],
    "pack": {
-    "version": "4930f9fbfb32",
-    "bytes": 860195525,
+    "version": "3388bcac500d",
+    "bytes": 860604381,
     "files": 1922,
-    "gzBytes": 360315315
+    "gzBytes": 360452195
    },
    "l93": {
     "minE": 868000,
@@ -3811,10 +3811,10 @@
     }
    ],
    "pack": {
-    "version": "d6aca8fa103e",
-    "bytes": 50166978,
+    "version": "16fc852fe63d",
+    "bytes": 50165650,
     "files": 102,
-    "gzBytes": 19831439
+    "gzBytes": 19830948
    },
    "l93": {
     "minE": 649000,
@@ -3943,10 +3943,10 @@
     }
    ],
    "pack": {
-    "version": "ede444fe80e5",
-    "bytes": 131330325,
+    "version": "736b3835745d",
+    "bytes": 131330336,
     "files": 566,
-    "gzBytes": 37374234
+    "gzBytes": 37374254
    },
    "l93": {
     "minE": 346000,
@@ -3999,10 +3999,10 @@
     }
    ],
    "pack": {
-    "version": "498019dd414e",
-    "bytes": 162435555,
+    "version": "2b46d53a4b37",
+    "bytes": 162433890,
     "files": 386,
-    "gzBytes": 67926400
+    "gzBytes": 67926099
    },
    "l93": {
     "minE": 632000,
@@ -4119,15 +4119,15 @@
      "name": "Boucle de 35 km depuis Massy",
      "nameEn": "35 km loop from Massy",
      "lengthM": 35586,
-     "elevationGainM": 346.53,
+     "elevationGainM": 341.52,
      "loop": false
     }
    ],
    "pack": {
-    "version": "ef1cb574ea54",
-    "bytes": 151307101,
+    "version": "e2d5b1fde7d5",
+    "bytes": 151309686,
     "files": 402,
-    "gzBytes": 63532071
+    "gzBytes": 63531766
    },
    "l93": {
     "minE": 638000,
@@ -4152,10 +4152,10 @@
     }
    ],
    "pack": {
-    "version": "bbcb2e63648b",
-    "bytes": 70328338,
+    "version": "4ac913d84bd5",
+    "bytes": 70321097,
     "files": 146,
-    "gzBytes": 27447636
+    "gzBytes": 27447130
    },
    "l93": {
     "minE": 657000,

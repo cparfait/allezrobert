@@ -2142,13 +2142,13 @@
    "tz": -2,
    "baseM": 57,
    "minM": 58.03,
-   "maxM": 67.05,
+   "maxM": 67.24,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1342572
+   "bytes": 1342574
   },
   {
    "id": "1_-1",
@@ -2156,7 +2156,7 @@
    "tz": -1,
    "baseM": 56,
    "minM": 57.13,
-   "maxM": 63.96,
+   "maxM": 64.63,
    "lods": [
     "lo",
     "hi",
@@ -2380,13 +2380,13 @@
    "tz": -1,
    "baseM": 57,
    "minM": 58.21,
-   "maxM": 66.36,
+   "maxM": 66.96,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1184636
+   "bytes": 1184635
   },
   {
    "id": "2_0",
@@ -2806,7 +2806,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1256366
+   "bytes": 1256365
   },
   {
    "id": "4_-2",
@@ -3254,7 +3254,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1304287
+   "bytes": 1304290
   },
   {
    "id": "6_-2",
@@ -3262,13 +3262,13 @@
    "tz": -2,
    "baseM": 59,
    "minM": 60.39,
-   "maxM": 71.06,
+   "maxM": 71.44,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1209980
+   "bytes": 1209984
   },
   {
    "id": "6_-1",
@@ -3450,7 +3450,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 978304
+   "bytes": 978301
   },
   {
    "id": "7_-4",
@@ -3464,7 +3464,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1123007
+   "bytes": 1123008
   },
   {
    "id": "7_-3",
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Sourdun",
    "lengthM": 37473.34,
-   "elevationGainM": 326.25,
+   "elevationGainM": 326.44,
    "loop": true,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Sourdun",
    "lengthM": 50150.07,
-   "elevationGainM": 491.09,
+   "elevationGainM": 491.28,
    "loop": true,
    "main": false
   }

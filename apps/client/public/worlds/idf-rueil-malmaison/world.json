@@ -482,7 +482,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 757117
+   "bytes": 757095
   },
   {
    "id": "-6_-8",
@@ -510,7 +510,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1524654
+   "bytes": 1524660
   },
   {
    "id": "-6_-6",
@@ -524,7 +524,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1495437
+   "bytes": 1495438
   },
   {
    "id": "-6_-5",
@@ -706,7 +706,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 693776
+   "bytes": 693780
   },
   {
    "id": "-5_-8",
@@ -734,7 +734,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1474951
+   "bytes": 1474945
   },
   {
    "id": "-5_-6",
@@ -804,7 +804,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1325435
+   "bytes": 1325459
   },
   {
    "id": "-5_-1",
@@ -930,7 +930,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 878201
+   "bytes": 878134
   },
   {
    "id": "-4_-8",
@@ -1154,7 +1154,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 958645
+   "bytes": 958618
   },
   {
    "id": "-3_-8",
@@ -1182,7 +1182,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1564461
+   "bytes": 1564460
   },
   {
    "id": "-3_-6",
@@ -1210,7 +1210,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2136318
+   "bytes": 2136314
   },
   {
    "id": "-3_-4",
@@ -1238,7 +1238,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1885230
+   "bytes": 1885235
   },
   {
    "id": "-3_-2",
@@ -1378,7 +1378,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 957144
+   "bytes": 957188
   },
   {
    "id": "-2_-8",
@@ -1448,7 +1448,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1270535
+   "bytes": 1270532
   },
   {
    "id": "-2_-3",
@@ -1595,14 +1595,14 @@
    "tx": -2,
    "tz": 7,
    "baseM": 100,
-   "minM": 101.92,
+   "minM": 101.94,
    "maxM": 142.82,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 854084
+   "bytes": 854083
   },
   {
    "id": "-1_-8",
@@ -1658,7 +1658,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1916929
+   "bytes": 1916933
   },
   {
    "id": "-1_-4",
@@ -1672,7 +1672,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1487882
+   "bytes": 1487884
   },
   {
    "id": "-1_-3",
@@ -1728,7 +1728,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1248249
+   "bytes": 1248246
   },
   {
    "id": "-1_1",
@@ -1742,7 +1742,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1753944
+   "bytes": 1753942
   },
   {
    "id": "-1_2",
@@ -1826,7 +1826,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1804614
+   "bytes": 1804518
   },
   {
    "id": "0_-8",
@@ -1952,7 +1952,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1588770
+   "bytes": 1588766
   },
   {
    "id": "0_1",
@@ -2064,7 +2064,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1149158
+   "bytes": 1149157
   },
   {
    "id": "1_-7",
@@ -2204,7 +2204,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1957653
+   "bytes": 1957648
   },
   {
    "id": "1_3",
@@ -2212,13 +2212,13 @@
    "tz": 3,
    "baseM": 41,
    "minM": 42.75,
-   "maxM": 114.31,
+   "maxM": 115.16,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 2007346
+   "bytes": 2007347
   },
   {
    "id": "1_4",
@@ -2274,7 +2274,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1156161
+   "bytes": 1156162
   },
   {
    "id": "2_-8",
@@ -2414,7 +2414,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1524534
+   "bytes": 1524536
   },
   {
    "id": "2_2",
@@ -2428,7 +2428,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1573453
+   "bytes": 1573457
   },
   {
    "id": "2_3",
@@ -2610,7 +2610,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1677336
+   "bytes": 1677335
   },
   {
    "id": "3_0",
@@ -2638,7 +2638,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1861874
+   "bytes": 1861876
   },
   {
    "id": "3_2",
@@ -2666,7 +2666,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1402698
+   "bytes": 1402699
   },
   {
    "id": "3_4",
@@ -2694,7 +2694,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1694434
+   "bytes": 1694429
   },
   {
    "id": "3_6",
@@ -2820,7 +2820,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1446209
+   "bytes": 1446212
   },
   {
    "id": "4_-1",
@@ -2876,7 +2876,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1881894
+   "bytes": 1881893
   },
   {
    "id": "4_3",
@@ -2904,7 +2904,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1623737
+   "bytes": 1623739
   },
   {
    "id": "4_5",
@@ -3254,7 +3254,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2493486
+   "bytes": 2493487
   },
   {
    "id": "6_-2",
@@ -3324,7 +3324,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1682883
+   "bytes": 1682889
   },
   {
    "id": "6_3",
@@ -3394,7 +3394,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1564233
+   "bytes": 1564140
   },
   {
    "id": "7_-8",
@@ -3402,13 +3402,13 @@
    "tz": -8,
    "baseM": 13,
    "minM": 14.8,
-   "maxM": 70.7,
+   "maxM": 70.69,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1748330
+   "bytes": 1748146
   },
   {
    "id": "7_-7",
@@ -3416,13 +3416,13 @@
    "tz": -7,
    "baseM": 9,
    "minM": 10.26,
-   "maxM": 57.26,
+   "maxM": 57.53,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1068351
+   "bytes": 1068277
   },
   {
    "id": "7_-6",
@@ -3436,7 +3436,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1192357
+   "bytes": 1192265
   },
   {
    "id": "7_-5",
@@ -3450,7 +3450,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1597707
+   "bytes": 1597607
   },
   {
    "id": "7_-4",
@@ -3464,35 +3464,35 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2395629
+   "bytes": 2395657
   },
   {
    "id": "7_-3",
    "tx": 7,
    "tz": -3,
-   "baseM": 28,
-   "minM": 29.62,
-   "maxM": 51.06,
+   "baseM": 29,
+   "minM": 30.02,
+   "maxM": 51.84,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 2268389
+   "bytes": 2268376
   },
   {
    "id": "7_-2",
    "tx": 7,
    "tz": -2,
    "baseM": 29,
-   "minM": 30.87,
+   "minM": 30.88,
    "maxM": 53.18,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 2196524
+   "bytes": 2196461
   },
   {
    "id": "7_-1",
@@ -3506,7 +3506,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1877199
+   "bytes": 1877165
   },
   {
    "id": "7_0",
@@ -3520,7 +3520,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1864837
+   "bytes": 1864756
   },
   {
    "id": "7_1",
@@ -3534,7 +3534,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1425283
+   "bytes": 1425236
   },
   {
    "id": "7_2",
@@ -3627,7 +3627,7 @@
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Rueil-Malmaison",
    "lengthM": 19804,
-   "elevationGainM": 138.18,
+   "elevationGainM": 127.54,
    "loop": false,
    "main": true
   },
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Rueil-Malmaison",
    "lengthM": 32112,
-   "elevationGainM": 432.86,
+   "elevationGainM": 426.55,
    "loop": false,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Rueil-Malmaison",
    "lengthM": 41445.11,
-   "elevationGainM": 654.96,
+   "elevationGainM": 640.42,
    "loop": true,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Rueil-Malmaison",
    "lengthM": 50018.28,
-   "elevationGainM": 736.92,
+   "elevationGainM": 731.7,
    "loop": true,
    "main": false
   }

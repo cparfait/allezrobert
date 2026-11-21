@@ -440,7 +440,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1469553
+   "bytes": 1469551
   },
   {
    "id": "-7_6",
@@ -3202,7 +3202,7 @@
    "file": "routes/boucle-billomoise-1.json",
    "name": "Billom – Pont-du-Château par Vertaizon",
    "lengthM": 26284,
-   "elevationGainM": 302.74,
+   "elevationGainM": 300.53,
    "loop": false,
    "main": false
   },

@@ -184,7 +184,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1411504
+   "bytes": 1411514
   },
   {
    "id": "-7_-5",
@@ -864,7 +864,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1527632
+   "bytes": 1527630
   },
   {
    "id": "-3_1",
@@ -1029,7 +1029,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1598858
+   "bytes": 1598862
   },
   {
    "id": "-2_2",
@@ -1455,7 +1455,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2164355
+   "bytes": 2164357
   },
   {
    "id": "1_0",
@@ -1469,7 +1469,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1834205
+   "bytes": 1834204
   },
   {
    "id": "1_1",
@@ -1608,7 +1608,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1769072
+   "bytes": 1769073
   },
   {
    "id": "2_0",
@@ -1747,7 +1747,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1564120
+   "bytes": 1564113
   },
   {
    "id": "3_-1",
@@ -1887,7 +1887,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1721789
+   "bytes": 1721791
   },
   {
    "id": "4_-2",
@@ -2013,7 +2013,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1360964
+   "bytes": 1360965
   },
   {
    "id": "5_-4",
@@ -2447,7 +2447,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1443957
+   "bytes": 1443958
   },
   {
    "id": "7_5",
@@ -2470,7 +2470,7 @@
    "file": "routes/corniche-basque.json",
    "name": "La corniche basque par Ciboure, Urrugne et Ascain",
    "lengthM": 31028.19,
-   "elevationGainM": 621.13,
+   "elevationGainM": 615.66,
    "loop": true,
    "main": true
   }

@@ -48,7 +48,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1640233
+   "bytes": 1640232
   },
   {
    "id": "-8_-8",
@@ -62,7 +62,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1487516
+   "bytes": 1487513
   },
   {
    "id": "-8_-7",
@@ -76,7 +76,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2116564
+   "bytes": 2116567
   },
   {
    "id": "-8_-6",
@@ -314,7 +314,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1958654
+   "bytes": 1958178
   },
   {
    "id": "-7_-7",
@@ -328,7 +328,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1962939
+   "bytes": 1962940
   },
   {
    "id": "-7_-6",
@@ -594,7 +594,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1686036
+   "bytes": 1686034
   },
   {
    "id": "-6_-5",
@@ -2098,7 +2098,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1111597
+   "bytes": 1111596
   },
   {
    "id": "0_-6",
@@ -2154,7 +2154,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1166222
+   "bytes": 1166219
   },
   {
    "id": "0_-2",
@@ -2913,7 +2913,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1438908,
+   "bytes": 1438945,
    "stepM": 0.02
   },
   {
@@ -3861,7 +3861,7 @@
    "file": "routes/tour-du-lac-annecy.json",
    "name": "Le tour du lac d'Annecy",
    "lengthM": 43042,
-   "elevationGainM": 528.03,
+   "elevationGainM": 523.75,
    "loop": false,
    "main": true
   }

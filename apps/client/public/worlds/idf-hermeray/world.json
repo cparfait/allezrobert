@@ -1084,7 +1084,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1024395
+   "bytes": 1024393
   },
   {
    "id": "-4_3",
@@ -1322,7 +1322,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 768475
+   "bytes": 768471
   },
   {
    "id": "-3_4",
@@ -1854,7 +1854,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1059479
+   "bytes": 1059480
   },
   {
    "id": "0_-6",
@@ -1966,7 +1966,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1469471
+   "bytes": 1469476
   },
   {
    "id": "0_2",
@@ -2652,7 +2652,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1014922
+   "bytes": 1014921
   },
   {
    "id": "3_3",
@@ -3072,7 +3072,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1230027
+   "bytes": 1230025
   },
   {
    "id": "5_1",
@@ -3408,7 +3408,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1122003
+   "bytes": 1121957
   },
   {
    "id": "7_-7",
@@ -3422,7 +3422,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1240253
+   "bytes": 1240258
   },
   {
    "id": "7_-6",
@@ -3436,7 +3436,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1123348
+   "bytes": 1123325
   },
   {
    "id": "7_-5",
@@ -3450,7 +3450,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1137823
+   "bytes": 1137845
   },
   {
    "id": "7_-4",
@@ -3464,7 +3464,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1162502
+   "bytes": 1162494
   },
   {
    "id": "7_-3",
@@ -3478,7 +3478,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 827707
+   "bytes": 827759
   },
   {
    "id": "7_-2",
@@ -3492,7 +3492,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1016288
+   "bytes": 1016262
   },
   {
    "id": "7_-1",
@@ -3520,7 +3520,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1075472
+   "bytes": 1075452
   },
   {
    "id": "7_1",
@@ -3534,7 +3534,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1038840
+   "bytes": 1038836
   },
   {
    "id": "7_2",
@@ -3548,7 +3548,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 987355
+   "bytes": 987332
   },
   {
    "id": "7_3",
@@ -3562,7 +3562,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 761720
+   "bytes": 761669
   },
   {
    "id": "7_4",
@@ -3576,7 +3576,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 690631
+   "bytes": 690609
   },
   {
    "id": "7_5",
@@ -3590,7 +3590,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 664704
+   "bytes": 664680
   },
   {
    "id": "7_6",
@@ -3618,7 +3618,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 669120
+   "bytes": 669124
   }
  ],
  "routes": [
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Hermeray",
    "lengthM": 30152,
-   "elevationGainM": 228.17,
+   "elevationGainM": 226.29,
    "loop": false,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Hermeray",
    "lengthM": 38244,
-   "elevationGainM": 323.25,
+   "elevationGainM": 320.88,
    "loop": false,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Hermeray",
    "lengthM": 49614,
-   "elevationGainM": 401.1,
+   "elevationGainM": 397.33,
    "loop": false,
    "main": false
   }

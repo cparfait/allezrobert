@@ -118,7 +118,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1754063
+   "bytes": 1754066
   },
   {
    "id": "-7_2",
@@ -230,7 +230,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1838445
+   "bytes": 1838442
   },
   {
    "id": "-6_1",
@@ -244,7 +244,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1262622
+   "bytes": 1262624
   },
   {
    "id": "-6_2",
@@ -1575,7 +1575,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2891371
+   "bytes": 2891376
   },
   {
    "id": "5_-1",
@@ -1665,7 +1665,7 @@
    "file": "routes/corniche-de-l-esterel.json",
    "name": "La corniche de l'Estérel par Agay et Valescure",
    "lengthM": 23639.47,
-   "elevationGainM": 290.23,
+   "elevationGainM": 289.01,
    "loop": true,
    "main": true
   }

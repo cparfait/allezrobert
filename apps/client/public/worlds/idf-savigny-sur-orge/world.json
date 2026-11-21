@@ -48,7 +48,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1554401
+   "bytes": 1554404
   },
   {
    "id": "-8_-7",
@@ -76,7 +76,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1276384
+   "bytes": 1276382
   },
   {
    "id": "-8_-5",
@@ -174,7 +174,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1147188
+   "bytes": 1147180
   },
   {
    "id": "-8_2",
@@ -216,7 +216,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1431625
+   "bytes": 1431623
   },
   {
    "id": "-8_5",
@@ -489,14 +489,14 @@
    "tx": -6,
    "tz": -8,
    "baseM": 110,
-   "minM": 111.45,
+   "minM": 111.42,
    "maxM": 171.12,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1419057
+   "bytes": 1419030
   },
   {
    "id": "-6_-7",
@@ -713,14 +713,14 @@
    "tx": -5,
    "tz": -8,
    "baseM": 100,
-   "minM": 101.49,
+   "minM": 101.46,
    "maxM": 163.74,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1193713
+   "bytes": 1193738
   },
   {
    "id": "-5_-7",
@@ -944,7 +944,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1307484
+   "bytes": 1307510
   },
   {
    "id": "-4_-7",
@@ -1098,7 +1098,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2142326
+   "bytes": 2142327
   },
   {
    "id": "-4_4",
@@ -1161,14 +1161,14 @@
    "tx": -3,
    "tz": -8,
    "baseM": 57,
-   "minM": 58.34,
+   "minM": 58.32,
    "maxM": 98.86,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1689369
+   "bytes": 1689675
   },
   {
    "id": "-3_-7",
@@ -1210,7 +1210,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1933873
+   "bytes": 1933875
   },
   {
    "id": "-3_-4",
@@ -1266,7 +1266,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1876942
+   "bytes": 1876953
   },
   {
    "id": "-3_0",
@@ -1308,7 +1308,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1593493
+   "bytes": 1593495
   },
   {
    "id": "-3_3",
@@ -1385,14 +1385,14 @@
    "tx": -2,
    "tz": -8,
    "baseM": 45,
-   "minM": 46.52,
+   "minM": 46.51,
    "maxM": 84.82,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1700908
+   "bytes": 1700884
   },
   {
    "id": "-2_-7",
@@ -1420,7 +1420,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1480554
+   "bytes": 1480546
   },
   {
    "id": "-2_-5",
@@ -1476,7 +1476,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2262619
+   "bytes": 2262617
   },
   {
    "id": "-2_-1",
@@ -1609,14 +1609,14 @@
    "tx": -1,
    "tz": -8,
    "baseM": 44,
-   "minM": 45.55,
+   "minM": 45.49,
    "maxM": 95.84,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1565045
+   "bytes": 1564986
   },
   {
    "id": "-1_-7",
@@ -1686,7 +1686,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1743265
+   "bytes": 1743255
   },
   {
    "id": "-1_-2",
@@ -1742,7 +1742,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1137208
+   "bytes": 1137212
   },
   {
    "id": "-1_2",
@@ -1756,7 +1756,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1922012
+   "bytes": 1922028
   },
   {
    "id": "-1_3",
@@ -1840,7 +1840,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1491882
+   "bytes": 1491841
   },
   {
    "id": "0_-7",
@@ -1980,7 +1980,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1955062
+   "bytes": 1955064
   },
   {
    "id": "0_3",
@@ -2064,7 +2064,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1751626
+   "bytes": 1751605
   },
   {
    "id": "1_-7",
@@ -2120,7 +2120,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1968849
+   "bytes": 1969539
   },
   {
    "id": "1_-3",
@@ -2162,7 +2162,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1873280
+   "bytes": 1873299
   },
   {
    "id": "1_0",
@@ -2176,7 +2176,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1118993
+   "bytes": 1118994
   },
   {
    "id": "1_1",
@@ -2288,7 +2288,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2163443
+   "bytes": 2163418
   },
   {
    "id": "2_-7",
@@ -2330,7 +2330,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2273324
+   "bytes": 2273325
   },
   {
    "id": "2_-4",
@@ -2512,7 +2512,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2315392
+   "bytes": 2315291
   },
   {
    "id": "3_-7",
@@ -2540,7 +2540,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1623118
+   "bytes": 1623119
   },
   {
    "id": "3_-5",
@@ -2596,7 +2596,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1600231
+   "bytes": 1600227
   },
   {
    "id": "3_-1",
@@ -2736,7 +2736,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2520577
+   "bytes": 2520562
   },
   {
    "id": "4_-7",
@@ -2960,7 +2960,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2361725
+   "bytes": 2361676
   },
   {
    "id": "5_-7",
@@ -2974,7 +2974,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2451161
+   "bytes": 2451163
   },
   {
    "id": "5_-6",
@@ -3178,13 +3178,13 @@
    "tz": -8,
    "baseM": 28,
    "minM": 29.56,
-   "maxM": 61.57,
+   "maxM": 61.61,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1909454
+   "bytes": 1909407
   },
   {
    "id": "6_-7",
@@ -3226,7 +3226,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1878715
+   "bytes": 1878717
   },
   {
    "id": "6_-4",
@@ -3240,7 +3240,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1675653
+   "bytes": 1675656
   },
   {
    "id": "6_-3",
@@ -3254,7 +3254,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1195478
+   "bytes": 1195476
   },
   {
    "id": "6_-2",
@@ -3408,7 +3408,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1554698
+   "bytes": 1554634
   },
   {
    "id": "7_-7",
@@ -3450,7 +3450,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1155461
+   "bytes": 1155496
   },
   {
    "id": "7_-4",
@@ -3478,7 +3478,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1448413
+   "bytes": 1448414
   },
   {
    "id": "7_-2",
@@ -3492,7 +3492,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1453044
+   "bytes": 1453043
   },
   {
    "id": "7_-1",
@@ -3627,7 +3627,7 @@
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Savigny-sur-Orge",
    "lengthM": 20698,
-   "elevationGainM": 165.64,
+   "elevationGainM": 162.52,
    "loop": false,
    "main": true
   },
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Savigny-sur-Orge",
    "lengthM": 31602,
-   "elevationGainM": 222.45,
+   "elevationGainM": 218.28,
    "loop": false,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Savigny-sur-Orge",
    "lengthM": 38902,
-   "elevationGainM": 443.42,
+   "elevationGainM": 432.35,
    "loop": false,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Savigny-sur-Orge",
    "lengthM": 51494,
-   "elevationGainM": 425.99,
+   "elevationGainM": 413.68,
    "loop": false,
    "main": false
   }
