@@ -162,8 +162,8 @@ export class DirconGattConnection implements GattConnection {
         if (e.payload.connectionId === this.connectionId) this.lost();
       }),
     );
-    this.connectionId = await this.bridge.invoke<string>('dircon_connect', { host, port });
     try {
+      this.connectionId = await this.bridge.invoke<string>('dircon_connect', { host, port });
       await this.discover();
     } catch (e) {
       await this.disconnect();

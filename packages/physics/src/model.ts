@@ -161,14 +161,22 @@ export function steadyStateSpeed(
   cdaFactor = 1,
 ): number {
   const pw = Math.max(0, watts) * params.drivetrainEfficiency;
-  const f = (v: number): number => wheelPowerAt(v, gradePercent, params, env, cdaFactor) - pw;
+  // Termes qui ne dépendent pas de la vitesse, sortis de la recherche (une quarantaine d'évaluations) :
+  // mêmes opérations, dans le même ordre, que `resistiveForces` : résultat identique au bit près.
+  const theta = Math.atan(gradePercent / 100);
+  const mg = params.massKg * GRAVITY;
+  const aeroK = 0.5 * env.airDensity * params.cda * cdaFactor;
+  const wind = env.windSpeedMs;
+  const rolling = params.crr * mg * Math.cos(theta);
+  const gravity = mg * Math.sin(theta);
+  const bearing = params.bearingLoss !== false;
   let lo = 0;
   let hi = 30;
-  while (f(hi) < 0 && hi < 200) hi *= 2;
+  while (steadyBalance(hi, aeroK, wind, rolling, gravity, bearing, pw) < 0 && hi < 200) hi *= 2;
   // f(0) = −pw ≤ 0 et f n'a qu'un changement de signe sur ]0, ∞[ : bissection sûre.
   for (let i = 0; i < 60; i++) {
     const mid = 0.5 * (lo + hi);
-    if (f(mid) > 0) hi = mid;
+    if (steadyBalance(mid, aeroK, wind, rolling, gravity, bearing, pw) > 0) hi = mid;
     else lo = mid;
     if (hi - lo < 1e-7) break;
   }
@@ -176,13 +184,22 @@ export function steadyStateSpeed(
   let v = 0.5 * (lo + hi);
   for (let i = 0; i < 3; i++) {
     const h = 1e-4;
-    const d = (f(v + h) - f(v - h)) / (2 * h);
+    const d = (steadyBalance(v + h, aeroK, wind, rolling, gravity, bearing, pw) - steadyBalance(v - h, aeroK, wind, rolling, gravity, bearing, pw)) / (2 * h);
     if (d <= 0) break;
-    const nv = v - f(v) / d;
+    const nv = v - steadyBalance(v, aeroK, wind, rolling, gravity, bearing, pw) / d;
     if (nv < lo || nv > hi) break;
     v = nv;
   }
   return v;
+}
+
+/** f(v) = v·F(v) − η·P de {@link steadyStateSpeed}, avec les termes constants déjà calculés. */
+function steadyBalance(v: number, aeroK: number, wind: number, rolling: number, gravity: number, bearing: boolean, pw: number): number {
+  // Le roulement s'applique dès que v > 0 : on l'évalue à v ≥ ε pour la continuité (comme `wheelPowerAt`).
+  const s = Math.max(v, 1e-9);
+  const va = s + wind;
+  const total = aeroK * va * Math.abs(va) + (s > 0 ? rolling : 0) + gravity + (!bearing || s <= 0 ? 0 : (91 + 8.7 * s) * 1e-3);
+  return v * total - pw;
 }
 
 /** État dynamique d'un coureur (muté en place par {@link stepRider}). */

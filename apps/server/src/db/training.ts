@@ -81,14 +81,25 @@ export class TrainingRepo {
     );
     await q.query('DELETE FROM activity_power_curve WHERE activity_id = $1', [activityId]);
     await q.query('DELETE FROM activity_zone_time WHERE activity_id = $1', [activityId]);
-    for (const [d, w] of t.curve) {
-      if (!(d > 0 && w > 0)) continue;
-      await q.query('INSERT INTO activity_power_curve (activity_id, duration_s, watts) VALUES ($1, $2, $3)', [activityId, Math.round(d), w]);
-      await this.mergePowerRecord(q, userId, d, w, startedAt, activityId);
+    // Courbe et zones : une insertion groupée par table (au lieu d'une requête par point).
+    const curve = t.curve.filter(([d, w]) => d > 0 && w > 0);
+    if (curve.length) {
+      await q.query(
+        `INSERT INTO activity_power_curve (activity_id, duration_s, watts) VALUES ${curve.map((_, i) => `($1, $${2 * i + 2}, $${2 * i + 3})`).join(', ')}`,
+        [activityId, ...curve.flatMap(([d, w]) => [Math.round(d), w])],
+      );
     }
+    for (const [d, w] of curve) await this.mergePowerRecord(q, userId, d, w, startedAt, activityId);
+    const zones: number[] = [];
     for (let z = 0; z < Math.min(7, t.zonesS.length); z++) {
       const sec = Math.round(t.zonesS[z]!);
-      if (sec > 0) await q.query('INSERT INTO activity_zone_time (activity_id, zone, seconds) VALUES ($1, $2, $3)', [activityId, z + 1, sec]);
+      if (sec > 0) zones.push(z + 1, sec);
+    }
+    if (zones.length) {
+      await q.query(
+        `INSERT INTO activity_zone_time (activity_id, zone, seconds) VALUES ${Array.from({ length: zones.length / 2 }, (_, i) => `($1, $${2 * i + 2}, $${2 * i + 3})`).join(', ')}`,
+        [activityId, ...zones],
+      );
     }
   }
 

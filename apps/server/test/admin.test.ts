@@ -14,6 +14,7 @@ import { createDb, migrate, type Db } from '../src/db/db.ts';
 import { createContext, type AppContext } from '../src/context.ts';
 import { RouteStore } from '../src/ride/routes.ts';
 import { mountApi } from '../src/http/api.ts';
+import { activeRooms, type RideRoom } from '../src/ride/RideRoom.ts';
 
 const ADMIN_EMAIL = 'admin@example.fr';
 const PASSWORD = 'phrase-de-passe-tres-longue';
@@ -98,7 +99,16 @@ describe('administration — accès par compte seul', () => {
     const admin = await sessionFor('Chef2', ADMIN_EMAIL);
     const vic = await sessionFor('Victime', 'victime@example.fr');
     expect((await fetch(`${base}/api/me`, { headers: { cookie: vic.cookie } })).status).toBe(200);
-    expect((await call('POST', `/users/${vic.userId}/disable`, admin.cookie, { disabled: true })).body).toMatchObject({ ok: true, disabled: true });
+    // Salle en cours : le compte suspendu doit en être éjecté (son jeton de jeu de 4 h ne le protège plus).
+    const ejected: string[] = [];
+    const room = { ejectUser: (id: string) => ejected.push(id) } as unknown as RideRoom;
+    activeRooms.add(room);
+    try {
+      expect((await call('POST', `/users/${vic.userId}/disable`, admin.cookie, { disabled: true })).body).toMatchObject({ ok: true, disabled: true });
+      expect(ejected).toEqual([vic.userId]);
+    } finally {
+      activeRooms.delete(room);
+    }
     expect((await fetch(`${base}/api/me`, { headers: { cookie: vic.cookie } })).status).toBe(401);
     // Une nouvelle session d'un compte suspendu n'est pas acceptée non plus.
     const again = await ctx.repos.createSession(vic.userId, 30);

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { positionLocal, normalize, mix, vec3, float, uniform, hash, floor, smoothstep, pow, max } from 'three/tsl';
-import { domeVertex } from './overcast.ts';
+import { domeVertex, skipWhenClear } from './overcast.ts';
 
 /**
  * Voûte nocturne : dégradé bleu nuit (horizon plus clair, pollution lumineuse d'Île-de-France
@@ -34,5 +34,7 @@ export class NightSky {
     this.mesh.renderOrder = -1;
     this.mesh.frustumCulled = false;
     this.mesh.name = 'nightsky';
+    // De jour (opacité nulle), la voûte n'est pas dessinée.
+    skipWhenClear(this.mesh, () => this.night.value);
   }
 }

@@ -16,6 +16,8 @@ export const STYLE_KEY = 'ar.style';
 const DEFAULT_STYLE: GraphicStyle = 'real';
 const pendingV3 = 'ar.style.v3.pending';
 const protectedV3 = typeof __AR_V3_PROTECTED__ !== 'undefined' && __AR_V3_PROTECTED__;
+/** Attente maximale de l'état de l'accès V3 au chargement (ms). */
+const V3_STATUS_TIMEOUT_MS = 6000;
 
 function readStyle(): GraphicStyle {
   try {
@@ -31,7 +33,9 @@ async function bootStyle(): Promise<GraphicStyle> {
   if (style !== 'v3' || !protectedV3) return style;
   const activating = sessionStorage.getItem(pendingV3) === '1';
   sessionStorage.removeItem(pendingV3);
-  const status = activating ? 403 : await v3AccessStatus();
+  // Cet appel retient l'évaluation de tous les modules du jeu (await de premier niveau) : au-delà de
+  // V3_STATUS_TIMEOUT_MS sans réponse, le service est tenu pour injoignable (même repli que hors ligne).
+  const status = activating ? 403 : await Promise.race([v3AccessStatus(), new Promise<number>((resolve) => setTimeout(() => resolve(503), V3_STATUS_TIMEOUT_MS))]);
   // Pas de réseau et rien de copié sur le disque : sortie en Réel cette fois, le choix V3 reste enregistré.
   if (status === 503) return DEFAULT_STYLE;
   const allowed = status === 204 || await requestV3Access();

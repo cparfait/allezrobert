@@ -8,9 +8,9 @@
  * PAIR_MAX_PHONES téléphones. La salle vit tant qu'un des deux côtés est là : le téléphone
  * attend le jeu pendant le rechargement, et inversement.
  */
-import { CloseCode, Room, ServerError, type Client } from '@colyseus/core';
+import { CloseCode, Room, ServerError, type Client, type RoomException, type RoomMethodName } from '@colyseus/core';
 import { z } from 'zod';
-import { PAIR_MAX_PHONES, PAIR_MSG, PAIR_TOKEN_RE, PAIR_VOICE_REQ_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
+import { PAIR_COORD_MAX_M, PAIR_MAX_PHONES, PAIR_MSG, PAIR_PLACE_NAME_MAX, PAIR_TOKEN_RE, PAIR_VOICE_REQ_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
@@ -32,6 +32,9 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('chat'), text: z.string().trim().min(1).max(280) }),
   z.object({ kind: z.literal('turn'), delta: z.union([z.literal(-1), z.literal(1)]).optional(), index: z.number().int().min(0).max(16).optional() }),
   z.object({ kind: z.literal('uturn') }),
+  z.object({ kind: z.literal('placeSearch'), query: z.string().trim().max(100) }),
+  z.object({ kind: z.literal('goTo'), x: finite.min(-PAIR_COORD_MAX_M).max(PAIR_COORD_MAX_M), z: finite.min(-PAIR_COORD_MAX_M).max(PAIR_COORD_MAX_M), name: z.string().trim().min(1).max(PAIR_PLACE_NAME_MAX) }),
+  z.object({ kind: z.literal('clearDestination') }),
   z.object({ kind: z.literal('music'), action: z.enum(['toggle', 'next', 'previous', 'volume']), volume: finite.transform((v) => Math.min(Math.max(v, 0), 1)).optional() }),
   z.object({ kind: z.literal('musicSearch'), query: z.string().trim().max(100) }),
   z.object({ kind: z.literal('musicPlay'), uri: z.string().regex(SPOTIFY_URI_RE) }),
@@ -82,6 +85,13 @@ export class PairRoom extends Room {
         for (const c of this.clients) if ((c.userData as PairClientData | undefined)?.role === 'phone') c.send(type, data);
       });
     }
+  }
+
+  /** Erreur imprévue : journalisée, jamais propagée au processus (les refus `ServerError` ne sont pas des pannes). */
+  override onUncaughtException(error: RoomException, methodName: RoomMethodName): void {
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause instanceof ServerError) return;
+    console.error(`[pair] salle ${this.roomId}, ${methodName} : ${cause instanceof Error ? (cause.stack ?? cause.message) : error.message}`);
   }
 
   override onAuth(_client: Client, options: unknown): { role: PairRole; device?: string } {

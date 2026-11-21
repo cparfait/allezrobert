@@ -13,7 +13,7 @@ import type { ActivityRecord } from '@allezrobert/shared';
 import type { RenderJob } from '../src/db/repos.ts';
 import { detectCapabilities, type RenderCapabilities } from '../src/render/capabilities.ts';
 import { backgroundPpm, filterGraph, profileOf, summaryTexts, FALLBACK_H, FALLBACK_W } from '../src/render/ffmpeg-summary.ts';
-import { readHeartbeat, RenderWorker, type RenderQueue } from '../src/render/worker.ts';
+import { readHeartbeat, renderChildEnv, RenderWorker, type RenderQueue } from '../src/render/worker.ts';
 import { startServer } from '../src/server.ts';
 import { testConfig } from '../src/config.ts';
 
@@ -92,6 +92,27 @@ describe('vidéo résumé de repli (FFmpeg seul)', () => {
     expect(g).toContain('[2:v]scale=');
     expect(g).toContain('[m][p0][p1]concat=n=3:v=1:a=0[v]');
     expect(filterGraph([], [], { drawtext: false }, 0).endsWith('[v]')).toBe(true);
+  });
+});
+
+describe('environnement du processus de rendu', () => {
+  it('ne transmet ni la base, ni les clés, ni les secrets tiers', () => {
+    const env = renderChildEnv({
+      PATH: '/usr/bin',
+      Path: 'C:\Windows',
+      HOME: '/home/node',
+      LC_ALL: 'fr_FR.UTF-8',
+      HYPERFRAMES_FFPROBE_PATH: '/usr/bin/ffprobe',
+      DATABASE_URL: 'postgres://u:p@h/db',
+      DATA_ENCRYPTION_KEY: 'x',
+      JWT_SECRET: 'x',
+      STRAVA_CLIENT_SECRET: 'x',
+      SMTP_PASS: 'x',
+      LIVEKIT_API_SECRET: 'x',
+      ADMIN_PASSWORD: 'x',
+    });
+    expect(Object.keys(env).sort()).toEqual(['HOME', 'HYPERFRAMES_FFPROBE_PATH', 'HYPERFRAMES_NO_TELEMETRY', 'LC_ALL', 'PATH', 'Path']);
+    expect(env.HYPERFRAMES_NO_TELEMETRY).toBe('1');
   });
 });
 

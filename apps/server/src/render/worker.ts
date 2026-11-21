@@ -68,6 +68,30 @@ export async function readHeartbeat(rendersDir: string, now = Date.now()): Promi
   }
 }
 
+/**
+ * Environnement du processus de rendu (tsx, HyperFrames, Chromium, FFmpeg) : seulement ce dont ils ont besoin.
+ * Le rendu affiche du HTML nourri de variables fournies par l'utilisateur : il ne doit pas hériter des secrets du
+ * serveur (base, chiffrement, OAuth, SMTP, LiveKit…).
+ */
+const RENDER_ENV_NAMES = new Set([
+  'PATH', 'PATHEXT', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'TMP', 'TEMP', 'TZ', 'LANG', 'LANGUAGE', 'CI', 'CONTAINER', 'DISPLAY',
+  'NODE_ENV', 'NODE_OPTIONS', 'NODE_PATH', 'PNPM_HOME', 'RENDER_PROJECT_DIR', 'RENDERS_DIR',
+  // Windows (développement local) : sans eux, Node et Chromium ne démarrent pas.
+  'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'COMSPEC', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'PROGRAMDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)', 'HOMEDRIVE', 'HOMEPATH', 'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'OS',
+]);
+const RENDER_ENV_PREFIXES = ['LC_', 'XDG_', 'FONTCONFIG_', 'HYPERFRAMES_', 'PUPPETEER_', 'CHROME_', 'FFMPEG_', 'FFPROBE_'];
+
+export function renderChildEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const [k, v] of Object.entries(env)) {
+    if (v === undefined) continue;
+    const up = k.toUpperCase();
+    if (RENDER_ENV_NAMES.has(up) || RENDER_ENV_PREFIXES.some((p) => up.startsWith(p))) out[k] = v;
+  }
+  out.HYPERFRAMES_NO_TELEMETRY = '1';
+  return out;
+}
+
 export class RenderWorker {
   readonly o: Required<Omit<RenderWorkerOptions, 'capabilities' | 'hyperframes'>> & Pick<RenderWorkerOptions, 'hyperframes'>;
   caps: RenderCapabilities | null;
@@ -174,7 +198,7 @@ export class RenderWorker {
       const child = spawn(process.execPath, [tsxCli, ...args], {
         cwd: this.o.projectDir,
         stdio: ['ignore', 'inherit', 'pipe'],
-        env: { ...process.env, HYPERFRAMES_NO_TELEMETRY: '1' },
+        env: renderChildEnv(process.env),
       });
       let stderr = '';
       child.stderr.on('data', (d) => {

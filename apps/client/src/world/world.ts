@@ -69,6 +69,11 @@ export class World {
   /** Sens de marche lissé (pour précharger les tuiles de devant) et dernière tuile préchargée. */
   private readonly lastFocus = new THREE.Vector3(Number.NaN, 0, 0);
   private readonly heading = new THREE.Vector2();
+  /** Point visé par le préchargement et sa tuile (objets de travail de `prefetchAhead`). */
+  private readonly aheadPoint = new THREE.Vector3();
+  private aheadTx = Number.NaN;
+  private aheadTz = Number.NaN;
+  private aheadKey = '';
   private prefetchKey = '';
   private retryAcc = 0;
   private lastHour = Number.NaN;
@@ -179,6 +184,9 @@ export class World {
 
     // Décor fixe (rien n'y bouge après sa pose) : matrices calculées une fois, plus à chaque image.
     for (const g of [this.terrain.group, this.buildings.group, this.network.group, this.vegetation.group, this.water.group, this.railways.group]) freezeStatic(g);
+    // Fontaines, bancs et puits des villages : posés une fois, jamais déplacés (leur niveau de détail ne change que la
+    // visibilité des deux variantes, pas leurs matrices).
+    if (this.villageProps) freezeStatic(this.villageProps.group);
 
     // Entités d'une tuile construites par étapes (bâtiments, routes, végétation…) dans le budget de
     // chaque image, plutôt que toutes d'un coup au moment où la tuile arrive (saccades en roulant).
@@ -244,14 +252,28 @@ export class World {
     if (Number.isFinite(this.lastFocus.x)) {
       const dx = focus.x - this.lastFocus.x;
       const dz = focus.z - this.lastFocus.z;
-      if (dx * dx + dz * dz > 1e-6 && dx * dx + dz * dz < 400) this.heading.multiplyScalar(0.95).add(new THREE.Vector2(dx, dz).multiplyScalar(0.05));
+      if (dx * dx + dz * dz > 1e-6 && dx * dx + dz * dz < 400) {
+        // (sans objet intermédiaire : appelé à chaque image)
+        this.heading.multiplyScalar(0.95);
+        this.heading.x += dx * 0.05;
+        this.heading.y += dz * 0.05;
+      }
     }
     this.lastFocus.copy(focus);
     const len = this.heading.length();
     if (len < 1e-4) return;
-    const lead = this.terrain.tileSizeM * 0.5;
-    const ahead = new THREE.Vector3(focus.x + (this.heading.x / len) * lead, focus.y, focus.z + (this.heading.y / len) * lead);
-    const key = this.terrain.tileCoord(ahead.x, ahead.z).join('_');
+    const T = this.terrain.tileSizeM;
+    const lead = T * 0.5;
+    const ahead = this.aheadPoint.set(focus.x + (this.heading.x / len) * lead, focus.y, focus.z + (this.heading.y / len) * lead);
+    // La clé (chaîne) n'est refaite que quand le point visé change de tuile.
+    const atx = Math.floor(ahead.x / T);
+    const atz = Math.floor(ahead.z / T);
+    if (atx !== this.aheadTx || atz !== this.aheadTz) {
+      this.aheadTx = atx;
+      this.aheadTz = atz;
+      this.aheadKey = `${atx}_${atz}`;
+    }
+    const key = this.aheadKey;
     if (key === this.prefetchKey || key === this.lastFocusTile) return;
     this.prefetchKey = key;
     this.terrain.prefetch(ahead);

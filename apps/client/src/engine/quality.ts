@@ -51,6 +51,13 @@ export interface QualitySettings {
   realChunk: number;
   /** Végétation réelle : arbres détaillés jusqu'à cette distance (m), silhouettes d'un seul bloc par tuile au-delà. */
   vegDetailM: number;
+  /**
+   * Vrais arbres (EZ-Tree, ezTreeNear.ts) : rayon (m) des arbres en 3D autour du coureur, 7 000 à 20 000 triangles
+   * chacun ; au-delà, des imposteurs (cartes). 0 = imposteurs seuls. `?eznear=N` pour comparer.
+   */
+  ezNearM: number;
+  /** Vrais arbres : les arbres en 3D portent une ombre (chacun est redessiné dans chaque cascade). `?ezshadows=0|1`. */
+  ezNearShadows: boolean;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -85,6 +92,9 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowRiders: 0,
     realChunk: 250,
     vegDetailM: 400,
+    // Bas : imposteurs seuls (une carte par arbre, ombre comprise), pas de géométrie d'arbre.
+    ezNearM: 0,
+    ezNearShadows: false,
   },
   medium: {
     level: 'medium',
@@ -126,6 +136,9 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowRiders: 2,
     realChunk: 250,
     vegDetailM: 500,
+    // Moyen : rayon réduit (surface, donc nombre d'arbres en 3D et de triangles d'ombre, divisée par trois environ).
+    ezNearM: 35,
+    ezNearShadows: true,
   },
   high: {
     level: 'high',
@@ -161,6 +174,8 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowRiders: 3,
     realChunk: 250,
     vegDetailM: 550,
+    ezNearM: 60,
+    ezNearShadows: true,
   },
   ultra: {
     level: 'ultra',
@@ -193,6 +208,8 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     shadowRiders: 19,
     realChunk: 125,
     vegDetailM: 700,
+    ezNearM: 60,
+    ezNearShadows: true,
   },
 };
 
@@ -224,5 +241,7 @@ export function withUrlOverrides(q: QualitySettings): QualitySettings {
     shadowRiders: num('shadowriders', q.shadowRiders, 0, 19),
     shadowCascades: num('cascades', q.shadowCascades, 1, 4),
     shadowMapSize: num('shadowmap', q.shadowMapSize, 512, 8192),
+    ezNearM: num('eznear', q.ezNearM, 0, 120),
+    ezNearShadows: p.has('ezshadows') ? p.get('ezshadows') !== '0' : q.ezNearShadows,
   };
 }

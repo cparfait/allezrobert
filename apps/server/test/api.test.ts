@@ -170,6 +170,10 @@ describe('API — comptes et profil', () => {
     expect(verify.status).toBe(302);
     expect(verify.headers.get('location')).toBe('http://localhost:5173/garage');
     expect((await s.json('GET', '/api/me')).body.profile.displayName).toBe('Christophe');
+    // Export des données personnelles : l'adresse (stockée chiffrée) y figure en clair, normalisée.
+    const exported = (await s.json('GET', '/api/me/export')).body;
+    expect(exported.email).toBe('christophe.test@example.fr');
+    expect(exported.note).not.toContain("n'est pas stockée");
     const again = await new Session().req('GET', `${link.pathname}${link.search}`);
     expect(again.headers.get('location')).toContain('login=used');
     const users = await db.query('SELECT * FROM users');
@@ -202,7 +206,23 @@ describe('API — comptes et profil', () => {
     expect((await new Session().req('GET', `/api/auth/desktop/finish?nonce=${nonce}`)).status).toBe(400);
     // Nonce trop court : refusé.
     expect((await browser.req('GET', '/api/auth/desktop/finish?nonce=court')).status).toBe(400);
-    expect((await browser.req('GET', `/api/auth/desktop/finish?nonce=${nonce}`)).status).toBe(200);
+    const own = new URL(ctx.config.apiPublicUrl).origin;
+    // Le GET n'affiche qu'une demande de confirmation : il ne range pas le jeton (un lien piégé ne suffit pas).
+    const ask = await browser.req('GET', `/api/auth/desktop/finish?nonce=${nonce}`);
+    expect(ask.status).toBe(200);
+    expect(ask.headers.get('content-security-policy')).toContain("frame-ancestors 'none'");
+    expect(ask.headers.get('x-frame-options')).toBe('DENY');
+    expect(await ask.text()).toContain('method="post"');
+    expect((await app.req('POST', '/api/auth/desktop/poll', { nonce })).status).toBe(204);
+    // Confirmation venue d'un autre site, ou sans preuve d'origine : refusée, rien n'est rangé.
+    expect((await browser.req('POST', `/api/auth/desktop/finish?nonce=${nonce}`, undefined, { origin: 'https://pirate.example' })).status).toBe(403);
+    expect((await browser.req('POST', `/api/auth/desktop/finish?nonce=${nonce}`, undefined, { origin: own, 'sec-fetch-site': 'cross-site' })).status).toBe(403);
+    expect((await browser.req('POST', `/api/auth/desktop/finish?nonce=${nonce}`)).status).toBe(403);
+    expect((await app.req('POST', '/api/auth/desktop/poll', { nonce })).status).toBe(204);
+    // Sans session : refusé même depuis la bonne page.
+    expect((await new Session().req('POST', `/api/auth/desktop/finish?nonce=${nonce}`, undefined, { origin: own })).status).toBe(400);
+    // Le bouton de la page (même origine) range le jeton.
+    expect((await browser.req('POST', `/api/auth/desktop/finish?nonce=${nonce}`, undefined, { origin: own })).status).toBe(200);
     // Un autre nonce ne donne rien.
     expect((await app.req('POST', '/api/auth/desktop/poll', { nonce: 'x'.repeat(40) })).status).toBe(204);
     const got = await app.json<{ sessionToken: string }>('POST', '/api/auth/desktop/poll', { nonce });
@@ -260,6 +280,19 @@ describe('API — sorties, segments, progression', () => {
     expect(fetchLog.some((f) => f.url.includes('intervals.icu/api/v1/athlete/0/activities'))).toBe(true);
     const list = await s.json('GET', '/api/activities');
     expect(list.body[0]).toMatchObject({ stravaStatus: 'uploaded', intervalsStatus: 'uploaded' });
+
+    // Même fichier renvoyé, sans `clientRideId` (ancien client, rejeu) : reconnu à son empreinte, ni XP ni
+    // crédits en plus, pas de seconde sortie ni de second envoi tiers.
+    const xpBefore = (await s.json('GET', '/api/me')).body.progression?.xp;
+    const sent = fetchLog.length;
+    const again = await s.json('POST', '/api/activities?name=Boucle%20test', sampleFit(true));
+    expect(again.status).toBe(200);
+    expect(again.body).toMatchObject({ duplicate: true, xpGained: 0, credits: null });
+    expect(again.body.activity.id).toBe(up.body.activity.id);
+    expect((await s.json('GET', '/api/activities')).body).toHaveLength(list.body.length);
+    expect((await s.json('GET', '/api/me')).body.progression?.xp).toBe(xpBefore);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fetchLog.length).toBe(sent);
   });
 
   it('option « ne pas envoyer à Strava » et FC conservée (chiffrée) avec consentement', async () => {
@@ -302,6 +335,17 @@ describe('API — sorties, segments, progression', () => {
       { rank: 2, name: 'Bob', bestMs: 290_000, efforts: 1 },
     ]);
     expect((await a.json('GET', '/api/me/segments')).body).toEqual([{ routeId: 'r1', segmentId: 'kom', bestMs: 280_000 }]);
+  });
+
+  it('efforts d’une sortie : doublons écartés en une lecture, dans un même envoi comme d’un envoi à l’autre', async () => {
+    const s = await devLogin('Doublon');
+    const post = (segments: Array<{ segmentId: string; elapsedMs: number }>) => s.json('POST', '/api/efforts', { routeId: 'zone-doublon', rideId: 'sortie-d', segments });
+    const a = { segmentId: 'cote-a', elapsedMs: 250_000 };
+    // Deux fois le même effort dans un seul envoi : compté une fois ; un autre temps ou un autre segment comptent.
+    expect((await post([a, a, { segmentId: 'cote-a', elapsedMs: 251_000 }, { segmentId: 'cote-b', elapsedMs: 250_000 }])).body).toEqual({ segments: 3, route: false });
+    expect((await post([a, { segmentId: 'cote-b', elapsedMs: 250_000 }, { segmentId: 'cote-c', elapsedMs: 90_000 }])).body).toEqual({ segments: 1, route: false });
+    const n = await db.query("SELECT COUNT(*) AS n FROM segment_efforts WHERE route_id = 'zone-doublon'");
+    expect(Number(n.rows[0].n)).toBe(4);
   });
 
   it('temps d’une sortie solo : segments et parcours entier, contrôlés et sans doublon', async () => {
@@ -465,6 +509,7 @@ describe('API — RGPD', () => {
     const exp = await s.json('GET', '/api/me/export');
     expect(exp.status).toBe(200);
     expect(exp.body.activities).toHaveLength(1);
+    expect(exp.body.email).toBeNull(); // connexion de développement : pas d'adresse
     expect(Object.keys(exp.body.activityFitBase64)).toHaveLength(1);
     expect(exp.body.segmentEfforts).toHaveLength(1);
     expect(exp.body.routeTimes).toHaveLength(1);

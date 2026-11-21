@@ -55,6 +55,10 @@ export async function createDb(databaseUrl: string, ssl = false): Promise<Db> {
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max: 10,
+    // Base injoignable : échec en 10 s au lieu d'une attente sans fin. Requête bloquée : coupée au bout de
+    // 2 min (large : l'export et la synchronisation d'historique enchaînent de petites requêtes).
+    connectionTimeoutMillis: 10_000,
+    statement_timeout: 120_000,
     ssl: ssl ? { rejectUnauthorized: false } : undefined,
   });
   pool.on('error', (err) => console.error('[db] erreur de connexion inactive', err.message));

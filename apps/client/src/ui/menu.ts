@@ -667,6 +667,12 @@ export class MainMenu {
     return WORLD_LIST.find((x) => x.id === id)?.name[lang] ?? ZONE_SPOTS.find((x) => x.id === id)?.name[lang] ?? id;
   }
 
+  /** Graphe routier de la zone arrivé (chargé à la demande) : la carte du planificateur est redessinée. */
+  refreshMap(): void {
+    // Seulement si une carte du planificateur est à l'écran : refaire l'écran ailleurs ferait perdre une saisie en cours.
+    if (this.root.querySelector('.rp-roads')) this.render();
+  }
+
   /** Nouveau monde chargé sur place : parcours, identifiant, monde ouvert ; l'écran est refait. */
   setWorld(routes: RouteData[], worldId: string, open: boolean): void {
     this.allRoutes = routes;

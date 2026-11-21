@@ -12,7 +12,7 @@
  * les comptes, aucun hôte ni départ, IA d'ambiance cédant la place aux humains, demi-tours.
  */
 import { randomInt } from 'node:crypto';
-import { CloseCode, Room, ServerError, type AuthContext, type Client } from '@colyseus/core';
+import { CloseCode, Room, ServerError, type AuthContext, type Client, type RoomException, type RoomMethodName } from '@colyseus/core';
 import { z } from 'zod';
 import {
   COLLISION_VERSION_CLOSE,
@@ -199,6 +199,12 @@ export class RideRoom extends Room {
     const parsed = CreateOptionsSchema.safeParse(options ?? {});
     const o = parsed.success ? parsed.data : {};
     const pub = this.isPublic;
+    // Compte exigé AVANT de bâtir la simulation : `onAuth` ne passe qu'à la connexion WebSocket, après
+    // `onCreate`. Sans ce contrôle, un appel anonyme au matchmaking créait une salle (tracé, boucle à 10 Hz)
+    // gardée le temps de la réservation. Le client joint toujours son jeton de jeu aux options de création.
+    const rawToken = (options as { token?: unknown } | null | undefined)?.token;
+    const creator = typeof rawToken === 'string' && rawToken.length <= 4096 ? await this.svc.authenticate(rawToken, undefined) : null;
+    if (!creator) throw new ServerError(401, pub ? 'Connexion requise pour rouler en monde ouvert' : 'Connexion requise pour créer une sortie');
     if (o.routeId === COLLISION_PILOT_ROUTE && !this.svc.routes.has(o.routeId)) throw new ServerError(503, COLLISION_VERSION_ERROR);
     // Monde ouvert : l'itinéraire doit exister (pas de repli silencieux sur un autre parcours).
     const route = pub ? this.svc.routes.get(o.routeId ?? '') : this.svc.routes.resolve(o.routeId);
@@ -251,7 +257,7 @@ export class RideRoom extends Room {
     if (pub)
       entry.positions = () =>
         this.sim.riders.filter((r) => r.kind !== 'ai').map((r) => ({ riderId: r.id, userId: r.userId, d: this.sim.forwardPositionOf(r.id) ?? 0, dir: r.dir, ...(r.loading ? { loading: true } : {}) }));
-    if (!pub) void this.setPrivate(true);
+    if (!pub) void this.setPrivate(true).catch((err) => this.svc.log('warn', `salle ${this.roomId} non masquée : ${(err as Error).message}`));
     this.maxMessagesPerSecond = 60;
     this.registerHandlers();
     this.setSimulationInterval((deltaMs) => this.update(deltaMs), 1000 / NET_TICK_HZ);
@@ -380,9 +386,11 @@ export class RideRoom extends Room {
       this.broadcastRoster();
     }
     try {
-      this.allowReconnection(client, this.svc.reconnectGraceS);
+      // Salle en cours de fermeture (arrêt du serveur) : la promesse est rejetée, pas d'exception synchrone.
+      // Sans ce `catch`, le rejet non rattrapé arrêtait le processus.
+      void Promise.resolve(this.allowReconnection(client, this.svc.reconnectGraceS)).catch(() => undefined);
     } catch {
-      // Salle en cours de fermeture (arrêt du serveur) : pas de reconnexion possible.
+      // Pas de reconnexion possible.
     }
   }
 
@@ -430,6 +438,58 @@ export class RideRoom extends Room {
     this.updateLock();
   }
 
+  /** Ticks en échec d'affilée (remis à zéro par un tick réussi). */
+  private tickFailures = 0;
+  private lastExceptionLogAt = 0;
+
+  /**
+   * Erreur imprévue dans la salle : journalisée, jamais propagée au processus (les autres sorties
+   * continuent). Colyseus n'entoure la boucle, les messages et les minuteurs d'un try/catch que si
+   * cette méthode existe. Les refus normaux (`ServerError` de `onCreate`, `onAuth`…) passent aussi
+   * par ici avant d'être renvoyés au client : ils ne sont pas des pannes.
+   * Une boucle qui échoue 20 fois d'affilée (2 s) est tenue pour cassée : la salle est fermée.
+   */
+  override onUncaughtException(error: RoomException, methodName: RoomMethodName): void {
+    const cause = (error as { cause?: unknown }).cause;
+    if (cause instanceof ServerError) return;
+    const tick = methodName === 'setTimestep' || methodName === 'setFixedTimestep';
+    if (tick) this.tickFailures++;
+    const now = Date.now();
+    if (!tick || this.tickFailures === 1 || now - this.lastExceptionLogAt > 5000) {
+      this.lastExceptionLogAt = now;
+      const detail = cause instanceof Error ? (cause.stack ?? cause.message) : error.message;
+      this.svc?.log('error', `salle ${this.roomId} (${this.routeId}), ${methodName} : ${detail}`);
+    }
+    if (tick && this.tickFailures >= 20) {
+      this.tickFailures = 0;
+      this.svc?.log('error', `salle ${this.roomId} fermée : boucle de simulation en échec répété`);
+      void this.disconnect(CloseCode.WITH_ERROR).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Compte suspendu ou supprimé par l'administration : ses connexions à cette salle (coureur, compagnon) sont
+   * fermées tout de suite et il ne peut plus y revenir. Renvoie le nombre de connexions fermées.
+   */
+  ejectUser(userId: string): number {
+    this.kickedUsers.add(userId);
+    let closed = 0;
+    for (const c of [...this.clients]) {
+      if ((c.userData as ClientData | undefined)?.userId !== userId) continue;
+      c.leave(CloseCode.CONSENTED, 'suspended');
+      closed++;
+    }
+    // Coureur en attente de reconnexion (plus de connexion à fermer) : retiré de la simulation.
+    const riderId = this.riderByUser.get(userId);
+    if (riderId && !this.clientByRider.has(riderId)) {
+      this.sim.removeRider(riderId);
+      this.riderByUser.delete(userId);
+      this.broadcastEvent({ kind: 'leave', riderId });
+      this.broadcastRoster();
+    }
+    return closed;
+  }
+
   override onDispose(): void {
     activeRooms.delete(this);
     this.svc.registry.unregister(this.roomId);
@@ -458,6 +518,7 @@ export class RideRoom extends Room {
     const snap = encodeSnapshot(this.sim.tick, now, this.sim.rows(), this.snapBuf);
     this.broadcast(NET_MSG.snapshot, snap);
     this.tickStats.add(performance.now() - t0);
+    this.tickFailures = 0;
   }
 
   /** Comptes déjà récompensés pour le classement de cette course. */

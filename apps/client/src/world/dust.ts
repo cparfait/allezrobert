@@ -68,6 +68,10 @@ export class Dust {
   private next = 0;
   private clock = 0;
   private readonly acc = new Map<string, number>();
+  /** Poussière permise par le préréglage (`dustParticles` > 0). */
+  private readonly enabled: boolean;
+  /** Instant (horloge des particules) de la dernière émission. */
+  private lastEmit = -Infinity;
   /** Particules émises depuis le début (statistiques, tests visuels). */
   emitted = 0;
 
@@ -105,7 +109,9 @@ export class Dust {
     // Les quads entièrement transparents sont écartés : sinon ils assombrissent le fond en carrés.
     m.maskNode = alpha.greaterThan(0.004);
     this.sprite = new THREE.Sprite(m);
-    this.sprite.count = q.dustParticles > 0 ? this.max : 0;
+    this.enabled = q.dustParticles > 0;
+    // Aucune particule vivante au départ : rien à dessiner (voir update). Le sprite reste visible, donc compilé au départ.
+    this.sprite.count = 0;
     this.sprite.frustumCulled = false;
     this.sprite.renderOrder = 2;
     this.sprite.name = 'dust';
@@ -116,7 +122,7 @@ export class Dust {
    * 12 particules par seconde à 30 km/h. `id` identifie l'émetteur (cumul des fractions).
    */
   emit(id: string, x: number, y: number, z: number, dx: number, dz: number, speed: number, dt: number): void {
-    if (this.sprite.count === 0 || speed < 1.5) return;
+    if (!this.enabled || speed < 1.5) return;
     let a = (this.acc.get(id) ?? 0) + dt * speed * 3.5;
     while (a >= 1) {
       a -= 1;
@@ -129,6 +135,7 @@ export class Dust {
       this.p0.setXYZW(i, x + (j() - 0.5) * 0.3, y + 0.05, z + (j() - 0.5) * 0.3, this.clock);
       this.v0.setXYZW(i, dx * back - dz * side, 0.3 + j() * 0.5, dz * back + dx * side, 0.7 + j() * 0.9);
       this.emitted++;
+      this.lastEmit = this.clock;
     }
     this.acc.set(id, a);
     this.p0.needsUpdate = true;
@@ -138,5 +145,8 @@ export class Dust {
   update(dt: number): void {
     this.clock += dt;
     this.now.value = this.clock;
+    // Sur l'enrobé, plus aucune particule ne vit après LIFE secondes : le sprite (jusqu'à 1 536 quads) n'est plus dessiné.
+    const count = this.enabled && this.clock - this.lastEmit <= LIFE + 0.2 ? this.max : 0;
+    if (this.sprite.count !== count) this.sprite.count = count;
   }
 }

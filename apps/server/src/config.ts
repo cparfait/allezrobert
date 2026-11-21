@@ -68,6 +68,10 @@ export const ConfigSchema = z.object({
   CARTESIA_VOICE_EN: z.string().default('a5136bf9-224c-4d76-b823-52bd5efcffcc'),
   /** Cache disque des répliques synthétisées (une même phrase n'est générée qu'une fois). */
   TTS_CACHE_DIR: z.string().default('./tts-cache'),
+  /** Plafond de nouvelles synthèses par jour, tous visiteurs confondus (protège le quota Cartesia ; le cache ne compte pas). */
+  TTS_DAILY_LIMIT: z.coerce.number().int().min(0).default(1500),
+  /** Taille maximale du cache disque des répliques (Mo) : au-delà, les plus anciennes sont supprimées. */
+  TTS_CACHE_MAX_MB: z.coerce.number().min(1).default(500),
 
   /** Itinéraires ouverts au public (monde ouvert), séparés par des virgules. */
   PUBLIC_ROUTES: z.string().default('anneau-de-longchamp'),

@@ -279,6 +279,8 @@ export function adminRoutes(ctx: AppContext): express.Router {
     if (disabled) {
       await ctx.db.query('DELETE FROM sessions WHERE user_id = $1', [id]);
       ctx.forgetSession();
+      // Le jeton de jeu (4 h) ne suffit plus : le compte quitte aussi les sorties en cours.
+      for (const room of activeRooms) room.ejectUser(id);
     }
     ctx.log('info', `admin : compte ${id} ${disabled ? 'suspendu' : 'réactivé'} par ${me.userId}`);
     res.json({ ok: true, disabled });
@@ -303,6 +305,7 @@ export function adminRoutes(ctx: AppContext): express.Router {
     if (req.body?.confirm !== String(u.display_name)) throw new HttpError(400, 'Confirmation : saisis le nom exact du compte', 'confirm');
     await ctx.repos.deleteUser(id);
     ctx.forgetSession();
+    for (const room of activeRooms) room.ejectUser(id);
     ctx.log('warn', `admin : compte ${id} supprimé par ${me.userId}`);
     res.status(204).end();
   });

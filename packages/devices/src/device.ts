@@ -169,7 +169,8 @@ export class Device extends Emitter<DeviceEventMap> {
   private async openLink(): Promise<void> {
     // Le pont natif peut devoir retrouver le capteur avant la connexion et la découverte GATT.
     const timeout = this.options.connectTimeoutMs ?? (this.transport.kind === 'native-ble' ? 45000 : 20000);
-    const link = await this.withTimeout(this.transport.connect(this.descriptor), timeout);
+    // Un lien qui arrive après le délai est refermé : sinon il reste ouvert sans propriétaire (socket Direct Connect).
+    const link = await this.withTimeout(this.transport.connect(this.descriptor), timeout, (late) => void late.disconnect().catch(() => undefined));
     if (this.userDisconnect) {
       await link.disconnect().catch(() => undefined);
       return;
@@ -295,7 +296,17 @@ export class Device extends Emitter<DeviceEventMap> {
   }
 
   private async tryReconnect(): Promise<void> {
-    if (this.userDisconnect || this.link || this.connecting) return;
+    if (this.userDisconnect || this.link) return;
+    if (this.connecting) {
+      // Une connexion est encore en cours (lien perdu pendant l'attache des profils) : on réessaie à sa fin,
+      // sauf si elle a abouti ou si elle a déjà replanifié elle-même.
+      void this.connecting
+        .catch(() => undefined)
+        .then(() => {
+          if (!this.userDisconnect && !this.link && !this.connecting && this.reconnectTimer === undefined && this._state === 'reconnecting') void this.tryReconnect();
+        });
+      return;
+    }
     this.setState('reconnecting');
     try {
       await this.openConnection();
@@ -313,11 +324,19 @@ export class Device extends Emitter<DeviceEventMap> {
     this.reconnectTimer = undefined;
   }
 
-  private withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  private withTimeout<T>(p: Promise<T>, ms: number, onLate?: (v: T) => void): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      const timer = this.clock.setTimeout(() => reject(new Error('Délai de connexion dépassé')), ms);
+      let expired = false;
+      const timer = this.clock.setTimeout(() => {
+        expired = true;
+        reject(new Error('Délai de connexion dépassé'));
+      }, ms);
       p.then(
         (v) => {
+          if (expired) {
+            onLate?.(v);
+            return;
+          }
           this.clock.clearTimeout(timer);
           resolve(v);
         },

@@ -3,6 +3,14 @@
 //! Sous Windows, la clé doit utiliser le pilote WinUSB (voir README : Zadig).
 //! - `ant_list_sticks`, `ant_open`, `ant_open_channel`, `ant_send`, `ant_close`.
 //! - Événement : `ant://message` `{ channel, data }` (8 octets, diffusion / acquitté / rafale).
+//! - Événement : `ant://channel-event` `{ channel, kind }` : `closed` (canal fermé sans qu'on l'ait
+//!   demandé : fin de recherche…) ou `lost` (capteur perdu, le canal repart en recherche).
+//! - Événement : `ant://closed` : lecture USB interrompue (clé retirée).
+//!
+//! Messages acquittés : un seul transfert à la fois par canal. `ant_send` attend la fin du transfert
+//! (TX_COMPLETED) et réessaie quelques fois sur TX_FAILED : sans cela, un second message envoyé pendant
+//! le premier est refusé par la clé (« transfert en cours »), par exemple la page pente FE-C (51) qui
+//! suit la page vent (50).
 //!
 //! La clé réseau ANT+ n'est jamais stockée dans le dépôt : variable d'environnement
 //! `ANT_PLUS_NETWORK_KEY`, ou fichier `ant-plus-network-key.txt` dans le dossier de configuration
@@ -10,6 +18,7 @@
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU16, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -25,6 +34,8 @@ use crate::ant_protocol::{self as proto, AntDecoder, AntMessage};
 use crate::error::{io_error, AppError, AppResult};
 
 pub const EVENT_MESSAGE: &str = "ant://message";
+pub const EVENT_CHANNEL: &str = "ant://channel-event";
+pub const EVENT_CLOSED: &str = "ant://closed";
 pub const NETWORK_KEY_ENV: &str = "ANT_PLUS_NETWORK_KEY";
 pub const NETWORK_KEY_FILE: &str = "ant-plus-network-key.txt";
 
@@ -37,6 +48,15 @@ const SUPPORTED_PRODUCTS: [(u16, &str); 2] = [
 const NO_STICK: &str = "Aucune clé ANT+ détectée";
 const RESPONSE_TIMEOUT: Duration = Duration::from_millis(1000);
 const MAX_CHANNELS: u8 = 15;
+/// Attente de la fin d'un transfert acquitté : la clé répond en une période de canal (250 ms en FE-C,
+/// 1 s au plus pour les profils lents) ; au-delà, on rend la main sans erreur, comme avant.
+const ACK_TIMEOUT: Duration = Duration::from_millis(1500);
+/// Essais d'un message acquitté (TX_FAILED ou « transfert en cours »).
+const ACK_ATTEMPTS: usize = 3;
+const RESPONSE_TRANSFER_IN_PROGRESS: u8 = 0x1F;
+/// Messages acquittés en attente au plus par canal : au-delà (capteur hors de portée), les nouveaux
+/// sont abandonnés plutôt qu'empilés sans fin.
+const ACK_MAX_WAITING: u8 = 8;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,12 +73,48 @@ struct MessagePayload {
     data: Vec<u8>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct ChannelEventPayload {
+    channel: u8,
+    kind: &'static str,
+}
+
+/// Issue d'un transfert acquitté, lue dans les messages 0x40 du canal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AckOutcome {
+    Completed,
+    Failed,
+    /// La clé a refusé le message : un transfert est déjà en cours sur ce canal.
+    Busy,
+    /// Refus pour une autre raison (canal fermé, message invalide…) : code de réponse.
+    Refused(u8),
+}
+
+/// Interprète un message de la clé comme l'issue du transfert acquitté en cours sur `channel`.
+fn ack_outcome(message: &AntMessage, channel: u8) -> Option<AckOutcome> {
+    let (ch, msg_id, code) = message.channel_event()?;
+    if ch != channel {
+        return None;
+    }
+    match (msg_id, code) {
+        (0x01, proto::EVENT_TRANSFER_TX_COMPLETED) => Some(AckOutcome::Completed),
+        (0x01, proto::EVENT_TRANSFER_TX_FAILED) => Some(AckOutcome::Failed),
+        (proto::MSG_ACKNOWLEDGED_DATA, RESPONSE_TRANSFER_IN_PROGRESS) => Some(AckOutcome::Busy),
+        (proto::MSG_ACKNOWLEDGED_DATA, proto::EVENT_CODE_RESPONSE_NO_ERROR) => None,
+        (proto::MSG_ACKNOWLEDGED_DATA, other) => Some(AckOutcome::Refused(other)),
+        _ => None,
+    }
+}
+
 struct OpenStick {
     id: String,
     writer: nusb::io::EndpointWrite<Bulk>,
     reader_task: JoinHandle<()>,
     incoming: broadcast::Sender<AntMessage>,
     open_channels: BTreeSet<u8>,
+    /// Canaux que l'on est en train de fermer soi-même (un bit par canal) : leur événement « canal
+    /// fermé » n'est pas remonté à la page.
+    closing: Arc<AtomicU16>,
     ant_plus_configured: bool,
     shimano_configured: bool,
     _interface: nusb::Interface,
@@ -150,6 +206,13 @@ impl OpenStick {
     }
 
     async fn close_channel(&mut self, channel: u8) {
+        let bit = 1u16 << (channel & 0x0F);
+        self.closing.fetch_or(bit, Ordering::SeqCst);
+        self.close_channel_inner(channel).await;
+        self.closing.fetch_and(!bit, Ordering::SeqCst);
+    }
+
+    async fn close_channel_inner(&mut self, channel: u8) {
         let mut rx = self.incoming.subscribe();
         if self
             .command(channel, AntMessage::new(proto::MSG_CLOSE_CHANNEL, vec![channel]))
@@ -171,6 +234,20 @@ impl OpenStick {
 #[derive(Default)]
 struct Inner {
     stick: Mutex<Option<OpenStick>>,
+    /// Un transfert acquitté à la fois par canal (0 à MAX_CHANNELS). Verrou distinct de `stick` : les
+    /// autres canaux et les autres commandes ne sont pas retenus pendant l'attente.
+    ack: [Mutex<()>; MAX_CHANNELS as usize + 1],
+    /// Messages acquittés en cours ou en attente, par canal.
+    ack_waiting: [AtomicU8; MAX_CHANNELS as usize + 1],
+}
+
+/// Décompte un message acquitté en attente, quelle que soit la sortie de `ant_send`.
+struct AckSlot<'a>(&'a AtomicU8);
+
+impl Drop for AckSlot<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 #[derive(Default, Clone)]
@@ -363,13 +440,15 @@ pub async fn ant_open(
         .with_num_transfers(2);
 
     let (incoming, _) = broadcast::channel(256);
-    let reader_task = tokio::spawn(read_loop(app.clone(), reader, incoming.clone()));
+    let closing = Arc::new(AtomicU16::new(0));
+    let reader_task = tokio::spawn(read_loop(app.clone(), reader, incoming.clone(), closing.clone()));
     let mut stick = OpenStick {
         id: info.id.clone(),
         writer,
         reader_task,
         incoming,
         open_channels: BTreeSet::new(),
+        closing,
         ant_plus_configured: key.is_some(),
         shimano_configured: shimano_key.is_some(),
         _interface: interface,
@@ -401,6 +480,7 @@ async fn read_loop(
     app: AppHandle,
     mut reader: nusb::io::EndpointRead<Bulk>,
     incoming: broadcast::Sender<AntMessage>,
+    closing: Arc<AtomicU16>,
 ) {
     let mut decoder = AntDecoder::new();
     let mut buf = [0u8; 256];
@@ -410,6 +490,8 @@ async fn read_loop(
             Ok(n) => n,
             Err(e) => {
                 log::warn!("Clé ANT+ : lecture interrompue ({e}) — clé retirée ?");
+                // La page libère ses canaux et pourra rouvrir la clé quand elle sera rebranchée.
+                let _ = app.emit(EVENT_CLOSED, ());
                 break;
             }
         };
@@ -427,9 +509,15 @@ async fn read_loop(
                     proto::EVENT_RX_SEARCH_TIMEOUT => {
                         log::info!("ANT+ canal {channel} : délai de recherche écoulé")
                     }
-                    proto::EVENT_CHANNEL_CLOSED => log::info!("ANT+ canal {channel} fermé"),
+                    proto::EVENT_CHANNEL_CLOSED => {
+                        log::info!("ANT+ canal {channel} fermé");
+                        if closing.load(Ordering::SeqCst) & (1u16 << (channel & 0x0F)) == 0 {
+                            let _ = app.emit(EVENT_CHANNEL, ChannelEventPayload { channel, kind: "closed" });
+                        }
+                    }
                     proto::EVENT_RX_FAIL_GO_TO_SEARCH => {
-                        log::info!("ANT+ canal {channel} : capteur perdu, nouvelle recherche")
+                        log::info!("ANT+ canal {channel} : capteur perdu, nouvelle recherche");
+                        let _ = app.emit(EVENT_CHANNEL, ChannelEventPayload { channel, kind: "lost" });
                     }
                     proto::EVENT_RX_FAIL
                     | proto::EVENT_TRANSFER_TX_COMPLETED
@@ -566,12 +654,11 @@ pub async fn ant_send(
             data.len()
         )));
     }
-    let mut guard = state.0.stick.lock().await;
-    let stick = with_stick(&mut guard).await?;
-    if !stick.open_channels.contains(&channel) {
-        return Err(AppError(format!("Canal ANT+ {channel} non ouvert")));
+    if channel > MAX_CHANNELS {
+        return Err(AppError(format!("Canal ANT+ invalide : {channel}")));
     }
-    let id = if acknowledged.unwrap_or(false) {
+    let acknowledged = acknowledged.unwrap_or(false);
+    let id = if acknowledged {
         proto::MSG_ACKNOWLEDGED_DATA
     } else {
         proto::MSG_BROADCAST_DATA
@@ -579,7 +666,84 @@ pub async fn ant_send(
     let mut payload = Vec::with_capacity(9);
     payload.push(channel);
     payload.extend_from_slice(&data);
-    stick.write(&AntMessage::new(id, payload)).await
+    let message = AntMessage::new(id, payload);
+    if !acknowledged {
+        let mut guard = state.0.stick.lock().await;
+        let stick = with_stick(&mut guard).await?;
+        if !stick.open_channels.contains(&channel) {
+            return Err(AppError(format!("Canal ANT+ {channel} non ouvert")));
+        }
+        return stick.write(&message).await;
+    }
+
+    // Acquitté : un transfert à la fois sur ce canal ; les envois suivants attendent leur tour ici.
+    let waiting = &state.0.ack_waiting[channel as usize];
+    if waiting.fetch_add(1, Ordering::SeqCst) >= ACK_MAX_WAITING {
+        waiting.fetch_sub(1, Ordering::SeqCst);
+        log::debug!("ANT+ canal {channel} : trop de messages acquittés en attente, message abandonné");
+        return Ok(());
+    }
+    let _slot = AckSlot(waiting);
+    let _turn = state.0.ack[channel as usize].lock().await;
+    for attempt in 1..=ACK_ATTEMPTS {
+        // Le verrou de la clé n'est tenu que le temps d'écrire : l'attente ne retient ni les autres
+        // canaux ni la boucle de lecture.
+        let mut rx = {
+            let mut guard = state.0.stick.lock().await;
+            let stick = with_stick(&mut guard).await?;
+            if !stick.open_channels.contains(&channel) {
+                return Err(AppError(format!("Canal ANT+ {channel} non ouvert")));
+            }
+            let rx = stick.incoming.subscribe();
+            stick.write(&message).await?;
+            rx
+        };
+        let outcome = tokio::time::timeout(ACK_TIMEOUT, async {
+            loop {
+                match rx.recv().await {
+                    Ok(msg) => {
+                        if let Some(outcome) = ack_outcome(&msg, channel) {
+                            return Some(outcome);
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => return None,
+                }
+            }
+        })
+        .await;
+        match outcome {
+            Ok(Some(AckOutcome::Completed)) => return Ok(()),
+            Ok(Some(AckOutcome::Failed)) => {
+                log::debug!("ANT+ canal {channel} : message non acquitté (essai {attempt}/{ACK_ATTEMPTS})");
+                // Un message plus récent attend déjà son tour : il remplace celui-ci, inutile d'insister.
+                if waiting.load(Ordering::SeqCst) > 1 {
+                    return Ok(());
+                }
+            }
+            Ok(Some(AckOutcome::Busy)) => {
+                log::debug!("ANT+ canal {channel} : transfert en cours (essai {attempt}/{ACK_ATTEMPTS})");
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            Ok(Some(AckOutcome::Refused(code))) => {
+                return Err(AppError(format!(
+                    "Clé ANT+ : message acquitté refusé sur le canal {channel} ({}, code 0x{code:02X})",
+                    proto::response_code_label(code)
+                )));
+            }
+            Ok(None) => return Err(AppError::new("Clé ANT+ déconnectée")),
+            // Aucune issue reçue (clé qui ne remonte pas l'événement) : le message est parti, on rend la
+            // main sans erreur, comme avant ce contrôle.
+            Err(_) => {
+                log::debug!("ANT+ canal {channel} : pas d'issue du transfert acquitté");
+                return Ok(());
+            }
+        }
+    }
+    // Capteur hors de portée ou occupé : la page renvoie ses consignes d'elle-même (pente toutes les
+    // quelques secondes), on ne remonte donc pas d'erreur.
+    log::warn!("ANT+ canal {channel} : message non acquitté après {ACK_ATTEMPTS} essais");
+    Ok(())
 }
 
 /// Libère un canal (recherche abandonnée, appareil oublié). Sans effet si le canal est déjà fermé.
@@ -606,5 +770,34 @@ pub async fn shutdown(state: &AntState) {
     let stick = state.0.stick.lock().await.take();
     if let Some(stick) = stick {
         close_stick(stick).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(channel: u8, msg_id: u8, code: u8) -> AntMessage {
+        AntMessage::new(proto::MSG_CHANNEL_EVENT, vec![channel, msg_id, code])
+    }
+
+    #[test]
+    fn issue_du_transfert_acquitte() {
+        assert_eq!(ack_outcome(&event(2, 0x01, proto::EVENT_TRANSFER_TX_COMPLETED), 2), Some(AckOutcome::Completed));
+        assert_eq!(ack_outcome(&event(2, 0x01, proto::EVENT_TRANSFER_TX_FAILED), 2), Some(AckOutcome::Failed));
+        assert_eq!(ack_outcome(&event(2, proto::MSG_ACKNOWLEDGED_DATA, 0x1F), 2), Some(AckOutcome::Busy));
+        assert_eq!(ack_outcome(&event(2, proto::MSG_ACKNOWLEDGED_DATA, 0x16), 2), Some(AckOutcome::Refused(0x16)));
+        // Autre canal, autre événement radio, réponse à une autre commande, donnée reçue : rien.
+        assert_eq!(ack_outcome(&event(3, 0x01, proto::EVENT_TRANSFER_TX_COMPLETED), 2), None);
+        assert_eq!(ack_outcome(&event(2, 0x01, proto::EVENT_RX_FAIL), 2), None);
+        assert_eq!(ack_outcome(&event(2, proto::MSG_OPEN_CHANNEL, 0x15), 2), None);
+        assert_eq!(ack_outcome(&event(2, proto::MSG_ACKNOWLEDGED_DATA, 0x00), 2), None);
+        assert_eq!(ack_outcome(&AntMessage::new(proto::MSG_BROADCAST_DATA, vec![2, 0, 0, 0, 0, 0, 0, 0, 0]), 2), None);
+    }
+
+    #[test]
+    fn un_verrou_par_canal() {
+        let inner = Inner::default();
+        assert_eq!(inner.ack.len(), MAX_CHANNELS as usize + 1);
     }
 }

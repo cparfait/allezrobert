@@ -7,6 +7,7 @@ import type { QualitySettings } from '../engine/quality.ts';
 import type { LoadedTile } from './types.ts';
 import type { Season } from './environment.ts';
 import { cloudShade } from './clouds.ts';
+import { cullAfterWarmup } from './cullWarmup.ts';
 import { GRASS_BLOCK, GRASS_RADIUS, appendGrassBlock, generateGrassBlock, grassBlocksAround, grassTriesPerBlock, type GrassBlock, grassFieldsFor, type GrassEnv } from './grassPlacement.ts';
 
 /** Essais de placement par image pendant une regénération (≈ 12 ms ; une vingtaine d'images pour la densité la plus forte). */
@@ -188,9 +189,13 @@ export class GrassField {
     geo.setAttribute('seed', this.seeds);
     this.mesh = new THREE.InstancedMesh(geo, m, Math.max(this.max, 1));
     this.mesh.count = 0;
-    this.mesh.frustumCulled = false;
+    // Écarté hors champ par la sphère des touffes en place, refaite à chaque regénération (`advance`) : sans herbe
+    // autour (ville), le maillage n'est plus préparé à chaque image. Il reste « visible » (la précompilation du
+    // départ saute les objets masqués), et le culling ne commence qu'après les premières images (cullAfterWarmup).
+    this.mesh.boundingSphere = new THREE.Sphere();
     this.mesh.receiveShadow = true;
     this.mesh.name = 'grass';
+    cullAfterWarmup(this.mesh);
     this.setSeason(season);
   }
 
@@ -255,13 +260,41 @@ export class GrassField {
     if (job.bi < blocks.length && n < this.max) return;
     (this.mesh.instanceMatrix.array as Float32Array).set(staging.subarray(0, n * 16));
     const seeds = this.seeds.array as Float32Array;
+    let minX = Infinity;
+    let minY = Infinity;
+    let minZ = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let maxZ = -Infinity;
     for (let i = 0; i < n; i++) {
-      const v = Math.sin((staging[i * 16 + 12] as number) * 12.9898 + (staging[i * 16 + 14] as number) * 78.233) * 43758.5453;
+      const x = staging[i * 16 + 12] as number;
+      const y = staging[i * 16 + 13] as number;
+      const z = staging[i * 16 + 14] as number;
+      const v = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
       seeds[i] = v - Math.floor(v);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z;
+      if (z > maxZ) maxZ = z;
     }
-    this.seeds.needsUpdate = true;
+    const sphere = this.mesh.boundingSphere as THREE.Sphere;
+    if (n > 0) {
+      // Pieds des touffes, plus 3 m (hauteur d'une touffe et balancement au vent).
+      sphere.center.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+      sphere.radius = Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) / 2 + 3;
+    } else {
+      sphere.center.set(0, 0, 0);
+      sphere.radius = 0;
+    }
+    const had = this.mesh.count;
     this.mesh.count = n;
-    this.mesh.instanceMatrix.needsUpdate = true;
+    // Aucune touffe avant ni après (traversée d'une ville) : rien à renvoyer au GPU.
+    if (n > 0 || had > 0) {
+      this.seeds.needsUpdate = true;
+      this.mesh.instanceMatrix.needsUpdate = true;
+    }
     this.job = null;
   }
 }

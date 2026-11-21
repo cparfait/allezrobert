@@ -260,11 +260,19 @@ function tryMerge(root: THREE.Object3D, state: RiderState): void {
       if (!geometry) continue;
       const proxy = new THREE.SkinnedMesh(geometry, material);
       proxy.name = 'merged-skin';
-      proxy.frustumCulled = false;
       proxy.castShadow = first.castShadow;
       proxy.receiveShadow = first.receiveShadow;
       const anchor = first.parent as THREE.Object3D;
       anchor.add(proxy);
+      // Membres à sphère englobante large (coureurs V3, `wideBounds`) : la pièce fusionnée la reprend, exprimée dans
+      // le repère du parent commun, et s'écarte hors champ comme eux. Sinon jamais écartée, comme avant.
+      const wide = skins.every((s) => s.frustumCulled && s.userData.wideBounds === true && !!s.boundingSphere);
+      proxy.frustumCulled = wide;
+      if (wide) {
+        first.updateMatrix();
+        proxy.boundingSphere = ((first as THREE.SkinnedMesh).boundingSphere as THREE.Sphere).clone().applyMatrix4(first.matrix);
+        proxy.userData.wideBounds = true;
+      }
       proxy.bind((first as THREE.SkinnedMesh).skeleton, new THREE.Matrix4());
       const members = skins.map((mesh) => ({ mesh, mask: mesh.layers.mask }));
       members.forEach(hide);

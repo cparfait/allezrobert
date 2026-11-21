@@ -6,6 +6,7 @@
  */
 export * from './model.ts';
 export * from './conditions.ts';
+export * from './ride-inputs.ts';
 export * from './drafting.ts';
 export * from './sticky-group.ts';
 export * from './gearing.ts';

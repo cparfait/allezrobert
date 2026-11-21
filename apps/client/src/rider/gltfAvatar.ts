@@ -1257,6 +1257,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       parent: this.lean,
       level: () => this.lod.getCurrentLevel(),
       replace: (bike: boolean, rider: boolean) => {
+        this.v3RiderHidden = rider;
         const hide = (node: THREE.Object3D, on: boolean) => {
           if (on) {
             if (!hidden.has(node)) hidden.set(node, node.visible);
@@ -1274,6 +1275,16 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       },
     };
   }
+  /**
+   * Coureur masqué par son remplaçant V3 (style Bêta) : `update` ne calcule plus la pose du squelette, invisible ;
+   * seuls restent l'état du pédalage et l'inclinaison de `lean`, que le modèle V3 suit. La pose est recalculée à la
+   * demande quand la vue embarquée la lit (`eyeWorld`).
+   */
+  private v3RiderHidden = false;
+  /** Pose à jour (faux tant que `update` saute le squelette) ; derniers arguments de `update`, pour la rattraper. */
+  private poseFresh = true;
+  private lastPose: { cadence: number; speed: number; pose: RiderPose; bank: number } | null = null;
+  private forcePose = false;
   readonly root = new THREE.Group();
   /** Nom affiché au-dessus du coureur. */
   readonly label: THREE.Sprite | null = null;
@@ -1899,8 +1910,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   }
 
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank = 0): void {
+    // Coureur remplacé par son modèle V3 : squelette invisible, sa pose n'est calculée que si on la demande.
+    const hidden = this.v3RiderHidden && !this.forcePose;
     // Visage : seulement au premier niveau de détail (au-delà, invisible).
-    if (this.faceAnim && dt > 0 && this.lod.getCurrentLevel() === 0) {
+    if (!hidden && this.faceAnim && dt > 0 && this.lod.getCurrentLevel() === 0) {
       const inp = { ftpFrac: this.ftpFrac, cadence, speed, standing: pose === 'standing' };
       this.setExpressions(this.faceAnim.update(dt, this.hrFrac === undefined ? inp : { ...inp, hrFrac: this.hrFrac }));
       this.skin?.update(dt, this.faceAnim.effortLevel);
@@ -1971,6 +1984,16 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const seatedRock = 0.014 + 0.01 * THREE.MathUtils.clamp(this.ftpFrac - 0.6, 0, 0.6);
     const rock = -Math.sin(a) * (0.11 * stand + seatedRock * (1 - stand) * (1 - this.coastBlend));
     this.lean.rotation.z = bank + rock;
+    if (hidden) {
+      this.poseFresh = false;
+      const last = (this.lastPose ??= { cadence, speed, pose, bank });
+      last.cadence = cadence;
+      last.speed = speed;
+      last.pose = pose;
+      last.bank = bank;
+      return;
+    }
+    this.poseFresh = true;
     const counter = -rock * 0.65;
 
     // Pédalier, roues, pédales (les pédales automatiques suivent l'inclinaison du pied).
@@ -2196,6 +2219,16 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * et le placement de root.
    */
   eyeWorld(out: THREE.Vector3, hands?: THREE.Vector3): THREE.Vector3 {
+    // Pose sautée (coureur masqué par son modèle V3) : recalculée ici, sans avancer le temps, avec les dernières valeurs.
+    if (!this.poseFresh && this.lastPose) {
+      const { cadence, speed, pose, bank } = this.lastPose;
+      this.forcePose = true;
+      try {
+        this.update(0, cadence, speed, pose, bank);
+      } finally {
+        this.forcePose = false;
+      }
+    }
     const t = this.t;
     _q1.copy(t.bones.head.modelQ).invert().premultiply(this.mQ.head);
     out.copy(t.eyeRest).applyQuaternion(_q1).add(this.mP.head);

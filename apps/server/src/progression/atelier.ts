@@ -55,25 +55,28 @@ export async function rewardRide(
   userId: string,
   r: { distanceM: number; elevationM: number; startedAt: number; routeId?: string; routeLengthM?: number; segments: number },
 ): Promise<RideReward> {
-  const a = await repos.getAtelier(userId);
-  const st = nextStreak(a.streak.last ? a.streak : undefined, dayKey(new Date(r.startedAt)));
-  a.streak = { last: st.last, days: st.days };
-  const credits = creditsForRide({ distanceM: r.distanceM, elevationM: r.elevationM, segments: r.segments, streakDays: st.days, firstOfDay: st.firstOfDay });
-  a.credits += credits;
-  const finished = !!(r.routeId && r.routeLengthM && r.distanceM >= r.routeLengthM * 0.98);
-  if (finished && r.routeId && !a.routesDone.includes(r.routeId)) a.routesDone = [...a.routesDone, r.routeId];
-  const events = rideEvents({ distanceM: r.distanceM, routeFinished: finished, routesFinished: a.routesDone.length, koms: a.koms, streakDays: st.days });
-  const items = grantEvents(a, events);
-  await repos.saveAtelier(repos.db, userId, a);
-  return { credits, balance: a.credits, streakDays: st.days, events: events.filter((e) => TUNE_EVENTS.includes(e)), items };
+  // Sous verrou : une récompense de salle arrivée pendant l'envoi de la sortie ne s'écrase pas (et inversement).
+  return repos.updateAtelier(userId, (a) => {
+    const st = nextStreak(a.streak.last ? a.streak : undefined, dayKey(new Date(r.startedAt)));
+    a.streak = { last: st.last, days: st.days };
+    const credits = creditsForRide({ distanceM: r.distanceM, elevationM: r.elevationM, segments: r.segments, streakDays: st.days, firstOfDay: st.firstOfDay });
+    a.credits += credits;
+    const finished = !!(r.routeId && r.routeLengthM && r.distanceM >= r.routeLengthM * 0.98);
+    if (finished && r.routeId && !a.routesDone.includes(r.routeId)) a.routesDone = [...a.routesDone, r.routeId];
+    const events = rideEvents({ distanceM: r.distanceM, routeFinished: finished, routesFinished: a.routesDone.length, koms: a.koms, streakDays: st.days });
+    const items = grantEvents(a, events);
+    return { save: true, value: { credits, balance: a.credits, streakDays: st.days, events: events.filter((e) => TUNE_EVENTS.includes(e)), items } };
+  });
 }
 
 /** Récompenses de course (classement autoritaire de la salle) ou de montée chronométrée. */
 export async function rewardEvents(repos: Repos, userId: string, events: readonly TuneEvent[]): Promise<string[]> {
-  const a = await repos.getAtelier(userId);
-  const items = grantEvents(a, events);
-  if (items.length || events.some((e) => !a.events.includes(e))) await repos.saveAtelier(repos.db, userId, a);
-  return items;
+  return repos.updateAtelier(userId, (a) => {
+    // À évaluer avant `grantEvents`, qui inscrit les événements dans l'état.
+    const fresh = events.some((e) => !a.events.includes(e));
+    const items = grantEvents(a, events);
+    return { save: items.length > 0 || fresh, value: items };
+  });
 }
 
 /** Achat validé par le serveur (niveau, crédits, pièce achetable), débit atomique. */

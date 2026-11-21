@@ -97,7 +97,15 @@ export class RouteTrack {
     return lo;
   }
 
-  private segment(dIn: number): { a: RoutePoint; b: RoutePoint; t: number; i: number; d: number } {
+  // Résultat de `locate` (champs de travail : aucun objet créé par échantillon dans la boucle de jeu).
+  private segA!: RoutePoint;
+  private segB!: RoutePoint;
+  private segT = 0;
+  private segI = 0;
+  private segD = 0;
+
+  /** Segment qui contient la distance `dIn` : extrémités, position relative, indice et distance normalisée. */
+  private locate(dIn: number): void {
     const d = this.wrap(dIn);
     const i = this.indexAt(d);
     const a = this.pts[i] as RoutePoint;
@@ -110,25 +118,43 @@ export class RouteTrack {
       bd = this.length;
     }
     const span = Math.max(bd - a.d, 1e-6);
-    return { a, b, t: Math.min(Math.max((d - a.d) / span, 0), 1), i, d };
+    this.segA = a;
+    this.segB = b;
+    this.segT = Math.min(Math.max((d - a.d) / span, 0), 1);
+    this.segI = i;
+    this.segD = d;
   }
 
   private sampleRaw(d: number): { x: number; y: number; z: number } {
-    const { a, b, t } = this.segment(d);
+    this.locate(d);
+    const a = this.segA;
+    const b = this.segB;
+    const t = this.segT;
     return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
   }
 
   /** Échantillonne l'itinéraire ; `out` permet d'éviter les allocations dans la boucle de jeu. */
   sample(dIn: number, out: TrackSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 }): TrackSample {
-    const { a, b, t, i, d } = this.segment(dIn);
+    this.locate(dIn);
+    let a = this.segA;
+    let b = this.segB;
+    const t = this.segT;
+    const i = this.segI;
+    const d = this.segD;
     out.x = a.x + (b.x - a.x) * t;
     out.y = a.y + (b.y - a.y) * t;
     out.z = a.z + (b.z - a.z) * t;
     // Direction lissée : différence centrale sur ±3 m pour éviter les à-coups aux sommets.
-    const p0 = this.sampleRaw(d - 3);
-    const p1 = this.sampleRaw(d + 3);
-    const dx = p1.x - p0.x;
-    const dz = p1.z - p0.z;
+    this.locate(d - 3);
+    a = this.segA;
+    b = this.segB;
+    const x0 = a.x + (b.x - a.x) * this.segT;
+    const z0 = a.z + (b.z - a.z) * this.segT;
+    this.locate(d + 3);
+    a = this.segA;
+    b = this.segB;
+    const dx = a.x + (b.x - a.x) * this.segT - x0;
+    const dz = a.z + (b.z - a.z) * this.segT - z0;
     const len = Math.hypot(dx, dz) || 1;
     out.dirX = dx / len;
     out.dirZ = dz / len;
@@ -156,9 +182,39 @@ export class RouteTrack {
    */
   /** Largeur de chaussée (m) à la distance d (tronçons `roadWidths`, sinon largeur de l'itinéraire). */
   widthAt(d: number): number {
+    const list = this.route.roadWidths;
+    if (!list?.length) return this.route.roadWidthM;
     const x = this.wrap(d);
-    return this.route.roadWidths?.find((r) => x >= r.startM && x <= r.endM)?.widthM ?? this.route.roadWidthM;
+    if (list !== this.widthList || list.length !== this.widthCount) {
+      // Tronçons triés et sans recouvrement (le cas des fichiers construits) : recherche dichotomique.
+      // Sinon on garde le parcours du premier tronçon qui contient d.
+      let sorted = true;
+      for (let k = 0; k < list.length && sorted; k++) {
+        const r = list[k] as { startM: number; endM: number };
+        const next = list[k + 1];
+        sorted = r.startM <= r.endM && (!next || r.endM <= next.startM);
+      }
+      this.widthList = list;
+      this.widthCount = list.length;
+      this.widthSorted = sorted;
+    }
+    if (!this.widthSorted) return list.find((r) => x >= r.startM && x <= r.endM)?.widthM ?? this.route.roadWidthM;
+    let lo = 0;
+    let hi = list.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if ((list[mid] as { startM: number }).startM <= x) lo = mid;
+      else hi = mid - 1;
+    }
+    // À une jonction (fin d'un tronçon = début du suivant), le premier tronçon l'emporte, comme avant.
+    while (lo > 0 && (list[lo - 1] as { endM: number }).endM >= x) lo--;
+    const r = list[lo] as { startM: number; endM: number; widthM: number };
+    return x >= r.startM && x <= r.endM ? r.widthM : this.route.roadWidthM;
   }
+
+  private widthList: RouteData['roadWidths'];
+  private widthCount = 0;
+  private widthSorted = false;
 
   linePositionAt(d: number, lateral: number, speedMs: number, out: TrackSample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 }): TrackSample {
     this.sample(d, out);

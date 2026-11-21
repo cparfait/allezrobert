@@ -1,5 +1,6 @@
 import type { RoadGraphData, RoadGraphEdge, WorldCatalogue, WorldPlace } from '@allezrobert/shared';
 import type { LoadedTile, Rings, TileFeatures, WorldSource } from './types.ts';
+import { deferOpenGraph, emptyGraph, openGraphPending, openGraphReady } from './packs.ts';
 
 /**
  * Zones voisines chargées ensemble (parcours libre ou à dessiner d'une zone à l'autre).
@@ -84,7 +85,6 @@ export function createCompositeWorld(sources: WorldSource[]): WorldSource {
 
   let open: WorldSource['open'];
   if (main.open) {
-    const graph = mergeGraphs(parts, owner, T);
     const places: WorldPlace[] = [];
     const seen = new Set<string>();
     for (const p of parts)
@@ -93,12 +93,27 @@ export function createCompositeWorld(sources: WorldSource[]): WorldSource {
         seen.add(pl.name);
         places.push({ ...pl, x: pl.x + p.dx, z: pl.z + p.dz });
       }
-    open = { graph, fullGraph: graph, start: main.open.start, places };
-    // Le graphe réuni remplace ceux des zones (des dizaines de Mo chacun) : les tuiles n'en ont plus besoin.
-    for (const p of parts) {
-      const { open: _graphs, ...rest } = p.source;
-      p.source = rest;
-    }
+    const merged: NonNullable<WorldSource['open']> = { graph: emptyGraph(), fullGraph: emptyGraph(), start: main.open.start, places };
+    const merge = (): void => {
+      const graph = mergeGraphs(parts, owner, T);
+      merged.graph = graph;
+      merged.fullGraph = graph;
+      // Le graphe réuni remplace ceux des zones (des dizaines de Mo chacun) : les tuiles n'en ont plus besoin.
+      for (const p of parts) {
+        const { open: _graphs, ...rest } = p.source;
+        p.source = rest;
+      }
+    };
+    // Graphes des zones chargés à la demande (packs.ts) : la réunion attend qu'on en ait besoin.
+    if (parts.some((p) => openGraphPending(p.source.open)))
+      deferOpenGraph(merged, async () => {
+        const ok = await Promise.all(parts.map((p) => openGraphReady(p.source)));
+        if (!ok[0]) return false;
+        merge();
+        return true;
+      });
+    else merge();
+    open = merged;
   }
 
   return {

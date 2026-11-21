@@ -76,6 +76,19 @@ describe('salle pair', () => {
     game.send(PAIR_MSG.event, { kind: 'musicResults', query: 'daft punk', items: [{ uri: 'spotify:track:4uLU6hMCjMI75M1A2tKUQC', type: 'track', name: 'One More Time', sub: 'Daft Punk' }] });
     expect((await results).items).toHaveLength(1);
 
+    // Destination en parcours libre : recherche relayée, coordonnées hors bornes ou nom vide refusés.
+    const place = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'goTo', x: 1e12, z: 0, name: 'Trop loin' });
+    phone.send(PAIR_MSG.cmd, { kind: 'goTo', x: 10, z: 20, name: '   ' });
+    phone.send(PAIR_MSG.cmd, { kind: 'placeSearch', query: '  chevreuse ' });
+    expect(await place).toEqual({ kind: 'placeSearch', query: 'chevreuse' });
+    const go = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'goTo', x: 1250.5, z: -340, name: ' Chevreuse ' });
+    expect(await go).toEqual({ kind: 'goTo', x: 1250.5, z: -340, name: 'Chevreuse' });
+    const clear = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'clearDestination' });
+    expect(await clear).toEqual({ kind: 'clearDestination' });
+
     // Jeu → téléphone : état relayé.
     const st = next<PairState>(phone, PAIR_MSG.state);
     game.send(PAIR_MSG.state, { phase: 'ride', routeName: 'Billom' } satisfies PairState);

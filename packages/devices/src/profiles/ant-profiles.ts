@@ -166,7 +166,9 @@ export class FecTrainer implements Profile, TrainerControl, RoadFeelControl {
     switch (command.kind) {
       case 'simulation': {
         // Page 50 seulement si le vent / coefficient change, puis page 51 (pente + Crr).
-        const windKey = `${command.windSpeedMs ?? 0}|${command.cw ?? 0.51}`;
+        // Clé à la résolution de la page 50 (coefficient 0,01 kg/m, vent 1 km/h) : `cw` suit la densité de
+        // l'air, donc l'altitude ; sans arrondi la page repartait à chaque consigne.
+        const windKey = `${Math.round((command.windSpeedMs ?? 0) * 3.6)}|${Math.round((command.cw ?? 0.51) * 100)}`;
         if (windKey !== this.lastWind) {
           this.lastWind = windKey;
           await ch.sendPage(encodeFecWindResistance({ windResistanceCoefficient: command.cw ?? 0.51, windSpeedKmh: (command.windSpeedMs ?? 0) * 3.6, draftingFactor: 1 }));

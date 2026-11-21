@@ -27,14 +27,49 @@ export function hasLocalMedia(path: string): boolean {
   return !mediaFiles || mediaFiles.has(path.replace(/^\//, ''));
 }
 
+const MENU_LOOP = /^menu\/loop-.*\.(mp4|webm)$/;
+
+/**
+ * Boucles vidéo du menu à garder sur le disque : celle de la saison et du style choisis (H.264 et AV1, le codec
+ * n'est tranché qu'à la lecture). Les autres (≈ 300 Mo) ne sont plus téléchargées avant le premier écran : le menu
+ * les lit depuis le serveur si on change de saison ou de style (`hasLocalMedia` faux), l'image fixe couvrant l'attente.
+ */
+export function wantedMenuLoops(style: string | null, season: string | null): Set<string> {
+  // Style Beta : ses boucles viennent du service V3, aucune de celles du manifeste ne sert.
+  if (style === 'v3') return new Set();
+  const name = `menu/loop-${style === 'lowpoly' ? 'lowpoly-' : ''}${season ?? 'autumn'}`;
+  return new Set([`${name}.mp4`, `${name}.av1.mp4`]);
+}
+
+/** Manifeste sans les boucles du menu inutiles ; sa version dépend des boucles gardées (autre saison : nouvelle synchro). */
+export function trimMenuLoops(manifest: MediaManifest, keep: ReadonlySet<string>): MediaManifest {
+  const files = manifest.files.filter((f) => !MENU_LOOP.test(f.p) || keep.has(f.p));
+  if (files.length === manifest.files.length) return manifest;
+  const kept = files.filter((f) => MENU_LOOP.test(f.p)).map((f) => f.p.replace(/^menu\/loop-|\.mp4$/g, ''));
+  return { ...manifest, version: `${manifest.version}-${kept.join('+') || 'sans-boucle'}`, bytes: files.reduce((n, f) => n + f.b, 0), files };
+}
+
+function currentMenuLoops(): Set<string> {
+  let style: string | null = null;
+  let season: string | null = null;
+  try {
+    style = new URLSearchParams(location.search).get('style') ?? localStorage.getItem('ar.style');
+    season = (JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { season?: string }).season ?? null;
+  } catch {
+    // réglages illisibles : boucle par défaut
+  }
+  return wantedMenuLoops(style, season);
+}
+
 export async function prepareDesktop(): Promise<void> {
   if (!inDesktop) return;
   await initPacks();
-  const manifest = await fetch('/media-manifest.json')
+  const full = await fetch('/media-manifest.json')
     .then((r) => (r.ok && (r.headers.get('content-type') ?? '').includes('json') ? (r.json() as Promise<MediaManifest>) : null))
     .catch(() => null);
   // Développement (serveur Vite) : tout est servi par Vite, rien à télécharger.
-  if (!manifest) return;
+  if (!full) return;
+  const manifest = trimMenuLoops(full, currentMenuLoops());
   mediaFiles = new Set(manifest.files.map((f) => f.p));
   const status = await invoke<{ ready: boolean; present: boolean; missingBytes: number }>('media_status', { manifest });
   if (status.ready) return;

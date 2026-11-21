@@ -5,13 +5,15 @@ Mis à jour à chaque fusion sur la branche de travail.
 
 ## Branche et récupération
 
-- Branche de travail : `claude/optimistic-einstein-hqh9c5` (la branche `main` n'a que le
-  « commit initial »).
+- Branche de travail : `main` (relevé du 21 novembre 2026 : tout le travail y est, plus de 960
+  commits ; l'ancienne branche `claude/optimistic-einstein-hqh9c5` ne sert plus).
+- Le reste de ce document date de fin octobre 2026 : les chiffres (nombre de tests, de vélos, poids
+  des tuiles) ont changé depuis.
 - Sous Windows (invite de commandes), dans `C:\tmp\__DEV__\allezrobert` :
 
 ```bat
 git fetch origin
-git checkout claude/optimistic-einstein-hqh9c5
+git checkout main
 git pull
 pnpm install
 pnpm dev
@@ -32,7 +34,7 @@ pnpm dev
 
 | Chantier | État | Où regarder |
 | --- | --- | --- |
-| Vélos : 101 modèles, livrées d'après photos, inscriptions des cadres et des jantes, position et casque chrono | fait | `packages/shared/src/bikes.json`, `apps/client/src/rider/bikes.ts`, `rimDecal.ts`, `wordmarks.ts` |
+| Vélos : 111 modèles (relevé du 21 novembre), livrées d'après photos, inscriptions des cadres et des jantes, position et casque chrono | fait | `packages/shared/src/bikes.json`, `apps/client/src/rider/bikes.ts`, `rimDecal.ts`, `wordmarks.ts` |
 | Amis : code ami, présence, « Rejoindre », invitations, classements entre amis | fait (fantôme d'un ami : décrit, pas codé) | `apps/server/src/http/friends-routes.ts`, `apps/client/src/ui/friends.ts` |
 | Avatars (étapes 2 à 5) : base MPFB CC0, 42 curseurs, 51 expressions, peau, 3 niveaux de détail, 8 profils, éditeur au garage, ressemblance photo sur l'appareil | fait | `docs/AVATARS.md` (§ 13 : avancement détaillé) |
 
@@ -82,7 +84,7 @@ donne le détail.
 
 ## Reprendre avec Claude Code
 
-Ouvrir le dépôt sur la branche ci-dessus et donner ce fichier comme point de départ :
+Ouvrir le dépôt sur `main` et donner ce fichier comme point de départ :
 « Lis docs/REPRISE.md et docs/ROADMAP.md, puis continue ». Conventions : documentation,
 commentaires et messages de commit en français ; aucune ressource sans licence compatible
 (tracée dans `ASSETS_LICENSES.md`) ; ne rien déclarer fini sans vérification visuelle.

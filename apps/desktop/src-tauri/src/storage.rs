@@ -157,10 +157,21 @@ pub fn storage_open_dir() -> AppResult<()> {
 
 /// Montre un fichier enregistré par l'application (sortie, capture) dans l'explorateur.
 #[tauri::command]
-pub fn reveal_path(path: String) -> AppResult<()> {
+pub fn reveal_path(app: AppHandle, path: String) -> AppResult<()> {
     let p = PathBuf::from(&path);
     if !p.is_absolute() || !p.exists() {
         return Err("fichier introuvable".into());
+    }
+    // Seulement ce que l'application écrit : ses exports (voir `save_export`) et son dossier de données.
+    let mut roots = vec![data_dir()];
+    if let Ok(d) = app.path().document_dir() {
+        roots.push(d.join("Allez Robert"));
+    }
+    if let Ok(d) = app.path().picture_dir() {
+        roots.push(d.join("Allez Robert"));
+    }
+    if !is_within(&p, &roots) {
+        return Err("fichier hors des dossiers de l'application".into());
     }
     #[cfg(target_os = "macos")]
     {
@@ -173,6 +184,12 @@ pub fn reveal_path(path: String) -> AppResult<()> {
         let arg = format!("/select,{}", p.display());
         explorer(&[std::ffi::OsStr::new(&arg)])
     }
+}
+
+/// Vrai si `path` (existant) est dans l'un des dossiers `roots`, liens et `..` résolus.
+fn is_within(path: &Path, roots: &[PathBuf]) -> bool {
+    let Ok(real) = path.canonicalize() else { return false };
+    roots.iter().filter_map(|r| r.canonicalize().ok()).any(|r| real.starts_with(r))
 }
 
 fn explorer(args: &[&std::ffi::OsStr]) -> AppResult<()> {
@@ -406,6 +423,20 @@ mod tests {
         assert!(safe_join(r, "C:/Windows/x").is_none());
         assert!(safe_join(r, "").is_none());
         assert_eq!(safe_join(r, "/worlds/sancy/tiles/0_0.json"), Some(r.join("worlds/sancy/tiles/0_0.json")));
+    }
+
+    #[test]
+    fn dossiers_de_l_application() {
+        let root = std::env::temp_dir().join(format!("ar-test-reveal-{}", std::process::id()));
+        let inside = root.join("Sorties");
+        std::fs::create_dir_all(&inside).unwrap();
+        let file = inside.join("sortie.fit");
+        std::fs::write(&file, b"x").unwrap();
+        assert!(is_within(&file, &[root.clone()]));
+        assert!(!is_within(&file, &[root.join("Autre")]));
+        assert!(!is_within(&std::env::temp_dir(), &[root.clone()]));
+        assert!(!is_within(&inside.join("..").join("..").join("absent"), &[root.clone()]));
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

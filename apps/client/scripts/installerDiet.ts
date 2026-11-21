@@ -23,7 +23,36 @@ export function pruneDist(dist: string, desktop: boolean): string[] {
   const worlds = resolve(dist, 'worlds');
   if (desktop && existsSync(worlds)) for (const w of readdirSync(worlds, { withFileTypes: true })) if (w.isDirectory()) drop(resolve(worlds, w.name, 'graph.json'));
   if (desktop && existsSync(menu)) for (const f of readdirSync(menu)) if (/^loop-.*\.webm$/.test(f)) drop(resolve(menu, f));
+  if (desktop) for (const f of devOnlyModels(dist)) drop(f);
   return removed;
+}
+
+/**
+ * Modèles qui ne servent qu'avec un paramètre d'URL de développement, inutiles dans l'application (≈ 68 Mo) :
+ * - anciens spectateurs Tripo (`?crowd=tripo`, world/crowdRealistic.ts) : les personnages de `index_tripo.json`
+ *   absents de `index.json`, sauf `spectateur` (repli du jeu quand `index.json` ne se charge pas) ;
+ * - ancien modèle féminin distinct (`?femmes=modele`, rider/gltfAvatar.ts) : `avatar/rider_female*.glb`.
+ */
+function devOnlyModels(dist: string): string[] {
+  const out: string[] = [];
+  const crowd = resolve(dist, 'models', 'crowd');
+  const names = (file: string): string[] => {
+    try {
+      const m = (JSON.parse(readFileSync(resolve(crowd, file), 'utf8')) as { models?: unknown }).models;
+      return Array.isArray(m) ? m.filter((n): n is string => typeof n === 'string' && /^[\w-]+$/.test(n)) : [];
+    } catch {
+      return [];
+    }
+  };
+  const used = new Set([...names('index.json'), 'spectateur']);
+  // Sans liste courante lisible, on ne retire rien.
+  if (used.size > 1) {
+    for (const n of names('index_tripo.json')) if (!used.has(n)) for (const ext of ['bin', 'json', 'webp']) out.push(resolve(crowd, `${n}.${ext}`));
+    out.push(resolve(crowd, 'index_tripo.json'));
+  }
+  const avatar = resolve(dist, 'models', 'avatar');
+  if (existsSync(avatar)) for (const f of readdirSync(avatar)) if (/^rider_female(_lod\d)?\.glb$/.test(f)) out.push(resolve(avatar, f));
+  return out;
 }
 
 /**

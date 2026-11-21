@@ -1,7 +1,7 @@
 import type { RoadGraphData, RouteData, WorldMeta, WorldPlace } from '@allezrobert/shared';
 import { LOW_POLY } from '../engine/style.ts';
 import type { HorizonGrid, LoadedTile, WorldSource } from './types.ts';
-import { graphFetch, worldFetch } from './packs.ts';
+import { deferOpenGraph, emptyGraph, graphFetch, worldFetch } from './packs.ts';
 import { decodeTileBytes } from './tileDecoder.ts';
 import { buildingVisualLoader } from './buildingVisual.ts';
 import { apurVegetationCredit, loadApurVegetation } from './apurVegetation.ts';
@@ -20,18 +20,25 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       return (await res.json()) as RouteData;
     }),
   );
-  // Monde ouvert : graphe routier (≈ 1 Mo), chargé avec les itinéraires, et noms des lieux
-  // habités pour la carte d'itinéraire du menu (facultatifs).
+  // Monde ouvert : noms des lieux habités pour la carte d'itinéraire du menu (facultatifs), chargés avec les
+  // itinéraires. Le graphe routier (15 à 35 Mo de JSON par zone) est chargé à la demande (`openGraphReady`,
+  // packs.ts) : monde ouvert, planificateur, mini-carte locale. D'ici là `open.graph` est un graphe vide.
   let open: WorldSource['open'];
   if (meta.open) {
-    const [res, pl] = await Promise.all([graphFetch(`${base}/${meta.open.graph}`), meta.open.places ? fetch(`${base}/${meta.open.places}`).catch(() => null) : null]);
+    const graphPath = `${base}/${meta.open.graph}`;
+    const pl = meta.open.places ? await fetch(`${base}/${meta.open.places}`).catch(() => null) : null;
     const places = pl?.ok ? ((await pl.json().catch(() => null)) as WorldPlace[] | null) : null;
-    if (res.ok) {
+    const pending: NonNullable<WorldSource['open']> = { graph: emptyGraph(), fullGraph: emptyGraph(), start: meta.open.start, ...(places ? { places } : {}), ...(meta.open.map ? { map: `${base}/${meta.open.map}` } : {}) };
+    deferOpenGraph(pending, async () => {
+      const res = await graphFetch(graphPath);
+      if (!res.ok) return false;
       // arêtes au bord du monde : seulement pour raccorder les zones voisines (pas de cul-de-sac au bord)
       const full = (await res.json()) as RoadGraphData;
-      const graph = full.edges.some((e) => e.border) ? { ...full, edges: full.edges.filter((e) => !e.border) } : full;
-      open = { graph, fullGraph: full, start: meta.open.start, ...(places ? { places } : {}), ...(meta.open.map ? { map: `${base}/${meta.open.map}` } : {}) };
-    }
+      pending.graph = full.edges.some((e) => e.border) ? { ...full, edges: full.edges.filter((e) => !e.border) } : full;
+      pending.fullGraph = full;
+      return true;
+    });
+    open = pending;
   }
   // Itinéraire principal en premier (jalon 1).
   routes.sort((a, b) => (a.id === meta.mainRoute ? -1 : b.id === meta.mainRoute ? 1 : 0));

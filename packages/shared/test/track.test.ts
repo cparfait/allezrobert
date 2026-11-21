@@ -120,3 +120,149 @@ describe('RouteTrack : la trajectoire reste sur la chaussée', () => {
     }
   });
 });
+
+/** Ancien calcul de `sample` et `widthAt` (objets intermédiaires, parcours linéaire), gardé comme référence. */
+class ReferenceTrack {
+  readonly length: number;
+  private readonly pts: RouteData['points'];
+  private readonly grades: Float32Array;
+
+  constructor(private readonly route: RouteData, w = 12) {
+    this.pts = route.points;
+    this.length = route.loop ? route.lengthM : this.pts[this.pts.length - 1]!.d;
+    this.grades = new Float32Array(this.pts.length);
+    for (let i = 0; i < this.pts.length; i++) {
+      const p = this.pts[i]!;
+      this.grades[i] = ((this.sampleRaw(p.d + w).y - this.sampleRaw(p.d - w).y) / (2 * w)) * 100;
+    }
+  }
+
+  wrap(d: number): number {
+    if (this.route.loop) return ((d % this.length) + this.length) % this.length;
+    return Math.min(Math.max(d, 0), this.length);
+  }
+
+  private segment(dIn: number) {
+    const d = this.wrap(dIn);
+    let lo = 0;
+    let hi = this.pts.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (this.pts[mid]!.d <= d) lo = mid;
+      else hi = mid - 1;
+    }
+    const i = lo;
+    const a = this.pts[i]!;
+    let b = this.pts[i + 1];
+    let bd: number;
+    if (b) bd = b.d;
+    else {
+      b = this.pts[0]!;
+      bd = this.length;
+    }
+    const span = Math.max(bd - a.d, 1e-6);
+    return { a, b, t: Math.min(Math.max((d - a.d) / span, 0), 1), i, d };
+  }
+
+  private sampleRaw(d: number) {
+    const { a, b, t } = this.segment(d);
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
+  }
+
+  sample(dIn: number) {
+    const { a, b, t, i, d } = this.segment(dIn);
+    const p0 = this.sampleRaw(d - 3);
+    const p1 = this.sampleRaw(d + 3);
+    const dx = p1.x - p0.x;
+    const dz = p1.z - p0.z;
+    const len = Math.hypot(dx, dz) || 1;
+    const g0 = this.grades[i]!;
+    const g1 = (i + 1 < this.pts.length ? this.grades[i + 1] : this.grades[this.route.loop ? 0 : i])!;
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t, dirX: dx / len, dirZ: dz / len, grade: g0 + (g1 - g0) * t, d };
+  }
+
+  widthAt(d: number): number {
+    const x = this.wrap(d);
+    return this.route.roadWidths?.find((r) => x >= r.startM && x <= r.endM)?.widthM ?? this.route.roadWidthM;
+  }
+}
+
+/** Tracé irrégulier (pas variables, virages, relief), déterministe. */
+function wigglyRoute(loop: boolean): RouteData {
+  let seed = 12345;
+  const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const pts = [];
+  let x = 0;
+  let z = 0;
+  let d = 0;
+  let heading = 0;
+  for (let k = 0; k < 600; k++) {
+    pts.push({ x, y: 40 * Math.sin(k / 37) + 3 * rnd(), z, d });
+    const step = 0.5 + 6 * rnd();
+    heading += (rnd() - 0.5) * 0.6;
+    x += Math.cos(heading) * step;
+    z += Math.sin(heading) * step;
+    d += step;
+  }
+  return { id: 'w', name: 'w', loop, lengthM: d + 4, elevationGainM: 0, points: pts, segments: [], roadWidthM: 6, attribution: [] };
+}
+
+describe('RouteTrack : échantillonnage sans allocation et largeur par dichotomie', () => {
+  const sameSample = (track: RouteTrack, ref: ReferenceTrack, d: number): void => {
+    const out = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+    expect(track.sample(d, out)).toBe(out);
+    expect(out).toEqual(ref.sample(d));
+    expect(track.sample(d)).toEqual(ref.sample(d));
+  };
+
+  for (const loop of [true, false]) {
+    it(`sample identique à l'ancien calcul (${loop ? 'boucle' : 'itinéraire ouvert'})`, () => {
+      const route = wigglyRoute(loop);
+      const track = new RouteTrack(route);
+      const ref = new ReferenceTrack(route);
+      const L = track.length;
+      const ds = [0, 1e-9, 2.999, 3, 3.001, L - 3, L - 1e-6, L, L + 0.5, L + 3, -0.5, -3, -L - 7, 2 * L + 11, L / 2];
+      for (const p of route.points) ds.push(p.d, p.d - 1e-7, p.d + 1e-7);
+      for (let k = 0; k < 4000; k++) ds.push(-50 + (k / 4000) * (L + 100));
+      for (const d of ds) sameSample(track, ref, d);
+    });
+  }
+
+  it('widthAt identique : tronçons triés, jonctions, trous, bornes', () => {
+    const route = wigglyRoute(true);
+    const L = route.lengthM;
+    route.roadWidths = [
+      { startM: 0, endM: 40, widthM: 5 },
+      { startM: 40, endM: 40, widthM: 9 }, // tronçon de longueur nulle à une jonction
+      { startM: 40, endM: 120.5, widthM: 3.5 },
+      { startM: 200, endM: 310, widthM: 7 }, // trou de 120,5 à 200
+      { startM: 310, endM: L, widthM: 4 },
+    ];
+    const track = new RouteTrack(route);
+    const ref = new ReferenceTrack(route);
+    const ds = [0, 40, 120.5, 200, 310, L, -1, L + 1, 150, 39.999999, 40.000001, 120.500001, 199.999999];
+    for (let k = 0; k <= 5000; k++) ds.push(-20 + (k / 5000) * (L + 40));
+    for (const d of ds) expect(track.widthAt(d)).toBe(ref.widthAt(d));
+    // Liste remplacée en cours de route (mode ouvert) : la nouvelle est prise en compte.
+    route.roadWidths = [{ startM: 0, endM: L, widthM: 11 }];
+    expect(track.widthAt(100)).toBe(11);
+    delete route.roadWidths;
+    expect(track.widthAt(100)).toBe(6);
+  });
+
+  it('widthAt identique : tronçons non triés ou qui se recouvrent (repli sur le parcours)', () => {
+    const route = wigglyRoute(false);
+    const L = new RouteTrack(route).length;
+    route.roadWidths = [
+      { startM: 300, endM: 500, widthM: 8 },
+      { startM: 0, endM: 350, widthM: 4 },
+      { startM: 100, endM: 200, widthM: 2 },
+    ];
+    const track = new RouteTrack(route);
+    const ref = new ReferenceTrack(route);
+    for (let k = 0; k <= 3000; k++) {
+      const d = -20 + (k / 3000) * (L + 40);
+      expect(track.widthAt(d)).toBe(ref.widthAt(d));
+    }
+  });
+});

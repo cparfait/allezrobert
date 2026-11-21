@@ -117,6 +117,17 @@ const EZ_TREES = (() => {
   }
 })();
 
+/** Vrais arbres : un feuillu LiDAR marqué « conifère » (paramètre d'instance ≥ 250) n'est pas remplacé. */
+function ezIsConifer(mesh: THREE.InstancedMesh, i: number): boolean {
+  return !!mesh.instanceColor && ((mesh.instanceColor.array as Float32Array)[i * 3] as number) >= 250;
+}
+
+/** Vrais arbres : hauteur (m) du feuillu LiDAR `i` du bloc, d'après l'échelle verticale de son instance. */
+function ezTopOf(mesh: THREE.InstancedMesh, i: number): number {
+  const a = mesh.instanceMatrix.array as Float32Array;
+  return Math.hypot(a[i * 16 + 4] as number, a[i * 16 + 5] as number, a[i * 16 + 6] as number) * DECID_TOP;
+}
+
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
 const LEAVES: Record<Season, [string, string, string]> = {
   spring: ['#7fb24a', '#a9cf6a', '#6e9e3f'],
@@ -1284,36 +1295,37 @@ export class Vegetation {
   /** Met à jour les niveaux de détail quand le coureur s'est déplacé de plus de 40 m. */
   /** Vrais arbres EZ-Tree (`?eztree=0` pour couper, voir ezTreeNear.ts) ; feuillus du jeu masqués à moins de `ezHideR` de `ezFocus`. */
   private ezNear: EzTreeNear | null = null;
+  private readonly ezNearMeshes: THREE.InstancedMesh[] = [];
   private readonly ezFocus = uniform(new THREE.Vector3(1e9, 0, 1e9));
 
   update(focus: THREE.Vector3): void {
     this.drainLod();
     if (EZ_TREES && !LOW_POLY) {
       if (!this.ezNear) {
-        this.ezNear = new EzTreeNear(this.leafA.node as unknown as THREE.Node<'vec3'>, this.leafB.node as unknown as THREE.Node<'vec3'>, this.leafAmount, this.ezFocus);
+        this.ezNear = new EzTreeNear(this.leafA.node as unknown as THREE.Node<'vec3'>, this.leafB.node as unknown as THREE.Node<'vec3'>, this.leafAmount, this.ezFocus, {
+          nearM: this.q.ezNearM,
+          nearShadows: this.q.ezNearShadows,
+        });
         this.group.add(this.ezNear.group);
       }
-      // feuillus des blocs LiDAR qui touchent le rayon des imposteurs
-      const near: THREE.InstancedMesh[] = [];
-      const R = EZ_IMPOSTOR_M + FAR_BAND + 6;
-      for (const c of this.chunks.values()) {
-        if (!c.real) continue;
-        const x0 = c.cx * c.size;
-        const z0 = c.cz * c.size;
-        const dx = Math.max(x0 - focus.x, 0, focus.x - (x0 + c.size));
-        const dz = Math.max(z0 - focus.z, 0, focus.z - (z0 + c.size));
-        if (dx * dx + dz * dz > R * R) continue;
-        for (const { kind, mesh } of c.meshes) if (kind === 'decid') near.push(mesh);
+      // Les listes ne sont refaites que tous les 5 m : les blocs proches ne sont rassemblés que ces images-là.
+      if (this.ezNear.tick(focus)) {
+        // feuillus des blocs LiDAR qui touchent le rayon des imposteurs
+        const near = this.ezNearMeshes;
+        near.length = 0;
+        const R = EZ_IMPOSTOR_M + FAR_BAND + 6;
+        for (const c of this.chunks.values()) {
+          if (!c.real) continue;
+          const x0 = c.cx * c.size;
+          const z0 = c.cz * c.size;
+          const dx = Math.max(x0 - focus.x, 0, focus.x - (x0 + c.size));
+          const dz = Math.max(z0 - focus.z, 0, focus.z - (z0 + c.size));
+          if (dx * dx + dz * dz > R * R) continue;
+          for (const { kind, mesh } of c.meshes) if (kind === 'decid') near.push(mesh);
+        }
+        this.ezNear.rebuild(focus, near, ezIsConifer, ezTopOf);
+        near.length = 0;
       }
-      this.ezNear.update(
-        focus,
-        near,
-        (mesh, i) => !!mesh.instanceColor && ((mesh.instanceColor.array as Float32Array)[i * 3] as number) >= 250,
-        (mesh, i) => {
-          const a = mesh.instanceMatrix.array as Float32Array;
-          return Math.hypot(a[i * 16 + 4] as number, a[i * 16 + 5] as number, a[i * 16 + 6] as number) * DECID_TOP;
-        },
-      );
     }
     if (Math.hypot(focus.x - this.focus.x, focus.z - this.focus.z) < 40) return;
     this.focus.copy(focus);

@@ -185,3 +185,51 @@ export function createLampMaterial(night: THREE.Node<'float'>): THREE.MeshStanda
   m.emissiveNode = vec3(1.0, 0.74, 0.42).mul(glow).mul(night).mul(2.4);
   return m;
 }
+
+/** Élévation du soleil (composante y de sa direction) en dessous de laquelle `World.nightFactor` devient positif. */
+const NIGHT_SUN_Y = 0.06;
+
+/**
+ * Vrai si la nuit peut tomber dans les `hours` heures qui suivent `hour` (heure de la sortie, qui avance au rythme
+ * du chrono). `sunY(h)` : composante verticale de la direction du soleil à l'heure h (`sunDirection`). Petite marge
+ * sur le seuil : dans le doute, les lumières de nuit restent en place.
+ */
+export function nightWithin(sunY: (hour: number) => number, hour: number, hours = 8): boolean {
+  for (let t = 0; t <= hours + 1e-9; t += 1 / 12) if (sunY((((hour + t) % 24) + 24) % 24) < NIGHT_SUN_Y + 0.02) return true;
+  return false;
+}
+
+/**
+ * Lumières de nuit (phare du vélo, lampadaires proches) : three.js les évalue pour chaque pixel éclairé même à
+ * intensité nulle (aucune sortie anticipée dans le shader). Quand la nuit ne peut pas tomber pendant la sortie,
+ * elles sont masquées dès le départ, avant la compilation de la scène : les matériaux sont alors compilés sans elles.
+ * Si la nuit arrive quand même (sortie très longue, heure changée par l'hôte), elles reviennent une seule fois ;
+ * l'appelant recompile alors la scène (`update` rend vrai). Elles ne sont jamais retirées ensuite : changer le jeu
+ * de lumières recompile tous les matériaux.
+ */
+export class NightLights {
+  private on = true;
+
+  constructor(private readonly lights: readonly THREE.Object3D[]) {}
+
+  get active(): boolean {
+    return this.on;
+  }
+
+  /** Au départ, avant la compilation de la scène. */
+  start(nightPossible: boolean): void {
+    this.set(nightPossible);
+  }
+
+  /** À chaque image : vrai la seule fois où les lumières viennent d'être rétablies (scène à recompiler). */
+  update(night: number): boolean {
+    if (this.on || !(night > 0)) return false;
+    this.set(true);
+    return true;
+  }
+
+  private set(on: boolean): void {
+    this.on = on;
+    for (const l of this.lights) l.visible = on;
+  }
+}

@@ -1,11 +1,13 @@
 /**
  * Carte et profil d'altitude sur canvas, d'après la route envoyée par le jeu (`PairRoute` :
- * points décimés x, z, altitude, distance). Pas de fond de carte (aucune tuile tierce à
- * charger sur le téléphone). x = est, z = sud ; nord en haut.
+ * points décimés x, z, altitude, distance). x = est, z = sud ; nord en haut.
+ * Vue « suivre » : la même carte locale que la mini-carte du jeu (1,6 km de côté, centrée sur le
+ * coureur, fond Plan IGN assombri, chemin à venir en jaune, drapeau vert de destination). Le fond
+ * n'est demandé que si le jeu a transmis l'origine Lambert-93 de la zone ; sinon tracé seul.
  * Monde ouvert : la route n'est qu'une fenêtre autour du coureur, renvoyée au fil de la sortie.
  */
 import type { PairRider, PairRoute } from '@allezrobert/shared';
-import { drawClimbProfile, type Climb } from '@allezrobert/shared';
+import { BASEMAP_ATTRIBUTION, basemapUrl, drawClimbProfile, type Climb } from '@allezrobert/shared';
 
 export class RouteGeo {
   readonly xs: Float64Array;
@@ -109,6 +111,80 @@ export interface MapView {
   pos?: { x: number; z: number; heading: number };
   riders: PairRider[];
   follow: boolean;
+  /** Parcours libre : destination du guidage (repère du monde). */
+  destination?: { x: number; z: number } | null;
+}
+
+/** Vue locale : demi-côté montré (m), comme la mini-carte du jeu ; chemin à venir surligné sur cette distance. */
+const LOCAL_HALF_M = 800;
+const LOCAL_AHEAD_M = 1200;
+/** Fond de plan : demi-côté de la fenêtre demandée (m) et taille de l'image (px). */
+const BASE_WINDOW_M = 1800;
+const BASE_PX = 1024;
+
+interface BaseTile {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  img: HTMLImageElement;
+  ready: boolean;
+  /** Image assombrie une fois pour toutes (le filtre coûte cher à chaque dessin). */
+  layer?: HTMLCanvasElement;
+}
+
+let base: BaseTile | null = null;
+let baseLoading: BaseTile | null = null;
+let baseOrigin = '';
+
+/** Charge (une fois) la fenêtre de fond autour du coureur tant que la courante ne couvre pas la vue. */
+function ensureBase(origin: { x: number; y: number }, me: { x: number; z: number }, needX: number, needZ: number): void {
+  const key = `${origin.x}|${origin.y}`;
+  if (key !== baseOrigin) {
+    base = baseLoading = null;
+    baseOrigin = key;
+  }
+  const covers = (t: BaseTile | null) => !!t && t.minX <= me.x - needX && t.maxX >= me.x + needX && t.minZ <= me.z - needZ && t.maxZ >= me.z + needZ;
+  if (covers(base) || covers(baseLoading)) return;
+  // Une image encore en vol qui ne couvre plus la vue est abandonnée au profit de la nouvelle fenêtre.
+  const win = Math.max(BASE_WINDOW_M, Math.max(needX, needZ) + 900);
+  const cx = Math.round(me.x / 300) * 300;
+  const cz = Math.round(me.z / 300) * 300;
+  const tile: BaseTile = { minX: cx - win, maxX: cx + win, minZ: cz - win, maxZ: cz + win, img: new Image(), ready: false };
+  tile.img.onload = () => {
+    tile.ready = true;
+    if (baseLoading === tile) {
+      base = tile;
+      baseLoading = null;
+    }
+  };
+  tile.img.onerror = () => {
+    if (baseLoading === tile) baseLoading = null;
+  };
+  baseLoading = tile;
+  // Plan IGN : E = origine.x + x, N = origine.y − z (z croît vers le sud).
+  tile.img.src = basemapUrl({ minE: origin.x + tile.minX, minN: origin.y - tile.maxZ, maxE: origin.x + tile.maxX, maxN: origin.y - tile.minZ }, BASE_PX);
+}
+
+/** Fond assombri, mis en cache par image (même rendu que la mini-carte du jeu). */
+function baseLayer(t: BaseTile): HTMLCanvasElement {
+  if (t.layer) return t.layer;
+  const cv = document.createElement('canvas');
+  cv.width = t.img.naturalWidth || BASE_PX;
+  cv.height = t.img.naturalHeight || BASE_PX;
+  const g = cv.getContext('2d')!;
+  const hasFilter = (g as unknown as { filter?: string }).filter !== undefined;
+  g.globalAlpha = 0.8;
+  if (hasFilter) g.filter = 'invert(0.9) hue-rotate(180deg) grayscale(0.9) brightness(1.05) contrast(0.85)';
+  g.drawImage(t.img, 0, 0, cv.width, cv.height);
+  if (!hasFilter) {
+    // Navigateur sans filtre de canvas (Safari ancien) : simple voile sombre.
+    g.globalAlpha = 1;
+    g.fillStyle = 'rgba(10, 14, 22, 0.55)';
+    g.fillRect(0, 0, cv.width, cv.height);
+  }
+  t.layer = cv;
+  return cv;
 }
 
 export function drawMap(canvas: HTMLCanvasElement, geo: RouteGeo, v: MapView): void {
@@ -124,11 +200,22 @@ export function drawMap(canvas: HTMLCanvasElement, geo: RouteGeo, v: MapView): v
   if (v.follow) {
     cx = me.x;
     cz = me.z;
-    spanX = spanZ = 1400;
+    spanX = spanZ = 2 * LOCAL_HALF_M;
   }
-  const scale = Math.min((w - 40) / Math.max(spanX, 1), (h - 40) / Math.max(spanZ, 1));
+  // Vue locale : 1,6 km sur le petit côté, sans marge (le fond remplit le cadre).
+  const scale = v.follow ? Math.min(w, h) / (2 * LOCAL_HALF_M) : Math.min((w - 40) / Math.max(spanX, 1), (h - 40) / Math.max(spanZ, 1));
   const px = (x: number) => w / 2 + (x - cx) * scale;
   const pz = (z: number) => h / 2 + (z - cz) * scale;
+
+  const origin = v.follow ? geo.route.originL93 : undefined;
+  let based = false;
+  if (origin && Number.isFinite(origin.x) && Number.isFinite(origin.y)) {
+    ensureBase(origin, me, (w / (2 * scale)) * 1.1, (h / (2 * scale)) * 1.1);
+    if (base?.ready) {
+      ctx.drawImage(baseLayer(base), px(base.minX), pz(base.minZ), (base.maxX - base.minX) * scale, (base.maxZ - base.minZ) * scale);
+      based = true;
+    }
+  }
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -148,6 +235,46 @@ export function drawMap(canvas: HTMLCanvasElement, geo: RouteGeo, v: MapView): v
   if (!geo.route.open) {
     ctx.fillStyle = '#fff';
     ctx.fillRect(px(geo.xs[0]!) - 4, pz(geo.zs[0]!) - 4, 8, 8);
+  }
+  if (v.follow) {
+    // Chemin à venir en jaune, comme sur la mini-carte du jeu.
+    const end = geo.route.loop ? v.routeM + LOCAL_AHEAD_M : Math.min(geo.endD, v.routeM + LOCAL_AHEAD_M);
+    ctx.beginPath();
+    let first = true;
+    for (let d = v.routeM; d <= end; d += 10) {
+      const p = geo.at(d);
+      if (first) ctx.moveTo(px(p.x), pz(p.z));
+      else ctx.lineTo(px(p.x), pz(p.z));
+      first = false;
+    }
+    ctx.strokeStyle = '#ffd23f';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+  }
+  // Destination du guidage : drapeau vert (au bord de la carte s'il est plus loin).
+  if (v.destination) {
+    const m = 26;
+    const fx = Math.min(Math.max(px(v.destination.x), m), w - m);
+    const fy = Math.min(Math.max(pz(v.destination.z), m + 14), h - m);
+    ctx.strokeStyle = '#0a0e16';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(fx, fy);
+    ctx.lineTo(fx, fy - 26);
+    ctx.stroke();
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.moveTo(fx, fy - 26);
+    ctx.lineTo(fx + 17, fy - 20);
+    ctx.lineTo(fx, fy - 14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  if (based) {
+    ctx.font = '500 10px system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(BASEMAP_ATTRIBUTION, 8, h - 8);
   }
 
   // Autres coureurs : placés par leur écart sur la route.

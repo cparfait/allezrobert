@@ -9,6 +9,8 @@ import type { RideEventMsg } from '@allezrobert/shared';
 import { RideNetClient } from '../../client/src/net/index.ts';
 import { startServer, type RunningServer } from '../src/server.ts';
 import { testConfig } from '../src/config.ts';
+import { activeRooms } from '../src/ride/RideRoom.ts';
+import { rideServices } from '../src/ride/services.ts';
 
 let srv: RunningServer;
 let endpoint: string;
@@ -263,4 +265,49 @@ describe('salle ride', () => {
     const anon = await client();
     await expect(anon.create({ mode: 'group' })).rejects.toThrow();
   });
+
+  it('création sans compte : aucune salle ni simulation bâtie, même par un appel direct au matchmaking', async () => {
+    const before = new Set(activeRooms);
+    const anon = await client();
+    await expect(anon.create({ mode: 'group' })).rejects.toThrow();
+    for (const body of [{}, { mode: 'group' }, { token: 'faux-jeton' }, { token: 42 }]) {
+      const res = await fetch(`${endpoint}/matchmake/create/ride`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      await res.text();
+    }
+    await sleep(100);
+    expect([...activeRooms].filter((r) => !before.has(r))).toHaveLength(0);
+  });
+
+  it('boucle de simulation en panne : la salle fautive est fermée, le serveur et les autres salles continuent', async () => {
+    const a = await client('Panne');
+    const b = await client('Sain');
+    const wa = await a.create({ mode: 'group' });
+    const wb = await b.create({ mode: 'group' });
+    const broken = [...activeRooms].find((r) => r.roomId === wa.roomId)!;
+    expect(broken).toBeTruthy();
+    const logs: string[] = [];
+    const svc = rideServices();
+    const log = svc.log;
+    svc.log = (level, msg) => void (level === 'error' && logs.push(msg));
+    try {
+      (broken as unknown as { sim: { step: () => never } }).sim.step = () => {
+        throw new Error('panne simulée');
+      };
+      // 20 ticks en échec d'affilée (2 s à 10 Hz) : la salle est fermée.
+      for (let i = 0; i < 50 && activeRooms.has(broken); i++) await sleep(100);
+      expect(activeRooms.has(broken)).toBe(false);
+      expect(logs.some((m) => m.includes('panne simulée'))).toBe(true);
+      // Journal limité : pas une ligne par tick en échec.
+      expect(logs.length).toBeLessThan(6);
+    } finally {
+      svc.log = log;
+    }
+    // Le processus vit toujours : API joignable, l'autre salle tourne.
+    expect((await fetch(`${endpoint}/api/health`)).status).toBe(200);
+    expect([...activeRooms].some((r) => r.roomId === wb.roomId)).toBe(true);
+    b.startTelemetry(() => ({ watts: 200, cadence: 90, gear: 12, steer: 0 }));
+    await sleep(600);
+    expect(b.getSelfSnapshot()?.watts).toBe(200);
+    await b.leave();
+  }, 15_000);
 });

@@ -4,6 +4,7 @@
  * file de rendu vidéo, export et suppression RGPD, santé.
  */
 import express from 'express';
+import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import path from 'node:path';
@@ -28,7 +29,7 @@ import { readHeartbeat } from '../render/worker.ts';
 import { normalizedPower, WORKOUT_LIBRARY } from '@allezrobert/physics';
 import { RIDE_KINDS, type RideKind, COUNTRY_CODE_RE, GHOST_MAX_S, FACE_CODE_RE, SHOE_MARKS, HELMET_SHAPES, type HelmetShape, completedKits, equippedTuneIds, rankRouteId, tuneItem, type ShoeMarkId } from '@allezrobert/shared';
 import { buy, migrateLegacyWheels, rewardRide } from '../progression/atelier.ts';
-import type { ActivitySummaryRow } from '../db/repos.ts';
+import { effortKey, type ActivitySummaryRow } from '../db/repos.ts';
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 const AvatarSchema = z.object({
@@ -231,7 +232,13 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
   });
 
   /* ───────────── Sorties (FIT) ───────────── */
-  api.post('/activities', express.raw({ type: ['application/octet-stream', 'application/vnd.ant.fit'], limit: '25mb' }), async (req: AuthedRequest, res) => {
+  // Compte vérifié AVANT de lire le corps : un envoi anonyme ne fait rien charger en mémoire.
+  const signedIn = (req: AuthedRequest, _res: express.Response, next: express.NextFunction): void => {
+    requireUser(req);
+    next();
+  };
+  // Un FIT de plusieurs heures pèse 1 à 2 Mo ; 8 Mo laisse une large marge.
+  api.post('/activities', signedIn, express.raw({ type: ['application/octet-stream', 'application/vnd.ant.fit'], limit: '8mb' }), async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const q = z
       .object({
@@ -261,6 +268,13 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       throw e;
     }
     const s = imported.summary;
+    // Même fichier déjà reçu pour ce compte (empreinte), avec ou sans `clientRideId` : rien de plus, ni XP ni crédits.
+    const fitSha256 = createHash('sha256').update(req.body).digest('hex');
+    const sameFile = await ctx.repos.activityByFitSha(u.userId, fitSha256);
+    if (sameFile) {
+      res.status(200).json({ activity: await ctx.repos.getActivity(u.userId, sameFile), xpGained: 0, progression: levelInfo((await ctx.repos.getProgression(u.userId)).xp), newlyUnlocked: [], credits: null, duplicate: true });
+      return;
+    }
     // Même sortie déjà envoyée avec son FIT : rien de plus (pas d'XP en double). Sortie synchronisée
     // sans FIT : remplacée par celle-ci, complète.
     if (q.clientRideId) {
@@ -292,6 +306,7 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
       ...(q.routeId ? { routeId: q.routeId } : {}),
       ...(q.rideId ? { rideId: q.rideId } : {}),
       ...(q.clientRideId ? { clientRideId: q.clientRideId } : {}),
+      fitSha256,
       skipStrava,
     });
     // Mesures d'entraînement (NP, IF, TSS, courbe, zones) calculées sur le FIT avec la FTP du moment.
@@ -412,12 +427,18 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     // Vitesse moyenne maximale admise : 90 km/h sur un segment, 60 km/h sur un parcours entier.
     const plausible = (lengthM: number, elapsedMs: number, maxMs: number) => lengthM / (elapsedMs / 1000) <= maxMs;
     let segments = 0;
+    // Envoi répété après une reprise : efforts déjà rangés pour cette sortie, lus en une requête.
+    const seen = body.rideId && body.segments.length ? await ctx.repos.segmentEffortKeys(u.userId, body.rideId) : null;
     for (const e of body.segments) {
       if (known) {
         const seg = known.segments.find((g) => g.id === e.segmentId);
         if (!seg || !plausible(seg.endM - seg.startM, e.elapsedMs, 25)) continue;
       }
-      if (body.rideId && (await ctx.repos.hasSegmentEffort(u.userId, body.rideId, e.segmentId, e.elapsedMs))) continue;
+      if (seen) {
+        const key = effortKey(e.segmentId, e.elapsedMs);
+        if (seen.has(key)) continue;
+        seen.add(key);
+      }
       await ctx.repos.recordSegmentEffort({ userId: u.userId, routeId: body.routeId, segmentId: e.segmentId, elapsedMs: e.elapsedMs, ...(body.rideId ? { rideId: body.rideId } : {}) });
       segments++;
     }

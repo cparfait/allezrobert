@@ -236,7 +236,8 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   let current = q;
   let lastRendered = 0;
   let scenePass: ReturnType<typeof pass> | null = null;
-  let scenePassMrt = false;
+  /** Sorties facultatives de la passe de scène en place (voir `rebuildPipeline`) : elles ne font que s'ajouter. */
+  const passOutputs = { normal: false, velocity: false };
   const aoNodes = new Map<number, ReturnType<ReturnType<typeof ao>['getTextureNode']>['r']>();
   let bloomNode: ReturnType<typeof bloom> | null = null;
   let ssrNode: ReturnType<typeof ssr> | null = null;
@@ -318,18 +319,37 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
     pump();
   };
 
+  /**
+   * Vrai si la liste d'enfants de `o` a pu recevoir un nouvel objet depuis le dernier appel : `add` pousse toujours en
+   * fin de liste, donc un ajout change la longueur ou le dernier enfant (même si un retrait a eu lieu dans la même
+   * image). Évite de retester à chaque image chaque bloc de végétation (plus de mille) dans `seen`.
+   */
+  const childMarks = new WeakMap<THREE.Object3D, { n: number; last: THREE.Object3D | undefined }>();
+  const childrenChanged = (o: THREE.Object3D): boolean => {
+    const n = o.children.length;
+    const last = o.children[n - 1];
+    const m = childMarks.get(o);
+    if (m && m.n === n && m.last === last) return false;
+    if (m) {
+      m.n = n;
+      m.last = last;
+    } else childMarks.set(o, { n, last });
+    return true;
+  };
+
   /** Nouveaux objets de la scène : enfants directs, et enfants des groupes (tuiles des systèmes du monde, coureurs). */
   const prepareNewObjects = (): void => {
     if (!seen) return;
+    const top = childrenChanged(scene);
     for (const c of scene.children) {
-      if (!seen.has(c)) {
+      if (top && !seen.has(c)) {
         seen.add(c);
         if (!(c as THREE.Group).isGroup) {
           enqueue(c);
           continue;
         }
       }
-      if (!(c as THREE.Group).isGroup) continue;
+      if (!(c as THREE.Group).isGroup || !childrenChanged(c)) continue;
       for (const g of c.children)
         if (!seen.has(g)) {
           seen.add(g);
@@ -382,25 +402,36 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       // La passe de scène (et sa disposition MRT) survit aux changements d'effets : couper le bloom,
       // l'AO ou le TAA en cours de sortie ne refait que le post-traitement. Changer la disposition MRT
       // recompilerait les matériaux de toute la scène (plusieurs secondes).
-      // Toujours en MRT, même sans aucun effet (préréglage Bas) : activer un effet en cours de sortie ne
-      // recompile alors plus les matériaux de toute la scène (plusieurs secondes de blocage au clic).
-      const needMrt = true;
-      if (!scenePass || (needMrt && !scenePassMrt)) {
+      // Toujours en MRT (couleur + émissif), même sans aucun effet. Les sorties « normales » (AO, reflets) et
+      // « vitesses » (TAA) ne sont demandées que si le préréglage de départ s'en sert : sans TAA, la sortie
+      // « vitesses » faisait recopier à three.js, à chaque image, les matrices de tous les objets instanciés
+      // (herbe, arbres) et calculer deux fois le skinning des coureurs, plus une cible pleine résolution écrite
+      // pour rien. Elles ne font que s'ajouter : activer en cours de sortie un effet dont la sortie manque
+      // refait la passe (les matériaux de la scène sont alors recompilés, image figée le temps de le faire) ;
+      // le couper ensuite ne la refait pas. Les reflets (SSR) comptent dès que le préréglage les permet :
+      // la pluie peut arriver en cours de sortie.
+      const needNormal = settings.ao || settings.ssr;
+      const needVelocity = settings.taa;
+      let regrown = false;
+      if (!scenePass || (needNormal && !passOutputs.normal) || (needVelocity && !passOutputs.velocity)) {
+        regrown = !!scenePass;
+        scenePass?.dispose();
+        passOutputs.normal ||= needNormal;
+        passOutputs.velocity ||= needVelocity;
         scenePass = pass(scene, camera);
-        scenePassMrt = needMrt;
         aoNodes.clear();
         bloomNode = null;
         ssrNode = null;
         variants.clear();
-        if (needMrt) {
-          scenePass.setMRT(
-            mrt({
-              output,
-              normal: packNormalToRGB(normalView),
-              velocity,
-              emissive,
-            }),
-          );
+        scenePass.setMRT(
+          mrt({
+            output,
+            ...(passOutputs.normal ? { normal: packNormalToRGB(normalView) } : {}),
+            ...(passOutputs.velocity ? { velocity } : {}),
+            emissive,
+          }),
+        );
+        if (passOutputs.normal) {
           // Normales sur 8 bits par canal : suffisant pour l'AO et deux fois moins de bande passante.
           const normalTex = scenePass.getTexture('normal');
           normalTex.type = THREE.UnsignedByteType;
@@ -486,6 +517,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       }
       pipeline.outputNode = result;
       pipeline.needsUpdate = true;
+      // Passe refaite avec une sortie de plus : matériaux de la scène recompilés à l'avance pour la nouvelle
+      // disposition (le rendu attend, voir `compiling`), plutôt qu'un par un au fil des images suivantes.
+      if (regrown) void compilePass(renderer, scenePass);
     },
     setWetReflections(on) {
       if (on === wetReflections) return;
@@ -502,8 +536,10 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
         return;
       }
       seen = new WeakSet();
+      childrenChanged(scene);
       for (const c of scene.children) {
         seen.add(c);
+        childrenChanged(c);
         for (const g of c.children) seen.add(g);
       }
     },

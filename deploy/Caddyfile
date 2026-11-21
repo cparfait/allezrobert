@@ -31,6 +31,9 @@
 			header Content-Type image/svg+xml*
 			header Content-Type application/wasm*
 			header Content-Type application/octet-stream*
+			# Modèles 3D (.glb) : les vélos non compressés en meshopt gagnent près de moitié en gzip.
+			# (étude du 21/11 — non testé, à valider au prochain déploiement)
+			header Content-Type model/gltf-binary*
 		}
 	}
 
@@ -40,6 +43,11 @@
 		Referrer-Policy "strict-origin-when-cross-origin"
 		# Bluetooth (capteurs en Web Bluetooth) et micro (voix LiveKit) pour le site lui-même.
 		Permissions-Policy "bluetooth=(self), microphone=(self), camera=(), geolocation=()"
+		# Aucune page du site, du jeu ou de l'API ne s'affiche dans le cadre d'un autre site (détournement de clic).
+		# Le jeu n'encadre aucune de ses propres pages (les séquences passent par `srcdoc`, non concerné).
+		# (étude du 21/11 — non testé, à valider au prochain déploiement)
+		Content-Security-Policy "frame-ancestors 'none'"
+		X-Frame-Options "DENY"
 		-Server
 	}
 
@@ -153,6 +161,15 @@
 		# télécharge ici avec le pack de la zone.
 		@graphs path /worlds/*/graph.json
 		header @graphs Access-Control-Allow-Origin "*"
+		# Fichiers sans nom haché : sans en-tête, le navigateur revalidait chacun à chaque chargement (le jeu
+		# recharge la page après chaque sortie). Voix, musiques, vignettes et polices changent rarement : un jour,
+		# puis l'ancienne copie sert une fois pendant la revalidation. Modèles : une heure seulement et sans copie
+		# périmée, car un modèle remplacé sous le même nom doit suivre le code qui le lit.
+		# (étude du 21/11 — non testé, à valider au prochain déploiement)
+		@stable path /voice/* /music/* /bike-thumbs/* /fonts/*
+		header @stable Cache-Control "public, max-age=86400, stale-while-revalidate=604800"
+		@models path /models/*
+		header @models Cache-Control "public, max-age=3600"
 		try_files {path}
 		file_server
 	}

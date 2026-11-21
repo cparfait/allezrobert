@@ -1,6 +1,7 @@
 # Ce qu'il reste à faire
 
-État au 22 octobre 2026, branche `claude/optimistic-einstein-hqh9c5`. Point d'entrée pour
+État au 22 octobre 2026 (non remis à jour depuis ; le travail se fait désormais sur `main`,
+l'ancienne branche `claude/optimistic-einstein-hqh9c5` ne sert plus). Point d'entrée pour
 reprendre : `docs/REPRISE.md` (commandes, outils) puis ce fichier. Détail des jalons :
 `docs/ROADMAP.md`.
 
@@ -40,7 +41,8 @@ ni vérifié à l'image** ; les derniers commits « wip » sont du travail non t
 - [ ] **Direction artistique** : valider `docs/ART_DIRECTION.md`.
 - [ ] **Comptes et services** : identifiants OAuth (Google, Discord, Strava), LiveKit, lien
       Discord de repli, ffmpeg sur le VPS.
-- [ ] **CI GitHub Actions** (`.github/workflows/ci.yml`) : jamais exécutée sur GitHub.
+- [x] **CI GitHub Actions** (`.github/workflows/ci.yml`) : exécutée sur GitHub depuis (voir les
+      commits `fix(ci)` de l'historique).
 - [ ] **Déploiement de test** (`deploy/`, `docs/DEPLOY.md`) : à essayer sur le VPS.
 
 ## 3. Reste de la feuille de route

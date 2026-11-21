@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { cullAfterWarmup } from './cullWarmup.ts';
 import { attribute, uv, vec3, float, uniform, mix, smoothstep, step, fract, abs, mx_noise_float, positionWorld, max, fwidth, positionLocal, sign } from 'three/tsl';
 import type { QualitySettings } from '../engine/quality.ts';
 import { LOW_POLY } from '../engine/style.ts';
@@ -91,6 +92,21 @@ interface TileRails {
  * rebroussement, ou passage à 90 km/h. Un appel de dessin par tuile pour les voies, un seul
  * (instancié) pour toutes les voitures.
  */
+/** Objets de travail de `Railways.update` (une dizaine étaient créés à chaque image, même sans voie ferrée). */
+const CAR_M = new THREE.Matrix4();
+const CAR_Q = new THREE.Quaternion();
+const CAR_ONE = new THREE.Vector3(1, 1, 1);
+const CAR_PA = { x: 0, y: 0, z: 0, dx: 0, dz: 0 };
+const CAR_PB = { x: 0, y: 0, z: 0, dx: 0, dz: 0 };
+const CAR_FWD = new THREE.Vector3();
+const CAR_F = new THREE.Vector3();
+const CAR_MID = new THREE.Vector3();
+const CAR_LOOK = new THREE.Matrix4();
+const CAR_ZERO = new THREE.Vector3();
+const CAR_UP = new THREE.Vector3(0, 1, 0);
+/** Demi-tour autour de la verticale (lookAt oriente −z vers la cible). */
+const CAR_HALF_TURN = new THREE.Quaternion().setFromAxisAngle(CAR_UP, Math.PI);
+
 export class Railways {
   readonly group = new THREE.Group();
   /** 1 la nuit : fenêtres éclairées. */
@@ -133,7 +149,11 @@ export class Railways {
     }
     this.cars = new THREE.InstancedMesh(geo, this.createCarMaterial(), MAX_TRAINS * CARS);
     this.cars.count = 0;
-    this.cars.frustumCulled = false;
+    // Écarté hors champ par la sphère des voitures, refaite à chaque image (`update`) : sans train, le maillage
+    // n'est plus préparé à chaque passe. Il reste « visible » (la précompilation du départ saute les objets masqués),
+    // et le culling ne commence qu'après les premières images (cullAfterWarmup).
+    this.cars.boundingSphere = new THREE.Sphere();
+    cullAfterWarmup(this.cars);
     this.cars.castShadow = true;
     this.cars.receiveShadow = true;
     this.cars.name = 'trains';
@@ -516,15 +536,23 @@ export class Railways {
   update(dt: number): void {
     this.clock += dt;
     if (this.dirty) this.rebuildLines();
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const one = new THREE.Vector3(1, 1, 1);
-    const pa = { x: 0, y: 0, z: 0, dx: 0, dz: 0 };
-    const pb = { x: 0, y: 0, z: 0, dx: 0, dz: 0 };
-    const fwd = new THREE.Vector3();
-    const look = new THREE.Matrix4();
-    const zero = new THREE.Vector3();
-    const upV = new THREE.Vector3(0, 1, 0);
+    // Aucune voie ferrée chargée et aucune voiture affichée : rien à calculer ni à renvoyer au GPU.
+    if (!this.lines.length && this.cars.count === 0) return;
+    const m = CAR_M;
+    const q = CAR_Q;
+    const one = CAR_ONE;
+    const pa = CAR_PA;
+    const pb = CAR_PB;
+    const fwd = CAR_FWD;
+    const look = CAR_LOOK;
+    const zero = CAR_ZERO;
+    const upV = CAR_UP;
+    let minX = Infinity;
+    let minY = Infinity;
+    let minZ = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let maxZ = -Infinity;
     let count = 0;
     this.lines.forEach((line, li) => {
       const s = this.anchorS[li] ?? 0;
@@ -539,9 +567,18 @@ export class Railways {
           look.lookAt(zero, fwd, upV);
           q.setFromRotationMatrix(look);
           // lookAt oriente −z vers la cible : demi-tour pour que +z (avant de la voiture) suive la voie.
-          q.multiply(new THREE.Quaternion().setFromAxisAngle(upV, Math.PI));
-          m.compose(new THREE.Vector3((pa.x + pb.x) / 2, (pa.y + pb.y) / 2, (pa.z + pb.z) / 2), q, one);
+          q.multiply(CAR_HALF_TURN);
+          const cx = (pa.x + pb.x) / 2;
+          const cy = (pa.y + pb.y) / 2;
+          const cz = (pa.z + pb.z) / 2;
+          m.compose(CAR_MID.set(cx, cy, cz), q, one);
           this.cars.setMatrixAt(count, m);
+          if (cx < minX) minX = cx;
+          if (cx > maxX) maxX = cx;
+          if (cy < minY) minY = cy;
+          if (cy > maxY) maxY = cy;
+          if (cz < minZ) minZ = cz;
+          if (cz > maxZ) maxZ = cz;
           // Extrémités : tête (1) dans le sens de marche, queue (2) à l'autre bout de la rame.
           const headHigh = tr.dir !== -1;
           const lowEnd = c === 0 ? (headHigh ? 2 : 1) : 0;
@@ -550,7 +587,7 @@ export class Railways {
           const lc = this.lineColors[li];
           if (lc) this.carLine.setXYZ(count, lc.r, lc.g, lc.b);
           if (this.carFwd) {
-            const f = fwd.clone().normalize();
+            const f = CAR_F.copy(fwd).normalize();
             this.carFwd.setXYZ(count, f.x, f.y, f.z);
           }
           count++;
@@ -558,6 +595,16 @@ export class Railways {
       }
     });
     this.cars.count = count;
+    const sphere = this.cars.boundingSphere as THREE.Sphere;
+    if (count === 0) {
+      // Plus aucune voiture : sphère vide, tampons inchangés (rien n'est renvoyé au GPU).
+      sphere.center.set(0, 0, 0);
+      sphere.radius = 0;
+      return;
+    }
+    // Centres des voitures, plus une voiture entière de marge (25,6 m de long, caténaire comprise en hauteur).
+    sphere.center.set((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
+    sphere.radius = Math.hypot(maxX - minX, maxY - minY, maxZ - minZ) / 2 + CAR_LEN;
     this.cars.instanceMatrix.needsUpdate = true;
     this.carEnds.needsUpdate = true;
     this.carLine.needsUpdate = true;

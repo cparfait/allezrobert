@@ -29,4 +29,4 @@ Décidé et fait (touche F : auto / file indienne / deux files tournantes / bord
 
 ## Quadrillage de l'Île-de-France
 - [ ] **À valider** : mailles de 25 km OK ?
-- [ ] Créer les 32 zones dans la configuration.
+- [x] Créer les zones dans la configuration : 58 zones `idf-*` dans `tools/terrain/zones/` (relevé du 21 novembre 2026 ; 32 étaient prévues au départ).

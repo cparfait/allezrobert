@@ -104,6 +104,7 @@ export class AntTransport implements Transport {
   private readonly options: AntTransportOptions;
   private bridgePromise: Promise<TauriBridge> | undefined;
   private opened: Promise<void> | undefined;
+  private unlistenMessages: (() => void) | undefined;
   /** canal → profil ouvert (canal de recherche ou d'appareil). */
   private channels = new Map<number, { profile: AntPlusProfileName; link?: AntChannel; seen: boolean }>();
   private readonly networkKey: Uint8Array | undefined;
@@ -140,12 +141,29 @@ export class AntTransport implements Transport {
       const b = await this.bridge();
       const stickId = this.options.stickId ?? (await this.listSticks())[0]?.id;
       if (!stickId) throw new Error('Aucune clé ANT+ USB détectée');
-      await b.listen<{ channel: number; data: number[] }>('ant://message', (e) => this.onMessage(e.payload.channel, Uint8Array.from(e.payload.data)));
-      await b.invoke<void>('ant_open', {
-        stickId,
-        ...(this.networkKey ? { networkKey: Array.from(this.networkKey) } : {}),
-        ...(this.options.shimanoNetworkKey ? { shimanoNetworkKey: Array.from(this.options.shimanoNetworkKey) } : {}),
-      });
+      // Un seul jeu d'écouteurs à la fois : sans les retirer, une réouverture distribuait chaque page deux fois.
+      this.unlistenMessages?.();
+      const offs = [
+        await b.listen<{ channel: number; data: number[] }>('ant://message', (e) => this.onMessage(e.payload.channel, Uint8Array.from(e.payload.data))),
+        // Canal fermé par la clé sans qu'on l'ait demandé, ou clé retirée : les liens concernés sont perdus.
+        await b.listen<{ channel: number; kind: string }>('ant://channel-event', (e) => this.onChannelEvent(e.payload.channel, e.payload.kind)),
+        await b.listen<unknown>('ant://closed', () => this.onStickClosed()),
+      ];
+      const unlisten = (): void => {
+        for (const off of offs) off();
+      };
+      this.unlistenMessages = unlisten;
+      try {
+        await b.invoke<void>('ant_open', {
+          stickId,
+          ...(this.networkKey ? { networkKey: Array.from(this.networkKey) } : {}),
+          ...(this.options.shimanoNetworkKey ? { shimanoNetworkKey: Array.from(this.options.shimanoNetworkKey) } : {}),
+        });
+      } catch (e) {
+        unlisten();
+        if (this.unlistenMessages === unlisten) this.unlistenMessages = undefined;
+        throw e;
+      }
     })();
     this.opened.catch(() => {
       this.opened = undefined;
@@ -201,6 +219,30 @@ export class AntTransport implements Transport {
     ch.seen = true;
     this.foundHandlers.get(channel)?.();
     if (ch.link) for (const h of ch.link.pageHandlers) h(data);
+  }
+
+  /**
+   * Événement de canal remonté par la clé. `closed` : le canal n'écoute plus, son lien est perdu et le
+   * canal est libéré (la reconnexion en ouvrira un neuf). `lost` : le capteur n'est plus entendu mais le
+   * canal le recherche de lui-même ; le lien reste (l'appareil passe « muet » puis reprend seul).
+   */
+  private onChannelEvent(channel: number, kind: string): void {
+    if (kind !== 'closed') return;
+    const ch = this.channels.get(channel);
+    if (!ch) return;
+    void this.releaseChannel(channel).catch(() => undefined);
+    ch.link?.lost();
+  }
+
+  /** Clé retirée : tous les liens sont perdus ; la prochaine connexion rouvrira la clé. */
+  private onStickClosed(): void {
+    const links = [...this.channels.values()].map((c) => c.link);
+    this.channels.clear();
+    this.foundHandlers.clear();
+    this.opened = undefined;
+    this.unlistenMessages?.();
+    this.unlistenMessages = undefined;
+    for (const link of links) link?.lost();
   }
 
   private foundHandlers = new Map<number, () => void>();
@@ -272,6 +314,8 @@ export class AntTransport implements Transport {
     for (const ch of this.channels.values()) ch.link?.lost();
     this.channels.clear();
     this.opened = undefined;
+    this.unlistenMessages?.();
+    this.unlistenMessages = undefined;
     await b.invoke<void>('ant_close').catch(() => undefined);
   }
 }

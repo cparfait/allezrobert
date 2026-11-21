@@ -12,7 +12,7 @@
  */
 import './style.css';
 import { Client, type Room } from '@colyseus/sdk';
-import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPlaceItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
 import { climbsOf } from './climbs.ts';
 import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
@@ -76,6 +76,8 @@ const S = {
   backwards: false,
   /** Dernière recherche Spotify : texte, état et résultats reçus du jeu. */
   music: { query: '', state: 'idle' as 'idle' | 'loading' | 'done' | 'error', items: [] as PairMusicItem[], error: '' },
+  /** Dernière recherche de destination (parcours libre) : texte, état et résultats reçus du jeu. */
+  place: { query: '', state: 'idle' as 'idle' | 'loading' | 'done' | 'error', items: [] as PairPlaceItem[], error: '' },
 };
 /** La page de la montée s'ouvre 500 m avant le pied. */
 const CLIMB_APPROACH_M = 500;
@@ -209,6 +211,9 @@ function deviceId(): string {
 }
 
 let retry: ReturnType<typeof setTimeout> | undefined;
+/** Échecs de connexion d'affilée : le délai avant le prochain essai double à chaque fois (4 s, 8 s… 30 s au plus). */
+let retryFails = 0;
+const retryDelayMs = (): number => Math.min(30_000, 4000 * 2 ** Math.min(retryFails++, 3));
 
 function connect(): void {
   if (!S.pair || room) return;
@@ -220,6 +225,7 @@ function connect(): void {
     .then((r) => {
       room = r;
       S.conn = 'connected';
+      const joinedAt = Date.now();
       r.onMessage(PAIR_MSG.presence, (p: PairPresence) => {
         const was = S.presence.game;
         S.presence = p;
@@ -228,6 +234,7 @@ function connect(): void {
           if (mic.linked) void mic.stop(false);
           if (was) render();
         }
+        syncWake();
         renderBar();
       });
       r.onMessage(PAIR_MSG.state, (st: PairState) => onState(st));
@@ -241,15 +248,19 @@ function connect(): void {
         room = null;
         S.presence = { game: false, phones: 0 };
         S.conn = 'down';
+        syncWake();
         renderBar();
-        retry = setTimeout(connect, 2000);
+        // Liaison tenue un moment puis perdue : nouvel essai rapide. Fermée aussitôt ouverte : délai croissant.
+        const held = Date.now() - joinedAt >= 5000;
+        if (held) retryFails = 0;
+        retry = setTimeout(connect, held ? 2000 : retryDelayMs());
       });
       renderBar();
     })
     .catch(() => {
       S.conn = 'down';
       renderBar();
-      retry = setTimeout(connect, 4000);
+      retry = setTimeout(connect, retryDelayMs());
     });
 }
 
@@ -291,6 +302,13 @@ function onEvent(ev: PairEvent): void {
   if (ev.kind === 'musicResults') {
     S.music = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
     if (S.tab === 'music') renderMusicResults();
+    return;
+  }
+  if (ev.kind === 'placeResults') {
+    // Une réponse à une recherche plus ancienne que la dernière demande est ignorée.
+    if (ev.query !== S.place.query) return;
+    S.place = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
+    if (S.tab === 'map') renderPlaceResults();
     return;
   }
   if (ev.kind === 'chat') {
@@ -402,7 +420,7 @@ function renderContent(): void {
   } else if (S.tab === 'dash') c.innerHTML = `<section class="dash" id="dash"></section><section class="extra" id="extra"></section><section class="extra" id="climbstrip"></section><section class="climb"><span>${esc(t.climb)}</span><canvas id="profile"></canvas></section>`;
   else if (S.tab === 'ctrl') c.innerHTML = ctrlHtml();
   else if (S.tab === 'map')
-    c.innerHTML = `<section class="mapbox"><canvas id="map"></canvas><button class="chip" data-act="follow">${esc(S.follow ? t.whole : t.follow)}</button></section><section class="mapprof"><canvas id="mapprofile"></canvas></section>`;
+    c.innerHTML = `${destHtml()}<section class="mapbox"><canvas id="map"></canvas><button class="chip" data-act="follow">${esc(S.follow ? t.whole : t.follow)}</button></section><section class="mapprof"><canvas id="mapprofile"></canvas></section>`;
   refresh();
 }
 
@@ -433,7 +451,14 @@ function refresh(): void {
       else el.style.removeProperty('--zc');
     });
     const extra = document.getElementById('extra');
-    if (extra) extra.innerHTML = extraHtml(st);
+    if (extra) {
+      // Réécrit seulement quand le HTML change (l'état arrive 4 fois par seconde).
+      const html = extraHtml(st);
+      if (extra.dataset.h !== html) {
+        extra.innerHTML = html;
+        extra.dataset.h = html;
+      }
+    }
     const strip = document.getElementById('climbstrip');
     if (strip) {
       // Reconstruit seulement quand le texte change (le bouton reste sous le doigt).
@@ -451,7 +476,8 @@ function refresh(): void {
   } else if (S.tab === 'ctrl') updateCtrl(st);
   else if (S.tab === 'map' && S.geo) {
     const canvas = document.getElementById('map') as HTMLCanvasElement | null;
-    if (canvas) drawMap(canvas, S.geo, { routeM: m.routeM, ...(st.pos ? { pos: st.pos } : {}), riders: st.riders ?? [], follow: S.follow });
+    updateDest(st);
+    if (canvas) drawMap(canvas, S.geo, { routeM: m.routeM, ...(st.pos ? { pos: st.pos } : {}), riders: st.riders ?? [], follow: S.follow, ...(st.open && st.destination ? { destination: st.destination } : {}) });
     const prof = document.getElementById('mapprofile') as HTMLCanvasElement | null;
     if (prof) drawProfile(prof, S.geo, m.routeM, S.geo.startD, S.geo.route.loop ? S.geo.route.lengthM : S.geo.endD);
   }
@@ -819,6 +845,57 @@ function renderMusicResults(): void {
       .join('');
 }
 
+/** Parcours libre : recherche d'une destination, résultats, destination en cours (onglet Carte). */
+function destHtml(): string {
+  return `<section class="dest" id="dest" hidden>
+    <form class="row" data-form="place"><input name="q" maxlength="100" autocomplete="off" enterkeyhint="search" placeholder="${esc(t.destSearch)}" value="${esc(S.place.query)}"/><button class="btn">${esc(t.destSearchGo)}</button></form>
+    <div class="dest-cur" id="dest-cur" hidden></div>
+    <ul class="mu-results dest-results" id="dest-results"></ul>
+  </section>`;
+}
+
+function renderPlaceResults(): void {
+  const ul = document.getElementById('dest-results');
+  if (!ul) return;
+  const p = S.place;
+  let html = '';
+  if (p.state === 'loading') html = `<li class="mu-info">${esc(t.destSearching)}</li>`;
+  else if (p.state === 'error') html = `<li class="mu-info">${esc(t.destUnavailable)}</li>`;
+  else if (p.state === 'done' && !p.items.length) html = `<li class="mu-info">${esc(t.destNone)}</li>`;
+  else if (p.state === 'done') html = p.items.map((i, n) => `<li><button data-pgo="${n}"><span><b>${esc(i.name)}</b><small>${esc(i.sub)}</small></span></button></li>`).join('');
+  // Signature de la recherche affichée : la liste n'est réécrite que si elle change (ou si l'onglet vient d'être reconstruit).
+  const sig = `${p.state}|${p.query}|${p.items.length}`;
+  if (ul.dataset.sig === sig) return;
+  ul.dataset.sig = sig;
+  ul.innerHTML = html;
+}
+
+function placeSearch(query: string): void {
+  S.place = { query, state: 'loading', items: [], error: '' };
+  renderPlaceResults();
+  send({ kind: 'placeSearch', query });
+}
+
+let destCurHtml = '';
+/** Affiche la recherche seulement en parcours libre, et la destination en cours avec la distance restante. */
+function updateDest(st: PairState): void {
+  const box = document.getElementById('dest');
+  if (!box) return;
+  const show = !!st.open && st.phase !== 'menu';
+  if (box.hidden === show) box.hidden = !show;
+  if (show) renderPlaceResults();
+  const cur = document.getElementById('dest-cur');
+  if (!cur) return;
+  const d = show ? st.destination : null;
+  const html = d ? `<span>🏁 <b>${esc(d.name)}</b> · ${esc(fmtDist(d.remainingM, 1))}</span><button class="seg" data-act="dest-clear">${esc(t.destClear)}</button>` : '';
+  // Le conteneur vient d'être reconstruit (changement d'onglet) : son contenu est à refaire même si le texte n'a pas changé.
+  if (html !== destCurHtml || (html && !cur.firstChild)) {
+    cur.innerHTML = html;
+    destCurHtml = html;
+  }
+  cur.hidden = !d;
+}
+
 function musicSearch(query: string): void {
   S.music = { query, state: 'loading', items: [], error: '' };
   renderMusicResults();
@@ -941,7 +1018,7 @@ async function rotate(): Promise<void> {
 }
 
 app.addEventListener('click', (e) => {
-  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-tab],[data-cmd],[data-cam],[data-turn],[data-music],[data-mplay],[data-quick],[data-rideon],[data-field],[data-pick]');
+  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-tab],[data-cmd],[data-cam],[data-turn],[data-music],[data-mplay],[data-pgo],[data-quick],[data-rideon],[data-field],[data-pick]');
   if (!el) return;
   const d = el.dataset;
   if (d.tab) {
@@ -976,6 +1053,9 @@ app.addEventListener('click', (e) => {
     room = null;
     r?.removeAllListeners();
     void r?.leave(true).catch(() => undefined);
+    // Plus de jeu appairé : l'écran peut se remettre en veille.
+    S.presence = { game: false, phones: 0 };
+    syncWake();
     render();
   } else if (d.act === 'climb-close') {
     haptic(8);
@@ -1005,6 +1085,23 @@ app.addEventListener('click', (e) => {
   } else if (d.turn !== undefined) {
     haptic(25);
     send({ kind: 'turn', index: Number(d.turn) });
+  } else if (d.pgo !== undefined) {
+    const item = S.place.items[Number(d.pgo)];
+    if (item) {
+      haptic(25);
+      send({ kind: 'goTo', x: item.x, z: item.z, name: item.name });
+      // La liste se referme : la carte reprend la place, la destination s'affiche dès l'état suivant.
+      S.place = { query: '', state: 'idle', items: [], error: '' };
+      const q = document.querySelector<HTMLInputElement>('.dest input[name=q]');
+      if (q) {
+        q.value = '';
+        q.blur();
+      }
+      renderPlaceResults();
+    }
+  } else if (d.act === 'dest-clear') {
+    haptic();
+    send({ kind: 'clearDestination' });
   } else if (d.mplay !== undefined) {
     const item = S.music.items[Number(d.mplay)];
     if (item) {
@@ -1101,6 +1198,9 @@ app.addEventListener('submit', (e) => {
   const data = new FormData(form);
   if (form.dataset.form === 'music') {
     musicSearch(String(data.get('q') ?? '').trim());
+  } else if (form.dataset.form === 'place') {
+    placeSearch(String(data.get('q') ?? '').trim());
+    form.querySelector<HTMLInputElement>('input[name=q]')?.blur();
   } else if (form.dataset.form === 'chat') {
     const text = String(data.get('text') ?? '').trim();
     if (text && S.st?.multiplayer) send({ kind: 'chat', text });
@@ -1135,16 +1235,36 @@ window.addEventListener('resize', () => refresh());
 /* ───────────── Écran allumé, reprise au premier plan ───────────── */
 
 let wakeLock: { release(): Promise<void> } | null = null;
+/** L'écran ne reste allumé que si un jeu est appairé : sans jeu, le téléphone se met en veille normalement. */
+const wantAwake = (): boolean => S.presence.game;
 async function keepAwake(): Promise<void> {
+  if (!wantAwake()) return;
   try {
     const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<{ release(): Promise<void>; addEventListener(t: 'release', cb: () => void): void }> } };
     if (nav.wakeLock && document.visibilityState === 'visible') {
       const lock = await nav.wakeLock.request('screen');
+      // Le jeu est parti pendant la demande : on rend le verrou tout de suite.
+      if (!wantAwake()) {
+        void lock.release().catch(() => undefined);
+        return;
+      }
       wakeLock = lock;
-      lock.addEventListener('release', () => (wakeLock = null));
+      lock.addEventListener('release', () => {
+        if (wakeLock === lock) wakeLock = null;
+      });
     }
   } catch {
     wakeLock = null;
+  }
+}
+/** Prend ou rend le verrou d'écran selon la présence du jeu. */
+function syncWake(): void {
+  if (wantAwake()) {
+    if (!wakeLock) void keepAwake();
+  } else if (wakeLock) {
+    const lock = wakeLock;
+    wakeLock = null;
+    void lock.release().catch(() => undefined);
   }
 }
 document.addEventListener('visibilitychange', () => {

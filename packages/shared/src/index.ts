@@ -20,6 +20,7 @@ export * from './tuning.ts';
 export * from './face.ts';
 export * from './profiles.ts';
 export * from './companion.ts';
+export * from './basemap.ts';
 export * from './heights.ts';
 export * from './climbs.ts';
 export * from './archetypes.ts';

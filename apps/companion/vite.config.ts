@@ -14,6 +14,7 @@ export default defineConfig(({ command }) => ({
     fs: { allow: ['..', '../../packages'] },
   },
   preview: { port: 5174, strictPort: true },
-  build: { target: 'es2022', sourcemap: true, outDir: 'dist', emptyOutDir: true },
+  // Carte de sources produite mais non référencée par le JS livré (elle n'est plus téléchargée par les navigateurs).
+  build: { target: 'es2022', sourcemap: 'hidden', outDir: 'dist', emptyOutDir: true },
   clearScreen: false,
 }));

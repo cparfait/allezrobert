@@ -87,6 +87,7 @@ export async function exchangeCode(provider: keyof typeof PROVIDERS, client: OAu
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
     body,
+    signal: AbortSignal.timeout(15_000),
   });
   if (!res.ok) throw new Error(`Échange du code OAuth ${provider} refusé (${res.status})`);
   return (await res.json()) as Record<string, any>;
@@ -101,7 +102,7 @@ export interface OAuthIdentity {
 
 export async function fetchIdentity(provider: LoginProvider, accessToken: string, fetchFn: typeof fetch = fetch): Promise<OAuthIdentity> {
   const url = provider === 'google' ? 'https://openidconnect.googleapis.com/v1/userinfo' : 'https://discord.com/api/users/@me';
-  const res = await fetchFn(url, { headers: { authorization: `Bearer ${accessToken}` } });
+  const res = await fetchFn(url, { headers: { authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`Profil ${provider} indisponible (${res.status})`);
   const j = (await res.json()) as Record<string, any>;
   if (provider === 'google') {

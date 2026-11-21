@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { texture, uv, float, vec2, vec3, vec4, mix, mx_noise_float, smoothstep, step, fract, dot, attribute, cameraPosition, cameraViewMatrix, positionLocal, atan, floor, mod, screenCoordinate } from 'three/tsl';
 import { Tree } from './eztree/tree.js';
 import { rng } from '../engine/noise.ts';
+import { cullAfterWarmup } from './cullWarmup.ts';
 
 /**
  * Vrais arbres autour du coureur (P2.5, actifs par défaut ; `?eztree=0` pour couper) : branches et bouquets de feuilles générés par EZ-Tree (copie MIT,
@@ -27,8 +28,13 @@ const SPECIES: Array<{ preset: string; leaf: Kind; bark: [string, string]; leafM
   { preset: 'Aspen Medium', leaf: 'aspen', bark: ['#8d8b84', '#c9c6bc'], leafMul: 1.8, seed: 32 },
 ];
 
-/** Rayon des arbres en 3D autour du coureur (m). */
+/** Rayon des arbres en 3D autour du coureur (m) : valeur des préréglages haut et ultra (`ezNearM` de quality.ts). */
 export const EZ_NEAR_M = 60;
+/** Réglages par préréglage graphique : rayon des arbres en 3D (0 = imposteurs seuls) et ombres portées par ces arbres. */
+export interface EzTreeOptions {
+  nearM: number;
+  nearShadows: boolean;
+}
 /** Rayon des imposteurs (m) : au-delà, les arbres du jeu. */
 export const EZ_IMPOSTOR_M = 200;
 /** Demi-largeur des bandes de fondu 3D / imposteur et imposteur / arbres du jeu (m). */
@@ -41,9 +47,10 @@ const LIST_MARGIN = 6;
 export function ezDither(): THREE.Node<'float'> {
   return fract(fract(dot(screenCoordinate.xy, vec2(0.06711056, 0.00583715))).mul(52.9829189)) as unknown as THREE.Node<'float'>;
 }
-/** Part des arbres en 3D à la distance `d` du coureur (1 près, 0 au-delà de la bande). */
-export function ezNearWeight(d: THREE.Node<'float'>): THREE.Node<'float'> {
-  return float(1).sub(smoothstep(EZ_NEAR_M - NEAR_BAND, EZ_NEAR_M + NEAR_BAND, d)) as unknown as THREE.Node<'float'>;
+/** Part des arbres en 3D à la distance `d` du coureur (1 près, 0 au-delà de la bande) ; rayon nul : aucune. */
+export function ezNearWeight(d: THREE.Node<'float'>, nearM = EZ_NEAR_M): THREE.Node<'float'> {
+  if (nearM <= 0) return float(0) as unknown as THREE.Node<'float'>;
+  return float(1).sub(smoothstep(nearM - NEAR_BAND, nearM + NEAR_BAND, d)) as unknown as THREE.Node<'float'>;
 }
 /** Part des arbres du jeu à la distance `d` (0 près, 1 au-delà de la bande lointaine). */
 export function ezFarWeight(d: THREE.Node<'float'>): THREE.Node<'float'> {
@@ -145,6 +152,50 @@ interface Species {
   /** Pied (x, z) et teinte des arbres en 3D (attribut d'instance des deux maillages). */
   iFoot: THREE.InstancedBufferAttribute;
   impCount: number;
+  /** Emprise des arbres en 3D et des imposteurs de la liste en cours (sphères englobantes des lots). */
+  nearBox: Bounds;
+  impBox: Bounds;
+}
+
+/** Emprise d'un lot d'arbres : pieds (x, y, z) et plus grande dimension d'un arbre. */
+interface Bounds {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+  reach: number;
+}
+
+const emptyBounds = (): Bounds => ({ minX: Infinity, minY: Infinity, minZ: Infinity, maxX: -Infinity, maxY: -Infinity, maxZ: -Infinity, reach: 0 });
+
+function resetBounds(b: Bounds): void {
+  b.minX = b.minY = b.minZ = Infinity;
+  b.maxX = b.maxY = b.maxZ = -Infinity;
+  b.reach = 0;
+}
+
+function growBounds(b: Bounds, x: number, y: number, z: number, reach: number): void {
+  if (x < b.minX) b.minX = x;
+  if (x > b.maxX) b.maxX = x;
+  if (y < b.minY) b.minY = y;
+  if (y > b.maxY) b.maxY = y;
+  if (z < b.minZ) b.minZ = z;
+  if (z > b.maxZ) b.maxZ = z;
+  if (reach > b.reach) b.reach = reach;
+}
+
+/** Sphère qui contient tous les arbres du lot (pieds, plus la hauteur et l'envergure du plus grand, avec marge). */
+export function boundsSphere(b: Bounds, out: THREE.Sphere): THREE.Sphere {
+  if (b.minX > b.maxX) {
+    out.center.set(0, 0, 0);
+    out.radius = 0;
+    return out;
+  }
+  out.center.set((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2);
+  out.radius = Math.hypot(b.maxX - b.minX, b.maxY - b.minY, b.maxZ - b.minZ) / 2 + b.reach * 1.2 + 2;
+  return out;
 }
 
 /** Feuillus LiDAR d'un bloc : matrices d'instances et paramètres (`instanceColor`, voir vegetation.ts). */
@@ -176,8 +227,11 @@ export class EzTreeNear {
     leafB: THREE.Node<'vec3'>,
     leafAmount: THREE.Node<'float'>,
     private readonly live: THREE.Node<'vec3'> & { value: THREE.Vector3 },
+    private readonly opts: EzTreeOptions = { nearM: EZ_NEAR_M, nearShadows: true },
   ) {
     const n = ezDither();
+    const nearM = Math.max(0, opts.nearM);
+    const nearWeight = (d: unknown) => ezNearWeight(d as THREE.Node<'float'>, nearM);
     this.group.name = 'ez-tree-near';
     // Le moteur de rendu (pour pré-rendre les atlas entre deux images) : récupéré par un objet invisible.
     const probe = new THREE.Mesh(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0], 3)), new THREE.MeshBasicNodeMaterial({ colorWrite: false, depthWrite: false }));
@@ -222,7 +276,7 @@ export class EzTreeNear {
       t.branchesMesh.geometry.setAttribute('iFoot', iFoot);
       lg.setAttribute('iFoot', iFoot);
       const foot = attribute<'vec3'>('iFoot');
-      const nearVisible = step(n, ezNearWeight(vec2(foot.x, foot.y).sub(this.live.xz).length()).sub(1e-4));
+      const nearVisible = step(n, nearWeight(vec2(foot.x, foot.y).sub(this.live.xz).length()).sub(1e-4));
       const bMat = new THREE.MeshStandardNodeMaterial();
       bMat.colorNode = barkCol;
       bMat.roughnessNode = float(0.95);
@@ -238,10 +292,15 @@ export class EzTreeNear {
       const leaves = new THREE.InstancedMesh(lg, lMat, CAP_NEAR);
       for (const im of [branches, leaves]) {
         im.count = 0;
-        im.castShadow = true;
+        im.castShadow = opts.nearShadows;
         im.receiveShadow = true;
-        im.frustumCulled = false;
-        this.group.add(im);
+        // Écarté hors champ par la sphère du lot, refaite avec la liste (`rebuild`) : un lot vide (ville, champs) n'est
+        // plus préparé à chaque passe. Jamais masqué par `visible` (la précompilation du départ saute les objets
+        // masqués), et culling seulement après les premières images (voir cullAfterWarmup).
+        im.boundingSphere = new THREE.Sphere();
+        cullAfterWarmup(im);
+        // Rayon nul (préréglage bas) : pas d'arbres en 3D, ces géométries ne servent qu'au pré-rendu des atlas.
+        if (nearM > 0) this.group.add(im);
       }
       // Pré-rendu : mêmes géométries, couleurs sans éclairage (l'imposteur est éclairé par la scène).
       const bake = new THREE.Group();
@@ -288,18 +347,20 @@ export class EzTreeNear {
       imat.colorNode = tile.rgb.mul(yawTone.y.mul(0.12).add(0.94));
       // part de l'imposteur : ni celle des arbres en 3D, ni celle des arbres du jeu (tramage complémentaire)
       const dImp = center.xz.sub(this.live.xz).length();
-      imat.opacityNode = tile.a.mul(step(ezNearWeight(dImp), n)).mul(step(n, float(1).sub(ezFarWeight(dImp)).sub(1e-4)));
+      imat.opacityNode = tile.a.mul(step(nearWeight(dImp), n)).mul(step(n, float(1).sub(ezFarWeight(dImp)).sub(1e-4)));
       imat.alphaTest = 0.5;
       imat.side = THREE.DoubleSide;
       // normale : vers la caméra, relevée (houppier éclairé d'en haut)
       imat.normalNode = cameraViewMatrix.mul(vec4(vec3(dir.x, 0.8, dir.y).normalize(), 0)).xyz.normalize();
       imat.roughnessNode = float(0.85);
       const impostor = new THREE.Mesh(geo, imat);
-      impostor.frustumCulled = false;
+      // Les cartes sont placées par le shader : sphère du lot posée à la main (refaite avec la liste).
+      geo.boundingSphere = new THREE.Sphere();
+      cullAfterWarmup(impostor);
       impostor.castShadow = true;
       impostor.receiveShadow = true;
       this.group.add(impostor);
-      this.species.push({ h0, w0, branches, leaves, nearCount: 0, bake, atlas, impostor, iPos, iSize, iYaw, iFoot, impCount: 0 });
+      this.species.push({ h0, w0, branches, leaves, nearCount: 0, bake, atlas, impostor, iPos, iSize, iYaw, iFoot, impCount: 0, nearBox: emptyBounds(), impBox: emptyBounds() });
     }
     this.bakeScene.add(new THREE.AmbientLight(0xffffff, 1));
   }
@@ -343,20 +404,35 @@ export class EzTreeNear {
    * moins de EZ_IMPOSTOR_M en imposteurs. `meshes` : feuillus des blocs LiDAR proches ; `topOf` : hauteur (m).
    */
   update(focus: THREE.Vector3, meshes: Iterable<THREE.InstancedMesh>, isConifer: (mesh: THREE.InstancedMesh, i: number) => boolean, topOf: (mesh: THREE.InstancedMesh, i: number) => number): void {
+    if (this.tick(focus)) this.rebuild(focus, meshes, isConifer, topOf);
+  }
+
+  /**
+   * À chaque image : atlas à refaire, position réelle du coureur pour les fondus. Vrai quand les listes sont à
+   * refaire (`rebuild`) : l'appelant ne rassemble les blocs proches que dans ce cas.
+   */
+  tick(focus: THREE.Vector3): boolean {
     if (this.atlasDirty && this.renderer) this.bakeAtlases();
     // fondus : position réelle, à chaque image
     this.live.value.copy(focus);
     this.frames++;
-    if (Math.hypot(focus.x - this.last.x, focus.z - this.last.z) < 5 && this.frames < 90) return;
+    return !(Math.hypot(focus.x - this.last.x, focus.z - this.last.z) < 5 && this.frames < 90);
+  }
+
+  /** Refait les listes d'arbres en 3D et d'imposteurs (après un `tick` vrai). */
+  rebuild(focus: THREE.Vector3, meshes: Iterable<THREE.InstancedMesh>, isConifer: (mesh: THREE.InstancedMesh, i: number) => boolean, topOf: (mesh: THREE.InstancedMesh, i: number) => number): void {
     this.frames = 0;
     this.last.copy(focus);
     for (const sp of this.species) {
       sp.nearCount = 0;
       sp.impCount = 0;
+      resetBounds(sp.nearBox);
+      resetBounds(sp.impBox);
     }
     // listes élargies aux bandes de fondu (et au chemin parcouru d'ici le prochain échange)
-    const rn2 = (EZ_NEAR_M + NEAR_BAND + LIST_MARGIN) ** 2;
-    const ri0 = Math.max(0, EZ_NEAR_M - NEAR_BAND - LIST_MARGIN) ** 2;
+    const nearM = Math.max(0, this.opts.nearM);
+    const rn2 = nearM > 0 ? (nearM + NEAR_BAND + LIST_MARGIN) ** 2 : -1;
+    const ri0 = nearM > 0 ? Math.max(0, nearM - NEAR_BAND - LIST_MARGIN) ** 2 : 0;
     const ri2 = (EZ_IMPOSTOR_M + FAR_BAND + LIST_MARGIN) ** 2;
     for (const mesh of meshes) {
       const a = mesh.instanceMatrix.array as Float32Array;
@@ -378,6 +454,7 @@ export class EzTreeNear {
           sp.branches.setMatrixAt(sp.nearCount, this.m);
           sp.leaves.setMatrixAt(sp.nearCount, this.m);
           sp.nearCount++;
+          growBounds(sp.nearBox, x, this.p.y, z, Math.max(sp.h0, sp.w0) * sc);
         }
         if (d2 >= ri0) {
           if (sp.impCount >= CAP_IMPOSTOR) continue;
@@ -386,17 +463,29 @@ export class EzTreeNear {
           sp.iSize.setXY(j, sp.w0 * 1.1 * sc, sp.h0 * 1.02 * sc);
           // rotation autour de la verticale : (sin, cos) dans la 3e colonne
           sp.iYaw.setXY(j, Math.atan2(a[i * 16 + 8] as number, a[i * 16 + 10] as number), tone);
+          growBounds(sp.impBox, x, a[i * 16 + 13] as number, z, Math.max(sp.h0, sp.w0) * 1.1 * sc);
         }
       }
     }
     for (const sp of this.species) {
       sp.branches.count = sp.nearCount;
       sp.leaves.count = sp.nearCount;
-      sp.branches.instanceMatrix.needsUpdate = true;
-      sp.leaves.instanceMatrix.needsUpdate = true;
-      sp.iFoot.needsUpdate = true;
-      (sp.impostor.geometry as THREE.InstancedBufferGeometry).instanceCount = sp.impCount;
-      for (const at of [sp.iPos, sp.iSize, sp.iYaw]) at.needsUpdate = true;
+      // Lot vide : rien à envoyer au GPU.
+      if (sp.nearCount > 0) {
+        sp.branches.instanceMatrix.needsUpdate = true;
+        sp.leaves.instanceMatrix.needsUpdate = true;
+        sp.iFoot.needsUpdate = true;
+      }
+      boundsSphere(sp.nearBox, sp.branches.boundingSphere as THREE.Sphere);
+      (sp.leaves.boundingSphere as THREE.Sphere).copy(sp.branches.boundingSphere as THREE.Sphere);
+      const geo = sp.impostor.geometry as THREE.InstancedBufferGeometry;
+      geo.instanceCount = sp.impCount;
+      if (sp.impCount > 0) {
+        sp.iPos.needsUpdate = true;
+        sp.iSize.needsUpdate = true;
+        sp.iYaw.needsUpdate = true;
+      }
+      boundsSphere(sp.impBox, geo.boundingSphere as THREE.Sphere);
     }
   }
 

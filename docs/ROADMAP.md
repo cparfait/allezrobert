@@ -7,7 +7,7 @@ Chaque jalon n'est déclaré terminé qu'après vérification : tests (protocole
 ## Jalon 0 — Socle
 
 - [x] Monorepo pnpm, TypeScript strict, Vitest
-- [ ] CI GitHub Actions (types, tests, build, images Docker) — fichier écrit, jamais exécuté sur GitHub
+- [x] CI GitHub Actions (types, tests, build, images Docker) — exécutée sur GitHub depuis (commits `fix(ci)` de l'historique)
 - [x] `packages/shared` : contrats capteurs, profils, itinéraires, réseau, pont natif
 - [x] Simulateur de capteurs (trainer + pédales + FC + commandes) pour coder sans rouler
 - [x] Scène Three.js minimale (WebGPU, repli WebGL2)

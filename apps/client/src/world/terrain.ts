@@ -45,6 +45,47 @@ interface TileEntry {
   mesh: THREE.Mesh;
   lod: number;
   textures: THREE.DataTexture[];
+  /** Orthophoto affichée : texture, côté demandé au décodage (0 = taille d'origine) et côté en cours de décodage. */
+  ortho?: { tex: THREE.Texture; px: number; pending: number | null };
+}
+
+/**
+ * Orthophotos des tuiles lointaines (anneau ≥ 2, à plus d'un kilomètre) : décodées en 512 px de côté au lieu de 1 024
+ * (5,6 Mo de mémoire vidéo par tuile avec les mipmaps, 1,4 Mo en 512). La taille d'origine revient quand la tuile
+ * passe en anneau ≤ 1 ; elle n'est rendue qu'en anneau ≥ 3 (pas d'aller-retour sur une limite de tuile). Préréglage
+ * ultra : taille d'origine partout. `?orthofar=0` coupe la réduction.
+ */
+const ORTHO_FAR_PX = 512;
+const ORTHO_FAR_REQUESTED = (() => {
+  try {
+    return typeof location !== 'undefined' && new URLSearchParams(location.search).get('orthofar') !== '0';
+  } catch {
+    return false;
+  }
+})();
+
+/** Côté de décodage d'une orthophoto selon l'anneau de sa tuile ; `current` : côté en place (hystérésis en anneau 2). */
+export function orthoPxForRing(ring: number, current: number | null, reduce: boolean): number {
+  if (!reduce || ring <= 1) return 0;
+  if (ring >= 3 || current === null) return ORTHO_FAR_PX;
+  return current;
+}
+
+/** Réglages communs des textures d'orthophoto. */
+function setupOrthoTexture(tex: THREE.Texture): void {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.flipY = false;
+  tex.anisotropy = 8;
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.addEventListener('dispose', () => {
+    tex.userData.disposed = true;
+    (tex.image as ImageBitmap | undefined)?.close?.();
+  });
+}
+
+/** Décodage hors du fil principal, réduit à `px` de côté si px > 0. */
+function decodeOrtho(blob: Blob, px: number): Promise<ImageBitmap> {
+  return px > 0 ? createImageBitmap(blob, { resizeWidth: px, resizeHeight: px, resizeQuality: 'high' }) : createImageBitmap(blob);
 }
 
 /**
@@ -347,9 +388,30 @@ export class TerrainManager {
     return false;
   }
 
-  heightAt(x: number, z: number): number {
-    const [tx, tz] = this.tileCoord(x, z);
+  /** Dernière tuile demandée (`heightAt`, `getTile` : des milliers d'appels d'affilée dans la même tuile, sans clé en chaîne). */
+  private lastTx = Number.NaN;
+  private lastTz = Number.NaN;
+  private lastEntry: TileEntry | undefined;
+
+  private entryAt(tx: number, tz: number): TileEntry | undefined {
+    if (tx === this.lastTx && tz === this.lastTz) return this.lastEntry;
     const e = this.tiles.get(`${tx}_${tz}`);
+    this.lastTx = tx;
+    this.lastTz = tz;
+    this.lastEntry = e;
+    return e;
+  }
+
+  /** À appeler à chaque ajout ou retrait dans `tiles` : la tuile mémorisée n'est plus sûre. */
+  private forgetLast(): void {
+    this.lastTx = Number.NaN;
+    this.lastTz = Number.NaN;
+    this.lastEntry = undefined;
+  }
+
+  heightAt(x: number, z: number): number {
+    const T = this.source.tileSize;
+    const e = this.entryAt(Math.floor(x / T), Math.floor(z / T));
     if (!e) return Number.NaN;
     const t = e.tile;
     // Le sol affiché est abaissé sous les routes (clampUnderRoads, les deux styles) ; herbe, fleurs,
@@ -377,7 +439,7 @@ export class TerrainManager {
   }
 
   getTile(tx: number, tz: number): LoadedTile | undefined {
-    return this.tiles.get(`${tx}_${tz}`)?.tile;
+    return this.entryAt(tx, tz)?.tile;
   }
 
   /** Charge les tuiles proches, décharge les lointaines, ajuste les niveaux de détail. */
@@ -399,6 +461,7 @@ export class TerrainManager {
         wanted.add(key);
         const existing = this.tiles.get(key);
         if (existing) {
+          this.resizeOrtho(existing, key, tx, tz);
           // Niveau de détail : maillage refait plus tard, dans le budget de l'image (plusieurs tuiles changent d'un coup).
           if (existing.lod !== this.lodAt(tx, tz))
             this.work.defer(() => {
@@ -428,6 +491,7 @@ export class TerrainManager {
         (e.mesh.material as THREE.Material).dispose();
         e.textures.forEach((t) => t.dispose());
         this.tiles.delete(key);
+        this.forgetLast();
         this.onTileUnloaded?.(e.tile);
       }
     }
@@ -439,10 +503,68 @@ export class TerrainManager {
     await Promise.all(jobs);
   }
 
+  /** Anneau d'une tuile autour de celle du coureur (0 au centre). */
+  private ringOf(tx: number, tz: number): number {
+    const T = this.source.tileSize;
+    return Math.max(Math.abs(tx - Math.floor(this.focus.x / T)), Math.abs(tz - Math.floor(this.focus.z / T)));
+  }
+
+  /** Orthophotos lointaines réduites (voir ORTHO_FAR_PX) : pas en ultra, ni avec `?orthofar=0`. */
+  private get orthoReduce(): boolean {
+    return ORTHO_FAR_REQUESTED && this.q.level !== 'ultra';
+  }
+
+  /**
+   * Tuile dont l'anneau a changé : son orthophoto est redécodée à la taille voulue (hors du fil principal), puis
+   * échangée par la file de travail, une tuile par tâche. L'ancienne texture reste affichée jusque-là, puis est
+   * libérée. Une texture ne peut pas changer de taille en place : c'est le nœud du matériau qui change de texture
+   * (même shader, aucune compilation).
+   */
+  private resizeOrtho(e: TileEntry, key: string, tx: number, tz: number): void {
+    const o = e.ortho;
+    const blob = e.tile.orthoBlob;
+    if (!o || !blob) return;
+    const want = orthoPxForRing(this.ringOf(tx, tz), o.px, this.orthoReduce);
+    if (want === o.pending) return;
+    if (want === o.px) {
+      // Retour à la taille en place : le décodage en cours (autre taille) est abandonné à son arrivée.
+      o.pending = null;
+      return;
+    }
+    o.pending = want;
+    void decodeOrtho(blob, want)
+      .then((bmp) => {
+        const current = () => this.tiles.get(key) === e && e.ortho === o && o.pending === want && !this.disposed;
+        if (!current()) return bmp.close();
+        this.work.defer(() => {
+          if (!current()) return bmp.close();
+          const node = (e.mesh.material as THREE.Material).userData.orthoNode as { value: THREE.Texture } | undefined;
+          if (!node) {
+            o.pending = null;
+            return bmp.close();
+          }
+          const tex = new THREE.Texture(bmp);
+          setupOrthoTexture(tex);
+          tex.needsUpdate = true;
+          const old = o.tex;
+          node.value = tex;
+          const i = e.textures.indexOf(old as unknown as THREE.DataTexture);
+          if (i >= 0) e.textures[i] = tex as unknown as THREE.DataTexture;
+          else e.textures.push(tex as unknown as THREE.DataTexture);
+          o.tex = tex;
+          o.px = want;
+          o.pending = null;
+          old.dispose();
+        }, this.distTo(tx, tz), 'terrain (orthophoto)');
+      })
+      .catch(() => {
+        if (o.pending === want) o.pending = null;
+      });
+  }
+
   /** Niveau de détail d'une tuile selon son anneau autour du coureur (0 au centre). */
   private lodAt(tx: number, tz: number): number {
-    const [cx, cz] = this.tileCoord(this.focus.x, this.focus.z);
-    const ring = Math.max(Math.abs(tx - cx), Math.abs(tz - cz));
+    const ring = this.ringOf(tx, tz);
     if (ring <= 1 && this.q.level !== 'low') {
       // Détail fin (FINE_LOD) sur les tuiles à moins de FINE_REACH_M du coureur : bord de la tuile le plus proche.
       const T = this.source.tileSize;
@@ -509,6 +631,7 @@ export class TerrainManager {
       this.tiles.delete(key);
       this.onTileUnloaded?.(e.tile);
     }
+    this.forgetLast();
   }
 
   private add(tile: LoadedTile, lod: number): void {
@@ -516,27 +639,22 @@ export class TerrainManager {
     if (!tile.splat) tile.splat = rasterizeSplat(tile, this.activeRoute);
     const textures = this.splatTextures(tile);
     let ortho: THREE.Texture | null = null;
+    let orthoPx = 0;
     if (tile.orthoBlob) {
       // Orthophoto IGN : décodée hors du fil principal (createImageBitmap) ; le matériau la prend en
       // compte dès réception. Une image décodée par le navigateur au moment de l'envoi au GPU
-      // coûtait 5 à 13 ms à l'image où la tuile apparaissait.
+      // coûtait 5 à 13 ms à l'image où la tuile apparaissait. Tuile lointaine : décodée réduite (ORTHO_FAR_PX).
       const tex = new THREE.Texture();
       ortho = tex;
-      void createImageBitmap(tile.orthoBlob)
+      orthoPx = orthoPxForRing(this.ringOf(tile.tx, tile.tz), null, this.orthoReduce);
+      void decodeOrtho(tile.orthoBlob, orthoPx)
         .then((bmp) => {
           if (tex.userData.disposed) return bmp.close();
           tex.image = bmp;
           tex.needsUpdate = true;
         })
         .catch(() => undefined);
-      tex.addEventListener('dispose', () => {
-        tex.userData.disposed = true;
-        (tex.image as ImageBitmap | undefined)?.close?.();
-      });
-      ortho.colorSpace = THREE.SRGBColorSpace;
-      ortho.flipY = false;
-      ortho.anisotropy = 8;
-      ortho.wrapS = ortho.wrapT = THREE.ClampToEdgeWrapping;
+      setupOrthoTexture(tex);
       textures.push(ortho as THREE.DataTexture);
     }
     // Accotements : champ de distance au bord des routes dessinées (libéré avec les autres textures de la tuile).
@@ -550,8 +668,9 @@ export class TerrainManager {
     mesh.name = `tile_${tile.id}`;
     this.group.add(mesh);
     const key = `${tile.tx}_${tile.tz}`;
-    const entry: TileEntry = { tile, mesh, lod, textures };
+    const entry: TileEntry = { tile, mesh, lod, textures, ...(ortho ? { ortho: { tex: ortho, px: orthoPx, pending: null } } : {}) };
     this.tiles.set(key, entry);
+    this.forgetLast();
     this.onTileLoaded?.(tile, () => this.tiles.get(key) === entry);
   }
 
@@ -751,8 +870,10 @@ export class TerrainManager {
     // Les bruits fins s'effacent avec la distance : au-delà de leur taille de pixel ils grésillent dès que la caméra
     // bouge (versants enneigés la nuit surtout). Au loin, la valeur moyenne les remplace.
     const camDist = positionWorld.sub(cameraPosition).length();
-    const n2 = mix(float(0.5), mx_noise_float(wp.mul(0.035)).mul(0.5).add(0.5), float(1).sub(smoothstep(250, 1200, camDist)));
-    const n3 = mix(float(0.5), mx_noise_float(wp.mul(0.4)).mul(0.5).add(0.5), float(1).sub(smoothstep(40, 220, camDist)));
+    // Chacun n'est évalué que dans sa distance utile (bloc conditionnel, comme le détail du sol proche) : au-delà,
+    // le fondu vaut exactement la moyenne, le calcul du bruit était perdu sur presque tout l'écran.
+    const n2 = fadedNoise(camDist, 1200, 0.5, () => mix(float(0.5), mx_noise_float(wp.mul(0.035)).mul(0.5).add(0.5), float(1).sub(smoothstep(250, 1200, camDist))));
+    const n3 = fadedNoise(camDist, 220, 0.5, () => mix(float(0.5), mx_noise_float(wp.mul(0.4)).mul(0.5).add(0.5), float(1).sub(smoothstep(40, 220, camDist))));
     const detail = n2.mul(0.18).add(n3.mul(0.12)).add(0.82);
     // Accotements (?roadedge=1) : distance signée au bord des routes dessinées (m, négative sur la chaussée) et masque
     // routier précis près d'elles. Le masque du raster (≈ 4 m) retirait orthophoto et détail sur 3 à 4 m de part et
@@ -791,7 +912,10 @@ export class TerrainManager {
     if (ortho) {
       // Orthophoto : vrais motifs de parcelles, haies, villages ; teinte saisonnière ; le détail
       // procédural reste visible de près. La chaussée garde le rendu asphalte.
-      const photo = texture(ortho, uv()).rgb;
+      const orthoNode = texture(ortho, uv());
+      // Gardé pour changer de texture sans toucher au shader (orthophoto réduite au loin, voir resizeOrtho).
+      m.userData.orthoNode = orthoNode;
+      const photo = orthoNode.rgb;
       const lum = photo.dot(vec3(0.299, 0.587, 0.114));
       const seasonal = mix(vec3(lum, lum, lum), photo, this.orthoSat).mul(this.orthoTint.node).mul(1.08);
       const roadMask = edgeRoadMask ?? smoothstep(0.35, 0.75, s1.g);
@@ -822,7 +946,7 @@ export class TerrainManager {
     const highRock = smoothstep(this.treeline.add(100), this.treeline.add(700), alt).mul(0.6).mul(n1.mul(0.6).add(0.6));
     const rockMask = clamp(steep.max(highRock).max(scree), 0, 1).mul(float(1).sub(roadMask));
     // Roche : strates et taches (bruit étiré), éboulis plus clairs et grenus.
-    const strata = mix(float(1), mx_noise_float(vec3(wp.x.mul(0.05), alt.mul(0.35), wp.y.mul(0.05))).mul(0.12).add(1), float(1).sub(smoothstep(300, 1500, camDist)));
+    const strata = fadedNoise(camDist, 1500, 1, () => mix(float(1), mx_noise_float(vec3(wp.x.mul(0.05), alt.mul(0.35), wp.y.mul(0.05))).mul(0.12).add(1), float(1).sub(smoothstep(300, 1500, camDist))));
     const rock = this.rockColor.node.mul(n3.mul(0.25).add(0.82)).mul(strata).mul(scree.mul(0.12).add(1));
     col = mix(col, rock, rockMask.mul(ortho ? 0.5 : 0.9));
     const glacier = mix(vec3(0.78, 0.85, 0.9), vec3(0.62, 0.72, 0.8), smoothstep(0.55, 0.8, n3));
@@ -953,6 +1077,21 @@ interface GroundMasks {
  * maillage. Rien sur la chaussée, l'eau, la neige ni la glace. Les bruits ne sont évalués que dans un bloc
  * conditionnel (moins de 110 m, hors chaussée, eau et neige) : le terrain lointain ne paie que les masques.
  */
+/**
+ * Bruit qui s'efface avec la distance : `value()` n'est évalué qu'à moins de `maxDist` de la caméra (bloc
+ * conditionnel), et vaut `rest` au-delà, soit exactement la valeur du fondu terminé. Les bruits de MaterialX ne
+ * prennent pas de dérivées écran : rien ne sort du flot uniforme.
+ */
+function fadedNoise(camDist: GF, maxDist: number, rest: number, value: () => unknown): GF {
+  return Fn(() => {
+    const out = float(rest).toVar();
+    If(camDist.lessThan(maxDist), () => {
+      out.assign(value() as GF);
+    });
+    return out;
+  })() as unknown as GF;
+}
+
 function groundDetail(p: GroundMasks): { tint: GV3; rough: GF; normal: GV3 } {
   const wp = positionWorld.xz;
   const one = float(1);

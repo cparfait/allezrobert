@@ -219,6 +219,15 @@ input[type='range'] { width: 100%; accent-color: var(--accent); height: 30px; }
 
 /* ───────── Carte ───────── */
 .content[data-tab='map'] { display: flex; flex-direction: column; overflow: hidden; }
+.dest { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 10px; border-bottom: 1px solid var(--line); }
+.dest[hidden], .dest-cur[hidden] { display: none; }
+.dest .row { display: flex; gap: 8px; }
+.dest .row input { flex: 1; min-width: 0; }
+.dest-cur { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
+.dest-cur span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dest-results { max-height: 34vh; }
+.dest-results:empty { display: none; }
+.dest-results button { grid-template-columns: 1fr; padding: 9px 10px; }
 .mapbox { flex: 1; min-height: 0; position: relative; }
 .mapbox canvas { width: 100%; height: 100%; display: block; }
 .mapprof { height: 90px; flex: none; border-top: 1px solid var(--line); }

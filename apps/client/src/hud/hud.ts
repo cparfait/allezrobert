@@ -302,6 +302,12 @@ function fmtTime(s: number): string {
 
 /** Radar du groupe : portée de la barre, de part et d'autre du coureur (m). */
 const GROUP_RANGE_M = 30;
+/** Distance (m) à laquelle la proposition de bifurcation apparaît, à l'écran et sur le compagnon : pas plus tôt. */
+export const JUNCTION_SHOW_M = 100;
+/** Carte locale du monde ouvert : marge du calque fixe autour de la vue, et côté des cases de la grille des arêtes. */
+const OPEN_MARGIN_M = 320;
+const OPEN_CELL_M = 400;
+const OPEN_PAVED = /^(asphalt|paved|concrete|chipseal)/;
 
 /**
  * Panneau « Groupe » : allure demandée au groupe (boutons − et +), radar de position de 30 m derrière à
@@ -424,6 +430,13 @@ export class Hud {
   private readonly toasts: HTMLElement;
   /** Monde ouvert : réseau routier pour la mini-carte (profil et carte suivent le coureur). */
   private openGraph: RoadGraphData | null = null;
+  /** Graphe de la carte locale sur un itinéraire fixe (voir `setLocalMap`). */
+  private localGraph: RoadGraphData | null = null;
+  /** Arêtes du graphe rangées par cases de `OPEN_CELL_M` (construit au premier dessin de la carte locale). */
+  private openGrid: Map<number, number[]> | null = null;
+  /** Centre du calque fixe de la carte locale (fond filtré + routes), déplacé quand le coureur s'en éloigne. */
+  private openAnchor: { x: number; z: number } | null = null;
+  private openRev = 0;
   /** Panneau « À proximité » : coureurs réels seulement (multijoueur) ou tous (IA comprises). */
   riderFilter: 'real' | 'all' = 'all';
   private lastJunction = '';
@@ -450,8 +463,22 @@ export class Hud {
   private zonesTick = -1;
 
   /** Passe le HUD en monde ouvert (profil glissant, carte locale avec les routes alentour). */
+  /**
+   * Itinéraires fixes : graphe routier de la zone, pour montrer la même carte locale (ronde, centrée sur le coureur)
+   * qu'en parcours libre au lieu de la vue d'ensemble du parcours. Sans graphe, la vue d'ensemble reste.
+   */
+  setLocalMap(graph: RoadGraphData): void {
+    this.localGraph = graph;
+    this.openGrid = null;
+    this.openAnchor = null;
+    this.openRev++;
+  }
+
   setOpen(graph: RoadGraphData): void {
     this.openGraph = graph;
+    this.openGrid = null;
+    this.openAnchor = null;
+    this.openRev++;
   }
 
   /** Clic sur la mini-carte (monde ouvert : ouvre la carte complète). */
@@ -999,7 +1026,8 @@ export class Hud {
       this.drawOpenMap(s, s.open.distM);
     } else {
       this.drawProfile(s);
-      this.drawMap(s);
+      if (this.localGraph) this.drawOpenMap(s, s.lapDistM);
+      else this.drawMap(s);
     }
   }
 
@@ -1449,7 +1477,7 @@ export class Hud {
       return;
     }
     box.classList.remove('turn-sign');
-    if (!j || j.inM > 350) {
+    if (!j || j.inM > JUNCTION_SHOW_M) {
       box.classList.add('hidden');
       this.lastJunction = '';
       return;
@@ -1530,9 +1558,53 @@ export class Hud {
     ctx.stroke();
   }
 
+  /** Indices (croissants, sans doublon) des arêtes du graphe dont l'emprise touche le rectangle donné. */
+  private openEdgesIn(g: RoadGraphData, minX: number, minZ: number, maxX: number, maxZ: number): number[] {
+    const cell = (v: number): number => Math.floor(v / OPEN_CELL_M) + 32768;
+    if (!this.openGrid) {
+      const grid = new Map<number, number[]>();
+      g.edges.forEach((e, idx) => {
+        const p = e.pts;
+        let x0 = Infinity;
+        let x1 = -Infinity;
+        let z0 = Infinity;
+        let z1 = -Infinity;
+        for (let i = 0; i < p.length; i += 3) {
+          const x = p[i] as number;
+          const z = p[i + 2] as number;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (z < z0) z0 = z;
+          if (z > z1) z1 = z;
+        }
+        if (x0 > x1) return;
+        for (let cx = cell(x0); cx <= cell(x1); cx++) {
+          for (let cz = cell(z0); cz <= cell(z1); cz++) {
+            const kk = cx * 65536 + cz;
+            const list = grid.get(kk);
+            if (list) list.push(idx);
+            else grid.set(kk, [idx]);
+          }
+        }
+      });
+      this.openGrid = grid;
+    }
+    const seen = new Set<number>();
+    for (let cx = cell(minX); cx <= cell(maxX); cx++) {
+      for (let cz = cell(minZ); cz <= cell(maxZ); cz++) {
+        const list = this.openGrid.get(cx * 65536 + cz);
+        if (list) for (const idx of list) seen.add(idx);
+      }
+    }
+    // Ordre du graphe conservé : les traits translucides se superposent comme avant.
+    return [...seen].sort((u, v) => u - v);
+  }
+
   /** Carte locale (1,6 km de côté, nord en haut) : routes alentour, chemin prévu, coureurs. */
   private drawOpenMap(s: HudState, d: number): void {
-    const g = this.openGraph as RoadGraphData;
+    const g = (this.openGraph ?? this.localGraph) as RoadGraphData;
+    // Itinéraire fixe : le parcours entier reste visible en filigrane sous le chemin à venir.
+    const fixed = !this.openGraph;
     const c = this.mapCanvas;
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
     const w = c.width;
@@ -1548,31 +1620,67 @@ export class Hud {
     const cx = Math.round(me.x / 300) * 300;
     const cz = Math.round(me.z / 300) * 300;
     this.ensureBase({ minX: cx - win, maxX: cx + win, minZ: cz - win, maxZ: cz + win }, { minX: me.x - half * 1.1, maxX: me.x + half * 1.1, minZ: me.z - half * 1.1, maxZ: me.z + half * 1.1 }, 1024);
-    this.drawBase(ctx, P);
+    // Fond filtré et routes : calque fixe plus large que la vue (marge `OPEN_MARGIN_M`), refait seulement quand le
+    // coureur approche de son bord ou que le fond arrive ; chaque passage ne fait que le recopier décalé. Le filtre du
+    // fond et le parcours de tout le graphe (plus de 100 000 arêtes en ville) coûtaient cher dix fois par seconde.
+    const a = this.openAnchor;
+    if (!a || Math.abs(me.x - a.x) > OPEN_MARGIN_M - 20 || Math.abs(me.z - a.z) > OPEN_MARGIN_M - 20) this.openAnchor = { x: me.x, z: me.z };
+    const anchor = this.openAnchor as { x: number; z: number };
+    const reach = half + OPEN_MARGIN_M;
+    const lw = Math.round(2 * reach * k);
+    const lh = Math.round(h + 2 * OPEN_MARGIN_M * k);
+    const key = `${this.base?.ready ? this.base.img.src : ''}|${anchor.x}|${anchor.z}|${this.openRev}`;
+    const layer = this.cached('openmap', lw, lh, key, (lc) => {
+      const L = (x: number, z: number): [number, number] => [lw / 2 + (x - anchor.x) * k, lh / 2 + (z - anchor.z) * k];
+      this.drawBase(lc, L);
+      lc.lineJoin = 'round';
+      lc.lineCap = 'round';
+      const reachZ = lh / (2 * k);
+      for (const idx of this.openEdgesIn(g, anchor.x - reach, anchor.z - reachZ, anchor.x + reach, anchor.z + reachZ)) {
+        const e = g.edges[idx] as RoadGraphData['edges'][number];
+        const p = e.pts;
+        lc.strokeStyle = OPEN_PAVED.test(e.surface) ? 'rgba(226,232,240,0.45)' : 'rgba(202,170,110,0.45)';
+        lc.lineWidth = (e.kind.startsWith('primary') || e.kind.startsWith('secondary') ? 6 : 3.5) * mk;
+        lc.beginPath();
+        for (let i = 0; i < p.length; i += 3) {
+          const x = lw / 2 + ((p[i] as number) - anchor.x) * k;
+          const y = lh / 2 + ((p[i + 2] as number) - anchor.z) * k;
+          if (i) lc.lineTo(x, y);
+          else lc.moveTo(x, y);
+        }
+        lc.stroke();
+      }
+      if (fixed) {
+        const pts = this.track.route.points;
+        lc.strokeStyle = 'rgba(255,210,63,0.4)';
+        lc.lineWidth = 5 * mk;
+        lc.beginPath();
+        let pen = false;
+        for (let i = 0; i < pts.length; i += 4) {
+          const q = pts[i] as { x: number; z: number };
+          if (Math.abs(q.x - anchor.x) > reach || Math.abs(q.z - anchor.z) > reachZ) {
+            pen = false;
+            continue;
+          }
+          const x = lw / 2 + (q.x - anchor.x) * k;
+          const y = lh / 2 + (q.z - anchor.z) * k;
+          if (pen) lc.lineTo(x, y);
+          else lc.moveTo(x, y);
+          pen = true;
+        }
+        lc.stroke();
+      }
+    });
+    ctx.drawImage(layer, w / 2 - lw / 2 + (anchor.x - me.x) * k, h / 2 - lh / 2 + (anchor.z - me.z) * k);
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    for (const e of g.edges) {
-      const p = e.pts;
-      // Rejet grossier : extrémités et milieu loin du cadre.
-      const mid = 3 * Math.floor(p.length / 6);
-      const near = [0, mid, p.length - 3].some((i) => Math.abs((p[i] as number) - me.x) < half * 1.5 && Math.abs((p[i + 2] as number) - me.z) < half * 1.5);
-      if (!near) continue;
-      ctx.strokeStyle = /^(asphalt|paved|concrete|chipseal)/.test(e.surface) ? 'rgba(226,232,240,0.45)' : 'rgba(202,170,110,0.45)';
-      ctx.lineWidth = (e.kind.startsWith('primary') || e.kind.startsWith('secondary') ? 6 : 3.5) * mk;
-      ctx.beginPath();
-      for (let i = 0; i < p.length; i += 3) {
-        const [x, y] = P(p[i] as number, p[i + 2] as number);
-        if (i) ctx.lineTo(x, y);
-        else ctx.moveTo(x, y);
-      }
-      ctx.stroke();
-    }
     // Chemin prévu devant (jusqu'à 1,2 km).
     ctx.strokeStyle = '#ffd23f';
     ctx.lineWidth = 6 * mk;
     ctx.beginPath();
     let first = true;
-    for (let x = d; x <= Math.min(this.track.length, d + 1200); x += 8) {
+    const aheadEnd = fixed && this.track.route.loop ? d + 1200 : Math.min(this.track.length, d + 1200);
+    for (let x = d; x <= aheadEnd; x += 8) {
       const q = this.track.sample(x);
       const [px, py] = P(q.x, q.z);
       if (first) ctx.moveTo(px, py);

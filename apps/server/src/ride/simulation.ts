@@ -27,11 +27,12 @@ import {
   PoseController,
   SeededRng,
   StickyGroupRegulator,
-  airDensity,
+  headwindAlong,
+  rideParams,
+  rideStepConditions,
   createRiderState,
   poseCdaFactor,
   separateRiders,
-  surfaceCrr,
   keepRightM,
   FOOT_DOWN_SPEED_MS,
   effectiveMass,
@@ -60,6 +61,8 @@ import {
   komPoints,
   RouteTrack,
   reverseRoute,
+  weatherAt,
+  weatherElapsedS,
   type AvatarLook,
   type BikeSetup,
   type HostOptions,
@@ -71,6 +74,7 @@ import {
   type RosterEntry,
   type RouteData,
   type SnapshotRow,
+  type WeatherNow,
   type TelemetryMsg,
   type TrackSample,
   aiIdentity,
@@ -225,7 +229,11 @@ export class SimRider {
     this.avatar = init.avatar ?? DEFAULT_LOOK;
     this.riderMassKg = init.riderMassKg ?? 75;
     this.ftpWatts = init.ftpWatts ?? 200;
-    this.params = paramsFromBike(this.riderMassKg, init.bike ?? DEFAULT_BIKE);
+    // Morphologie des coureurs humains (taille du profil du compte, bornée) : même CdA que la prédiction du client.
+    // IA : CdA du vélo tel quel (leur taille n'est qu'un habillage).
+    const heightCm = init.kind !== 'ai' && typeof init.avatar?.heightCm === 'number' && Number.isFinite(init.avatar.heightCm) ? Math.min(Math.max(init.avatar.heightCm, 120), 230) : undefined;
+    const base = paramsFromBike(this.riderMassKg, init.bike ?? DEFAULT_BIKE);
+    this.params = heightCm === undefined ? base : rideParams(base, heightCm, this.riderMassKg);
     this.tyre = init.bike?.tyre ?? 'road';
     this.state = createRiderState();
     this.shareHr = init.shareHr ?? false;
@@ -735,6 +743,12 @@ export class RideSimulation {
   }
 
   /** Avance la simulation d'un pas `dt` (s) ; `now` = heure serveur (epoch ms) en fin de pas. */
+  /** Météo de la salle à l'instant `now` (vent, pluie), comme la calcule chaque client ; rien sans météo de salle. */
+  private weatherNow(now: number): WeatherNow | null {
+    const w = this.options.weather;
+    return w ? weatherAt(w, weatherElapsedS(w, Math.max(0, (now - (this.startedAt ?? now)) / 1000), now)) : null;
+  }
+
   step(now: number, dt = 0.1): TickResult {
     const events: RideEventMsg[] = this.pendingEvents.splice(0);
     const efforts: SegmentEffortOut[] = [];
@@ -848,6 +862,7 @@ export class RideSimulation {
     }
 
     // 3. Physique.
+    const wx = this.weatherNow(now);
     for (let i = 0; i < n; i++) {
       const r = riders[i]!;
       r.draft = holding ? 0 : reductions[i]!;
@@ -856,7 +871,9 @@ export class RideSimulation {
       const trk = this.trackOf(r);
       const s = trk.sample(trk.wrap(r.state.distM), this.sample);
       r.grade = s.grade;
-      this.env.airDensity = airDensity(s.y);
+      // Conditions du pas, les mêmes que la prédiction locale du client : densité de l'air, vent et pluie de la
+      // météo de la salle (connue du serveur), revêtement.
+      const crr = rideStepConditions(this.env, r.params, { altitudeM: s.y, headwindMs: wx ? headwindAlong(wx.windMs, wx.windFrom, s.dirX, s.dirZ) : 0, rain: wx ? wx.rain : 0, surface: trk.surfaceAt(r.state.distM), tyre: r.tyre, standardAtmosphere: true });
       if (holding) {
         r.state.speedMs = 0;
         r.state.accelMs2 = 0;
@@ -884,7 +901,7 @@ export class RideSimulation {
             params: r.params,
             env: this.env,
             cdaFactor: (1 - r.draft) * poseCdaFactor(r.pose.pose, r.grade, r.state.speedMs),
-            crr: surfaceCrr(trk.surfaceAt(r.state.distM), r.params.crr, r.tyre),
+            crr,
             footDownBelowMs: r.kind === 'ai' ? 0 : FOOT_DOWN_SPEED_MS,
           },
           dt,

@@ -120,7 +120,8 @@ export function rideServicesFrom(ctx: AppContext): RideServices {
     async authenticate(token, cookieHeader) {
       if (token) {
         const g = await ctx.tokens.verifyGame(token);
-        if (g) return g;
+        // Jeton de jeu (4 h, sans session) : un compte suspendu ou supprimé entre-temps n'entre plus en salle.
+        if (g) return (await ctx.repos.userActive(g.userId)) ? g : null;
         const s = await ctx.verifySessionToken(token);
         if (s) return { userId: s.userId, name: s.name };
       }

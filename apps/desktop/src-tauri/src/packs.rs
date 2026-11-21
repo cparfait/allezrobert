@@ -140,11 +140,42 @@ fn validate_id(id: &str) -> AppResult<()> {
     Ok(())
 }
 
-/// Serveur des fichiers : https, ou http sur la machine elle-même (essais).
+/// Serveur des téléchargements de l'application (le même que `DOWNLOADS_HOST` du client).
+const DEFAULT_DOWNLOAD_HOST: &str = "allezrobert.cparfait.ovh";
+/// Serveur choisi à la construction : la variable `VITE_WORLDS_URL` que lit aussi le client (posée par
+/// `deploy/publish-desktop.sh` et la CI avant `tauri build`). Elle doit être dans l'environnement du
+/// build, pas seulement dans un fichier `.env` de Vite, sinon le Rust ne la voit pas.
+const BUILD_DOWNLOAD_URL: Option<&str> = option_env!("VITE_WORLDS_URL");
+
+/// Hôte (minuscules, sans port) d'une adresse `scheme://hôte[:port][/…]` ; `None` si elle porte des
+/// identifiants (`utilisateur@hôte`), qui serviraient à déguiser l'hôte réel.
+fn host_of(url: &str) -> Option<String> {
+    let rest = url.split_once("://")?.1;
+    let authority = rest.split(['/', '?', '#']).next()?;
+    if authority.is_empty() || authority.contains('@') {
+        return None;
+    }
+    let host = authority.rsplit_once(':').map_or(authority, |(h, port)| if port.chars().all(|c| c.is_ascii_digit()) { h } else { authority });
+    Some(host.to_ascii_lowercase())
+}
+
+/// Serveur des fichiers : https sur un hôte connu de l'application, ou http sur la machine elle-même
+/// (essais). L'adresse vient de la page : une page détournée ne doit pas pouvoir faire télécharger, puis
+/// servir sur l'origine du jeu, des fichiers d'un autre serveur.
 fn validate_base(url: &str) -> AppResult<String> {
+    validate_base_for(url, BUILD_DOWNLOAD_URL)
+}
+
+fn validate_base_for(url: &str, build_url: Option<&str>) -> AppResult<String> {
     let url = url.trim_end_matches('/');
-    let local = ["http://localhost", "http://127.0.0.1"].iter().any(|p| url.starts_with(p));
-    if !(url.starts_with("https://") || local) || url.len() > 512 || url.chars().any(|c| c.is_whitespace() || c == '"') {
+    if url.len() > 512 || url.chars().any(|c| c.is_whitespace() || c == '"') {
+        return Err("adresse du serveur refusée".into());
+    }
+    let host = host_of(url).ok_or_else(|| AppError::new("adresse du serveur refusée"))?;
+    let local = url.starts_with("http://") && (host == "localhost" || host == "127.0.0.1");
+    let built = build_url.and_then(host_of);
+    let known = url.starts_with("https://") && (host == DEFAULT_DOWNLOAD_HOST || built.as_deref() == Some(host.as_str()));
+    if !(local || known) {
         return Err("adresse du serveur refusée".into());
     }
     Ok(url.to_owned())
@@ -627,6 +658,17 @@ mod tests {
         assert!(validate_base("http://localhost:8080").is_ok());
         assert!(validate_base("http://exemple.fr").is_err());
         assert!(validate_base("file:///C:/").is_err());
+        // Hôtes connus seulement : celui de l'application, celui du build, la machine elle-même.
+        assert!(validate_base_for("https://exemple.fr", None).is_err());
+        assert!(validate_base_for("https://exemple.fr/mondes", Some("https://exemple.fr")).is_ok());
+        assert!(validate_base_for("https://Exemple.fr:8443", Some("https://exemple.fr")).is_ok());
+        assert!(validate_base_for("https://allezrobert.cparfait.ovh", Some("https://exemple.fr")).is_ok());
+        assert!(validate_base_for("https://allezrobert.cparfait.ovh@exemple.fr", None).is_err());
+        assert!(validate_base_for("https://allezrobert.cparfait.ovh.exemple.fr", None).is_err());
+        assert!(validate_base_for("http://allezrobert.cparfait.ovh", None).is_err());
+        assert!(validate_base_for("http://localhost.exemple.fr", None).is_err());
+        assert!(validate_base_for("http://127.0.0.1:5173", None).is_ok());
+        assert_eq!(host_of("https://A.b:443/x?y"), Some("a.b".into()));
         assert!(validate_id("cote-de-nuits").is_ok());
         assert!(validate_id("../x").is_err());
         assert!(validate_id("").is_err());

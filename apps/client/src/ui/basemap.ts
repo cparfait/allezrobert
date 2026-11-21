@@ -5,20 +5,12 @@
  */
 import './basemap.css';
 
-const WMS = 'https://data.geopf.fr/wms-r';
-const LAYER = 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2';
+import { BASEMAP_ATTRIBUTION, basemapUrl } from '@allezrobert/shared';
 
-export const BASEMAP_ATTRIBUTION = '© IGN — Plan IGN';
+// Adresse du fond et mention : communes avec l'appli compagnon (packages/shared/src/basemap.ts).
+export { BASEMAP_ATTRIBUTION, basemapUrl };
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
-
-/** Adresse de l'image du Plan IGN couvrant l'emprise Lambert-93 `l93` (m), `px` de large. */
-export function basemapUrl(l93: { minE: number; minN: number; maxE: number; maxN: number }, px: number): string {
-  const W = Math.round(px);
-  const H = Math.max(1, Math.round((W * (l93.maxN - l93.minN)) / Math.max(1, l93.maxE - l93.minE)));
-  const bbox = [l93.minE, l93.minN, l93.maxE, l93.maxN].map((n) => Math.round(n)).join(',');
-  return `${WMS}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${LAYER}&STYLES=&CRS=EPSG:2154&BBOX=${bbox}&WIDTH=${W}&HEIGHT=${H}&FORMAT=image/jpeg`;
-}
 
 /**
  * `<image>` SVG du Plan IGN couvrant l'emprise Lambert-93 `l93` (m), placée sur le rectangle

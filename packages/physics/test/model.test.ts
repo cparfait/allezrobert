@@ -133,3 +133,46 @@ describe('intégration stepRider', () => {
     expect(s.speedMs).toBeLessThan(40);
   });
 });
+
+describe('vitesse d’équilibre : termes constants sortis de la recherche', () => {
+  /** Ancien calcul (une évaluation complète des forces, trigonométrie comprise, à chaque essai). */
+  function reference(watts: number, grade: number, p: RiderPhysicsParams, env: { airDensity: number; windSpeedMs: number }, cdaFactor: number): number {
+    const pw = Math.max(0, watts) * p.drivetrainEfficiency;
+    const f = (v: number): number => v * resistiveForces(Math.max(v, 1e-9), grade, p, env, cdaFactor).total - pw;
+    let lo = 0;
+    let hi = 30;
+    while (f(hi) < 0 && hi < 200) hi *= 2;
+    for (let i = 0; i < 60; i++) {
+      const mid = 0.5 * (lo + hi);
+      if (f(mid) > 0) hi = mid;
+      else lo = mid;
+      if (hi - lo < 1e-7) break;
+    }
+    let v = 0.5 * (lo + hi);
+    for (let i = 0; i < 3; i++) {
+      const h = 1e-4;
+      const d = (f(v + h) - f(v - h)) / (2 * h);
+      if (d <= 0) break;
+      const nv = v - f(v) / d;
+      if (nv < lo || nv > hi) break;
+      v = nv;
+    }
+    return v;
+  }
+
+  it('identique au bit près à l’ancien calcul (puissances, pentes, vents, aspiration, roulements)', () => {
+    const variants: RiderPhysicsParams[] = [params, { ...params, bearingLoss: false }, { ...paramsFromBike(52), cda: 0.24, crr: 0.0071 }, { ...paramsFromBike(110), cda: 0.41 }];
+    let n = 0;
+    for (const p of variants)
+      for (const watts of [-20, 0, 1, 45, 120, 250, 333.3, 600, 1500])
+        for (const grade of [-25, -12, -6.5, -1, 0, 0.3, 2, 7.7, 15, 28])
+          for (const wind of [-12, -3.5, 0, 2.2, 9])
+            for (const rho of [0.95, 1.2, 1.3])
+              for (const draft of [1, 0.72]) {
+                const env = { airDensity: rho, windSpeedMs: wind };
+                expect(Object.is(steadyStateSpeed(watts, grade, p, env, draft), reference(watts, grade, p, env, draft))).toBe(true);
+                n++;
+              }
+    expect(n).toBe(4 * 9 * 10 * 5 * 3 * 2);
+  });
+});

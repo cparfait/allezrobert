@@ -1,6 +1,8 @@
 import { lookSex, type AvatarLook } from '@allezrobert/shared';
-import { Box3, Color, Group, MeshStandardMaterial, MeshStandardNodeMaterial, Quaternion, type Raycaster, SRGBColorSpace, Texture, TextureLoader, Vector3, type Bone, type Material, type Mesh, type Object3D } from 'three/webgpu';
+import { Box3, Color, Group, Matrix4, MeshStandardMaterial, MeshStandardNodeMaterial, Quaternion, type Raycaster, Sphere, SRGBColorSpace, Texture, TextureLoader, Vector3, type Bone, type Material, type Mesh, type Object3D, type SkinnedMesh } from 'three/webgpu';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
+import { RefCache } from './assetCache.ts';
 import { abs, clamp, float, materialColor, mix, positionGeometry, step, uniform, vec3 } from 'three/tsl';
 import type { RiderPose } from '../rider/gltfAvatar.ts';
 import { rootNeutral, sampleV3, sampleV3At, type V3Clip } from './animation.ts';
@@ -465,7 +467,60 @@ function colorQuery(color: number, hue?: number): string {
   return '?color=' + color + (hue === undefined ? '' : '&hue=' + hue);
 }
 
-async function model(path: string): Promise<Group> {
+/**
+ * Géométries et textures des ressources gardées en cache : partagées par tous les coureurs qui portent la même pièce,
+ * jamais détruites par `free` (seulement quand le dernier utilisateur rend la ressource, voir assetCache.ts).
+ */
+const shared = new WeakSet<object>();
+/** Copie d'un modèle du cache → ce qui rend sa part du modèle d'origine. */
+const releases = new WeakMap<Object3D, () => void>();
+
+function texturesOf(material: Material): Texture[] {
+  return Object.values(material).filter((value): value is Texture => value instanceof Texture);
+}
+
+/** Modèles analysés, par chemin : un seul fichier lu et une seule géométrie sur la carte graphique par pièce. */
+const templates = new RefCache<Group>(scene => {
+  const materials = new Set<Material>();
+  scene.traverse(node => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose();
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) materials.add(material);
+  });
+  for (const material of materials) {
+    texturesOf(material).forEach(map => map.dispose());
+    material.dispose();
+  }
+});
+
+/** Textures d'article (maillot, peau, chaussettes…), par chemin : une seule copie pour tous les coureurs. */
+const textures = new RefCache<Texture>(map => map.dispose());
+const textureReleases = new WeakMap<Texture, Array<() => void>>();
+
+async function sharedTexture(path: string, srgb: boolean): Promise<Texture> {
+  const lease = await textures.acquire(path + (srgb ? '|srgb' : '|lin'), async () => {
+    const map = await new TextureLoader().loadAsync(base + path);
+    map.flipY = false;
+    if (srgb) map.colorSpace = SRGBColorSpace;
+    shared.add(map);
+    return map;
+  });
+  const list = textureReleases.get(lease.value);
+  if (list) list.push(lease.release);
+  else textureReleases.set(lease.value, [lease.release]);
+  return lease.value;
+}
+
+/** Rend une texture prise par `sharedTexture` (une part par appel) ; toute autre texture est détruite. */
+function releaseTexture(map: Texture | undefined): void {
+  if (!map) return;
+  const release = textureReleases.get(map)?.pop();
+  if (release) release();
+  else if (!shared.has(map)) map.dispose();
+}
+
+async function loadTemplate(path: string): Promise<Group> {
   const result = await new GLTFLoader().loadAsync(base + path);
   result.scene.traverse(node => {
     const mesh = node as Mesh;
@@ -475,7 +530,44 @@ async function model(path: string): Promise<Group> {
   });
   // Pneus unis : inscriptions claires des flancs (marques, tailles) effacées, roues des vélos et paires de roues.
   if (path.startsWith('bike/') || path.startsWith('wheel/')) plainTyres(result.scene, path.startsWith('wheel/'));
+  result.scene.traverse(node => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh) return;
+    shared.add(mesh.geometry);
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) texturesOf(material).forEach(map => shared.add(map));
+  });
   return result.scene;
+}
+
+/**
+ * Copie d'un modèle du cache : hiérarchie, squelette et matériaux propres à l'appelant (il les modifie : textures de
+ * la tenue, couleurs, visibilité), géométries et textures partagées avec les autres copies. `free` rend la copie.
+ */
+async function model(path: string): Promise<Group> {
+  const lease = await templates.acquire(path, () => loadTemplate(path));
+  const scene = cloneSkinned(lease.value) as Group;
+  const copies = new Map<Material, Material>();
+  const copy = (material: Material) => {
+    let own = copies.get(material);
+    if (!own) copies.set(material, own = material.clone());
+    return own;
+  };
+  scene.traverse(node => {
+    const mesh = node as Mesh;
+    if (!mesh.isMesh) return;
+    mesh.material = Array.isArray(mesh.material) ? mesh.material.map(copy) : copy(mesh.material);
+  });
+  releases.set(scene, lease.release);
+  return scene;
+}
+
+/**
+ * Textures d'un matériau décalées par coureur (case de couleur des cheveux et de la barbe) : copies propres à ce
+ * matériau quand elles viennent du cache, pour ne pas décaler celles des autres coureurs. L'image reste partagée.
+ */
+function ownMaps(material: MeshStandardMaterial): void {
+  if (material.map && shared.has(material.map)) material.map = material.map.clone();
+  if (material.normalMap && shared.has(material.normalMap)) material.normalMap = material.normalMap.clone();
 }
 
 /** Rayon du talon d'une roue de 700c (jante ISO 622) : au-delà, c'est le pneu. */
@@ -619,18 +711,27 @@ function letteredTyreColor(map: Texture, triangles: number[][]): Color | null {
 function free(scene: Object3D): void {
   const materials = new Set<Material>();
   const maps = new Set<Texture>();
+  const leases: Array<() => void> = [];
   scene.traverse(node => {
+    // Copies de modèles du cache dans cet arbre (le modèle lui-même, casque, pièces montées) : part rendue plus bas.
+    const release = releases.get(node);
+    if (release) {
+      releases.delete(node);
+      leases.push(release);
+    }
     const mesh = node as Mesh;
     if (!mesh.isMesh) return;
-    mesh.geometry.dispose();
+    // Géométries et textures du cache : partagées avec d'autres coureurs, détruites avec le dernier utilisateur.
+    if (!shared.has(mesh.geometry)) mesh.geometry.dispose();
     for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       materials.add(material);
-      for (const value of Object.values(material)) if (value instanceof Texture) maps.add(value);
+      for (const map of texturesOf(material)) if (!shared.has(map)) maps.add(map);
     }
   });
   maps.forEach(map => map.dispose());
   materials.forEach(material => material.dispose());
   scene.removeFromParent();
+  leases.forEach(release => release());
 }
 
 export async function prepareV3Object(id: string, extentLimit: number, lod = 0): Promise<Group> {
@@ -714,12 +815,7 @@ const boneIndex: Record<string, number> = { HEAD: 15, FOOT_LEFT: 6, FOOT_RIGHT: 
 
 export async function loadGearItem(item: V3Gear, selection: V3GearSelection, sex?: 'male' | 'female') {
   const files = gearFiles(item, selection, sex);
-  const texture = async (path: string, srgb: boolean) => {
-    const map = await new TextureLoader().loadAsync(base + path);
-    map.flipY = false;
-    if (srgb) map.colorSpace = SRGBColorSpace;
-    return map;
-  };
+  const texture = sharedTexture;
   const parts = await Promise.allSettled([
     files.model ? model(files.model) : undefined,
     files.pair ? model(files.pair) : undefined,
@@ -738,6 +834,8 @@ export async function loadGearItem(item: V3Gear, selection: V3GearSelection, sex
       material.needsUpdate = true;
     }
   }
+  // Barbe en modèle : sa texture est décalée par coureur (case de couleur), donc copie propre à ce coureur.
+  if (item.type === 'FACIAL_HAIR' && left) materialsOf(left).forEach(ownMaps);
   return { item, left, right: value(parts[1]), diffuse: value(parts[2]), normal: value(parts[3]),
     incomplete: parts.some(part => part.status === 'rejected') };
 }
@@ -799,8 +897,8 @@ export function applyHairColors(rider: RiderVisual, kit: MountedGear[], hair = 0
 export function freeGear(gear: MountedGear): void {
   if (gear.left) free(gear.left);
   if (gear.right) free(gear.right);
-  gear.diffuse?.dispose();
-  gear.normal?.dispose();
+  releaseTexture(gear.diffuse);
+  releaseTexture(gear.normal);
 }
 
 async function loadBike(equipment: V3Equipment) {
@@ -830,21 +928,23 @@ async function loadBike(equipment: V3Equipment) {
  */
 async function mountWheels(levels: Object3D[], id: string): Promise<void> {
   const [av, ar] = wheelPaths(id) as [string, string];
-  const [front, rear] = await Promise.all([model(av), model(ar)]);
-  for (const level of levels) {
+  // Une copie du cache par niveau de détail (géométrie partagée) : `free` du vélo rend chacune.
+  const sets = await Promise.all(levels.map(() => Promise.all([model(av), model(ar)])));
+  levels.forEach((level, i) => {
+    const [front, rear] = sets[i] as [Group, Group];
     for (const [part, source] of [['FrontWheel', front], ['RearWheel', rear]] as const) {
       const original = level.children.find(node => new RegExp('^' + part + '(?:_|$)').test(node.name));
-      if (!original) continue;
+      if (!original) { free(source); continue; }
       const mount = new Group();
       mount.name = part;
       mount.position.copy(original.position);
       mount.quaternion.copy(original.quaternion);
-      mount.add(source.clone(true));
+      mount.add(source);
       level.add(mount);
       level.remove(original);
       free(original);
     }
-  }
+  });
 }
 
 /** Roue avant d'une paire (vignette du studio pour les roues sans icône Zwift). */
@@ -867,6 +967,35 @@ export async function loadV3DisplayBike(id: string, wheels?: string): Promise<Gr
   bike.scene.rotation.y = -Math.PI / 2;
   mount.add(bike.scene);
   return mount;
+}
+
+/** Marge (m) autour du squelette au repos : pied à terre, danseuse, sprint et balancement restent dans la sphère. */
+const RIDER_BOUNDS_MARGIN = 1.5;
+
+/**
+ * Sphère englobante fixe et large de chaque maillage animé du coureur : le squelette au repos plus une marge, exprimé
+ * dans le repère du maillage. Le test hors champ de three (caméra et cascades d'ombre, chacune avec son champ) écarte
+ * alors le coureur entier d'un coup ; la sphère déborde largement, un coureur visible n'est donc jamais écarté.
+ */
+function wideRiderBounds(scene: Object3D, joints: Iterable<Bone>): void {
+  scene.updateMatrixWorld(true);
+  const box = new Box3();
+  const at = new Vector3();
+  for (const joint of joints) box.expandByPoint(joint.getWorldPosition(at));
+  if (box.isEmpty()) {
+    scene.traverse(node => { if ((node as SkinnedMesh).isSkinnedMesh) node.frustumCulled = false; });
+    return;
+  }
+  const world = box.getBoundingSphere(new Sphere());
+  world.radius += RIDER_BOUNDS_MARGIN;
+  const toLocal = new Matrix4();
+  scene.traverse(node => {
+    const mesh = node as SkinnedMesh;
+    if (!mesh.isSkinnedMesh) return;
+    mesh.boundingSphere = world.clone().applyMatrix4(toLocal.copy(mesh.matrixWorld).invert());
+    // Repère pour la fusion des pièces (game/riderMerge.ts) : la pièce fusionnée reprend cette sphère.
+    mesh.userData.wideBounds = true;
+  });
 }
 
 export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard') {
@@ -892,7 +1021,9 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
     }
     const mesh = node as Mesh;
     if (!mesh.isMesh) return;
-    mesh.frustumCulled = false;
+    // Maillages animés : écartés hors champ par une sphère large autour du coureur (wideRiderBounds, plus bas) ;
+    // sans elle three testerait la sphère de la pose de repos, fausse dès que le coureur bouge.
+    mesh.frustumCulled = (mesh as SkinnedMesh).isSkinnedMesh === true;
     // Maillot : matériau à ouverture dessinée (voir openableJersey), un par matériau d'origine.
     if (!Array.isArray(mesh.material) && /^CyclistKIT$/i.test(mesh.material.name)) {
       const source = mesh.material as MeshStandardMaterial;
@@ -911,6 +1042,9 @@ export async function loadRider(sex: 'male' | 'female', body: V3Body = 'standard
     }
   });
   jerseys.forEach((_, source) => source.dispose());
+  // Barbes et moustaches intégrées (matériau HAIR) : texture décalée par coureur, donc copie propre à ce coureur.
+  for (const material of materials) if (/^HAIR$/i.test(material.name)) ownMaps(material);
+  wideRiderBounds(scene, joints.values());
   const rest = [...joints.values()].map(node => ({ node, position: node.position.clone(), rotation: node.quaternion.clone() }));
   const head = joints.get(15);
   if (!head) { free(scene); throw new Error('Squelette V3 incomplet.'); }

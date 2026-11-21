@@ -124,26 +124,67 @@ export function authRoutes(ctx: AppContext): express.Router {
    * Connexion de l'application Windows : la page de connexion s'ouvre dans le navigateur du PC
    * (redirect = /api/auth/desktop/finish?nonce=…), puis l'application, qui connaît seule le nonce,
    * vient chercher la session par `POST /desktop/poll`. Le jeton n'est remis qu'une fois.
+   *
+   * Le GET ne range rien : il affiche une demande de confirmation. Seul le POST du bouton, venu
+   * de cette page même (contrôle d'origine strict), range le jeton. Sans cela, un lien piégé
+   * portant un nonce choisi par un tiers suffisait à lui remettre la session du visiteur.
    */
   const desktopHandoff = new Map<string, { token: string; exp: number }>();
   const NONCE = /^[A-Za-z0-9_-]{32,64}$/;
   const sweepHandoff = (now: number): void => {
     for (const [k, v] of desktopHandoff) if (v.exp < now) desktopHandoff.delete(k);
   };
+  const handoffShell = (inner: string): string =>
+    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Allez Robert !</title><body style="font-family:system-ui;background:#0a0e16;color:#f5f7fa;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center;padding:0 24px">${inner}</div>`;
+  const handoffResult = (ok: boolean): string =>
+    handoffShell(
+      `<h1>${ok ? 'Connexion réussie' : 'Connexion impossible'}</h1><p>${ok ? 'Tu peux fermer cet onglet et retourner dans l’application Allez Robert !.' : 'Retourne dans l’application et réessaie.'}</p>`,
+    );
+  const handoffHeaders = (res: Response): void => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.type('html');
+  };
+  /** Le POST vient-il de la page de confirmation elle-même ? (en-têtes posés par le navigateur, hors de portée d'un site tiers) */
+  const fromOwnPage = (req: AuthedRequest): boolean => {
+    const site = req.headers['sec-fetch-site'];
+    if (typeof site === 'string' && site !== 'same-origin') return false;
+    const origin = req.headers.origin;
+    if (typeof origin !== 'string') return site === 'same-origin';
+    if (origin === new URL(ctx.config.apiPublicUrl).origin) return true;
+    try {
+      return new URL(origin).host === req.headers.host;
+    } catch {
+      return false;
+    }
+  };
 
   r.get('/desktop/finish', (req: AuthedRequest, res) => {
     const nonce = String(req.query.nonce ?? '');
+    handoffHeaders(res);
+    if (!NONCE.test(nonce) || !sessionToken(req) || !req.user) return res.status(400).send(handoffResult(false));
+    // Le nonce ne contient que [A-Za-z0-9_-] (vérifié ci-dessus) : sans risque dans l'attribut.
+    const name = req.user.name.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    res.send(
+      handoffShell(
+        `<h1>Connecter l’application Allez Robert ! à ce compte ?</h1><p>Compte : <b>${name}</b></p><p>Ne confirme que si tu viens de cliquer sur « Se connecter » dans l’application.</p><form method="post" action="?nonce=${nonce}"><button type="submit" style="font:inherit;font-weight:600;padding:12px 28px;border:0;border-radius:10px;background:#ffd23f;color:#0a0e16;cursor:pointer">Connecter l’application</button></form>`,
+      ),
+    );
+  });
+
+  r.post('/desktop/finish', (req: AuthedRequest, res) => {
+    const nonce = String(req.query.nonce ?? '');
     const token = sessionToken(req);
-    const page = (ok: boolean): string =>
-      `<!doctype html><meta charset="utf-8"><title>Allez Robert !</title><body style="font-family:system-ui;background:#0a0e16;color:#f5f7fa;display:grid;place-items:center;height:100vh;margin:0"><div style="text-align:center"><h1>${ok ? 'Connexion réussie' : 'Connexion impossible'}</h1><p>${ok ? 'Tu peux fermer cet onglet et retourner dans l’application Allez Robert !.' : 'Retourne dans l’application et réessaie.'}</p></div>`;
-    res.setHeader('Cache-Control', 'no-store');
-    res.type('html');
-    if (!NONCE.test(nonce) || !token || !req.user) return res.status(400).send(page(false));
+    handoffHeaders(res);
+    if (!fromOwnPage(req)) return res.status(403).send(handoffResult(false));
+    if (!NONCE.test(nonce) || !token || !req.user) return res.status(400).send(handoffResult(false));
     const now = Date.now();
     sweepHandoff(now);
-    if (desktopHandoff.size > 1000) return res.status(429).send(page(false));
+    if (desktopHandoff.size > 1000) return res.status(429).send(handoffResult(false));
     desktopHandoff.set(nonce, { token, exp: now + 5 * 60_000 });
-    res.send(page(true));
+    res.send(handoffResult(true));
   });
 
   r.post('/desktop/poll', (req, res) => {

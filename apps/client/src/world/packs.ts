@@ -269,6 +269,44 @@ export async function graphFetch(path: string): Promise<Response> {
   return local ?? new Response(null, { status: 404 });
 }
 
+/**
+ * Graphe routier chargé à la demande. Un graphe pèse 15 à 35 Mo de JSON par zone : il ne sert qu'au monde ouvert, à la
+ * carte du planificateur et à la mini-carte locale, donc le menu ne l'attend plus. `source.open.graph` est d'abord un
+ * graphe vide ; `openGraphReady` le remplit sur place (une seule fois) et dit si le graphe est bien là.
+ */
+type OpenWorld = { graph: unknown };
+const graphLoaders = new WeakMap<OpenWorld, () => Promise<boolean>>();
+const graphLoads = new WeakMap<OpenWorld, Promise<boolean>>();
+
+/** Graphe vide tenant lieu de graphe tant que le vrai n'est pas chargé. */
+export function emptyGraph(): { formatVersion: 1; nodes: number[]; edges: never[]; attribution: string[] } {
+  return { formatVersion: 1, nodes: [], edges: [], attribution: [] };
+}
+
+/** Déclare comment remplir le graphe de `open` (appelé au plus une fois ; faux : graphe introuvable). */
+export function deferOpenGraph(open: OpenWorld, load: () => Promise<boolean>): void {
+  graphLoaders.set(open, load);
+}
+
+/** Vrai si le graphe de `open` se charge à la demande (qu'il soit déjà arrivé ou non : `openGraphReady` le dit). */
+export function openGraphPending(open: OpenWorld | undefined): boolean {
+  return !!open && graphLoaders.has(open);
+}
+
+/** Charge le graphe routier du monde s'il ne l'est pas encore. Faux : monde sans graphe, ou graphe introuvable. */
+export function openGraphReady(source: { open?: OpenWorld }): Promise<boolean> {
+  const open = source.open;
+  if (!open) return Promise.resolve(false);
+  const load = graphLoaders.get(open);
+  if (!load) return Promise.resolve(true);
+  let p = graphLoads.get(open);
+  if (!p) {
+    p = load().catch(() => false);
+    graphLoads.set(open, p);
+  }
+  return p;
+}
+
 /** Taille lisible (« 11 Mo », « 1,2 Go »). */
 export function formatBytes(b: number, fr: boolean): string {
   const mo = b / 1e6;

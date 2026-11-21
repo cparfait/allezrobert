@@ -31,7 +31,7 @@ import { FtpCoach, COACH_PRELOAD } from './game/ftpCoach.ts';
 import { CoachVoice } from './audio/coachVoice.ts';
 import { FriendGhost, Ghost, fetchFriendGhost, uploadGhost } from './game/ghost.ts';
 import { createDeviceLayer } from './game/devices.ts';
-import { Hud } from './hud/hud.ts';
+import { Hud, JUNCTION_SHOW_M } from './hud/hud.ts';
 import { RideSound } from './audio/rideSound.ts';
 import { Announcer } from './audio/announcer.ts';
 import { crowdLevel } from './audio/soundscape.ts';
@@ -56,7 +56,6 @@ import { rideHistory } from './data/history/instance.ts';
 import { rideClientId } from './data/history/index.ts';
 import { COLLISION_PILOT_DISABLED, COLLISION_PILOT_ERROR, COLLISION_VERSION_CLOSE, COLLISION_VERSION_ERROR, type RideKind } from '@allezrobert/shared';
 import { loadRideCollisionData } from './net/collision-version.ts';
-import { shareCard } from './ui/sharecard.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { fetchRealWeather } from './game/realWeather.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
@@ -84,6 +83,8 @@ import { Crowd } from './world/crowd.ts';
 import { FinishBanners } from './world/finishBanners.ts';
 import { levelOfFtpWkg } from './hud/riderLevel.ts';
 import { headlightBeamTexture } from './game/headlightBeam.ts';
+import { NightLights, nightWithin } from './world/streetLamps.ts';
+import { sunDirection } from './world/environment.ts';
 import { setMatrixFrameClock } from './game/hiddenMatrices.ts';
 import { applyRiderShadows } from './game/riderShadows.ts';
 import { TownSigns } from './world/signs.ts';
@@ -95,7 +96,8 @@ import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import { RideRoomUi } from './game/rideroom.ts';
 import { showStartGate } from './game/startGate.ts';
 import { PlaceFinder } from './game/place.ts';
-import { TILES_BASE, installedPacks, keepStorage } from './world/packs.ts';
+import { buildPlaceIndex, searchPlaces, type PlaceIndex } from './game/placeSearch.ts';
+import { TILES_BASE, installedPacks, keepStorage, openGraphReady } from './world/packs.ts';
 import { inDesktop, installFullscreenKey, keepAwake, mirrorProfile } from './platform/desktop.ts';
 import { hasLocalMedia, prepareDesktop } from './platform/desktopBoot.ts';
 import { LOW_POLY } from './engine/style.ts';
@@ -687,7 +689,18 @@ async function boot(): Promise<void> {
   menu.worldId = scene.source.id;
   menu.loadedZones = scene.source.zones ?? [scene.source.id];
   menu.openWorld = !!scene.source.open;
-  menu.planner.setOpen(scene.source.open ? { ...scene.source.open, areas: scene.source.areas ?? [scene.source.bounds], ...(scene.source.originL93 ? { originL93: scene.source.originL93 } : {}) } : null);
+  // Carte du planificateur : posée tout de suite (emprise, lieux), puis refaite quand le graphe routier, chargé
+  // à la demande pour ne pas retenir le menu, est arrivé.
+  const plannerMap = (source: WorldSource): void => {
+    const set = () => menu.planner.setOpen(source.open ? { ...source.open, areas: source.areas ?? [source.bounds], ...(source.originL93 ? { originL93: source.originL93 } : {}) } : null);
+    set();
+    void openGraphReady(source).then((ok) => {
+      if (!ok || scene.source !== source) return;
+      set();
+      menu.refreshMap();
+    });
+  };
+  plannerMap(scene.source);
   // Changement de monde sans recharger la page : données du nouveau monde, paysage refait en arrière-plan.
   menu.onWorld = (id) => {
     settings.world = id;
@@ -719,9 +732,9 @@ async function boot(): Promise<void> {
       url.searchParams.set('world', id);
       url.searchParams.delete('route');
       history.replaceState(null, '', url.toString());
-      menu.planner.setOpen(source.open ? { ...source.open, areas: source.areas ?? [source.bounds], ...(source.originL93 ? { originL93: source.originL93 } : {}) } : null);
       menu.loadedZones = source.zones ?? [source.id];
       menu.setWorld(source.routes, source.id, !!source.open);
+      plannerMap(source);
     })();
   };
   const onExploreKey = (e: KeyboardEvent) => {
@@ -1021,9 +1034,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const { engine, world, source } = scene;
   // Écran gardé allumé pendant la sortie (rendu à Windows au retour au menu, qui recharge la page).
   keepAwake(true);
+  // Graphe routier (chargé à la demande) : nécessaire au monde ouvert et à la mini-carte locale. Introuvable
+  // (application hors ligne sans pack) : la sortie part sur l'itinéraire, comme dans une zone sans monde ouvert.
+  const graphOk = await openGraphReady(source);
+  if (s.mode === 'open' && !graphOk) s.mode = 'free';
   // Monde ouvert : chemin construit au fil des carrefours (le même RouteTrack s'allonge).
   const nav =
-    s.mode === 'open' && source.open
+    s.mode === 'open' && source.open && graphOk
       ? new OpenNavigator(
           source.open.graph,
           // Départ ailleurs qu'au point par défaut : choisi sur la carte du menu, ou ?x=…&z=… (repère monde, m).
@@ -1100,6 +1117,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   headlight.position.set(0, 1.0, 0.6);
   headlight.target.position.set(0, 0, 25);
   avatar.root.add(headlight, headlight.target);
+  // De jour, le phare et les lumières des lampadaires coûtaient à chaque pixel éclairé même éteints : masqués au départ
+  // quand la nuit ne peut pas tomber pendant la sortie (voir NightLights), décidé juste avant la compilation du départ.
+  const nightLights = new NightLights([headlight, world.network.lampLights.group]);
   // Séance structurée : fichier .zwo/.erg/.mrc ou test FTP (rampe) ; pas d'IA pendant une séance.
   let workout: WorkoutController | null = null;
   try {
@@ -1162,7 +1182,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       } else {
       const code = await mp.connect({ ...(extras.inviteCode ? { inviteCode: extras.inviteCode } : {}), mode: s.mode, guest: s.guest, aiRiders: s.aiRiders, aiLevel: s.aiLevel, ...(s.groupTargetKmh ? { targetKmh: s.groupTargetKmh } : {}), laps: s.raceLaps, trainerDifficulty: s.trainerDifficulty, name: s.name, weather: myWeather, ...(s.equalEquipment !== undefined ? { equalEquipment: s.equalEquipment } : {}) });
       // Équipement égalisé : la prédiction locale roule le même vélo que le serveur.
-      if (mp.equalized) Object.assign(ride.params, { ...paramsFromBike(s.massKg, EQUALIZED_BIKE), inertiaFactor: ride.params.inertiaFactor });
+      if (mp.equalized) {
+        Object.assign(ride.params, { ...paramsFromBike(s.massKg, EQUALIZED_BIKE), inertiaFactor: ride.params.inertiaFactor });
+        ride.setServerBike(paramsFromBike(s.massKg, EQUALIZED_BIKE));
+      }
       setTimeout(() => hud.toast(`${getLang() === 'fr' ? 'Code d’invitation' : 'Invite code'} : ${code}`), 500);
       if (mp.weather) rideWeather = mp.weather;
       // « Partir et inviter » depuis l'onglet Amis : invitations envoyées une fois la salle créée.
@@ -1170,6 +1193,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         void sendRideInvites(mp.net.roomId, extras.inviteFriends).then((n) => n && setTimeout(() => hud.toast(getLang() === 'fr' ? `Invitation envoyée à ${n} ami${n > 1 ? 's' : ''}` : `Invite sent to ${n} friend${n > 1 ? 's' : ''}`), 2500));
       }
       }
+      // En salle le serveur fait foi : la prédiction locale prend ses conditions (voir RideSession.serverPhysics).
+      ride.serverPhysics = true;
       if (mp.net.welcome?.collisionPilot) {
         collisionSpawn = await mp.initialCollisionPose();
         if (!collisionSpawn) throw new Error('Pose de départ du serveur indisponible');
@@ -1298,6 +1323,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop, source.originL93);
   hud.setHidden(s.hudHidden ?? []);
   if (nav && source.open) hud.setOpen(source.open.graph);
+  // Itinéraires fixes : même carte locale qu'en parcours libre.
+  else if (source.open && graphOk) hud.setLocalMap(source.open.graph);
   // Monde ouvert : la mini-carte ouvre la carte complète ; on y choisit où aller (guidage) ou d'où repartir.
   if (nav && source.open) {
     const open = source.open;
@@ -1875,11 +1902,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       {
         cardBlob: () => {
           const photo = ride.summitPhotos[0];
-          return shareCard(ride, { routeName: track.route.name, riderName: s.name, ftp: s.ftpWatts, ...(photo ? { photo } : {}) });
+          return import('./ui/sharecard.ts').then((m) => m.shareCard(ride, { routeName: track.route.name, riderName: s.name, ftp: s.ftpWatts, ...(photo ? { photo } : {}) }));
         },
         onShareCard: async () => {
           const photo = ride.summitPhotos[0];
-          const blob = await shareCard(ride, { routeName: track.route.name, riderName: s.name, ftp: s.ftpWatts, ...(photo ? { photo } : {}) });
+          const blob = await (await import('./ui/sharecard.ts')).shareCard(ride, { routeName: track.route.name, riderName: s.name, ftp: s.ftpWatts, ...(photo ? { photo } : {}) });
           download(new Uint8Array(await blob.arrayBuffer()), `${fileStem()}.png`, 'image/png');
         },
         onFit: () => download(fitBytes(), `${fileStem()}.fit`),
@@ -2161,15 +2188,28 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Pour les trophées : pluie et nuit rencontrées pendant la sortie.
   let rainSeen = false;
   let nightSeen = false;
+  // Panneau F3 : temps de chaque poste de l'image (ce qui n'est pas mesuré compte en « autre »). Hors de `frame` :
+  // pas de fermeture recréée à chaque image.
+  let tm = 0;
+  const lap = (label: string | null) => {
+    if (!frameStats.enabled) return;
+    const now = performance.now();
+    if (label) frameStats.add(label, now - tm);
+    tm = now;
+  };
+  // Record du segment affiché au HUD (10 fois par seconde) : relu dans le stockage au plus toutes les 2 s.
+  const komRecordSeen = { key: '', at: -Infinity, timeS: null as number | null };
+  const komRecordS = (segId: string): number | null => {
+    const now = performance.now();
+    if (komRecordSeen.key !== segId || now - komRecordSeen.at > 2000) {
+      komRecordSeen.key = segId;
+      komRecordSeen.at = now;
+      komRecordSeen.timeS = readKomRecord(rankRouteId(track.route.id), segId)?.timeS ?? null;
+    }
+    return komRecordSeen.timeS;
+  };
   const frame = (dt: number, render: boolean, manual = false) => {
-    // Panneau F3 : temps de chaque poste de l'image (ce qui n'est pas mesuré compte en « autre »).
-    let tm = performance.now();
-    const lap = (label: string | null) => {
-      if (!frameStats.enabled) return;
-      const now = performance.now();
-      if (label) frameStats.add(label, now - tm);
-      tm = now;
-    };
+    tm = performance.now();
     const steer = keyboard.update(dt);
     if (nav) {
       nav.update(ride.state.distM);
@@ -2511,6 +2551,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     lap(null);
     // 80 (et non plus 120) : avec la décroissance plus douce, la même puissance éblouissait au pied du vélo.
     headlight.intensity = world.nightFactor() * 80;
+    // Nuit arrivée alors que les lumières de nuit étaient masquées (sortie très longue, heure changée par l'hôte) :
+    // rétablies une fois, scène recompilée avec elles (le rendu attend la fin, voir compilePass).
+    if (nightLights.update(world.nightFactor())) void engine.compileScene();
     // Sol proche sans microrelief la nuit : sous le phare, en lumière rasante, il scintillait (terrain.ts).
     world.terrain.night.value = world.nightFactor();
     if (!render) return;
@@ -2605,7 +2648,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
                   seg: ride.segment.seg,
                   progress: ride.segment.progress,
                   elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000,
-                  recordS: readKomRecord(rankRouteId(track.route.id), ride.segment.seg.id)?.timeS ?? null,
+                  recordS: komRecordS(ride.segment.seg.id),
                   gainLeftM: track.sample(ride.segment.seg.endM).y - track.sample(ride.state.distM).y,
                 },
               }
@@ -2615,7 +2658,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             if (ride.segment || ride.dir < 0) return {};
             const at = ride.state.distM % track.length;
             const next = track.route.segments.find((g) => (g.kind === 'kom' || g.kind === 'sprint') && g.startM > at && g.startM - at < 600);
-            return next ? { nextSegment: { seg: next, inM: next.startM - at, recordS: readKomRecord(rankRouteId(track.route.id), next.id)?.timeS ?? null } } : {};
+            return next ? { nextSegment: { seg: next, inM: next.startM - at, recordS: komRecordS(next.id) } } : {};
           })(),
           ...(peloton.riders.length ? { groupPace: { ftpPct: peloton.paceFtpPct, watts: peloton.groupWatts() } } : {}),
           devices: input.status(),
@@ -2673,6 +2716,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Bêta : coureurs V3 (joueur et groupe) chargés et affichés avant cette compilation (v3Crowd.ts, settleV3).
   if (V3_STYLE) await settleV3([v3, ...peloton.riders.map((r) => r.v3)]);
   performance.mark('ar:départ : objets de la sortie');
+  // Phare et lampadaires : gardés seulement si la nuit est là ou peut tomber dans les huit heures (heure de la sortie).
+  {
+    const season = world.env.state.season;
+    const hourNow = weatherAt(rideWeather, weatherElapsedS(rideWeather, ride.elapsedS, mp?.net.serverNow())).hour;
+    nightLights.start(world.nightFactor() > 0 || nightWithin((h) => sunDirection(h, season).y, hourNow));
+  }
   await engine.compileScene(tileStage(startOverlay, 0.85, 1));
   performance.mark('ar:départ : objets compilés');
   // Laisse l'écran d'attente se peindre, puis fait les premières images (lentes) derrière lui : la première
@@ -2696,13 +2745,34 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Appli compagnon (QR code) : état de la sortie poussé au téléphone, ses commandes appliquées
   // comme les touches du clavier. Marche en solo ; en groupe, chat et Ride On passent par la salle.
   let fanPercent: number | undefined;
+  // Origine Lambert-93 de la zone : le téléphone demande le même fond de plan IGN que la mini-carte du jeu.
+  const pairOrigin = source.originL93 && !source.open?.map ? { originL93: { x: source.originL93.x, y: source.originL93.y } } : {};
   const sendPairRoute = () => {
     const pts = track.route.points;
     if (nav) {
       // Monde ouvert : le chemin s'allonge, on n'envoie que les abords (1,5 km derrière, la suite devant).
       const d = ride.state.distM;
-      companion.sendRoute({ name: track.route.name, loop: false, lengthM: track.length, open: true, points: decimateRoute(pts.filter((p) => p.d > d - 1500 && p.d < d + 1000)) });
-    } else companion.sendRoute({ name: track.route.name, loop: track.route.loop, lengthM: track.length, points: decimateRoute(pts) });
+      companion.sendRoute({ name: track.route.name, loop: false, lengthM: track.length, open: true, points: decimateRoute(pts.filter((p) => p.d > d - 1500 && p.d < d + 1000)), ...pairOrigin });
+    } else companion.sendRoute({ name: track.route.name, loop: track.route.loop, lengthM: track.length, points: decimateRoute(pts), ...pairOrigin });
+  };
+  // Recherche de destination depuis le téléphone (parcours libre) : index des lieux et des routes bâti à la première demande.
+  let placeIndex: PlaceIndex | null = null;
+  const companionPlaceSearch = (query: string): void => {
+    const open = nav ? source.open : undefined;
+    if (!open) return companion.sendEvent({ kind: 'placeResults', query, items: [], error: 'unavailable' });
+    placeIndex ??= buildPlaceIndex(open.places, open.graph);
+    if (!placeIndex.places.length && !placeIndex.roads.length) return companion.sendEvent({ kind: 'placeResults', query, items: [], error: 'unavailable' });
+    const me = track.sample(ride.state.distM);
+    companion.sendEvent({ kind: 'placeResults', query, items: searchPlaces(placeIndex, query, { x: me.x, z: me.z }, getLang() === 'fr' ? 'fr' : 'en') });
+  };
+  /** Destination choisie sur le téléphone : même effet que « Y aller » sur la grande carte. */
+  const companionGoTo = (x: number, z: number, name: string): void => {
+    if (!nav) return;
+    const L = getLang() === 'fr';
+    const sn = snapToRoad(nav.net, x, z, 800);
+    if (sn && nav.goTo(sn.x, sn.z, name, ride.state.distM)) hud.toast(`${L ? 'Cap sur' : 'Heading to'} ${name} · ${(Math.max(0, (nav.destination?.d ?? 0) - ride.state.distM) / 1000).toFixed(1).replace('.', L ? ',' : '.')} km`);
+    else hud.toast(L ? 'Pas de route roulable jusque-là' : 'No rideable road to there');
+    hud.destination = nav.destination;
   };
   sendPairRoute();
   if (nav) setInterval(sendPairRoute, 5000);
@@ -2770,8 +2840,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       lookBack: rig.lookBack,
       ...(peloton.riders.length ? { groupPacePct: Math.round((peloton.paceFtpPct ?? 0.75) * 100) } : {}),
       music: companionMusic(),
+      ...(nav ? { destination: nav.destination ? { name: nav.destination.name, remainingM: Math.max(0, Math.round(nav.destination.d - d)), x: Math.round(nav.destination.x), z: Math.round(nav.destination.z) } : null } : {}),
       junction:
-        nav?.next && nav.next.d - d < 600
+        nav?.next && nav.next.d - d < JUNCTION_SHOW_M
           ? { inM: nav.next.d - d, selected: nav.next.selected, locked: nav.next.locked, choices: nav.next.choices.map((c) => ({ dir: c.dir, name: c.name, unpaved: !/^(asphalt|paved|concrete|chipseal)/.test(c.surface) })) }
           : null,
       segment: ride.segment ? { name: ride.segment.seg.name, kind: ride.segment.seg.kind, progress: ride.segment.progress, elapsedS: (ride.startT + ride.elapsedS * 1000 - ride.segment.startT) / 1000 } : null,
@@ -2826,6 +2897,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         break;
       case 'uturn':
         uturn();
+        break;
+      case 'placeSearch':
+        companionPlaceSearch(c.query);
+        break;
+      case 'goTo':
+        companionGoTo(c.x, c.z, c.name);
+        break;
+      case 'clearDestination':
+        if (nav) {
+          nav.clearDestination();
+          hud.destination = null;
+        }
         break;
       case 'hud':
         hud.toggle();

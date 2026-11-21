@@ -113,36 +113,76 @@ export function altitudeClarity(altitudeM: number): number {
   return Math.exp(-Math.max(0, altitudeM - 400) / 2200);
 }
 
+/** Teintes fixes de `palette` et de `update` : créées une fois (elles l'étaient à chaque image, une vingtaine). */
+const hex = (h: string): THREE.Color => new THREE.Color(h);
+const PAL_C = {
+  sunGold: new THREE.Color(1, 0.62, 0.32),
+  sunWinter: new THREE.Color(0.9, 0.95, 1),
+  sky: hex('#9cc3ec'),
+  skyHigh: hex('#6f9fdc'),
+  skyGold: hex('#ffb98a'),
+  skyNight: hex('#0d1a2e'),
+  ground: { spring: hex('#6f7f45'), summer: hex('#7a7448'), autumn: hex('#7b5a35'), winter: hex('#6b6b60') } as Record<Season, THREE.Color>,
+  fog: { spring: hex('#dfe8ef'), summer: hex('#e8e0cf'), autumn: hex('#d9d2c3'), winter: hex('#c9d1d6') } as Record<Season, THREE.Color>,
+  fogHigh: hex('#c4d5e6'),
+  fogGold: hex('#f2b483'),
+  fogNight: hex('#0b1220'),
+  sunOvercast: hex('#c8ccd2'),
+  skyOvercast: hex('#a9b2bc'),
+  fogOvercast: hex('#b9c0c7'),
+  skyOvercastNight: hex('#29405d'),
+  fogOvercastNight: hex('#26384e'),
+  moon: hex('#9fb4ff'),
+  hemiNight: hex('#3b4f7a'),
+};
+/** Résultat de `palette`, réutilisé d'une image à l'autre : les appelants le lisent sans le modifier. */
+const PAL: Palette = { hemiSky: new THREE.Color(), hemiGround: new THREE.Color(), fog: new THREE.Color(), sunColor: new THREE.Color() };
+const palSkyOvercast = new THREE.Color();
+const palFogOvercast = new THREE.Color();
+/** Entrées du dernier calcul : la palette n'est refaite que si l'une d'elles a changé. */
+const palKey = { el: Number.NaN, season: '' as Season | '', clouds: Number.NaN, fog: Number.NaN, clarity: Number.NaN };
+/** Vecteurs et couleur de travail de `Environment.update`. */
+const envMoonDir = new THREE.Vector3();
+const envLightDir = new THREE.Vector3();
+const envOrigin = new THREE.Vector3();
+const envGlow = new THREE.Color();
+
 /** Couleurs de lumière selon l'élévation du soleil et la saison (voir ART_DIRECTION.md). */
 function palette(el: number, season: Season, weather: Weather, clarity = 1): Palette {
+  if (palKey.el === el && palKey.season === season && palKey.clouds === weather.clouds && palKey.fog === weather.fog && palKey.clarity === clarity) return PAL;
+  palKey.el = el;
+  palKey.season = season;
+  palKey.clouds = weather.clouds;
+  palKey.fog = weather.fog;
+  palKey.clarity = clarity;
   const day = THREE.MathUtils.smoothstep(el, -0.08, 0.35);
   const golden = 1 - THREE.MathUtils.smoothstep(el, 0.05, 0.4);
   const night = 1 - THREE.MathUtils.smoothstep(el, -0.15, 0.02);
-  const sun = new THREE.Color().setRGB(1, 0.96, 0.9).lerp(new THREE.Color(1, 0.62, 0.32), golden * 0.85);
-  if (season === 'winter') sun.lerp(new THREE.Color(0.9, 0.95, 1), 0.25);
+  const sun = PAL.sunColor.setRGB(1, 0.96, 0.9).lerp(PAL_C.sunGold, golden * 0.85);
+  if (season === 'winter') sun.lerp(PAL_C.sunWinter, 0.25);
   // En altitude, ciel d'un bleu plus profond (moins d'air au-dessus de soi).
-  const sky = new THREE.Color('#9cc3ec')
-    .lerp(new THREE.Color('#6f9fdc'), (1 - clarity) * 0.9)
-    .lerp(new THREE.Color('#ffb98a'), golden * 0.45)
-    .lerp(new THREE.Color('#0d1a2e'), night);
-  const groundTint: Record<Season, string> = { spring: '#6f7f45', summer: '#7a7448', autumn: '#7b5a35', winter: '#6b6b60' };
-  const ground = new THREE.Color(groundTint[season]).multiplyScalar(0.35 + 0.65 * day);
-  const fogBase: Record<Season, string> = { spring: '#dfe8ef', summer: '#e8e0cf', autumn: '#d9d2c3', winter: '#c9d1d6' };
+  const sky = PAL.hemiSky
+    .copy(PAL_C.sky)
+    .lerp(PAL_C.skyHigh, (1 - clarity) * 0.9)
+    .lerp(PAL_C.skyGold, golden * 0.45)
+    .lerp(PAL_C.skyNight, night);
+  PAL.hemiGround.copy(PAL_C.ground[season]).multiplyScalar(0.35 + 0.65 * day);
   // Brume plus bleue et moins laiteuse en altitude.
-  const fog = new THREE.Color(fogBase[season])
-    .lerp(new THREE.Color('#c4d5e6'), (1 - clarity) * 0.8)
-    .lerp(new THREE.Color('#f2b483'), golden * 0.35)
-    .lerp(new THREE.Color('#0b1220'), night * 0.95);
+  const fog = PAL.fog
+    .copy(PAL_C.fog[season])
+    .lerp(PAL_C.fogHigh, (1 - clarity) * 0.8)
+    .lerp(PAL_C.fogGold, golden * 0.35)
+    .lerp(PAL_C.fogNight, night * 0.95);
   // Météo couverte : lumière plus grise et plus diffuse.
   const overcast = Math.max(weather.clouds - 0.4, 0) / 0.6;
-  sun.lerp(new THREE.Color('#c8ccd2'), overcast * 0.6);
-  const skyOvercast = new THREE.Color('#a9b2bc').multiplyScalar(0.4 + 0.6 * day);
-  const fogOvercast = new THREE.Color('#b9c0c7').multiplyScalar(0.3 + 0.7 * day);
-  skyOvercast.lerp(new THREE.Color('#29405d'), night);
-  fogOvercast.lerp(new THREE.Color('#26384e'), night);
+  sun.lerp(PAL_C.sunOvercast, overcast * 0.6);
+  const skyOvercast = palSkyOvercast.copy(PAL_C.skyOvercast).multiplyScalar(0.4 + 0.6 * day);
+  const fogOvercast = palFogOvercast.copy(PAL_C.fogOvercast).multiplyScalar(0.3 + 0.7 * day);
+  skyOvercast.lerp(PAL_C.skyOvercastNight, night);
+  fogOvercast.lerp(PAL_C.fogOvercastNight, night);
   sky.lerp(skyOvercast, overcast * 0.5);
   fog.lerp(fogOvercast, Math.max(overcast, weather.fog) * 0.6);
-  return { hemiSky: sky, hemiGround: ground, fog, sunColor: sun };
+  return PAL;
 }
 
 /**
@@ -289,8 +329,8 @@ export class Environment {
     const isNight = this.sunDir.y < -0.02;
     // Passage soleil → lune progressif (pas de saut de direction ni d'intensité au coucher : l'ombre ne « saute » plus).
     const moonK = 1 - THREE.MathUtils.smoothstep(this.sunDir.y, -0.08, 0.04);
-    const moonDir = new THREE.Vector3(-this.sunDir.x, 0.6, -this.sunDir.z).normalize();
-    const lightDir = new THREE.Vector3().copy(this.sunDir).lerp(moonDir, moonK).normalize();
+    const moonDir = envMoonDir.set(-this.sunDir.x, 0.6, -this.sunDir.z).normalize();
+    const lightDir = envLightDir.copy(this.sunDir).lerp(moonDir, moonK).normalize();
     // Soleil rasant : les ombres de la carte d'ombres grésillent (acné, plis qui bougent) ; la direction de la lumière
     // qui les porte ne descend jamais sous ~8° au-dessus de l'horizon.
     if (lightDir.y < 0.14) {
@@ -307,7 +347,7 @@ export class Environment {
       this.shadowDir.copy(lightDir);
       this.shadowDirSet = true;
     }
-    const center = focus ?? new THREE.Vector3();
+    const center = focus ?? envOrigin.set(0, 0, 0);
     this.sun.position.copy(center).addScaledVector(this.shadowDir, 400);
     this.sun.target.position.copy(center);
     const sunStrength = THREE.MathUtils.smoothstep(this.sunDir.y, -0.05, 0.25);
@@ -316,7 +356,7 @@ export class Environment {
     // Soleil un quart plus fort qu'avant la mesure contre les photos (contraste lumière / ombre, voir HEMI_WITH_SKY).
     const dayIntensity = (LOW_POLY ? 0.4 + 3.0 * sunStrength : 0.5 + 3.75 * sunStrength) * (1 - 0.88 * overcast);
     this.sun.intensity = THREE.MathUtils.lerp(dayIntensity * SUN_K.value, 0.12, moonK);
-    this.sun.color.copy(pal.sunColor).lerp(new THREE.Color('#9fb4ff'), moonK);
+    this.sun.color.copy(pal.sunColor).lerp(PAL_C.moon, moonK);
     this.hemi.color.copy(pal.hemiSky);
     this.hemi.groundColor.copy(pal.hemiGround);
     const nightK = 1 - THREE.MathUtils.smoothstep(this.sunDir.y, -0.18, 0.02);
@@ -330,7 +370,7 @@ export class Environment {
     this.hemi.intensity = ambient * (this.scene.environment ? HEMI_WITH_SKY : 1) * HEMI_K.value + nightK * 0.35;
     // Ciel couvert : la carte du ciel est grise, plus bleue ; elle retrouve son intensité d'avant (ombres moins noires sous la pluie).
     if (this.scene.environment) this.scene.environmentIntensity = SKY_LIGHT_INTENSITY * (LOW_POLY ? 1 : 1 + overcast * 2.3 * (1 - nightK)) * SKY_K.value;
-    if (nightK > 0) this.hemi.color.lerp(new THREE.Color('#3b4f7a'), nightK * 0.8);
+    if (nightK > 0) this.hemi.color.lerp(PAL_C.hemiNight, nightK * 0.8);
     this.lowPolySky?.update(_dt, center, pal.hemiSky, pal.fog, this.sunDir, this.sun.color, sunStrength, weather.clouds, weather.windMs, weather.windFrom);
     this.fog.color.copy(pal.fog);
     this.fog.density = 0.00012 * clarity + weather.fog * 0.0022 + weather.rain * 0.0004;
@@ -349,7 +389,7 @@ export class Environment {
     f.sunDir.value.copy(this.sunDir);
     // Vers le soleil (seulement s'il est levé, moins sous un ciel couvert) : brume dorée du contre-jour.
     const glow = THREE.MathUtils.smoothstep(this.sunDir.y, -0.04, 0.12) * (1 - 0.8 * overcast) * 0.75;
-    f.sunColor.value.copy(pal.fog).lerp(this.sun.color.clone().multiplyScalar(1.2), glow);
+    f.sunColor.value.copy(pal.fog).lerp(envGlow.copy(this.sun.color).multiplyScalar(1.2), glow);
   }
 
   /** Fond de vallée (m) : la brume de vallée y a sa densité nominale (voir SceneFog). */

@@ -22,10 +22,12 @@ docs
 apps/desktop/src-tauri/target
 apps/desktop/src-tauri/gen
 apps/client/src
-apps/client/public/worlds/*/tiles
-apps/client/public/**/*.glb
-apps/client/public/**/*.jpg
-apps/client/public/**/*.png
-apps/client/public/**/*.u16
+# Du client, le serveur ne lit que les itinéraires (ROUTES_DIR) et le manifeste de collision
+# (apps/server/src/ride/collision-authority.ts) : le reste de public/ (graphes routiers de 30 Mo par zone,
+# modèles, voix, musiques…) ne part plus dans l'image.
+# (étude du 21/11 — non testé, à valider au prochain déploiement)
+apps/client/public/**
+!apps/client/public/worlds/*/routes/**
+!apps/client/public/worlds/*/collisions/**
 packages/sequences/out
 packages/sequences/compositions

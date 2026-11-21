@@ -85,6 +85,18 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
     void worker.start().catch((e) => ctx.log('error', `worker vidéo arrêté : ${(e as Error).message}`));
   }
 
+  // Arrêt (SIGTERM d'un déploiement, ou `stop()` des tests) : une fois les salles fermées par Colyseus,
+  // on arrête le worker vidéo et on rend les connexions à la base. Une seule fois.
+  let closed = false;
+  const closeResources = async (): Promise<void> => {
+    if (closed) return;
+    closed = true;
+    clearInterval(purge);
+    await worker?.stop().catch(() => undefined);
+    await db.close().catch(() => undefined);
+  };
+  gameServer.onShutdown(closeResources);
+
   return {
     ctx,
     gameServer,
@@ -93,7 +105,7 @@ export async function startServer(opts: StartOptions = {}): Promise<RunningServe
       clearInterval(purge);
       await worker?.stop();
       await gameServer.gracefullyShutdown(false);
-      await db.close().catch(() => undefined);
+      await closeResources();
     },
   };
 }

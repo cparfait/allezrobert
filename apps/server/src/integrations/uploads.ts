@@ -7,6 +7,10 @@
 import type { Repos } from '../db/repos.ts';
 import { PROVIDERS, type OAuthClient } from '../auth/oauth.ts';
 
+/** Délais des appels sortants : un service tiers muet ne doit pas retenir une requête sans fin. */
+const OUT_TIMEOUT_MS = 15_000;
+const UPLOAD_TIMEOUT_MS = 30_000;
+
 export interface StravaSecret {
   accessToken: string;
   refreshToken: string;
@@ -44,6 +48,7 @@ export class UploadService {
     const s = integ.secret;
     if (s.expiresAt * 1000 > Date.now() + 5 * 60_000) return s.accessToken;
     const res = await this.fetchFn(PROVIDERS.strava.tokenUrl, {
+      signal: AbortSignal.timeout(OUT_TIMEOUT_MS),
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -75,7 +80,7 @@ export class UploadService {
     try {
       const token = await this.stravaToken(userId);
       if (token) {
-        await this.fetchFn('https://www.strava.com/oauth/deauthorize', { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+        await this.fetchFn('https://www.strava.com/oauth/deauthorize', { method: 'POST', headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(OUT_TIMEOUT_MS) });
       }
     } catch {
       /* révocation au mieux : on supprime quand même localement */
@@ -86,6 +91,7 @@ export class UploadService {
   async linkIntervals(userId: string, apiKey: string, athleteId = '0'): Promise<void> {
     const res = await this.fetchFn(`https://intervals.icu/api/v1/athlete/${encodeURIComponent(athleteId)}`, {
       headers: { authorization: basic(apiKey) },
+      signal: AbortSignal.timeout(OUT_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Clé intervals.icu refusée (${res.status})`);
     await this.repos.setIntegration(userId, 'intervals', { apiKey, athleteId } satisfies IntervalsSecret, {});
@@ -106,7 +112,7 @@ export class UploadService {
     form.set('trainer', '1');
     form.set('external_id', `allezrobert-${activityId}`);
     form.set('description', 'Allez Robert !');
-    const res = await this.fetchFn('https://www.strava.com/api/v3/uploads', { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form });
+    const res = await this.fetchFn('https://www.strava.com/api/v3/uploads', { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) });
     if (!res.ok) return { status: 'failed', error: `Strava ${res.status}` };
     const j = (await res.json()) as Record<string, any>;
     return { status: 'uploaded', ref: String(j.id_str ?? j.id ?? '') };
@@ -120,7 +126,7 @@ export class UploadService {
     const url = new URL(`https://intervals.icu/api/v1/athlete/${encodeURIComponent(integ.secret.athleteId)}/activities`);
     url.searchParams.set('name', name);
     url.searchParams.set('external_id', `allezrobert-${activityId}`);
-    const res = await this.fetchFn(url, { method: 'POST', headers: { authorization: basic(integ.secret.apiKey) }, body: form });
+    const res = await this.fetchFn(url, { method: 'POST', headers: { authorization: basic(integ.secret.apiKey) }, body: form, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) });
     if (!res.ok) return { status: 'failed', error: `intervals.icu ${res.status}` };
     const j = (await res.json().catch(() => ({}))) as Record<string, any>;
     return { status: 'uploaded', ref: String(j.id ?? '') };

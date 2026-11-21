@@ -31,7 +31,14 @@ fn open() -> AppResult<Connection> {
     let conn = Connection::open(&path).map_err(|e| io_error("Ouverture de la base locale", e))?;
     conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 3000; PRAGMA synchronous = NORMAL;")
         .map_err(|e| io_error("Base locale", e))?;
+    harden(&conn);
     Ok(conn)
+}
+
+/// Le SQL vient de la page : aucune autre base ne peut être attachée (`ATTACH DATABASE` écrirait un
+/// fichier n'importe où sur le disque). Le jeu n'utilise qu'une base.
+fn harden(conn: &Connection) {
+    conn.set_limit(rusqlite::limits::Limit::SQLITE_LIMIT_ATTACHED, 0);
 }
 
 /// Exécute `f` avec la connexion (ouverte à la demande).
@@ -186,6 +193,16 @@ mod tests {
         assert_eq!(to_value(&serde_json::json!([1, 2])).unwrap(), Value::Text("[1,2]".into()));
         assert_eq!(to_json(ValueRef::Integer(7)), serde_json::json!(7));
         assert_eq!(to_json(ValueRef::Text(b"a")), serde_json::json!("a"));
+    }
+
+    #[test]
+    fn attach_refuse() {
+        let conn = Connection::open_in_memory().unwrap();
+        harden(&conn);
+        assert!(exec_on(&conn, "ATTACH DATABASE ':memory:' AS autre", &[]).is_err());
+        assert!(exec_on(&conn, "ATTACH DATABASE ':memory:' AS autre; SELECT 1;", &[]).is_err());
+        // Le reste fonctionne.
+        exec_on(&conn, "CREATE TABLE t (id INTEGER PRIMARY KEY)", &[]).unwrap();
     }
 
     #[test]

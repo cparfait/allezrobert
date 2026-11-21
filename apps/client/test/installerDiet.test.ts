@@ -21,6 +21,40 @@ function dist(): string {
   return dir;
 }
 
+describe('pruneDist, modèles de développement', () => {
+  function withModels(): string {
+    const d = dist();
+    mkdirSync(join(d, 'models', 'crowd'), { recursive: true });
+    mkdirSync(join(d, 'models', 'avatar'), { recursive: true });
+    writeFileSync(join(d, 'models', 'crowd', 'index.json'), JSON.stringify({ models: ['mpfb_homme'] }));
+    writeFileSync(join(d, 'models', 'crowd', 'index_tripo.json'), JSON.stringify({ models: ['spectateur', 'enfant', 'mpfb_homme'] }));
+    for (const n of ['spectateur', 'enfant', 'mpfb_homme']) for (const e of ['bin', 'json', 'webp']) writeFileSync(join(d, 'models', 'crowd', `${n}.${e}`), 'x');
+    for (const f of ['rider.glb', 'rider_lod1.glb', 'rider_female.glb', 'rider_female_lod2.glb']) writeFileSync(join(d, 'models', 'avatar', f), 'x');
+    return d;
+  }
+
+  it('installateur : retire les spectateurs Tripo et le modèle féminin, garde le repli « spectateur »', () => {
+    const d = withModels();
+    pruneDist(d, true);
+    expect(readdirSync(join(d, 'models', 'crowd')).sort()).toEqual(['index.json', 'mpfb_homme.bin', 'mpfb_homme.json', 'mpfb_homme.webp', 'spectateur.bin', 'spectateur.json', 'spectateur.webp']);
+    expect(readdirSync(join(d, 'models', 'avatar')).sort()).toEqual(['rider.glb', 'rider_lod1.glb']);
+  });
+
+  it('web : garde tout', () => {
+    const d = withModels();
+    pruneDist(d, false);
+    expect(readdirSync(join(d, 'models', 'crowd'))).toHaveLength(11);
+    expect(readdirSync(join(d, 'models', 'avatar'))).toHaveLength(4);
+  });
+
+  it('installateur sans index.json lisible : ne retire aucun spectateur', () => {
+    const d = withModels();
+    rmSync(join(d, 'models', 'crowd', 'index.json'));
+    pruneDist(d, true);
+    expect(readdirSync(join(d, 'models', 'crowd'))).toHaveLength(10);
+  });
+});
+
 describe('pruneDist', () => {
   it('web : retire seulement les photos de pose, garde les trois formats vidéo', () => {
     const d = dist();

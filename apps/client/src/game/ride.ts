@@ -12,15 +12,13 @@ import {
   paramsFromProfile,
   shiftGear,
   stepRider,
-  airDensity,
-  bodyCdaFactor,
+  headwindAlong,
   poseCdaFactor,
-  riderWind,
+  rideParams,
+  rideStepConditions,
   roadHalfM,
   rightLaneM,
-  surfaceCrr,
   trainerModelFor,
-  wetCrrFactor,
   FOOT_DOWN_SPEED_MS,
   PowerSmoother,
   PoseController,
@@ -31,6 +29,7 @@ import {
   type RouteBuildingCollision,
   type RouteObstaclePose,
   type Gear,
+  type Environment,
   type RiderPhysicsParams,
   type RiderState,
 } from '@allezrobert/physics';
@@ -169,6 +168,19 @@ export class RideSession {
   private simCadence = 0;
   private simBeat = 0;
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
+  private readonly env: Environment = { airDensity: 1.2, windSpeedMs: 0 };
+  /** Paramètres vus par le serveur (inertie entière) : servent à la prédiction locale en salle. */
+  private readonly serverParams: RiderPhysicsParams;
+  /**
+   * Sortie en salle : le serveur fait foi. La prédiction locale prend alors exactement ses conditions
+   * (pas d'abri du vent, inertie entière) pour ne pas diverger de la position autoritaire.
+   */
+  serverPhysics = false;
+
+  /** Vélo imposé par la salle (équipement égalisé) : la prédiction en salle reprend les paramètres du serveur. */
+  setServerBike(base: RiderPhysicsParams): void {
+    Object.assign(this.serverParams, rideParams(base, this.opts.profile.heightCm, this.opts.profile.massKg));
+  }
 
   constructor(opts: RideOptions) {
     this.opts = opts;
@@ -179,7 +191,8 @@ export class RideSession {
     this.lateralM = THREE.MathUtils.clamp(this.lateralIntent, -start.left, start.right);
     // Morphologie : le CdA du vélo vaut pour un coureur de 1,78 m et 75 kg.
     const base = paramsFromProfile(opts.profile);
-    this.params = { ...base, cda: base.cda * bodyCdaFactor(opts.profile.heightCm, opts.profile.massKg), inertiaFactor: opts.inertiaFactor ?? 1 };
+    this.params = rideParams(base, opts.profile.heightCm, opts.profile.massKg, opts.inertiaFactor ?? 1);
+    this.serverParams = rideParams(base, opts.profile.heightCm, opts.profile.massKg);
     this.crr = this.params.crr;
     const gearing = opts.gearing ?? DEFAULT_GEARING;
     this.gears = buildGearTable(gearing);
@@ -271,11 +284,7 @@ export class RideSession {
   /** Vent apparent de face (m/s) selon la direction de la route. */
   private headwind(dirX: number, dirZ: number): number {
     const w = this.opts.wind;
-    if (!w || w.ms <= 0) return 0;
-    // Vent venant de `from` : il souffle vers −(sin, −cos) dans le repère x est / z sud.
-    const blowX = -Math.sin(w.from);
-    const blowZ = Math.cos(w.from);
-    return -(blowX * dirX + blowZ * dirZ) * w.ms;
+    return w ? headwindAlong(w.ms, w.from, dirX, dirZ) : 0;
   }
 
   /** Vent latéral (m/s) : composante vers la droite du sens de marche (droite de (x, z) = (−z, x)). */
@@ -318,9 +327,12 @@ export class RideSession {
     this.gradePercent = grade;
     this.headWindMs = this.headwind(s.dirX * this.dir, s.dirZ * this.dir);
     this.crossWindMs = this.crosswind(s.dirX * this.dir, s.dirZ * this.dir);
-    this.windMs = riderWind(this.headWindMs, this.shelter);
-    const env = { airDensity: airDensity(s.y, 14), windSpeedMs: this.windMs };
-    this.crr = surfaceCrr(this.surface, this.params.crr, this.opts.profile.bike.tyre) * wetCrrFactor(this.rain);
+    // Mêmes conditions que le serveur (rideStepConditions) ; en salle, sans l'abri du vent ni le réglage
+    // d'inertie, que le serveur ne connaît pas : la prédiction locale suit alors la vitesse qui fait foi.
+    const env = this.env;
+    const params = this.serverPhysics ? this.serverParams : this.params;
+    this.crr = rideStepConditions(env, params, { altitudeM: s.y, headwindMs: this.headWindMs, shelter: this.serverPhysics ? 0 : this.shelter, rain: this.rain, surface: this.surface, tyre: this.opts.profile.bike.tyre, standardAtmosphere: this.serverPhysics });
+    this.windMs = env.windSpeedMs;
     const cdaFactor = (1 - this.draft) * poseCdaFactor(this.pose, grade, this.state.speedMs);
     const prevDist = this.state.distM;
     // Statistiques de groupe : aspiration et relais.
@@ -347,7 +359,7 @@ export class RideSession {
       {
         watts: this.smoothedPower.update(this.inputs.watts, dt),
         gradePercent: grade,
-        params: this.params,
+        params,
         env,
         cdaFactor,
         crr: this.crr,

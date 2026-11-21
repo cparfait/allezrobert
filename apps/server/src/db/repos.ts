@@ -219,6 +219,12 @@ export class Repos {
 
   /* ───────────── Sessions ───────────── */
 
+  /** Le compte existe-t-il et n'est-il pas suspendu ? (contrôle à l'entrée en salle : le jeton de jeu de 4 h n'est pas lié à une session) */
+  async userActive(userId: string): Promise<boolean> {
+    const r = await this.db.query('SELECT 1 FROM users WHERE id = $1 AND disabled_at IS NULL', [userId]);
+    return r.rows.length > 0;
+  }
+
   async createSession(userId: string, ttlDays: number): Promise<{ id: string; expiresAt: Date }> {
     const id = randomUUID();
     const expiresAt = new Date(Date.now() + ttlDays * 86400_000);
@@ -330,18 +336,26 @@ export class Repos {
     skipStrava: boolean;
     /** Sortie de la base locale du jeu (envoi idempotent). */
     clientRideId?: string;
+    /** Empreinte SHA-256 (hexadécimal) du FIT tel que reçu : un même fichier renvoyé est reconnu. */
+    fitSha256?: string;
   }, q: Queryable = this.db): Promise<string> {
     const id = randomUUID();
     const hrEnc = a.hr && (a.hr.avg !== undefined || a.hr.max !== undefined) ? this.bin(this.cipher.encryptJson(a.hr, `act-hr:${id}`)) : null;
     const fitEnc = this.bin(this.cipher.encrypt(a.fit, `fit:${id}`));
     await q.query(
       `INSERT INTO activities (id, user_id, name, started_at, duration_s, moving_s, distance_m, elevation_m, avg_watts, max_watts,
-                               hr_summary_enc, fit_enc, fit_size, xp, route_id, ride_id, skip_strava, client_ride_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+                               hr_summary_enc, fit_enc, fit_size, xp, route_id, ride_id, skip_strava, client_ride_id, fit_sha256)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
       [id, a.userId, a.name, a.startedAt, a.durationS, a.movingS, a.distanceM, a.elevationM, a.avgWatts ?? null, a.maxWatts ?? null,
-        hrEnc, fitEnc, a.fit.length, a.xp, a.routeId ?? null, a.rideId ?? null, a.skipStrava, a.clientRideId ?? null],
+        hrEnc, fitEnc, a.fit.length, a.xp, a.routeId ?? null, a.rideId ?? null, a.skipStrava, a.clientRideId ?? null, a.fitSha256 ?? null],
     );
     return id;
+  }
+
+  /** Sortie du compte déjà enregistrée avec ce même fichier FIT (empreinte), ou null. */
+  async activityByFitSha(userId: string, sha256: string): Promise<string | null> {
+    const r = await this.db.query('SELECT id FROM activities WHERE user_id = $1 AND fit_sha256 = $2', [userId, sha256]);
+    return (r.rows[0] as { id: string } | undefined)?.id ?? null;
   }
 
   async listActivities(userId: string, limit = 50, offset = 0): Promise<ActivitySummaryRow[]> {
@@ -460,6 +474,12 @@ export class Repos {
     return r.rows.length > 0;
   }
 
+  /** Efforts déjà enregistrés pour cette sortie, en une requête : clés `segment|temps en ms` (voir `effortKey`). */
+  async segmentEffortKeys(userId: string, rideId: string): Promise<Set<string>> {
+    const r = await this.db.query('SELECT segment_id, elapsed_ms FROM segment_efforts WHERE user_id = $1 AND ride_id = $2', [userId, rideId]);
+    return new Set(r.rows.map((row) => effortKey(String(row.segment_id), Number(row.elapsed_ms))));
+  }
+
   /** Temps sur un parcours entier (une ligne par passage). */
   async recordRouteTime(e: { userId: string; routeId: string; elapsedMs: number; rideId?: string }): Promise<boolean> {
     if (e.rideId) {
@@ -503,15 +523,19 @@ export class Repos {
   /** Meilleur tour parmi une liste de coureurs (les amis) sur un itinéraire, avec son nom et son avatar. */
   async bestGhostLap(userIds: readonly string[], routeId: string): Promise<{ userId: string; name: string; avatar: AvatarLook; lapTimeMs: number; dist: number[]; recordedAt: Date } | null> {
     let best: { userId: string; name: string; avatar: AvatarLook; lapTimeMs: number; dist: number[]; recordedAt: Date } | null = null;
+    if (!userIds.length) return null;
+    // Une seule lecture pour tous les amis (au lieu d'une par ami) ; le choix reste fait dans l'ordre de la liste.
+    const rows = (
+      await this.db.query(
+        `SELECT g.user_id, g.lap_time_ms, g.dist, g.recorded_at, u.display_name, p.avatar
+           FROM ghost_laps g JOIN users u ON u.id = g.user_id LEFT JOIN profiles p ON p.user_id = g.user_id
+          WHERE g.route_id = $1 AND g.user_id IN (${userIds.map((_, i) => `$${i + 2}`).join(',')})`,
+        [routeId, ...userIds],
+      )
+    ).rows;
+    const byUser = new Map(rows.map((row) => [String(row.user_id), row]));
     for (const id of userIds) {
-      const r = (
-        await this.db.query(
-          `SELECT g.lap_time_ms, g.dist, g.recorded_at, u.display_name, p.avatar
-             FROM ghost_laps g JOIN users u ON u.id = g.user_id LEFT JOIN profiles p ON p.user_id = g.user_id
-            WHERE g.user_id = $1 AND g.route_id = $2`,
-          [id, routeId],
-        )
-      ).rows[0];
+      const r = byUser.get(id);
       if (!r) continue;
       const lapTimeMs = toNum(r.lap_time_ms);
       if (best && best.lapTimeMs <= lapTimeMs) continue;
@@ -564,6 +588,23 @@ export class Repos {
       routesDone: toJson<string[]>(row.routes_done, []),
       koms: toNum(row.koms),
     };
+  }
+
+  /**
+   * Lecture-modification-écriture de l'atelier sous verrou : la ligne de progression est créée au besoin puis
+   * verrouillée (`FOR UPDATE`) le temps de la transaction. Deux récompenses simultanées du même compte (montée
+   * bouclée en salle pendant l'envoi d'une sortie, par exemple) passent l'une après l'autre au lieu de s'écraser.
+   * `fn` modifie l'état reçu ; il n'est enregistré que si `fn` renvoie `save: true`.
+   */
+  async updateAtelier<T>(userId: string, fn: (a: AtelierState) => { save: boolean; value: T }): Promise<T> {
+    return this.db.tx(async (q) => {
+      await q.query('INSERT INTO progression (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+      await q.query('SELECT user_id FROM progression WHERE user_id = $1 FOR UPDATE', [userId]);
+      const a = await this.getAtelier(userId, q);
+      const out = fn(a);
+      if (out.save) await this.saveAtelier(q, userId, a);
+      return out.value;
+    });
   }
 
   /** Enregistre l'état de l'atelier (ligne de progression créée au besoin). */
@@ -722,6 +763,8 @@ export class Repos {
     const integrations = await this.listIntegrations(userId);
     const renders = await this.listRenders(userId);
     const code = (await this.db.query('SELECT code FROM friend_codes WHERE user_id = $1', [userId])).rows[0]?.code ?? null;
+    const emailRow = (await this.db.query('SELECT email_enc FROM users WHERE id = $1', [userId])).rows[0];
+    const email = this.readEmail(emailRow?.email_enc as Uint8Array | null | undefined);
     const friendships = (
       await this.db.query(
         `SELECT f.status, f.requested_by, f.created_at, f.accepted_at, u.display_name
@@ -733,6 +776,7 @@ export class Repos {
     return {
       exportedAt: new Date().toISOString(),
       user,
+      email,
       identities: identities.map((i: any) => ({ provider: i.provider, linkedAt: i.created_at })),
       profile,
       progression: await this.getProgression(userId),
@@ -745,7 +789,7 @@ export class Repos {
       integrations: integrations.map((i) => ({ provider: i.provider, meta: i.meta, updatedAt: i.updatedAt })),
       renders,
       friends: { code, relations: friendships },
-      note: "L'adresse e-mail n'est pas stockée (seule une empreinte HMAC l'est). Les jetons des services tiers ne sont pas exportés.",
+      note: "L'adresse e-mail (champ « email ») est stockée chiffrée, avec une empreinte HMAC pour la connexion ; elle vaut null si le compte n'en a pas enregistré. Les jetons des services tiers ne sont pas exportés.",
     };
   }
 }
@@ -757,4 +801,9 @@ export function sanitizeName(name: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 40);
+}
+
+/** Clé d'un effort au sein d'une sortie (même arrondi que l'enregistrement). */
+export function effortKey(segmentId: string, elapsedMs: number): string {
+  return `${segmentId}|${Math.round(elapsedMs)}`;
 }

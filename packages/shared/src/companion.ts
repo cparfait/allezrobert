@@ -55,6 +55,12 @@ export type PhoneCommand =
   /** Carrefour : −1 plus à gauche, +1 plus à droite ; ou sortie choisie par son indice. */
   | { kind: 'turn'; delta?: -1 | 1; index?: number }
   | { kind: 'uturn' }
+  /** Parcours libre : recherche d'un lieu ou d'une route (texte vide : lieux les plus proches). Résultats : `PairEvent` « placeResults ». */
+  | { kind: 'placeSearch'; query: string }
+  /** Parcours libre : itinéraire vers ce point du monde (un résultat de « placeResults »). */
+  | { kind: 'goTo'; x: number; z: number; name: string }
+  /** Parcours libre : abandonne la destination en cours. */
+  | { kind: 'clearDestination' }
   | { kind: 'music'; action: 'toggle' | 'next' | 'previous' | 'volume'; volume?: number }
   /** Recherche Spotify (morceau ou playlist) ; texte vide : les playlists du compte. Résultats : `PairEvent` « musicResults ». */
   | { kind: 'musicSearch'; query: string }
@@ -150,6 +156,8 @@ export interface PairState {
   groupPacePct?: number;
   music?: { source: 'game' | 'spotify'; playing: boolean; title: string; volume: number };
   junction?: PairJunction | null;
+  /** Parcours libre : destination du guidage et distance restante par la route (m). */
+  destination?: { name: string; remainingM: number; x: number; z: number } | null;
   segment?: { name: string; kind: string; progress: number; elapsedS: number } | null;
   workout?: { name: string; targetWatts: number | null; stepRemainingS: number; remainingS: number; next?: string } | null;
   riders?: PairRider[];
@@ -167,12 +175,29 @@ export interface PairMusicItem {
   image?: string;
 }
 
+/** Résultat d'une recherche de destination montré sur le téléphone (coordonnées du monde, m). */
+export interface PairPlaceItem {
+  name: string;
+  /** Type du lieu et distance à vol d'oiseau. */
+  sub: string;
+  x: number;
+  z: number;
+}
+
+/** Résultats de recherche de destination au plus par réponse, et longueur maximale d'un nom. */
+export const PAIR_PLACE_MAX_ITEMS = 20;
+export const PAIR_PLACE_NAME_MAX = 80;
+/** Borne des coordonnées du monde acceptées dans une commande « goTo » (m). */
+export const PAIR_COORD_MAX_M = 2_000_000;
+
 /** URI Spotify acceptée pour la lecture depuis le téléphone. */
 export const SPOTIFY_URI_RE = /^spotify:(track|album|playlist|artist):[A-Za-z0-9]{10,40}$/;
 
 export type PairEvent =
   | { kind: 'chat'; who: string; text: string }
   | { kind: 'musicResults'; query: string; items: PairMusicItem[]; error?: string }
+  /** Réponse à « placeSearch » ; `error` : « unavailable » hors parcours libre ou sans lieux connus. */
+  | { kind: 'placeResults'; query: string; items: PairPlaceItem[]; error?: string }
   | { kind: 'toast'; text: string }
   | { kind: 'rideOn'; from: string }
   /** Réponse à « phoneMic » avec `req` : jeton LiveKit du téléphone (publication seule), ou raison de l'échec. */
@@ -192,6 +217,8 @@ export interface PairRoute {
   open?: boolean;
   /** Plat : x, z, y, d (m, entiers), ≤ PAIR_ROUTE_MAX_POINTS points. */
   points: number[];
+  /** Origine Lambert-93 du repère du monde (E = x0 + x, N = y0 − z) : fond de plan IGN de la carte. Absente : tracé seul. */
+  originL93?: { x: number; y: number };
 }
 
 /** Assez peu pour tenir sous la limite de 16 Ko par message du transport. */

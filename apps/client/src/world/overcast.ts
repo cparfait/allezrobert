@@ -31,6 +31,18 @@ export function domeVertex(): THREE.Node {
   })() as unknown as THREE.Node;
 }
 
+/**
+ * Dôme transparent qui couvre tout l'écran : rien n'est dessiné tant que son opacité (`amount()`) est nulle. Le
+ * maillage reste visible (plage de dessin vide, réglée juste avant son dessin), donc son shader est compilé au
+ * départ avec le reste de la scène : pas de compilation en pleine sortie quand le voile ou la nuit arrive.
+ */
+export function skipWhenClear(mesh: THREE.Mesh, amount: () => number): void {
+  mesh.onBeforeRender = () => {
+    const count = amount() > 0 ? Infinity : 0;
+    if (mesh.geometry.drawRange.count !== count) mesh.geometry.setDrawRange(0, count);
+  };
+}
+
 /** Dôme du voile couvert, dessiné après le ciel et avant la voûte nocturne. */
 export function overcastDome(): THREE.Mesh {
   const m = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide, transparent: true, depthWrite: false, fog: false });
@@ -42,6 +54,7 @@ export function overcastDome(): THREE.Mesh {
   mesh.renderOrder = -1.5;
   mesh.frustumCulled = false;
   mesh.name = 'overcast';
+  skipWhenClear(mesh, () => overcast.amount.value);
   return mesh;
 }
 
