@@ -52,7 +52,11 @@
 .mp-gear-grid { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 6px 10px; align-items: center; font-size: 15px; }
 .mp-gear-name { display: flex; flex-direction: column; min-width: 0; }
 .mp-gear-name small { color: var(--ar-muted); font-size: 14px; }
-.mp-gear-dot { width: 12px; height: 12px; border-radius: 50%; background: #6b7280; }
+.mp-gear-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #6b7280; }
+/* Gros blocs des capteurs dans le salon (comme « Prêt à rouler ? ») et ligne de l'appli compagnon. */
+.mp-gear .hw-tiles { gap: 10px; }
+.mp-gear-phone { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 15px; color: var(--ar-muted, #9aa5b1); }
+.mp-gear-phone b { color: var(--ar-fg, #f5f7fa); }
 .mp-gear-dot.ok { background: #22c55e; }
 .mp-gear-dot.warn { background: #eab308; }
 .mp-gear-state { font-size: 14px; font-weight: 700; color: var(--ar-muted); }
