@@ -53,6 +53,7 @@ import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/rid
 import { DraftWriter, defaultDraftStore, type RideDraft } from './game/rideDraft.ts';
 import { offerRideRecovery } from './ui/rideRecovery.ts';
 import { activateFocus, moveFocus } from './ui/focusNav.ts';
+import { BackgroundClock, GroupTalk, SensorLossWatch, hardwareCommand, rideKeyAction } from './game/rideControls.ts';
 import { showRideSummary } from './ui/summary.ts';
 import { previousComparable, readPowerRecords, rideStats, updatePowerRecords, type RideHistoryEntry } from './game/stats.ts';
 import { rideHistory } from './data/history/instance.ts';
@@ -1674,20 +1675,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Boutons du cintre, manette, télécommande : en roulant, les vitesses ; « menu » met en pause ; en pause et sur le
   // bilan, ils naviguent (haut/bas/gauche/droite, valider, retour) : plus besoin du clavier pour s'arrêter.
   const onHardwareAction = (a: string) => {
-    if (a === 'menu') {
-      if (!ride.paused || pauseOpen) togglePause();
-      return;
-    }
-    if (ride.paused) {
-      if (a === 'up' || a === 'frontUp') moveFocus('up');
-      else if (a === 'down' || a === 'frontDown') moveFocus('down');
-      else if (a === 'steerLeft') moveFocus('left');
-      else if (a === 'steerRight') moveFocus('right');
-      else if (a === 'confirm') activateFocus();
-      else if (a === 'back' && pauseOpen) togglePause();
-      return;
-    }
-    onShift(a);
+    const cmd = hardwareCommand(a, { paused: ride.paused, pauseOpen });
+    if (cmd?.kind === 'togglePause') togglePause();
+    else if (cmd?.kind === 'focus') moveFocus(cmd.dir);
+    else if (cmd?.kind === 'activate') activateFocus();
+    else if (cmd?.kind === 'shift') onShift(cmd.action);
   };
   input.onShift(onHardwareAction);
   input.onWarning?.((m) => hud.toast(m));
@@ -1912,7 +1904,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     room?.dispose();
     clearInterval(sourcesTimer);
     clearInterval(sensorTimer);
-    ticker?.terminate();
+    background.stop();
     void mp?.dispose();
     void voice?.disconnect();
     coach?.voice.stop();
@@ -2186,23 +2178,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   };
   // Home trainer ou capteur de puissance perdu : bandeau tant qu'il ne répond pas ; seul sur la route, la sortie se met
   // en pause au bout de 5 s (une seule fois par coupure) pour ne pas rouler en roue libre avec le chrono qui tourne.
-  let sensorLostS = 0;
-  let sensorAutoPaused = false;
+  const sensorWatch = new SensorLossWatch(5);
   const sensorTimer = setInterval(() => {
     if (disposed) return;
-    const lost = input.lostSensors?.() ?? [];
-    const L = getLang() === 'fr';
-    hud.setAlert('sensor', lost.length ? (L ? `${lost.join(', ')} : signal perdu, reconnexion…` : `${lost.join(', ')}: signal lost, reconnecting…`) : null);
-    if (!lost.length) {
-      sensorLostS = 0;
-      sensorAutoPaused = false;
-      return;
-    }
-    sensorLostS++;
-    if (sensorLostS >= 5 && !sensorAutoPaused && !mp && !ride.paused) {
-      sensorAutoPaused = true;
-      togglePause();
-    }
+    const { alert, pause } = sensorWatch.tick(input.lostSensors?.() ?? [], !mp && !ride.paused);
+    hud.setAlert('sensor', alert ? alert[getLang()] : null);
+    if (pause) togglePause();
   }, 1000);
   /**
    * Demi-tour : on repart dans l'autre sens, à droite de la chaussée. Monde ouvert : nouveau
@@ -2227,42 +2208,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
    * Messages du groupe (façon NCT) : « À toi le relais » quand on passe en tête, « Le groupe reprend la tête »
    * quand un équipier repasse devant, « Ils s'organisent, ils reviennent sur toi ! » quand l'échappée fond.
    */
-  const talk = { leading: false, since: 0, away: false, bestGap: 0, quiet: 0 };
+  const talk = new GroupTalk();
   const groupTalk = (dt: number) => {
     if (!peloton.riders.length || ride.dir < 0) return;
-    const me = ride.state.distM;
     let front = -Infinity;
     for (const r of peloton.riders) front = Math.max(front, r.state.distM);
-    const lead = me - front;
-    talk.quiet -= dt;
-    talk.since += dt;
-    const L = getLang() === 'fr';
-    const say = (fr: string, en: string) => {
-      if (talk.quiet > 0) return;
-      hud.toast(L ? fr : en);
-      talk.quiet = 6;
-    };
-    if (!talk.leading && lead > 1.5 && talk.since > 8) {
-      talk.leading = true;
-      talk.since = 0;
-      say('À toi le relais 💪', 'Your turn on the front 💪');
-    } else if (talk.leading && lead < -2) {
-      talk.leading = false;
-      talk.since = 0;
-      if (!talk.away) say('Le groupe reprend la tête 👋', 'The group takes over 👋');
-    }
-    // Échappée : plus de 25 m d'avance ; quand l'écart fond de 8 m, le groupe chasse.
-    if (lead > 25) {
-      if (!talk.away) {
-        talk.away = true;
-        talk.bestGap = lead;
-      }
-      talk.bestGap = Math.max(talk.bestGap, lead);
-      if (talk.bestGap - lead > 8) {
-        say('Ils s’organisent, ils reviennent sur toi !', 'They’re organising, they’re coming back to you!');
-        talk.bestGap = lead;
-      }
-    } else if (lead < 5) talk.away = false;
+    const line = talk.update(dt, ride.state.distM - front);
+    if (line) hud.toast(line[getLang()]);
   };
   /** Équipiers : allure du groupe en % de FTP (±5 %). */
   const changePace = (delta: number) => {
@@ -2307,52 +2259,65 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       e.preventDefault();
       nav.select(e.key === 'ArrowLeft' ? -1 : 1, ride.state.distM);
     }
-    if (e.key === 'u' || e.key === 'U') uturn();
-    if (e.key === 'x' || e.key === 'X') rig.lookBack = true;
-    if (e.key === 'c' || e.key === 'C') {
-      const m = rig.cycle();
-      hud.toast(t(m === 'free' ? 'freeCam' : m));
-    }
-    // Touches 1 à 8 (rangée du haut ou pavé numérique) : caméra choisie directement, comme dans Zwift. Alt+1 à 3 reste au panneau F3.
-    const camKey = /^(?:Digit|Numpad)([1-8])$/.exec(e.code);
-    if (camKey && !e.altKey && !e.ctrlKey && !e.metaKey) {
-      const m = (['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo', 'free'] as const)[Number(camKey[1]) - 1]!;
-      if (rig.mode !== m) rig.setMode(m);
-      hud.toast(t(m === 'free' ? 'freeCam' : m));
-    }
-    if (e.key === 'h' || e.key === 'H') hud.toggle();
-    if (e.key === 'm' || e.key === 'M') audio.toggleMute();
-    // Musique : B lecture / arrêt (Spotify s'il est connecté, sinon musique du jeu), N morceau suivant.
-    if (e.key === 'b' || e.key === 'B') {
-      if (musicSource() === 'spotify') void spotify.toggleSmart().then((on) => hud.toast(on ? '♪ Spotify ▶' : '♪ Spotify ⏸'));
-      else hud.toast(music.toggle() ? (getLang() === 'fr' ? '♪ Musique activée' : '♪ Music on') : getLang() === 'fr' ? '♪ Musique coupée' : '♪ Music off');
-    }
-    if (e.key === 'n' || e.key === 'N') {
-      if (musicSource() === 'spotify') void spotify.next();
-      else music.next();
-    }
-    if (mp && (e.key === 't' || e.key === 'T')) {
-      e.preventDefault();
-      hud.openChat((text) => mp?.net.chat(text));
-    }
-    // V : micro du téléphone quand l'appli compagnon sert de micro, sinon celui de l'ordinateur.
-    if (voice && (e.key === 'v' || e.key === 'V')) {
-      if (phoneMic.linked && companion.presence.phones) companion.sendEvent({ kind: 'phoneMic', on: !phoneMic.on });
-      else
-        void voice.toggleMic().then((on) => {
-          hud.setVoice({ connected: true, micOn: on });
-          if (voice?.micError) hud.toast(voice.micError);
-        });
-    }
-    // Équipiers : allure du groupe en % de FTP ([ / ]), ordre « ralentissez » (R).
-    if (e.key === '[' || e.key === ']') changePace(e.key === ']' ? 1 : -1);
-    if (e.key === 'r' || e.key === 'R') slowDown();
-    if (e.key === 'k' || e.key === 'K') waitMe();
-    if (e.key === 'f' || e.key === 'F') cycleFormation();
-    if (e.key === 'p' || e.key === 'P') photo();
-    if (e.key === ' ' || e.key === 'Escape') {
-      e.preventDefault();
-      togglePause();
+    // Touches de la sortie (game/rideControls.ts) : la décision là-bas, l'exécution ici.
+    const a = rideKeyAction(e);
+    if (!a) return;
+    const L = getLang() === 'fr';
+    switch (a.kind) {
+      case 'uturn':
+        return uturn();
+      case 'lookBack':
+        rig.lookBack = true;
+        return;
+      case 'cycleCamera': {
+        const m = rig.cycle();
+        return hud.toast(t(m === 'free' ? 'freeCam' : m));
+      }
+      case 'camera':
+        if (rig.mode !== a.mode) rig.setMode(a.mode);
+        return hud.toast(t(a.mode === 'free' ? 'freeCam' : a.mode));
+      case 'toggleHud':
+        return hud.toggle();
+      case 'mute':
+        audio.toggleMute();
+        return;
+      // Musique : B lecture / arrêt (Spotify s'il est connecté, sinon musique du jeu), N morceau suivant.
+      case 'music':
+        if (musicSource() === 'spotify') void spotify.toggleSmart().then((on) => hud.toast(on ? '♪ Spotify ▶' : '♪ Spotify ⏸'));
+        else hud.toast(music.toggle() ? (L ? '♪ Musique activée' : '♪ Music on') : L ? '♪ Musique coupée' : '♪ Music off');
+        return;
+      case 'nextTrack':
+        if (musicSource() === 'spotify') void spotify.next();
+        else music.next();
+        return;
+      case 'chat':
+        if (!mp) return;
+        e.preventDefault();
+        return hud.openChat((text) => mp?.net.chat(text));
+      // V : micro du téléphone quand l'appli compagnon sert de micro, sinon celui de l'ordinateur.
+      case 'mic':
+        if (!voice) return;
+        if (phoneMic.linked && companion.presence.phones) companion.sendEvent({ kind: 'phoneMic', on: !phoneMic.on });
+        else
+          void voice.toggleMic().then((on) => {
+            hud.setVoice({ connected: true, micOn: on });
+            if (voice?.micError) hud.toast(voice.micError);
+          });
+        return;
+      // Équipiers : allure du groupe en % de FTP, « ralentissez », « attendez-moi », forme du peloton.
+      case 'pace':
+        return changePace(a.delta);
+      case 'slowDown':
+        return slowDown();
+      case 'waitMe':
+        return waitMe();
+      case 'formation':
+        return cycleFormation();
+      case 'photo':
+        return photo();
+      case 'pause':
+        e.preventDefault();
+        return togglePause();
     }
   });
 
@@ -2360,6 +2325,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   if (isTouchDevice()) new TouchControls(document.body);
 
   const timer = new THREE.Timer();
+  const background = new BackgroundClock((dt) => {
+    if (!disposed) frame(dt, false);
+  });
   timer.connect(document);
   const pos = new THREE.Vector3();
   const dir = new THREE.Vector3();
@@ -2968,39 +2936,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   performance.mark('ar:ride-start');
   startOverlay.remove();
   for (const text of afterStart) hud.toast(text);
-  let lastRafT = performance.now();
   engine.renderer.setAnimationLoop(() => {
-    lastRafT = performance.now();
+    background.drawn();
     timer.update();
     frame(Math.min(timer.getDelta(), 0.1), true);
   });
-  // Onglet masqué ou fenêtre réduite : le navigateur n'appelle plus la boucle d'affichage. Une horloge tenue par un
-  // Worker (peu ralentie en arrière-plan) fait alors avancer la sortie sans la dessiner, par pas de 0,1 s : distance,
-  // chrono et enregistrement continuent, et restent d'accord avec le serveur en groupe. Au retour, la boucle
-  // d'affichage reprend (THREE.Timer ignore le temps passé caché : rien n'est compté deux fois).
-  const ticker = (() => {
-    try {
-      return new Worker(URL.createObjectURL(new Blob(['setInterval(() => postMessage(0), 250);'], { type: 'text/javascript' })));
-    } catch {
-      return null;
-    }
-  })();
-  let tickerLast = 0;
-  if (ticker)
-    ticker.onmessage = () => {
-      const now = performance.now();
-      if (disposed || now - lastRafT < 400) {
-        tickerLast = 0;
-        return;
-      }
-      let gap = Math.min((now - (tickerLast || lastRafT)) / 1000, 120);
-      tickerLast = now;
-      while (gap > 1e-3) {
-        const step = Math.min(gap, 0.1);
-        frame(step, false);
-        gap -= step;
-      }
-    };
+  // Onglet masqué ou fenêtre réduite : la sortie avance sans être dessinée (game/rideControls.ts, BackgroundClock).
+  background.start();
   draft?.start();
   // GPU perdu en pleine sortie (pilote planté, veille) : le brouillon est écrit, puis la page se recharge ; la sortie
   // est proposée à la récupération au lancement.
