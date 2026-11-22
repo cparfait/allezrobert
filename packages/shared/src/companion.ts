@@ -44,6 +44,9 @@ export const PAIR_MAX_PHONES = 5;
 /** Modes du ventilateur : arrêt, fixe (manuel), lié à la vitesse, au capteur cardio ou à la pente. */
 export const PAIR_FAN_MODES = ['off', 'manual', 'speed', 'heartRate', 'grade'] as const;
 export type PairFanMode = (typeof PAIR_FAN_MODES)[number];
+/** Types de sons du jeu coupables depuis le téléphone (mêmes catégories que Réglages › Son). */
+export const PAIR_SOUND_BUSES = ['ambience', 'wind', 'tyres', 'bike', 'breath', 'crowd', 'traffic', 'voice'] as const;
+export type PairSoundBus = (typeof PAIR_SOUND_BUSES)[number];
 
 /** Commandes du téléphone vers le jeu. */
 export type PhoneCommand =
@@ -81,6 +84,8 @@ export type PhoneCommand =
   | { kind: 'lookBack'; on: boolean }
   /** Coupe / rétablit le son du jeu (touche M). */
   | { kind: 'mute' }
+  /** Un type de son du jeu coupé (`on: false`) ou remis à son niveau d'avant. */
+  | { kind: 'sound'; bus: PairSoundBus; on: boolean }
   | { kind: 'photo' }
   /** Équipiers IA : « ralentissez », ou allure du groupe ±5 % FTP. */
   | { kind: 'slowDown' }
@@ -168,6 +173,8 @@ export interface PairState {
   mapOpen?: boolean;
   /** Son du jeu coupé ; regard vers l'arrière ; allure demandée au groupe en % de FTP. */
   muted?: boolean;
+  /** Types de sons audibles (true) ou coupés (false). */
+  sounds?: Record<PairSoundBus, boolean>;
   lookBack?: boolean;
   groupPacePct?: number;
   music?: { source: 'game' | 'spotify'; playing: boolean; title: string; volume: number };

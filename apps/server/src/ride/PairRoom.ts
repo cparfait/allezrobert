@@ -10,7 +10,7 @@
  */
 import { CloseCode, Room, ServerError, type Client, type RoomException, type RoomMethodName } from '@colyseus/core';
 import { z } from 'zod';
-import { PAIR_COORD_MAX_M, PAIR_FAN_MODES, PAIR_MAX_PHONES, PAIR_MSG, PAIR_PLACE_NAME_MAX, PAIR_TOKEN_RE, PAIR_VOICE_REQ_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
+import { PAIR_COORD_MAX_M, PAIR_FAN_MODES, PAIR_MAX_PHONES, PAIR_SOUND_BUSES, PAIR_MSG, PAIR_PLACE_NAME_MAX, PAIR_TOKEN_RE, PAIR_VOICE_REQ_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
@@ -44,6 +44,7 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('ghost'), on: z.boolean().optional() }),
   z.object({ kind: z.literal('lookBack'), on: z.boolean() }),
   z.object({ kind: z.literal('mute') }),
+  z.object({ kind: z.literal('sound'), bus: z.enum(PAIR_SOUND_BUSES), on: z.boolean() }),
   z.object({ kind: z.literal('photo') }),
   z.object({ kind: z.literal('slowDown') }),
   z.object({ kind: z.literal('pace'), delta: z.union([z.literal(-1), z.literal(1)]) }),

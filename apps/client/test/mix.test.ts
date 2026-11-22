@@ -38,3 +38,17 @@ describe('mixage', () => {
     expect(busGains({ ...DEFAULT_MIX, breathOn: false }, { paused: false, muted: false }).breath).toBe(0);
   });
 });
+
+describe('coupure par type (appli compagnon)', () => {
+  it('coupe un type puis le remet à son niveau d’avant ; le souffle passe par sa case', async () => {
+    const { setMix, setBusOn, busOn, getMix } = await import('../src/audio/mix.ts');
+    setMix({ wind: 0.4, breath: 0.5, breathOn: true });
+    expect(busOn(setBusOn('wind', false), 'wind')).toBe(false);
+    expect(getMix().wind).toBe(0);
+    expect(setBusOn('wind', true).wind).toBe(0.4);
+    const off = setBusOn('breath', false);
+    expect(off.breathOn).toBe(false);
+    expect(busOn(off, 'breath')).toBe(false);
+    expect(busOn(setBusOn('breath', true), 'breath')).toBe(true);
+  });
+});

@@ -1,7 +1,8 @@
+import { busOn, getMix, setBusOn } from './audio/mix.ts';
 import './net/desktopAuth.ts';
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { rideOnMessage, snapToRoad, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel, type PairState, type PhoneCommand, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { rideOnMessage, snapToRoad, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel, type PairState, type PhoneCommand, PAIR_SOUND_BUSES, type PairSoundBus, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, onGpuLost, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -3130,6 +3131,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ghost: ghost.hasBest || friendGhost ? s.showGhost !== false : null,
       ...(fullMap ? { mapOpen: (fullMap as { isOpen: boolean }).isOpen } : {}),
       muted: audio.isMuted(),
+      sounds: Object.fromEntries(PAIR_SOUND_BUSES.map((b) => [b, busOn(getMix(), b)])) as Record<PairSoundBus, boolean>,
       lookBack: rig.lookBack,
       ...(peloton.riders.length ? { groupPacePct: Math.round((peloton.paceFtpPct ?? 0.75) * 100) } : {}),
       music: companionMusic(),
@@ -3225,6 +3227,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         break;
       case 'mute':
         audio.toggleMute();
+        break;
+      case 'sound':
+        // Un type de son coupé ou remis depuis le téléphone (même réglage que Réglages › Son).
+        setBusOn(c.bus, c.on);
         break;
       case 'photo':
         photo();

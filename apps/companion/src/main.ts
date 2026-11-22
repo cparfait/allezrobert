@@ -12,7 +12,7 @@
  */
 import './style.css';
 import { Client, type Room } from '@colyseus/sdk';
-import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_FAN_MODES, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type PairFanMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPlaceItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_FAN_MODES, PAIR_MSG, PAIR_SOUND_BUSES, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type PairFanMode, type PairSoundBus, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPlaceItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
 import { climbsOf } from './climbs.ts';
 import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
@@ -758,6 +758,7 @@ function ctrlHtml(): string {
         <button class="btn big tile" data-ico="🔊" data-cmd="mute" id="c-mute">${esc(st.muted ? t.unmute : t.mute)}</button>
         <button class="btn big tile wide2" data-ico="♪" data-music="toggle" id="c-music">${esc(st.music?.playing === false ? t.musicResume : t.musicCut)}</button>
       </div>
+      ${soundsHtml(st)}
       <h3>${esc(t.camera)}</h3>
       <div class="cams">${CAMERAS.map((c) => `<button class="seg" data-cam="${c}">${esc(t.cameras[c])}</button>`).join('')}</div>
     </div>
@@ -773,6 +774,15 @@ function ctrlHtml(): string {
         : ''
     }
   </section>`;
+}
+
+const SOUND_ICONS: Record<PairSoundBus, string> = { ambience: '🌳', wind: '💨', tyres: '🛞', bike: '🚲', breath: '😮‍💨', crowd: '📣', traffic: '🚗', voice: '🎙' };
+
+/** Sons du jeu, un bouton par type : jaune = audible, barré = coupé (jeu trop ancien : rien). */
+function soundsHtml(st: PairState): string {
+  if (!st.sounds) return '';
+  return `<h3>${esc(t.sounds)}</h3><p class="hint">${esc(t.soundsHint)}</p>
+      <div class="cams sounds" id="c-sounds">${PAIR_SOUND_BUSES.map((b) => `<button class="seg snd${st.sounds?.[b] ? ' on' : ' off'}" data-sound="${b}" aria-pressed="${st.sounds?.[b] ? 'true' : 'false'}"><i aria-hidden="true">${SOUND_ICONS[b]}</i>${esc(t.soundNames[b])}</button>`).join('')}</div>`;
 }
 
 /** Ressenti route du home trainer : valeur affichée (0 = coupé). */
@@ -817,6 +827,14 @@ function updateCtrl(st: PairState): void {
   }
   const mute = document.getElementById('c-mute');
   if (mute) mute.textContent = st.muted ? t.unmute : t.mute;
+  document.querySelectorAll<HTMLButtonElement>('[data-sound]').forEach((b) => {
+    const on = !!st.sounds?.[b.dataset.sound as PairSoundBus];
+    b.classList.toggle('on', on);
+    b.classList.toggle('off', !on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+  // Tout le son coupé : les types restent réglables, mais grisés pour montrer qu'on n'entend rien.
+  document.getElementById('c-sounds')?.classList.toggle('all-muted', !!st.muted);
   // Radar du groupe : 30 m derrière à 30 m devant, moi au centre (comme le panneau « Groupe » du jeu).
   const dots = document.getElementById('c-grp-dots');
   if (dots) {
@@ -1172,6 +1190,14 @@ app.addEventListener('click', (e) => {
     document.querySelectorAll<HTMLButtonElement>('[data-fanmode]').forEach((b) => b.classList.toggle('on', b === el));
     const row = document.getElementById('c-fanrow');
     if (row) row.hidden = mode !== 'manual';
+  } else if (d.sound) {
+    haptic();
+    const on = !el.classList.contains('on');
+    send({ kind: 'sound', bus: d.sound as PairSoundBus, on });
+    // Réponse immédiate ; l'état du jeu (4 fois par seconde) confirme.
+    el.classList.toggle('on', on);
+    el.classList.toggle('off', !on);
+    el.setAttribute('aria-pressed', String(on));
   } else if (d.cam) {
     haptic();
     send({ kind: 'camera', camera: d.cam as CameraMode });

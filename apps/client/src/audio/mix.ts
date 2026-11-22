@@ -126,6 +126,28 @@ export function setMix(patch: Partial<SoundMix>): SoundMix {
   return current;
 }
 
+/** Niveau d'avant la coupure d'un type de son (appli compagnon), pour le remettre tel quel. */
+const before: Partial<Record<Bus, number>> = {};
+
+/** Un type de son est-il audible ? (Souffle : aussi la case « entendre mon souffle ».) */
+export function busOn(m: SoundMix, bus: Bus): boolean {
+  return m[bus] > 0 && (bus !== 'breath' || m.breathOn);
+}
+
+/**
+ * Coupe un type de son (niveau à 0, retenu) ou le remet à son niveau d'avant (défaut s'il n'y en a pas). Le souffle
+ * passe par sa case. Les curseurs de Réglages › Son montrent le même état.
+ */
+export function setBusOn(bus: Bus, on: boolean): SoundMix {
+  const m = getMix();
+  if (bus === 'breath') return setMix(on ? { breathOn: true, breath: m.breath > 0 ? m.breath : DEFAULT_MIX.breath } : { breathOn: false });
+  if (!on) {
+    if (m[bus] > 0) before[bus] = m[bus];
+    return setMix({ [bus]: 0 });
+  }
+  return m[bus] > 0 ? m : setMix({ [bus]: before[bus] ?? (DEFAULT_MIX[bus] || 0.8) });
+}
+
 export function onMixChange(cb: (m: SoundMix) => void): () => void {
   listeners.add(cb);
   return () => listeners.delete(cb);

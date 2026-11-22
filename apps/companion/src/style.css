@@ -396,6 +396,12 @@ h3 { margin: 12px 0 8px; font-size: 15px; font-weight: 700; color: #c3cddb; }
 .row3 .btn.big { min-height: 64px; border-radius: 16px; border: 2px solid var(--tile-line); background: var(--tile); font-size: 15px; padding: 8px 6px; }
 .cams { gap: 8px; }
 .cams .seg { flex: 1 1 28%; }
+/* Sons du jeu : jaune = audible, barré et terne = coupé. */
+.sounds .seg.snd { flex: 1 1 22%; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; }
+.sounds .seg.snd i { font-style: normal; font-size: 18px; }
+.sounds .seg.snd.off { color: #8b95a3; text-decoration: line-through; }
+.sounds .seg.snd.off i { filter: grayscale(1); opacity: 0.6; }
+.sounds.all-muted { opacity: 0.45; }
 /* Réglage à curseur : un bloc, le nom et la valeur lisible au-dessus du curseur. */
 .slider { grid-template: 'name value' auto 'range range' auto / 1fr auto; gap: 6px 12px; padding: 14px 16px 10px; border-radius: var(--r-tile); border: 2px solid var(--tile-line); background: var(--tile); font-size: 16px; font-weight: 800; }
 .slider > span { grid-area: name; }
