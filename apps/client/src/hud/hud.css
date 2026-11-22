@@ -118,6 +118,31 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
 .hud-loc span { color: var(--ar-muted); overflow: hidden; text-overflow: ellipsis; }
 .hud-loc span::before { content: '·'; margin-right: 8px; }
 
+/* Aspiration : socle accroché sous le cadran de puissance (même fond et même bord que les gros blocs ab-tile).
+   Affiché seulement quand on profite d'une roue (bord bleu). Dans le flux : les tuiles restent centrées sur le cadran. */
+.dial-stack { flex: none; display: flex; flex-direction: column; align-items: center; }
+.hud-top:has(.dial-stack) { align-items: flex-start; }
+.hud-top:has(.dial-stack) > .tile-col { min-height: 196px; justify-content: center; }
+.dial-draft { position: relative; width: 260px; margin: -10px -32px 0; box-sizing: border-box; padding: 7px 14px 8px; border-radius: 16px; border: 2px solid rgba(96, 165, 250, 0.6); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35); }
+.dial-draft .dd-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dial-draft .dd-l { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #93c5fd; }
+.dial-draft .dd-l .ico { align-self: center; flex: none; }
+.dial-draft b { font-size: 15px; font-weight: 800; white-space: nowrap; color: #f5f7fa; }
+.dial-draft .dd-bar { height: 6px; margin-top: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.dial-draft .dd-bar span { display: block; width: 0; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #60a5fa, #22c55e); transition: width 0.3s ease; }
+.dial-draft .dd-note { display: block; margin-top: 4px; font-size: 11.5px; line-height: 1.25; color: var(--ar-muted); text-align: center; text-wrap: balance; }
+.dial-draft .dd-note:empty, .dial-draft.hidden { display: none; }
+
+/* Temps par zone (cockpit complet) : en bas à droite, sous le chat. Le HUD compact a ses propres tailles. */
+.cx-zones { width: 230px; box-sizing: border-box; padding: 9px 13px 8px; pointer-events: auto; }
+.cx-zhead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cx-zhead .cx-l { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ar-muted); white-space: nowrap; }
+.cx-zhead b { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.cx-zbars { display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: 34px; align-items: end; gap: 4px; margin-top: 7px; }
+.cx-zbars i { display: block; height: 6%; min-height: 3px; border-radius: 3px 3px 0 0; opacity: 0.5; transition: height 0.6s ease; }
+.cx-zbars i.on { opacity: 1; }
+.cx-zlab { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 3px; font-size: 11px; color: var(--ar-muted); text-align: center; }
+
 .hud-left { padding: 12px 16px 12px 18px; display: grid; grid-template-columns: auto auto; gap: 5px 20px; font-size: 13.5px; border-radius: 12px 4px 12px 4px; position: relative; overflow: hidden; }
 .hud-left::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--ar-accent); }
 .hud-left .k { color: var(--ar-muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; align-self: center; }
@@ -661,7 +686,7 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 .hud.compact .devices-chip.cx-faded { opacity: 0; visibility: hidden; transition: opacity 0.8s ease, visibility 0s 0.8s; }
 .hud.compact .devices-chip div { max-width: calc(var(--u) * 320); padding: calc(var(--u) * 3) calc(var(--u) * 9); background: var(--cx-bg); }
 .hud.compact .devices-chip div::before { margin-right: calc(var(--u) * 5); }
-.hud.compact .cx-zones { padding: calc(var(--u) * 6) calc(var(--u) * 9) calc(var(--u) * 6); }
+.hud.compact .cx-zones { width: auto; padding: calc(var(--u) * 6) calc(var(--u) * 9) calc(var(--u) * 6); }
 .hud.compact .cx-zhead { display: flex; align-items: baseline; justify-content: space-between; gap: calc(var(--u) * 6); }
 .hud.compact .cx-zhead b { font-size: calc(var(--u) * 11); font-weight: 700; white-space: nowrap; }
 .hud.compact .cx-zbars { display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: calc(var(--u) * 24); align-items: end; gap: calc(var(--u) * 3); margin-top: calc(var(--u) * 5); }

@@ -416,7 +416,7 @@ export const HUD_BLOCKS = [
   { id: 'lap', fr: 'Tours', en: 'Laps' },
   { id: 'gear', fr: 'Rapport', en: 'Gear' },
   { id: 'balance', fr: 'Équilibre gauche / droite', en: 'Left / right balance' },
-  { id: 'zones', fr: 'Temps par zone (HUD compact)', en: 'Time in zones (compact HUD)' },
+  { id: 'zones', fr: 'Temps par zone', en: 'Time in zones' },
   { id: 'map', fr: 'Mini-carte', en: 'Mini-map' },
   { id: 'group', fr: 'Radar du groupe', en: 'Group radar' },
   { id: 'riders', fr: 'Coureurs à proximité', en: 'Nearby riders' },
@@ -445,6 +445,7 @@ const ICONS = {
   dist: ico('<path d="M4 19c4-1 3-7 8-7s4-6 8-7"/><circle cx="4" cy="19" r="1.600"/><circle cx="20" cy="5" r="1.600"/>'),
   gain: ico('<path d="M3 20h18"/><path d="m4 16 5-7 4 4 7-9"/><path d="M15 4h5v5"/>'),
   np: ico('<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>'),
+  draft: ico('<path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 12h16"/><path d="M3 16h8a3 3 0 1 1-3 3"/>'),
   pin: ico('<path d="M12 21s7-6.200 7-11a7 7 0 0 0-14 0c0 4.800 7 11 7 11Z"/><circle cx="12" cy="10" r="2.500"/>'),
 };
 /** Indice (0 à 6) de la zone de puissance. */
@@ -473,7 +474,7 @@ function zoneColorHex(watts: number, ftp: number): string {
 const lastHtml = new WeakMap<HTMLElement, string>();
 /** Remplace le contenu de `el` seulement s'il a changé (pas de reconstruction ni de mise en page inutiles). */
 /** Blocs que masque le bouton « × » de chaque panneau de droite. */
-const PANEL_BLOCKS: Record<string, string[]> = { env: ['draft', 'wind', 'alt', 'lap'], group: ['group'], riders: ['riders'] };
+const PANEL_BLOCKS: Record<string, string[]> = { env: ['wind', 'alt', 'lap'], zones: ['zones'], group: ['group'], riders: ['riders'] };
 const PANEL_MIN_KEY = 'ar.hudPanelsMin';
 function readPanelSet(): Set<string> {
   try {
@@ -675,7 +676,7 @@ export class Hud {
   /** HUD compact : puces des capteurs affichées au départ et à chaque changement, puis estompées. */
   private devicesKey = '';
   private devicesUntil = 0;
-  /** HUD compact : jauge d'aspiration affichée (hystérésis pour ne pas clignoter). */
+  /** Jauge d'aspiration affichée seulement quand on profite d'une roue, avec hystérésis pour ne pas clignoter. */
   private draftOn = false;
   /** Temps passé dans chaque zone de puissance (s), mis à jour d'après le chrono de la sortie. */
   private readonly zoneS = [0, 0, 0, 0, 0, 0, 0];
@@ -751,6 +752,7 @@ export class Hud {
             <div class="tile hr" data-hud="hr"><div class="label">${ICONS.heart}${t('heartRate')}</div><div class="value num"><span data-k="hr">--</span><span class="unit">bpm</span></div></div>
             <div class="tile cad" data-hud="cadence"><div class="label">${ICONS.cadence}${t('cadence')}</div><div class="value num"><span data-k="cad">0</span><span class="unit">${S('rpm')}</span></div></div>
           </div>
+          <div class="dial-stack">
           <div class="dial" data-k="powerBox" data-hud="power">
             <svg class="dial-svg" viewBox="0 0 160 160" aria-hidden="true">
               <g transform="rotate(135 80 80)">
@@ -767,6 +769,13 @@ export class Hud {
               <div class="dial-avg num" data-hud="avg">${S('avg')} <b data-k="avg">0</b> W</div>
               <div class="sub num" data-k="wkg">0${dec()}0 W/kg</div>
             </div>
+          </div>
+          <!-- Aspiration : socle accroché sous le cadran, affiché seulement quand on profite d'une roue. -->
+          <div class="dial-draft hidden" data-k="draftBox" data-hud="draft">
+            <div class="dd-row"><span class="dd-l">${ICONS.draft}${t('draft')}</span><b class="num" data-k="draft">0 %</b></div>
+            <div class="dd-bar"><span data-k="draftBar"></span></div>
+            <small class="dd-note" data-k="draftNote"></small>
+          </div>
           </div>
           <div class="tile-col">
             <div class="tile spd" data-hud="speed"><div class="label">${ICONS.speed}${t('speed')}</div><div class="value num"><span data-k="speed">0${dec()}0</span><span class="unit">km/h</span></div></div>
@@ -794,11 +803,8 @@ export class Hud {
       </div>
       <div class="hud-col hud-col-right">
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas><div class="map-town hidden" data-k="mapTown"></div></div>
-        <!-- Aspiration, vent, altitude, tour : à droite, sous la carte, avant le groupe et les coureurs. -->
+        <!-- Vent, altitude, tour : à droite, sous la carte, avant le groupe et les coureurs (l'aspiration est sous le cadran). -->
         <div class="panel hud-left" data-pnl="env">
-          <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
-          <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
-          <span class="hud-note" data-k="draftNote" data-hud="draft"></span>
           <span class="k" data-hud="wind">${S('wind')}</span><span class="v num" data-k="wind" data-hud="wind">–</span>
           <span class="k" data-hud="alt">${S('altitude')}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
           ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
@@ -806,6 +812,8 @@ export class Hud {
         ${groupPanel()}
         <div class="panel riders" data-k="riders" data-hud="riders" data-pnl="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
+        <!-- Temps par zone : en bas à droite, sous le chat ; se réduit ou se masque comme les autres panneaux de droite. -->
+        <div class="panel cx-zones" data-hud="zones" data-pnl="zones"><div class="cx-zhead"><span class="cx-l">${S('zoneTime')}</span><b class="num" data-k="zoneTime"></b></div><div class="cx-zbars" data-k="zoneBars">${ZONE_HEX.map((c) => `<i style="background:${c}"></i>`).join('')}</div><div class="cx-zlab">${ZONE_HEX.map((_, i) => `<span>Z${i + 1}</span>`).join('')}</div></div>
       </div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
       <div class="panel profile" data-hud="profile"><canvas width="1800" height="160"></canvas></div>
@@ -1184,6 +1192,10 @@ export class Hud {
       // Jauge sous le bandeau seulement quand on profite vraiment d'une roue.
       this.draftOn = this.draftOn ? s.draftPct >= 1.5 : s.draftPct >= 4;
       (e.draftBox as HTMLElement).classList.toggle('hidden', !this.draftOn);
+    } else {
+      // Socle sous le cadran : seulement quand on profite d'une roue (hystérésis pour ne pas clignoter).
+      this.draftOn = this.draftOn ? s.draftPct >= 0.5 : s.draftPct >= 1;
+      (e.draftBox as HTMLElement).classList.toggle('hidden', !this.draftOn);
     }
     if (s.wheelGapM !== undefined) {
       const w = s.wind;
@@ -1287,7 +1299,8 @@ export class Hud {
     }
 
     // Reconstruits seulement s'ils ont changé (10 fois par seconde sinon, boutons compris).
-    const devHtml = s.devices.map((d) => `<div class="${d.state}">${d.label}</div>`).join('');
+    // Cockpit complet : un capteur n'apparaît que s'il ne répond plus (le compact les montre au départ puis les estompe).
+    const devHtml = s.devices.filter((d) => cx || d.state === 'off').map((d) => `<div class="${d.state}">${d.label}</div>`).join('');
     setHtml(e.devices as HTMLElement, devHtml);
     if (cx) {
       // Capteurs : affichés au départ et à chaque changement (connexion, consigne du simulateur) pendant
@@ -1302,8 +1315,8 @@ export class Hud {
 
     setHtml(e.riders as HTMLElement, cx ? this.nearbyCompactHtml(s) : this.nearbyHtml(s));
     this.ensurePanelControls(e.riders as HTMLElement);
+    this.updateZones(s);
     if (cx) {
-      this.updateZones(s);
       this.updateToGo(s);
       fitCanvas(this.profileCanvas);
     }
@@ -1368,7 +1381,7 @@ export class Hud {
     setHtml(e.grpList as HTMLElement, list);
   }
 
-  /** HUD compact : temps cumulé par zone de puissance (barres rafraîchies chaque seconde), zone en cours. */
+  /** Temps cumulé par zone de puissance (barres rafraîchies chaque seconde), zone en cours. */
   private updateZones(s: HudState): void {
     const z = zoneIndex(s.watts3s, s.ftp);
     const dt = s.elapsedS - this.lastElapsed;
