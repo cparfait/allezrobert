@@ -5,7 +5,7 @@
  */
 import { open, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { forwardRouteId, parseStartedRouteId, reverseRoute, rotateRoute, RouteTrack, type RouteData, type RoutePoint, type RouteSummary } from '@allezrobert/shared';
+import { decodeRoute, forwardRouteId, parseStartedRouteId, reverseRoute, rotateRoute, RouteTrack, type RouteData, type RoutePoint, type RouteSummary } from '@allezrobert/shared';
 
 export const FALLBACK_ROUTE_ID = 'dev-boucle';
 /** Parcours construits à la demande (sens inverse, départ choisi) gardés en mémoire. */
@@ -106,7 +106,7 @@ export class RouteStore {
     if (!b) {
       let data: unknown;
       try {
-        data = JSON.parse(await this.readFileImpl(f.file));
+        data = decodeRoute(JSON.parse(await this.readFileImpl(f.file)));
       } catch {
         return undefined;
       }
@@ -219,7 +219,7 @@ export class RouteStore {
         const files = (await readdir(d)).filter((f) => f.endsWith('.json')).sort();
         for (const f of files) {
           try {
-            const data = JSON.parse(await readFile(path.join(d, f), 'utf8')) as RouteData;
+            const data = decodeRoute<RouteData>(JSON.parse(await readFile(path.join(d, f), 'utf8')));
             if (!isRouteData(data)) {
               log(`itinéraire ignoré (format) : ${f}`);
               continue;

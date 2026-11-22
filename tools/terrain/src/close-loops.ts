@@ -4,6 +4,7 @@
  *
  *   pnpm --filter @allezrobert/terrain close-loops
  */
+import { decodeRoute } from '@allezrobert/shared';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RouteData, WorldCatalogue, WorldMeta } from '@allezrobert/shared';
@@ -21,7 +22,7 @@ for (const id of fs.readdirSync(WORLDS_ROOT).sort()) {
   let metaChanged = false;
   for (const entry of meta.routes) {
     const file = path.join(dir, entry.file);
-    const route = JSON.parse(fs.readFileSync(file, 'utf8')) as RouteData;
+    const route = decodeRoute<RouteData>(JSON.parse(fs.readFileSync(file, 'utf8')));
     const loop = asCircuit(route);
     if (loop === route) continue;
     fs.writeFileSync(file, JSON.stringify(loop));

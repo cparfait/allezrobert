@@ -2,6 +2,7 @@
  * Vérification d'un monde construit : tailles, cohérence itinéraire ↔ terrain creusé,
  * continuité des bords de tuiles. `npx tsx tools/terrain/src/verify-world.ts [--world <id>]`
  */
+import { decodeRoute } from '@allezrobert/shared';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RoadGraphData, RouteData, WorldMeta } from '@allezrobert/shared';
@@ -46,7 +47,7 @@ function grid(tx: number, tz: number, lod: 'hi' | 'lo'): Grid | null {
 }
 
 for (const r of meta.routes) {
-  const route = JSON.parse(fs.readFileSync(path.join(OUT_DIR, r.file), 'utf8')) as RouteData;
+  const route = decodeRoute<RouteData>(JSON.parse(fs.readFileSync(path.join(OUT_DIR, r.file), 'utf8')));
   let maxErr = 0;
   let sumErr = 0;
   let n = 0;

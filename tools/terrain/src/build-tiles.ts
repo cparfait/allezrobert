@@ -14,6 +14,7 @@
  * Les itinéraires sont recalés sur le graphe OSM (arête la plus proche, filtre majoritaire) pour
  * creuser leur couloir en priorité et retirer leurs tronçons du réseau secondaire.
  */
+import { decodeRoute } from '@allezrobert/shared';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { RouteData, WorldMeta } from '@allezrobert/shared';
@@ -95,7 +96,7 @@ async function main(): Promise<void> {
   // Reste d'une construction interrompue remis en place, puis place libre sur les disques.
   preflight();
   const meta = JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'world.json'), 'utf8')) as WorldMeta;
-  const routes = meta.routes.map((r) => JSON.parse(fs.readFileSync(path.join(OUT_DIR, r.file), 'utf8')) as RouteData);
+  const routes = meta.routes.map((r) => decodeRoute<RouteData>(JSON.parse(fs.readFileSync(path.join(OUT_DIR, r.file), 'utf8'))));
   const nearId = arg('--near') ?? meta.mainRoute;
   const near = routes.find((r) => r.id === nearId);
   if (!near && !ALL) throw new Error(`itinéraire inconnu : ${nearId}`);

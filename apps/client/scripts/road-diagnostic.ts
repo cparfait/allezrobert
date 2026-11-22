@@ -9,6 +9,7 @@
  *
  * Usage : npx tsx apps/client/scripts/road-diagnostic.ts [monde=chevreuse] [--route=<id>] [--seg=224]
  */
+import { decodeRoute } from '@allezrobert/shared';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RouteData, RoutePoint, WorldMeta, WorldTile } from '@allezrobert/shared';
@@ -26,7 +27,7 @@ const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_li
 
 const routes: RouteData[] = readdirSync(join(dir, 'routes'))
   .filter((f) => f.endsWith('.json'))
-  .map((f) => JSON.parse(readFileSync(join(dir, 'routes', f), 'utf8')) as RouteData)
+  .map((f) => decodeRoute<RouteData>(JSON.parse(readFileSync(join(dir, 'routes', f), 'utf8'))))
   .filter((r) => !only || r.id === only);
 
 const tiles = new Map<string, WorldTile | null>();

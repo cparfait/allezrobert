@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type RouteData, type WorldMeta, type WorldTile } from '@allezrobert/shared';
+import { decodeRoute, type RouteData, type WorldMeta, type WorldTile } from '@allezrobert/shared';
 import { BUILDING_COLLISION_RADIUS_M } from '../../../packages/physics/src/building-collision.ts';
 import { buildCollisionManifest } from '../../../packages/physics/src/collision-manifest.ts';
 import { BuildingObstacleIndex, type BuildingObstacle, type BuildingObstacleData, type ObstaclePoint } from '../../../packages/physics/src/building-obstacles.ts';
@@ -18,7 +18,8 @@ const NARROW_ROADS = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway
 const HEIGHT_M = 1.85;
 
 async function read<T>(file: string): Promise<{ value: T; hash: string }> {
-  const value = JSON.parse(await readFile(file, 'utf8')) as T;
+  // Itinéraire compact ou non : décodé avant l'empreinte (même contenu, même empreinte ; routeCodec.ts).
+  const value = decodeRoute<T>(JSON.parse(await readFile(file, 'utf8')));
   return { value, hash: createHash('sha256').update(JSON.stringify(value)).digest('hex') };
 }
 

@@ -1,3 +1,4 @@
+import { decodeRoute } from '@allezrobert/shared';
 import type { RoadGraphData, RouteData, WorldMeta, WorldPlace } from '@allezrobert/shared';
 import { LOW_POLY } from '../engine/style.ts';
 import type { HorizonGrid, LoadedTile, WorldSource } from './types.ts';
@@ -22,7 +23,8 @@ export async function createFileWorld(id: string, meta: WorldMeta): Promise<Worl
       const ref = refs.find((r) => r.id === routeId);
       const res = ref ? await fetch(`${base}/${ref.file}`) : null;
       if (!res?.ok) throw new Error(`Itinéraire ${routeId} introuvable`);
-      return (await res.json()) as RouteData;
+      // Ancien format (points en objets) ou compact (pointsFlat) : routeCodec.ts.
+      return decodeRoute<RouteData>(await res.json());
     },
   );
   // Monde ouvert : noms des lieux habités pour la carte d'itinéraire du menu (facultatifs). Le graphe routier (15 à 35 Mo de JSON par zone) est chargé à la demande (`openGraphReady`,

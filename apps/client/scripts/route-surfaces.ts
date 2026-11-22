@@ -4,6 +4,7 @@
  *
  * Usage : npx tsx apps/client/scripts/route-surfaces.ts [dossier du monde=apps/client/public/worlds/chevreuse] [--route=<id>]
  */
+import { decodeRoute } from '@allezrobert/shared';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RouteData, WorldMeta, WorldTile } from '@allezrobert/shared';
@@ -38,7 +39,7 @@ function roadsAt(x: number, z: number): TileRoad[] | null {
 }
 
 for (const f of readdirSync(join(dir, 'routes')).filter((n) => n.endsWith('.json'))) {
-  const route = JSON.parse(readFileSync(join(dir, 'routes', f), 'utf8')) as RouteData;
+  const route = decodeRoute<RouteData>(JSON.parse(readFileSync(join(dir, 'routes', f), 'utf8')));
   if (only && route.id !== only) continue;
   const len: Partial<Record<Surface | 'inconnu' | 'sans tuile', number>> = {};
   const changes: string[] = [];

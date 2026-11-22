@@ -7,6 +7,7 @@
  * `--style flat` : carte d'affiche pour le menu (vignette de la zone) : aplats sans relief ombré, mer sombre
  * accordée à l'interface, bois et lacs en aplats, seules les grandes routes tracées en clair.
  */
+import { decodeRoute } from '../../../packages/shared/src/routeCodec.ts';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
@@ -152,7 +153,7 @@ for (const kind of ['track', 'cycleway', 'unclassified', 'residential', 'tertiar
 for (const t of tiles) for (const bd of t.buildings) put(bd.pts[0]!, bd.pts[1]!, [110, 60, 60]);
 }
 if (ROUTE && existsSync(join(DIR, 'routes', `${ROUTE}.json`))) {
-  const r = JSON.parse(readFileSync(join(DIR, 'routes', `${ROUTE}.json`), 'utf8')) as RouteData;
+  const r = decodeRoute<RouteData>(JSON.parse(readFileSync(join(DIR, 'routes', `${ROUTE}.json`), 'utf8')));
   line(r.points.flatMap((p) => [p.x, p.z]), 2, [20, 60, 230], 2);
 }
 

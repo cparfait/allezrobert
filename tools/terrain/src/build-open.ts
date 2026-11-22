@@ -16,7 +16,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
+import { decodeRoute, OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
 import { startOnRoad } from './open-start.ts';
 import { PLACES_FILE, placesOf } from './places.ts';
 import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, GARMIN_DIR, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, PRIVACY_RADIUS_M, QUALITY, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour } from './config.ts';
@@ -122,7 +122,7 @@ async function main(): Promise<void> {
   const prevMeta: WorldMeta | null = KEEP ? (JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'world.json'), 'utf8')) as WorldMeta) : null;
   const kept: RouteOnGraph[] = [];
   for (const ref of prevMeta?.routes ?? []) {
-    const data = JSON.parse(fs.readFileSync(path.join(OUT_DIR, ref.file), 'utf8')) as RouteData;
+    const data = decodeRoute<RouteData>(JSON.parse(fs.readFileSync(path.join(OUT_DIR, ref.file), 'utf8')));
     const m = matchRide(g, data.points.map((p) => ({ lat: 0, lon: 0, ele: p.y, t: NaN, x: p.x, z: p.z })));
     if (!m.matched.length) throw new Error(`${ref.id} : itinéraire hors du réseau OSM`);
     const edgeOf: number[] = [];

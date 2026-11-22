@@ -11,6 +11,7 @@
  *
  *   npx tsx tools/island/src/verify.ts      (relit le monde déjà écrit)
  */
+import { decodeRoute } from '../../../packages/shared/src/routeCodec.ts';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { deltaDecodeU16 } from '../../../packages/shared/src/heights.ts';
@@ -511,7 +512,7 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
       check(`itinéraire ${ri.id}`, [`${ri.file} absent`]);
       continue;
     }
-    const r = JSON.parse(readFileSync(file, 'utf8')) as RouteData;
+    const r = decodeRoute<RouteData>(JSON.parse(readFileSync(file, 'utf8')));
     const P = r.points;
     const ring = ri.id === 'anneau';
     let d = 0;

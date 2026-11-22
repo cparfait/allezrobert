@@ -2,6 +2,7 @@ export * from './sensors.ts';
 export * from './emitter.ts';
 export * from './rider.ts';
 export * from './route.ts';
+export * from './routeCodec.ts';
 export * from './net.ts';
 export * from './activity.ts';
 export * from './friends.ts';
