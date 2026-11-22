@@ -81,6 +81,7 @@ import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challe
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
 import { showSummit } from './ui/summit.ts';
 import { fetchMe, showLogin, earlyLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
+import { stravaReturnTab } from './ui/stravaLink.ts';
 import { sendRideInvites } from './ui/friends.ts';
 import { RideSequences } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
@@ -1060,12 +1061,13 @@ async function boot(): Promise<void> {
       menu.account = me ? { name: me.profile.displayName, level: me.progression.level, ...(me.atelier ? { credits: me.atelier.credits } : {}) } : null;
       // Retour de la liaison Strava : on revient sur la rubrique des Réglages qui l'affiche.
       const fromStrava = new URLSearchParams(location.search).has('strava');
-      if (fromStrava) menu.openSettingsSection('lang');
+      const stravaTab = fromStrava ? stravaReturnTab() : null;
+      if (stravaTab === 'settings') menu.openSettingsSection('lang');
       // Toujours l'accueil d'abord : son bouton « Rouler » (visible une fois le garage chargé) donne le premier geste qui
       // autorise le son, puis ouvre le tutoriel au premier lancement (menu.onHomeRide) ou l'onglet Rouler.
       const afterRide = sessionStorage.getItem(AFTER_RIDE_KEY) !== null;
       sessionStorage.removeItem(AFTER_RIDE_KEY);
-      menu.show(fromStrava ? 'settings' : afterRide ? 'ride' : 'home');
+      menu.show(stravaTab ?? (afterRide ? 'ride' : 'home'));
       // Sortie interrompue (onglet fermé, plantage) : proposée une fois le menu affiché (invité : rien n'est gardé).
       if (!settings.guest) void offerRideRecovery(defaultDraftStore(), { save: (d) => saveRecoveredRide(d), fit: (d) => downloadRecoveredFit(d) });
     };

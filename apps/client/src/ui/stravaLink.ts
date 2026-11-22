@@ -12,7 +12,7 @@ interface StravaState {
 const S = strings(
   {
     detail: 'Envoi automatique des sorties enregistrées.',
-    signIn: 'Connecte-toi avec Discord ou Google (en haut à droite) pour relier ton compte Strava.',
+    signIn: 'Connecte-toi (bouton « Se connecter », en haut à droite) pour relier ton compte Strava.',
     stateSignedOut: 'Sans compte',
     checking: 'Vérification…',
     linked: 'Compte Strava relié.',
@@ -34,7 +34,7 @@ const S = strings(
   },
   {
     detail: 'Saved rides are uploaded automatically.',
-    signIn: 'Sign in with Discord or Google (top right) to link your Strava account.',
+    signIn: 'Sign in (top right) to link your Strava account.',
     stateSignedOut: 'No account',
     checking: 'Checking…',
     linked: 'Strava account linked.',
@@ -87,27 +87,54 @@ let returned: string | null | undefined;
  * Images officielles de Strava (developers.strava.com/guidelines, archives 1.1 et 1.2), utilisées telles quelles :
  * bouton « Connect with Strava » (48 px de haut) et logo « Compatible with Strava » (blanc, sur fond sombre).
  */
-const STRAVA_BUTTON = `${import.meta.env.BASE_URL}strava/btn_strava_connect_with_orange.svg`;
+export const STRAVA_BUTTON = `${import.meta.env.BASE_URL}strava/btn_strava_connect_with_orange.svg`;
 export const STRAVA_COMPATIBLE_LOGO = `${import.meta.env.BASE_URL}strava/api_logo_cptblWith_strava_horiz_white.svg`;
 /** Logo « Compatible with Strava », plus discret que le nom du jeu (règles de marque de Strava). */
 export function stravaCompatibleHtml(): string {
   return `<img class="strava-compat" src="${STRAVA_COMPATIBLE_LOGO}" alt="Compatible with Strava" height="14" loading="lazy" />`;
 }
 
+/** « tile » : gros bloc des Réglages ; « row » : ligne de réglage de l'écran Profil (même contenu, même liaison). */
+export type StravaLayout = 'tile' | 'row';
+type Tone = '' | 'is-ok' | 'is-info' | 'is-warn' | 'is-bad';
+
+/** Onglet d'où la liaison est partie (navigateur : la page est quittée pour Strava), pour y revenir au retour. */
+const RETURN_TAB_KEY = 'ar.stravaFrom';
+export function stravaReturnTab(): 'profile' | 'settings' {
+  try {
+    const v = sessionStorage.getItem(RETURN_TAB_KEY);
+    sessionStorage.removeItem(RETURN_TAB_KEY);
+    return v === 'profile' ? 'profile' : 'settings';
+  } catch {
+    return 'settings';
+  }
+}
+
+/** Ligne « Strava » de l'écran Profil : nom et détail à gauche, état en toutes lettres et action à droite. */
+function row(tone: Tone, detail: string, state: string, action: string, flash: string): string {
+  const off = tone === '' && !action ? ' is-off' : '';
+  return `<div class="mm-opt strava-row${off}"><div class="mm-opt-l"><b>Strava</b><small>${detail}</small>${flash}${stravaCompatibleHtml()}</div><div class="strava-row-r"><span class="ab-state ${tone}"><i></i>${state}</span>${action}</div></div>`;
+}
+
+/** Bloc ou ligne « Strava », selon l'écran ; `flash` = message du retour de Strava. */
+function block(layout: StravaLayout, tone: Tone, detail: string, state: string, action = '', flash = ''): string {
+  return layout === 'row' ? row(tone, detail, state, action, flash) : flash + tile(tone, detail, state, action);
+}
+
 /** Bloc « Strava » au langage des gros blocs : icône, détail, état en toutes lettres, action en pied. */
-function tile(tone: '' | 'is-ok' | 'is-info' | 'is-warn' | 'is-bad', detail: string, state: string, action = ''): string {
+function tile(tone: Tone, detail: string, state: string, action = ''): string {
   return `<div class="ab-tile ${tone}" style="padding:14px 16px 12px"><span class="ab-ico sm">${UPLOAD_ICON}</span><span class="ab-name">Strava</span><span class="ab-detail">${detail}</span><span class="ab-state"><i></i>${state}</span>${action}</div><div class="strava-compat-row">${stravaCompatibleHtml()}</div>`;
 }
 
 /** Application de bureau : adresse de liaison ouverte dans le navigateur du PC, puis attente de la liaison (5 min). */
-async function linkFromDesktop(el: Element): Promise<void> {
-  el.innerHTML = tile('is-info', S('desktopWait'), S('stateWaiting'));
+async function linkFromDesktop(el: Element, layout: StravaLayout): Promise<void> {
+  el.innerHTML = block(layout, 'is-info', S('desktopWait'), S('stateWaiting'));
   try {
     const r = await fetch(`${apiBase()}/integrations/strava/link-url`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect: '/site/strava.html' }) });
     if (!r.ok) throw new Error(String(r.status));
     await openExternal(((await r.json()) as { url: string }).url);
   } catch {
-    el.innerHTML = tile('is-bad', S('failed'), S('stateUnreachable'));
+    el.innerHTML = block(layout, 'is-bad', S('failed'), S('stateUnreachable'));
     return;
   }
   const until = Date.now() + 5 * 60_000;
@@ -116,53 +143,58 @@ async function linkFromDesktop(el: Element): Promise<void> {
     const st = await fetchStrava();
     if (st?.connected) {
       returned = 'linked';
-      renderStravaLink(el, true);
+      renderStravaLink(el, true, layout);
       return;
     }
   }
-  if (el.isConnected) renderStravaLink(el, true);
+  if (el.isConnected) renderStravaLink(el, true, layout);
 }
 
 /**
  * Liaison du compte Strava (Réglages → envoi des sorties) : visible une fois connecté avec Discord, Google ou
  * un lien magique. La sortie part ensuite vers Strava à l'enregistrement, sauf option « Ne pas envoyer ».
  */
-export function renderStravaLink(el: Element | null, loggedIn: boolean): void {
+export function renderStravaLink(el: Element | null, loggedIn: boolean, layout: StravaLayout = 'tile'): void {
   if (!el) return;
   returned ??= takeReturnCode();
   if (!loggedIn) {
-    el.innerHTML = tile('', S('signIn'), S('stateSignedOut'));
+    el.innerHTML = block(layout, '', S('signIn'), S('stateSignedOut'));
     return;
   }
-  el.innerHTML = tile('', S('detail'), S('checking'));
+  el.innerHTML = block(layout, '', S('detail'), S('checking'));
   void fetchStrava().then((st) => {
     if (!el.isConnected) return;
     const msg = returned === 'linked' ? S('linked') : returned === 'scope' ? S('scope') : returned === 'failed' ? S('failed') : '';
-    const flash = msg ? `<p class="ab-sub" style="color:#ffe37a;font-size:14px;margin:0 0 8px" role="status">${msg}</p>` : '';
+    const flash = !msg ? '' : layout === 'row' ? `<small class="strava-flash" role="status">${msg}</small>` : `<p class="ab-sub" style="color:#ffe37a;font-size:14px;margin:0 0 8px" role="status">${msg}</p>`;
     if (!st) {
-      el.innerHTML = tile('is-bad', S('unreachable'), S('stateUnreachable'));
+      el.innerHTML = block(layout, 'is-bad', S('unreachable'), S('stateUnreachable'));
     } else if (!st.available) {
-      el.innerHTML = flash + tile('is-warn', S('notConfigured'), S('stateNotConfigured'));
+      el.innerHTML = block(layout, 'is-warn', S('notConfigured'), S('stateNotConfigured'), '', flash);
     } else if (st.connected) {
       const detail = st.athleteName ? S('connectedAs').replace('{name}', esc(st.athleteName)) : S('connectedNoName');
-      el.innerHTML = flash + tile('is-ok', detail, S('stateLinked'), `<button type="button" class="ab-btn ab-chip" id="strava-unlink">${S('unlink')}</button>`);
+      el.innerHTML = block(layout, 'is-ok', detail, S('stateLinked'), `<button type="button" class="ab-btn ab-chip" id="strava-unlink">${S('unlink')}</button>`, flash);
       el.querySelector('#strava-unlink')?.addEventListener('click', async () => {
         await fetch(`${apiBase()}/integrations/strava`, { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
         returned = null;
-        renderStravaLink(el, true);
+        renderStravaLink(el, true, layout);
       });
     } else {
       // Bouton officiel « Connect with Strava » (image de Strava, non modifiée) : il mène à la page d'autorisation de Strava.
-      el.innerHTML = flash + tile('', S('linkHint'), S('stateNotLinked'), `<button type="button" class="strava-connect" id="strava-link" aria-label="${S('link')}"><img src="${STRAVA_BUTTON}" alt="Connect with Strava" width="237" height="48" /></button>`);
+      el.innerHTML = block(layout, '', S('linkHint'), S('stateNotLinked'), `<button type="button" class="strava-connect" id="strava-link" aria-label="${S('link')}"><img src="${STRAVA_BUTTON}" alt="Connect with Strava" width="237" height="48" /></button>`, flash);
       el.querySelector('#strava-link')?.addEventListener('click', () => {
         if (!inDesktopApp) {
-          // Navigateur : aller-retour sur Strava, retour sur le jeu (/jouer).
+          // Navigateur : aller-retour sur Strava, retour sur le jeu (/jouer), dans l'écran d'où l'on est parti.
+          try {
+            sessionStorage.setItem(RETURN_TAB_KEY, layout === 'row' ? 'profile' : 'settings');
+          } catch {
+            // Stockage indisponible : le retour se fait dans les Réglages.
+          }
           location.href = `${apiBase()}/integrations/strava/start?redirect=${encodeURIComponent(location.pathname)}`;
           return;
         }
         // Application de bureau : la liaison se fait dans le navigateur du PC (l'application ne quitte pas son écran),
         // puis l'application vérifie toutes les 3 s que le compte est relié.
-        void linkFromDesktop(el);
+        void linkFromDesktop(el, layout);
       });
     }
     returned = null;

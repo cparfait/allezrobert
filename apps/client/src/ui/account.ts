@@ -1,3 +1,4 @@
+import { STRAVA_BUTTON } from './stravaLink.ts';
 import type { AvatarLook } from '@allezrobert/shared';
 import { serverEndpoint } from '../game/multiplayer.ts';
 import './blocks.css';
@@ -23,6 +24,8 @@ export interface Me {
 interface Providers {
   google: boolean;
   discord: boolean;
+  /** Absent sur un serveur plus ancien que la connexion avec Strava. */
+  strava?: boolean;
   email: boolean;
   dev: boolean;
 }
@@ -105,11 +108,9 @@ const S = strings(
   {
     tagline: 'Connecte-toi pour rouler en groupe, garder ta progression et envoyer tes sorties.',
     withAccount: 'Avec un compte',
-    withAccountDetail: 'Google, Discord ou un lien par e-mail',
     withoutAccount: 'Sans compte',
-    withoutAccountDetail: 'Pour rouler seul tout de suite',
     with1: 'Amis et sorties de groupe',
-    with2: 'Progression et historique sur tous tes appareils',
+    with2: 'Progression et historique',
     with3: 'Envoi vers Strava',
     without1: 'Sorties solo, tous les parcours',
     without2: 'Tout reste sur cet appareil',
@@ -117,6 +118,7 @@ const S = strings(
     signIn: 'Se connecter',
     google: 'Continuer avec Google',
     discord: 'Continuer avec Discord',
+    strava: 'Se connecter avec Strava',
     emailPlaceholder: 'adresse e-mail',
     emailLabel: 'Adresse e-mail pour recevoir un lien de connexion',
     getLink: 'Recevoir un lien',
@@ -137,11 +139,9 @@ const S = strings(
   {
     tagline: 'Sign in to ride with friends, keep your progress and upload rides.',
     withAccount: 'With an account',
-    withAccountDetail: 'Google, Discord or an email link',
     withoutAccount: 'Without an account',
-    withoutAccountDetail: 'To ride solo right away',
     with1: 'Friends and group rides',
-    with2: 'Progress and history on every device',
+    with2: 'Progress and history',
     with3: 'Upload to Strava',
     without1: 'Solo rides, every route',
     without2: 'Everything stays on this device',
@@ -149,6 +149,7 @@ const S = strings(
     signIn: 'Sign in',
     google: 'Continue with Google',
     discord: 'Continue with Discord',
+    strava: 'Sign in with Strava',
     emailPlaceholder: 'email address',
     emailLabel: 'Email address to receive a sign-in link',
     getLink: 'Get a link',
@@ -168,10 +169,6 @@ const S = strings(
   },
 );
 
-/** Icônes au trait des deux blocs (24 × 24, couleur du texte). */
-const ICON_GROUP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 19.5c.6-3.4 3-5.3 6-5.3s5.4 1.9 6 5.3"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14.3c2.4.2 4 1.8 4.5 4.6"/></svg>';
-const ICON_SOLO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="7.5" r="3.4"/><path d="M5 20c.7-4 3.5-6.2 7-6.2s6.3 2.2 7 6.2"/></svg>';
-
 function esc(t: string): string {
   return t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 }
@@ -186,19 +183,21 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
   const back = encodeURIComponent(location.pathname);
   const GOOGLE_G = '<svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
   const DISCORD_LOGO = '<svg viewBox="0 0 127.14 96.36" width="22" height="17" fill="#fff" aria-hidden="true"><path d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15zM42.45 65.69C36.18 65.69 31 60 31 53s5-12.74 11.43-12.74S54 46 53.89 53s-5.05 12.69-11.44 12.69zm42.24 0C78.41 65.69 73.25 60 73.25 53s5-12.74 11.44-12.74S96.23 46 96.12 53s-5.04 12.69-11.43 12.69z"/></svg>';
+  // Strava : bouton officiel « Connect with Strava » (image de Strava, non modifiée), comme pour la liaison du compte.
+  const stravaBtn = prov?.strava ? `<button type="button" class="strava-connect lg-strava" id="l-strava" aria-label="${S('strava')}"><img src="${STRAVA_BUTTON}" alt="Connect with Strava" width="237" height="48" /></button>` : '';
   // Boutons des fournisseurs : aux couleurs de Google et de Discord (chartes des marques), forme des blocs.
   const btn = (id: string, label: string, cls: string, icon: string, on: boolean) => (on ? `<button type="button" class="ab-btn lg-prov ${cls}" id="${id}">${icon}${label}</button>` : '');
   const list = (items: string[]) => `<ul class="lg-list">${items.map((x) => `<li>${x}</li>`).join('')}</ul>`;
   root.innerHTML = `<div class="menu"><div class="card panel lg-card">
     <header class="lg-head"><h1 class="ab-title">Allez <em>Robert</em> !</h1><p class="ab-sub">${S('tagline')}</p></header>
     <div class="ab-grid ab-grid-2 lg-modes">
-      <div class="ab-tile is-on"><span class="ab-ico sm">${ICON_GROUP}</span><span class="ab-name">${S('withAccount')}</span><span class="ab-detail">${S('withAccountDetail')}</span><div class="lg-tile-body">${list([S('with1'), S('with2'), S('with3')])}</div></div>
-      <div class="ab-tile"><span class="ab-ico sm">${ICON_SOLO}</span><span class="ab-name">${S('withoutAccount')}</span><span class="ab-detail">${S('withoutAccountDetail')}</span><div class="lg-tile-body">${list([S('without1'), S('without2'), S('without3')])}</div></div>
+      <div class="ab-tile is-on"><span class="ab-name">${S('withAccount')}</span><div class="lg-tile-body">${list([S('with1'), S('with2'), S('with3')])}</div></div>
+      <div class="ab-tile"><span class="ab-name">${S('withoutAccount')}</span><div class="lg-tile-body">${list([S('without1'), S('without2'), S('without3')])}</div></div>
     </div>
     ${
       prov
         ? `<section class="lg-signin"><h2 class="ab-section">${S('signIn')}</h2>
-      ${btn('l-google', S('google'), 'lg-google', GOOGLE_G, prov.google)}${btn('l-discord', S('discord'), 'lg-discord', DISCORD_LOGO, prov.discord)}
+      <div class="lg-provs">${btn('l-google', S('google'), 'lg-google', GOOGLE_G, prov.google)}${btn('l-discord', S('discord'), 'lg-discord', DISCORD_LOGO, prov.discord)}${stravaBtn}</div>
       ${
         prov.email
           ? `<form id="l-magic" class="lg-form"><input id="l-email" type="email" required placeholder="${S('emailPlaceholder')}" aria-label="${S('emailLabel')}" class="lg-input"/><button class="ab-btn" type="submit">${S('getLink')}</button></form><div id="l-msg" class="lg-msg" role="status"></div>`
@@ -225,12 +224,13 @@ export async function showLogin(root: HTMLElement, s: Settings, done: (me: Me | 
     if (me) applyProfile(me, s);
     done(me);
   };
-  const oauth = (provider: 'google' | 'discord') => {
+  const oauth = (provider: 'google' | 'discord' | 'strava') => {
     if (!desktop) return void (location.href = `${apiBase()}/auth/${provider}/start?redirect=${back}`);
     void desktop.open(`${apiBase()}/auth/${provider}/start?redirect=${encodeURIComponent(desktop.redirect)}`).then(waitDesktop);
   };
   $('l-google')?.addEventListener('click', () => oauth('google'));
   $('l-discord')?.addEventListener('click', () => oauth('discord'));
+  $('l-strava')?.addEventListener('click', () => oauth('strava'));
   $('l-magic')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = ($('l-email') as HTMLInputElement).value.trim();

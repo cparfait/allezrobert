@@ -8,7 +8,7 @@ import { createDb, migrate, type Db } from '../src/db/db.ts';
 import { Repos } from '../src/db/repos.ts';
 import { DataCipher } from '../src/crypto.ts';
 import { authorizeUrl, exchangeCode, fetchIdentity, newPkce } from '../src/auth/oauth.ts';
-import { loginClient } from '../src/http/auth-routes.ts';
+import { loginClient, stravaLoginClient } from '../src/http/auth-routes.ts';
 import { testConfig } from '../src/config.ts';
 import { createContext } from '../src/context.ts';
 import { RouteStore } from '../src/ride/routes.ts';
@@ -72,6 +72,19 @@ describe('configuration : bouton masqué sans identifiants', () => {
     expect(loginClient(mk({ DISCORD_CLIENT_ID: 'x', DISCORD_CLIENT_SECRET: 'y' }), 'discord')!.redirectUri).toBe('http://localhost:2567/api/auth/discord/callback');
     await db.close();
   });
+
+  it('Strava : même application que l’envoi des sorties, adresse de retour de la connexion', async () => {
+    const db = await createDb('memory');
+    const mk = (o: Record<string, string>) => createContext(testConfig(o), db, null as unknown as RouteStore, {});
+    expect(stravaLoginClient(mk({}))).toBeNull();
+    expect(stravaLoginClient(mk({ STRAVA_CLIENT_ID: '1' }))).toBeNull();
+    const c = stravaLoginClient(mk({ STRAVA_CLIENT_ID: '1', STRAVA_CLIENT_SECRET: 'y' }))!;
+    expect(c.redirectUri).toBe('http://localhost:2567/api/auth/strava/callback');
+    const u = new URL(authorizeUrl('strava', c, newPkce()));
+    expect(u.origin + u.pathname).toBe('https://www.strava.com/oauth/authorize');
+    expect(u.searchParams.get('redirect_uri')).toBe(c.redirectUri);
+    await db.close();
+  });
 });
 
 describe('liaison de compte', () => {
@@ -98,6 +111,12 @@ describe('liaison de compte', () => {
     expect(viaDiscord.id).toBe(magic.id);
     // La même personne revient ensuite par Google avec le même e-mail vérifié.
     expect((await repos.upsertIdentity('google', 'g-2', 'Bob', h)).id).toBe(magic.id);
+  });
+
+  it('Strava : même athlète = même compte, jamais fusionné avec un autre fournisseur', async () => {
+    const a = await repos.upsertIdentity('strava', '12345', 'Zoé');
+    expect((await repos.upsertIdentity('strava', '12345', 'Zoé')).id).toBe(a.id);
+    expect((await repos.upsertIdentity('discord', '12345', 'Zoé')).id).not.toBe(a.id);
   });
 
   it('e-mail non vérifié (pas d’empreinte) : jamais de fusion, compte distinct', async () => {

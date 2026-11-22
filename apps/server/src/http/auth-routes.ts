@@ -1,5 +1,5 @@
 /**
- * Authentification : OAuth Google / Discord, lien magique par e-mail, session par cookie
+ * Authentification : OAuth Google / Discord / Strava, lien magique par e-mail, session par cookie
  * HTTP-only (JWT jose + ligne `sessions` révocable), jeton de jeu pour la connexion WebSocket.
  */
 import express, { type Response } from 'express';
@@ -17,6 +17,13 @@ export function loginClient(ctx: AppContext, provider: LoginProvider): OAuthClie
   const secret = provider === 'google' ? c.GOOGLE_CLIENT_SECRET : c.DISCORD_CLIENT_SECRET;
   if (!id || !secret) return null;
   return { clientId: id, clientSecret: secret, redirectUri: `${c.apiPublicUrl}/api/auth/${provider}/callback` };
+}
+
+/** Connexion avec Strava : la même application Strava que l'envoi des sorties, avec sa propre adresse de retour. */
+export function stravaLoginClient(ctx: AppContext): OAuthClient | null {
+  const c = ctx.config;
+  if (!c.STRAVA_CLIENT_ID || !c.STRAVA_CLIENT_SECRET) return null;
+  return { clientId: c.STRAVA_CLIENT_ID, clientSecret: c.STRAVA_CLIENT_SECRET, redirectUri: `${c.apiPublicUrl}/api/auth/strava/callback` };
 }
 
 /** Ouvre une session : ligne en base + cookie HTTP-only signé. */
@@ -40,6 +47,7 @@ export function authRoutes(ctx: AppContext): express.Router {
     res.json({
       google: !!loginClient(ctx, 'google'),
       discord: !!loginClient(ctx, 'discord'),
+      strava: !!stravaLoginClient(ctx),
       email: ctx.mailer.enabled,
       dev: ctx.config.DEV_LOGIN && ctx.config.NODE_ENV !== 'production',
     });
@@ -76,6 +84,42 @@ export function authRoutes(ctx: AppContext): express.Router {
       }
     });
   }
+
+  /**
+   * Connexion avec Strava. L'athlète (identifiant, prénom) arrive avec le jeton : pas d'e-mail, donc jamais de fusion
+   * avec un compte Google ou Discord. Si l'envoi d'activités a été autorisé, le compte Strava est relié du même coup.
+   */
+  r.get('/strava/start', async (req, res) => {
+    const client = stravaLoginClient(ctx);
+    if (!client) throw new HttpError(404, 'Connexion strava non configurée', 'not_configured');
+    const pkce = newPkce();
+    const state = await ctx.tokens.signOAuthState({ provider: 'strava-login', state: pkce.state, verifier: pkce.verifier, redirect: safeRedirect(req.query.redirect) });
+    res.append('Set-Cookie', serializeCookie(OAUTH_COOKIE, state, { secure: ctx.config.cookieSecure, maxAgeS: 600, path: '/api' }));
+    res.redirect(302, authorizeUrl('strava', client, pkce));
+  });
+
+  r.get('/strava/callback', async (req, res) => {
+    const client = stravaLoginClient(ctx);
+    if (!client) throw new HttpError(404, 'Connexion strava non configurée', 'not_configured');
+    const st = await ctx.tokens.verifyOAuthState(parseCookies(req.headers.cookie)[OAUTH_COOKIE] ?? '');
+    res.append('Set-Cookie', serializeCookie(OAUTH_COOKIE, '', { secure: ctx.config.cookieSecure, maxAgeS: 0, path: '/api' }));
+    if (!st || st.provider !== 'strava-login' || st.state !== req.query.state || typeof req.query.code !== 'string') {
+      return res.redirect(302, redirectTo(ctx, '/?login=failed'));
+    }
+    try {
+      const tok = await exchangeCode('strava', client, req.query.code, st.verifier, ctx.fetchFn);
+      const athlete = (tok.athlete ?? {}) as { id?: unknown; firstname?: unknown };
+      if (athlete.id === undefined || athlete.id === null) throw new Error('athlète absent de la réponse');
+      const name = typeof athlete.firstname === 'string' && athlete.firstname.trim() ? athlete.firstname.trim().slice(0, 40) : 'Coureur';
+      const user = await ctx.repos.upsertIdentity('strava', String(athlete.id), name);
+      if (String(req.query.scope ?? '').includes('activity:write')) await ctx.uploads.linkStrava(user.id, tok);
+      await openSession(ctx, res, user);
+      res.redirect(302, redirectTo(ctx, st.redirect));
+    } catch (e) {
+      ctx.log('warn', `OAuth strava : ${(e as Error).message}`);
+      res.redirect(302, redirectTo(ctx, '/?login=failed'));
+    }
+  });
 
   r.post('/magic', async (req, res) => {
     const body = z

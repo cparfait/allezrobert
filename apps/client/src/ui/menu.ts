@@ -2366,6 +2366,7 @@ export class MainMenu {
         <div class="mm-right">
           ${this.musicInHero() ? '' : '<div class="mm-music" id="m-music"></div>'}
           <div class="mm-account">
+            <div class="mm-idcard">
             <button type="button" class="mm-me-card mm-me" data-tab="profile" title="${S('myProfile')}">
               <span class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</span>
               <span class="mm-who"><b>${esc(name)}</b><span class="mm-lvl"><em>${S('level')} ${level}</em><i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i>${
@@ -2374,6 +2375,7 @@ export class MainMenu {
               }</span></span>
             </button>
             <button type="button" class="mm-credits" title="${S('creditsOpenTheGarage')}">${COIN}<b>${(this.account?.credits ?? p.credits).toLocaleString(MX('locale'))}</b><small>${MX('credits')}</small></button>
+            </div>
             ${this.account ? `<button type="button" class="mm-link" id="m-logout">${S('signOut')}</button>` : `<button type="button" class="ab-btn mm-signin" id="m-login">${S('signIn')}</button>`}
           </div>
           ${inDesktop ? `<button class="mm-quit" id="m-quit" title="${S('quitAllezRobert')}" aria-label="${S('quit')}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>` : ''}
@@ -2407,6 +2409,7 @@ export class MainMenu {
     renderSoundSettings(this.root.querySelector('#m-sound-settings'));
     renderCompanionSettings(this.root.querySelector('#m-companion-settings'));
     renderStravaLink(this.root.querySelector('#m-strava-link'), !!this.account);
+    renderStravaLink(this.root.querySelector('#m-strava-profile'), !!this.account, 'row');
     this.renderZonesSettings();
     renderExpertSettings(this.root.querySelector('#m-expert-settings'));
     // Rubriques repliables des Réglages : on retient celles qui sont ouvertes (l'écran est redessiné à chaque changement).
@@ -3715,6 +3718,7 @@ export class MainMenu {
         ${row(t('weight'), S('countsOnTheClimbs'), this.stepper('m-mass', 30, 200, s.massKg, 0.5), 'm-mass')}
         ${row(t('height'), S('countsForYourDrag'), this.stepper('m-height', 120, 220, s.heightCm), 'm-height')}
         ${row(t('ftp'), S('setsWorkoutsAndZones'), this.stepper('m-ftp', 50, 600, s.ftpWatts), 'm-ftp')}
+        <div id="m-strava-profile"></div>
       </div>
     </section>`;
   }

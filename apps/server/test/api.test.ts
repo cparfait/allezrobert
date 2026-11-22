@@ -31,7 +31,7 @@ const fakeFetch: typeof fetch = async (input, init) => {
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
   if (url.startsWith('https://oauth2.googleapis.com/token')) return json({ access_token: 'g-access' });
   if (url.startsWith('https://openidconnect.googleapis.com/v1/userinfo')) return json({ sub: 'g-123', given_name: 'Gégé', email: 'gege@example.fr', email_verified: true });
-  if (url.startsWith('https://www.strava.com/oauth/token')) return json({ access_token: 's-access', refresh_token: 's-refresh', expires_at: Math.floor(Date.now() / 1000) + 3600, athlete: { firstname: 'Gégé' } });
+  if (url.startsWith('https://www.strava.com/oauth/token')) return json({ access_token: 's-access', refresh_token: 's-refresh', expires_at: Math.floor(Date.now() / 1000) + 3600, athlete: { id: 777, firstname: 'Gégé' } });
   if (url.startsWith('https://www.strava.com/api/v3/uploads')) return json({ id: 42, id_str: '42', status: 'Your activity is still being processed.' }, 201);
   if (url.startsWith('https://intervals.icu/api/v1/athlete/0/activities')) return json({ id: 'i77' });
   if (url.startsWith('https://intervals.icu/api/v1/athlete/0')) return json({ id: 'i1' });
@@ -128,7 +128,7 @@ describe('API — comptes et profil', () => {
   it('santé, fournisseurs, accès refusé sans session', async () => {
     const s = new Session();
     expect((await s.json('GET', '/api/health')).body).toMatchObject({ ok: true, db: 'ok' });
-    expect((await s.json('GET', '/api/auth/providers')).body).toEqual({ google: true, discord: false, email: true, dev: true });
+    expect((await s.json('GET', '/api/auth/providers')).body).toEqual({ google: true, discord: false, strava: true, email: true, dev: true });
     expect((await s.json('GET', '/api/me')).status).toBe(401);
   });
 
@@ -248,6 +248,33 @@ describe('API — comptes et profil', () => {
     const t = await s.json('GET', '/api/auth/game-token');
     expect(t.status).toBe(200);
     expect(await ctx.tokens.verifyGame(t.body.token)).toMatchObject({ name: 'Joueur' });
+  });
+});
+
+describe('API — connexion avec Strava', () => {
+  it('ouvre une session au nom de l’athlète et relie Strava si l’envoi est autorisé', async () => {
+    const s = new Session();
+    const start = await s.req('GET', '/api/auth/strava/start?redirect=/jouer');
+    const auth = new URL(start.headers.get('location')!);
+    expect(auth.origin + auth.pathname).toBe('https://www.strava.com/oauth/authorize');
+    expect(auth.searchParams.get('redirect_uri')).toMatch(/\/api\/auth\/strava\/callback$/);
+    const cb = await s.req('GET', `/api/auth/strava/callback?state=${auth.searchParams.get('state')}&code=c&scope=read,activity:write`);
+    expect(cb.headers.get('location')).toMatch(/\/jouer$/);
+    expect((await s.json('GET', '/api/me')).body.profile).toMatchObject({ displayName: 'Gégé' });
+    expect((await s.json('GET', '/api/integrations')).body).toMatchObject({ strava: { connected: true, athleteName: 'Gégé' } });
+  });
+
+  it('sans l’envoi d’activités : connecté, Strava non relié ; état d’une liaison refusé', async () => {
+    const s = new Session();
+    const start = await s.req('GET', '/api/auth/strava/start');
+    const state = new URL(start.headers.get('location')!).searchParams.get('state');
+    await s.req('GET', `/api/integrations/strava/callback?state=${state}&code=c&scope=read,activity:write`);
+    expect((await s.json('GET', '/api/me')).status).toBe(401);
+    const again = new Session();
+    const st2 = new URL((await again.req('GET', '/api/auth/strava/start')).headers.get('location')!).searchParams.get('state');
+    const bad = await again.req('GET', `/api/auth/strava/callback?state=faux&code=c&scope=read`);
+    expect(bad.headers.get('location')).toContain('login=failed');
+    expect(st2).toBeTruthy();
   });
 });
 

@@ -65,6 +65,14 @@
 .mm-me-card:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
 .mm-me-card .mm-avatar { width: 40px; height: 40px; font-size: 15px; }
 .mm-me-card .mm-who b { font-size: 15px; }
+/* Coureur et crédits dans un seul bloc : deux zones cliquables (profil, garage) séparées par un filet. */
+.mm-idcard { display: flex; align-items: stretch; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 16px; background: rgba(255, 255, 255, 0.05); overflow: hidden; transition: border-color 0.12s; }
+.mm-idcard:hover { border-color: rgba(255, 210, 63, 0.7); }
+.mm-idcard .mm-me-card { border: 0; border-radius: 0; background: none; }
+.mm-idcard .mm-me-card:hover { background: rgba(255, 255, 255, 0.05); }
+.mm-idcard button.mm-credits { border: 0; border-left: 1px solid rgba(255, 255, 255, 0.14); border-radius: 0; background: none; padding: 0 14px; }
+.mm-idcard button.mm-credits:hover { background: rgba(255, 224, 138, 0.14); }
+.mm-idcard .mm-me-card:focus-visible, .mm-idcard button.mm-credits:focus-visible { outline-offset: -3px; }
 .mm-who .mm-lvl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #c3cddb; }
 .mm-lvl em { font-style: normal; font-weight: 800; color: var(--ar-accent, #ffd23f); }
 .mm-lvl .mm-xp { width: 96px; height: 6px; }
@@ -80,6 +88,13 @@
 .strava-connect:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
 .strava-compat-row { margin-top: 6px; display: flex; justify-content: flex-end; }
 .strava-compat { height: 14px; width: auto; opacity: 0.85; vertical-align: middle; }
+/* Ligne Strava de l'écran Profil : même liaison que le bloc des Réglages, au format d'une ligne de réglage. */
+.strava-row { flex-wrap: wrap; }
+.strava-row .mm-opt-l { flex: 1 1 220px; }
+.strava-row .strava-compat { align-self: flex-start; margin-top: 6px; }
+.strava-row .strava-flash { color: #ffe37a; font-weight: 700; }
+.strava-row-r { flex: none; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px 14px; margin-left: auto; }
+.strava-row.is-off .mm-opt-l b, .strava-row.is-off .strava-compat { opacity: 0.55; }
 /* Réglages › Général › Mes données. */
 .mm-acct-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .ab-btn.mm-danger { background: rgba(239, 68, 68, 0.18); color: #fecaca; box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.55); }
