@@ -828,10 +828,14 @@ const SET = strings(
     tutorialHelp: 'La présentation du premier lancement.',
     tutorialAgain: 'Revoir le tutoriel',
     myData: 'Mes données',
-    myDataHelp: 'Tout ce que le serveur garde de ton compte, à télécharger ; ou tout effacer.',
     exportData: 'Télécharger mes données',
+    exportHelp: 'Un fichier avec tout ce que le serveur garde de ton compte.',
+    exportGo: 'Télécharger',
     deleteAccount: 'Supprimer mon compte',
-    deleteConfirmHelp: 'Le compte, ses sorties, ses fichiers FIT, ses amis et les liaisons Strava / intervals.icu seront effacés pour de bon. Tape SUPPRIMER pour confirmer.',
+    deleteHelp: 'Efface le compte et tout ce qui lui est lié, pour de bon.',
+    deleteOpen: 'Supprimer…',
+    deleteWhat: 'Le compte, ses sorties, ses fichiers FIT, ses amis et les liaisons Strava / intervals.icu seront effacés pour de bon.',
+    deleteType: 'Tape SUPPRIMER pour confirmer.',
     deleteForGood: 'Effacer définitivement',
     deleteFailed: 'Échec de la suppression',
     stravaHelp: 'Envoi de tes sorties à la fin de chacune.',
@@ -908,10 +912,14 @@ const SET = strings(
     tutorialHelp: 'The first-launch walkthrough.',
     tutorialAgain: 'Watch the tutorial again',
     myData: 'My data',
-    myDataHelp: 'Everything the server keeps about your account, to download; or erase it all.',
     exportData: 'Download my data',
+    exportHelp: 'A file with everything the server keeps about your account.',
+    exportGo: 'Download',
     deleteAccount: 'Delete my account',
-    deleteConfirmHelp: 'Your account, rides, FIT files, friends and Strava / intervals.icu links will be erased for good. Type SUPPRIMER to confirm.',
+    deleteHelp: 'Erases the account and everything linked to it, for good.',
+    deleteOpen: 'Delete…',
+    deleteWhat: 'Your account, rides, FIT files, friends and Strava / intervals.icu links will be erased for good.',
+    deleteType: 'Type SUPPRIMER to confirm.',
     deleteForGood: 'Erase for good',
     deleteFailed: 'Deletion failed',
     stravaHelp: 'Uploads your rides when each one ends.',
@@ -3868,7 +3876,15 @@ export class MainMenu {
       ${
         // Compte connecté : portabilité (export JSON) et droit à l'effacement (confirmation en tapant SUPPRIMER).
         this.account
-          ? opt(SET('myData'), SET('myDataHelp'), `<div class="mm-acct-actions"><button type="button" class="ab-btn" id="m-export">${SET('exportData')}</button><button type="button" class="ab-btn mm-danger" id="m-delete">${SET('deleteAccount')}</button></div><div class="mm-delete-box" id="m-delete-box" hidden><p>${SET('deleteConfirmHelp')}</p><div class="mm-acct-actions"><input type="text" id="m-delete-word" autocomplete="off" spellcheck="false" placeholder="SUPPRIMER" aria-label="${SET('deleteConfirmHelp')}" /><button type="button" class="ab-btn mm-danger" id="m-delete-go" disabled>${SET('deleteForGood')}</button></div><p class="mm-delete-msg" id="m-delete-msg" aria-live="polite"></p></div>`)
+          ? `<h4 class="ab-section mm-data-title">${SET('myData')}</h4>
+      ${opt(SET('exportData'), SET('exportHelp'), `<button type="button" class="ab-btn mm-data-btn" id="m-export">${SET('exportGo')}</button>`)}
+      ${opt(SET('deleteAccount'), SET('deleteHelp'), `<button type="button" class="ab-btn mm-danger mm-data-btn" id="m-delete" aria-expanded="false" aria-controls="m-delete-box">${SET('deleteOpen')}</button>`)}
+      <div class="mm-delete-box" id="m-delete-box" hidden>
+        <p class="mm-delete-what">${SET('deleteWhat')}</p>
+        <label class="mm-delete-type" for="m-delete-word">${SET('deleteType')}</label>
+        <div class="mm-delete-row"><input type="text" id="m-delete-word" autocomplete="off" spellcheck="false" placeholder="SUPPRIMER" /><button type="button" class="ab-btn" id="m-delete-cancel">${S('cancel')}</button><button type="button" class="ab-btn mm-danger-go" id="m-delete-go" disabled>${SET('deleteForGood')}</button></div>
+        <p class="mm-delete-msg" id="m-delete-msg" aria-live="polite"></p>
+      </div>`
           : ''
       }`;
 
@@ -4271,11 +4287,21 @@ export class MainMenu {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
     });
-    on('m-delete', 'click', () => {
+    // La confirmation s'ouvre sous la ligne ; « Annuler » la referme et vide la saisie.
+    const deleteBox = (open: boolean) => {
       const box = this.root.querySelector<HTMLElement>('#m-delete-box');
-      if (box) box.hidden = false;
-      this.root.querySelector<HTMLInputElement>('#m-delete-word')?.focus();
-    });
+      const word = this.root.querySelector<HTMLInputElement>('#m-delete-word');
+      const go = this.root.querySelector<HTMLButtonElement>('#m-delete-go');
+      const opener = this.root.querySelector<HTMLButtonElement>('#m-delete');
+      if (box) box.hidden = !open;
+      opener?.setAttribute('aria-expanded', String(open));
+      if (opener) opener.disabled = open;
+      if (open) return word?.focus();
+      if (word) word.value = '';
+      if (go) go.disabled = true;
+    };
+    on('m-delete', 'click', () => deleteBox(true));
+    on('m-delete-cancel', 'click', () => deleteBox(false));
     on<HTMLInputElement>('m-delete-word', 'input', (el) => {
       const go = this.root.querySelector<HTMLButtonElement>('#m-delete-go');
       if (go) go.disabled = el.value.trim() !== 'SUPPRIMER';

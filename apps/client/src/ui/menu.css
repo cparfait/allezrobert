@@ -95,14 +95,33 @@
 .strava-row .strava-flash { color: #ffe37a; font-weight: 700; }
 .strava-row-r { flex: none; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px 14px; margin-left: auto; }
 .strava-row.is-off .mm-opt-l b, .strava-row.is-off .strava-compat { opacity: 0.55; }
-/* Réglages › Général › Mes données. */
-.mm-acct-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.ab-btn.mm-danger { background: rgba(239, 68, 68, 0.18); color: #fecaca; box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.55); }
-.ab-btn.mm-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.85); color: #fff; }
-.mm-delete-box { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); display: grid; gap: 10px; }
-.mm-delete-box p { margin: 0; font-size: 14px; color: #fecaca; }
-.mm-delete-box input { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.3); color: #fff; font: inherit; letter-spacing: 0.08em; }
+/* Réglages › Général › Mes données : deux lignes de réglage (télécharger, supprimer), boutons de même largeur ;
+   la confirmation de suppression s'ouvre dessous, sur toute la largeur. */
+.mm-panel .set-pane .mm-data-title { margin: 22px 0 0; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.mm-data-title + .mm-opt { border-top: 0; margin-top: 2px; }
+.ab-btn.mm-data-btn { flex: none; min-width: 170px; text-align: center; }
+.ab-btn.mm-danger { background: rgba(239, 68, 68, 0.14); color: #fca5a5; box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.5); }
+.ab-btn.mm-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.26); color: #fff; }
+.ab-btn.mm-danger:disabled { opacity: 0.45; }
+.mm-delete-box { margin-top: 14px; padding: 18px 20px; border-radius: 22px; border: 2px solid rgba(239, 68, 68, 0.8); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); display: grid; gap: 12px; }
+.mm-delete-box[hidden] { display: none; }
+.mm-delete-box p { margin: 0; }
+.mm-delete-what { font-size: 15px; line-height: 1.4; color: #c3cddb; }
+.mm-delete-type { font-size: 16px; font-weight: 800; color: var(--ar-fg, #f5f7fa); }
+.mm-delete-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+.mm-delete-row input { flex: 1 1 200px; min-width: 0; padding: 12px 14px; border-radius: 14px; border: 2px solid rgba(255, 255, 255, 0.16); background: rgba(0, 0, 0, 0.3); color: #fff; font: 700 16px var(--font, system-ui); letter-spacing: 0.08em; }
+.mm-delete-row input:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.mm-delete-row input::placeholder { color: #6b7686; }
+.ab-btn.mm-danger-go { background: #dc2626; color: #fff; font-weight: 800; }
+.ab-btn.mm-danger-go:hover:not(:disabled) { background: #ef4444; }
+.ab-btn.mm-danger-go:disabled { background: rgba(255, 255, 255, 0.1); color: #8d98a6; }
+.mm-delete-msg { font-size: 14px; font-weight: 700; color: #fca5a5; }
 .mm-delete-msg:empty { display: none; }
+@media (max-width: 560px) {
+  .mm-opt:has(> .mm-data-btn) { flex-wrap: wrap; }
+  .ab-btn.mm-data-btn { width: 100%; }
+  .mm-delete-row .ab-btn { flex: 1 1 140px; }
+}
 /* Carte « Heure et météo » : interrupteur et bouton de repli côte à côte. */
 .mm-wx-head { display: flex; align-items: center; gap: 8px; flex: none; }
 .mm-wx-fold { appearance: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #c3cddb; cursor: pointer; transition: transform 0.15s, background 0.15s; }
