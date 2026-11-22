@@ -50,8 +50,8 @@ const base: AudioState = {
   paused: false,
 };
 
-const SOLO_BIKE: Partial<SoundMix> = { ambience: 0, wind: 0, breath: 0, crowd: 0, traffic: 0, voice: 0, bike: 1, master: 1 };
-const SOLO_BREATH: Partial<SoundMix> = { ambience: 0, wind: 0, bike: 0, crowd: 0, traffic: 0, voice: 0, breath: 1, master: 1 };
+const SOLO_BIKE: Partial<SoundMix> = { ambience: 0, wind: 0, breath: 0, crowd: 0, traffic: 0, voice: 0, tyres: 1, bike: 1, master: 1 };
+const SOLO_BREATH: Partial<SoundMix> = { ambience: 0, wind: 0, bike: 0, tyres: 0, crowd: 0, traffic: 0, voice: 0, breath: 1, master: 1 };
 const SOLO_AMB: Partial<SoundMix> = { bike: 0, breath: 0, crowd: 0, traffic: 0, ambience: 1, master: 1 };
 const ALL_MAX:Partial<SoundMix> = { master: 1, ambience: 1, bike: 1, breath: 1, crowd: 1, traffic: 1 };
 

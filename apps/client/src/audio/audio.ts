@@ -259,11 +259,11 @@ export class GameAudio {
     this.L = {
       // Vent : bus à part (curseur « Vent »), l'air de la course comme celui de la météo.
       wind: layer(b.pink, B.wind, 'lowpass', 400),
-      roar: layer(b.pinkMono, B.bike, 'bandpass', 250, 0.9),
-      hiss: layer(b.whiteMono, B.bike, 'highpass', 4000),
-      crunch: layer(b.crackle, B.bike, 'bandpass', 1800, 0.45),
-      cobble: layer(b.cobbles, B.bike, 'lowpass', 1400),
-      spray: layer(b.white, B.bike, 'bandpass', 5000, 0.5),
+      roar: layer(b.pinkMono, B.tyres, 'bandpass', 250, 0.9),
+      hiss: layer(b.whiteMono, B.tyres, 'highpass', 4000),
+      crunch: layer(b.crackle, B.tyres, 'bandpass', 1800, 0.45),
+      cobble: layer(b.cobbles, B.tyres, 'lowpass', 1400),
+      spray: layer(b.white, B.tyres, 'bandpass', 5000, 0.5),
       // Freinage : frottement aigu et étroit des patins sur la jante (bande serrée).
       brake: layer(b.whiteMono, B.bike, 'bandpass', 3400, 7),
       windAmb: layer(b.pink, B.wind, 'lowpass', 380),
