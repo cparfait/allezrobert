@@ -127,6 +127,7 @@ export class RideSound {
     this.audio.update(
       {
         speedMs: ride.state.speedMs,
+        braking: ride.braking,
         cadence: ride.inputs.cadence,
         watts: ride.watts3s(),
         ftp: this.d.ftpWatts,

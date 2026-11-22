@@ -1,12 +1,12 @@
 /**
- * Mixage du son du jeu : un bus par catégorie (ambiance, vélo, souffle, public, trafic) sous un
+ * Mixage du son du jeu : un bus par catégorie (ambiance, vélo, souffle, public, trafic, voix) sous un
  * volume général, réglés dans le menu Réglages et le menu pause, enregistrés localement
  * (`ar.sound`). La musique a ses propres réglages (music.ts).
  */
 
 import { DEFAULT_FREEWHEEL, isFreewheelId } from './freewheels.ts';
 
-export const BUSES = ['ambience', 'bike', 'breath', 'crowd', 'traffic'] as const;
+export const BUSES = ['ambience', 'bike', 'breath', 'crowd', 'traffic', 'voice'] as const;
 export type Bus = (typeof BUSES)[number];
 
 export interface SoundMix {
@@ -16,13 +16,15 @@ export interface SoundMix {
   breath: number;
   crowd: number;
   traffic: number;
+  /** Voix du speaker et du coach. */
+  voice: number;
   /** Souffle du coureur activé (discret, coupable). */
   breathOn: boolean;
   /** Son de la roue libre (freewheels.ts). */
   freewheel: string;
 }
 
-export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, breathOn: true, freewheel: DEFAULT_FREEWHEEL };
+export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, voice: 1, breathOn: true, freewheel: DEFAULT_FREEWHEEL };
 
 export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string; hint: { fr: string; en: string } }> = {
   master: { fr: 'Général', en: 'Master', hint: { fr: 'Tous les sons du jeu (hors musique)', en: 'All game sounds (not music)' } },
@@ -31,6 +33,7 @@ export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string; hint: 
   breath: { fr: 'Souffle', en: 'Breathing', hint: { fr: 'Respiration du coureur à l’effort', en: 'Rider breathing when pushing' } },
   crowd: { fr: 'Public', en: 'Crowd', hint: { fr: 'Spectateurs des côtes et des sprints', en: 'Spectators on climbs and sprints' } },
   traffic: { fr: 'Trafic', en: 'Traffic', hint: { fr: 'Voitures, camionnettes, tracteurs', en: 'Cars, vans, tractors' } },
+  voice: { fr: 'Voix', en: 'Voice', hint: { fr: 'Speaker et coach', en: 'Announcer and coach' } },
 };
 
 const KEY = 'ar.sound';
@@ -94,6 +97,8 @@ export function busGains(m: SoundMix, c: MixContext): Record<Bus | 'master', num
     breath: p || !m.breathOn ? 0 : m.breath,
     crowd: p ? 0 : m.crowd,
     traffic: p ? 0 : m.traffic,
+    // La voix reste audible en pause (le coach peut finir sa phrase).
+    voice: m.voice,
   };
 }
 

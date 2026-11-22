@@ -9,6 +9,7 @@
  */
 import { getLang } from '../i18n/index.ts';
 import { CROWD_SHOUTS, durationKeys } from './announcerLines.ts';
+import { music } from './music.ts';
 
 type Effect = 'plain' | 'pa';
 
@@ -65,6 +66,7 @@ export class Announcer {
     const ctx = o.ctx;
     let t = Math.max(ctx.currentTime + 0.05, this.busyUntil);
     const input = this.effectChain(effect, o);
+    const startT = t;
     for (const b of bufs) {
       if (!b) continue;
       const s = ctx.createBufferSource();
@@ -74,7 +76,17 @@ export class Announcer {
       t += b.duration - 0.05;
     }
     this.busyUntil = t + 0.25;
+    // Musique baissée sous l'annonce (comme pour le coach), remontée une fois la dernière réplique dite.
+    if (t > startT) {
+      if (this.duckTimer) clearTimeout(this.duckTimer);
+      setTimeout(() => music.talkOver(true), Math.max(0, (startT - ctx.currentTime) * 1000));
+      this.duckTimer = setTimeout(() => {
+        this.duckTimer = null;
+        music.talkOver(false);
+      }, Math.max(0, (t - ctx.currentTime) * 1000));
+    }
   }
+  private duckTimer: ReturnType<typeof setTimeout> | null = null;
 
   private effectChain(effect: Effect, o: { ctx: BaseAudioContext; dest: AudioNode }): AudioNode {
     const ctx = o.ctx;

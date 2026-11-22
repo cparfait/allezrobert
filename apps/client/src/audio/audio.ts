@@ -66,6 +66,8 @@ export interface AudioState {
   vehicles?: readonly VehicleSound[];
   /** Pause, intro : le vélo se tait, l'ambiance baisse. */
   paused?: boolean;
+  /** Freinage avant un virage serré (cornerBrake) : frottement des patins. */
+  braking?: boolean;
 }
 
 interface Layer {
@@ -120,6 +122,7 @@ export class GameAudio {
     crunch: Layer;
     cobble: Layer;
     spray: Layer;
+    brake: Layer;
     windAmb: Layer;
     foliage: Layer;
     crickets: Layer;
@@ -260,6 +263,8 @@ export class GameAudio {
       crunch: layer(b.crackle, B.bike, 'bandpass', 1800, 0.45),
       cobble: layer(b.cobbles, B.bike, 'lowpass', 1400),
       spray: layer(b.white, B.bike, 'bandpass', 5000, 0.5),
+      // Freinage : frottement aigu et étroit des patins sur la jante (bande serrée).
+      brake: layer(b.whiteMono, B.bike, 'bandpass', 3400, 7),
       windAmb: layer(b.pink, B.ambience, 'lowpass', 380),
       foliage: layer(b.white, B.ambience, 'bandpass', 3500, 0.4),
       crickets: layer(b.crickets, B.ambience, 'highpass', 2500),
@@ -306,15 +311,9 @@ export class GameAudio {
   /** Sortie de la voix de course (après le volume général, avant la compression) ; null tant que l'audio n'est pas lancé. */
   voiceOut(): { ctx: BaseAudioContext; dest: AudioNode } | null {
     if (!this.ctx) return null;
-    this.voiceBus ??= (() => {
-      const g = this.ctx!.createGain();
-      g.gain.value = 1;
-      g.connect(this.master);
-      return g;
-    })();
-    return { ctx: this.ctx, dest: this.voiceBus };
+    // Bus « voix » du mixage : réglable dans Réglages > Son et dans le menu pause.
+    return { ctx: this.ctx, dest: this.buses.voice };
   }
-  private voiceBus: GainNode | null = null;
 
   setMix(m: SoundMix): void {
     this.mix = { ...m };
@@ -386,6 +385,9 @@ export class GameAudio {
     this.set(this.L.cobble.gain.gain, t.cobble.gain);
     this.set(this.L.cobble.src.playbackRate, Math.max(0.05, t.cobble.rate / COBBLE_BUFFER_RATE));
     this.set(this.L.spray.gain.gain, t.spray);
+    // Frein : plus fort avec la vitesse, coupé à l'arrêt.
+    this.set(this.L.brake.gain.gain, s.braking && v > 1.5 ? Math.min(0.16, 0.03 + v * 0.008) : 0);
+    this.set(this.L.brake.filter.frequency, 2900 + Math.min(v, 15) * 60);
 
     // Roue libre : cliquets programmés un peu à l'avance, rythme selon la vitesse de roue.
     const coasting = !paused && isCoasting(s.cadence, s.watts, v);
