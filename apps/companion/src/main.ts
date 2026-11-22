@@ -881,8 +881,9 @@ function musicHtml(): string {
       <button class="btn round" data-music="next" aria-label="${esc(t.nextTrack)}">⏭</button>
     </div>
     <label class="slider"><span>${esc(t.volume)}</span><input type="range" min="0" max="1" step="0.05" id="mu-vol"/><output id="mu-volv"></output></label>
-    <div class="mu-search" id="mu-search" hidden>
+    <div class="mu-search" id="mu-search">
       <h2>${esc(t.musicFind)}</h2>
+      <p class="hint" id="mu-need">${esc(t.musicNeedSpotify)}</p>
       <form class="row" data-form="music"><input name="q" maxlength="100" autocomplete="off" enterkeyhint="search" placeholder="${esc(t.musicSearch)}" value="${esc(S.music.query)}"/><button class="btn">${esc(t.musicSearchGo)}</button></form>
       <button class="seg" data-act="music-mine">${esc(t.musicMine)}</button>
       <ul class="mu-results" id="mu-results"></ul>
@@ -977,11 +978,16 @@ function updateMusic(): void {
   if (title) title.textContent = mu ? (mu.playing ? mu.title || '…' : mu.title ? `${mu.title} (${t.stop.toLowerCase()})` : t.musicOff) : '–';
   const play = document.getElementById('mu-play');
   if (play) play.textContent = mu?.playing ? '⏸' : '▶';
+  // Recherche toujours visible : active quand Spotify est relié dans le jeu, sinon grisée avec la marche à suivre.
   const search = document.getElementById('mu-search');
   if (search) {
-    const show = mu?.source === 'spotify';
-    if (search.hidden && show) renderMusicResults();
-    search.hidden = !show;
+    const ready = mu?.source === 'spotify';
+    const was = !search.classList.contains('off');
+    search.classList.toggle('off', !ready);
+    const need = document.getElementById('mu-need');
+    if (need) need.hidden = ready;
+    search.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button').forEach((el) => (el.disabled = !ready));
+    if (ready && !was) renderMusicResults();
   }
   const vol = document.getElementById('mu-vol') as HTMLInputElement | null;
   if (vol && mu && document.activeElement !== vol && Date.now() - volTouched > 1500) {

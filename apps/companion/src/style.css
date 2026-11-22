@@ -424,6 +424,8 @@ input[type='range'] { height: 40px; }
 .music .slider { width: min(520px, 100%); }
 .mu-search { gap: 10px; }
 .mu-search > h2 { margin: 6px 0 0; }
+/* Spotify pas relié dans le jeu : champ grisé, la phrase au-dessus dit quoi faire. */
+.mu-search.off form, .mu-search.off [data-act='music-mine'], .mu-search.off .mu-results { opacity: 0.4; }
 .mu-results { gap: 8px; }
 .mu-results button { min-height: 60px; padding: 8px 12px 8px 8px; border-radius: 16px; border: 2px solid var(--tile-line); background: var(--tile); grid-template-columns: 48px 1fr; gap: 12px; }
 .mu-results img, .mu-results i { width: 48px; height: 48px; border-radius: 12px; }
