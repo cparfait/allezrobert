@@ -1086,8 +1086,10 @@ async function rotate(): Promise<void> {
   renderBar();
 }
 
+// Onglets : seulement les boutons de la barre (#tabs). La zone de contenu porte aussi data-tab (onglet affiché, pour le
+// CSS) : sans cette restriction, toucher un champ (chat, recherche Spotify) redessinait la page et lui ôtait le focus.
 app.addEventListener('click', (e) => {
-  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],[data-tab],[data-cmd],[data-cam],[data-turn],[data-music],[data-mplay],[data-pgo],[data-quick],[data-rideon],[data-field],[data-pick]');
+  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],#tabs [data-tab],[data-cmd],[data-cam],[data-turn],[data-music],[data-mplay],[data-pgo],[data-quick],[data-rideon],[data-field],[data-pick]');
   if (!el) return;
   const d = el.dataset;
   if (d.tab) {
