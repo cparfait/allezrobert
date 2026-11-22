@@ -481,7 +481,7 @@ export class RideRoomUi {
       <div class="mp-standings">${top
         .map((r) => {
           const cls = r.id === this.net.selfId ? 'me' : '';
-          return `<span class="num ${cls}">${r.pos}</span><span class="${cls}">${this.flag(r.id)}${esc(r.name)}</span><span class="num muted">${gapCell(r)}</span>`;
+          return `<span class="num ${cls}">${r.pos}</span><span class="mp-name ${cls}" title="${esc(r.name)}">${this.flag(r.id)}${esc(r.name)}</span><span class="num muted">${gapCell(r)}</span>`;
         })
         .join('')}</div>`);
   }

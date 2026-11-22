@@ -3,7 +3,7 @@
  * Fenêtres (salon, arrivée, résultats) au langage des gros blocs (ui/blocks.css) : grand titre, sous-titre,
  * blocs, état écrit avec sa pastille, une seule action jaune en bas à droite.
  */
-.mp-panel { padding: 10px 14px; min-width: 250px; max-width: 300px; font-size: 14px; pointer-events: auto; }
+.mp-panel { padding: 10px 14px; min-width: 250px; max-width: 400px; font-size: 14px; pointer-events: auto; }
 .mp-panel h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; color: var(--ar-fg); display: flex; justify-content: space-between; gap: 8px; }
 .mp-panel h4 span:last-child { font-weight: 600; color: var(--ar-muted); }
 .mp-big { font-size: 30px; font-weight: 800; line-height: 1.05; }
@@ -11,6 +11,9 @@
 .mp-line { display: flex; justify-content: space-between; gap: 10px; color: #d8dee6; }
 .mp-line b { color: var(--ar-fg); }
 .mp-standings { margin-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px; display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; font-size: 14px; }
+/* Classement : un coureur par ligne (le panneau s'élargit jusqu'à 400 px, au-delà le nom finit par « … »). */
+.mp-standings > span { white-space: nowrap; }
+.mp-standings .mp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mp-standings .me { color: var(--ar-accent); font-weight: 700; }
 .mp-standings .muted { color: var(--ar-muted); }
 .mp-pace { font-size: 22px; font-weight: 800; }
