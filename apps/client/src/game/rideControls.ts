@@ -169,6 +169,11 @@ export class SensorLossWatch {
 
 // --- Horloge d'arrière-plan -------------------------------------------------------------------------------------
 
+/** Page masquée (onglet en arrière-plan, fenêtre réduite). */
+function pageHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+}
+
 /** Pas de simulation pour rattraper `gapS` secondes : pas de `step` au plus, `maxS` au total. */
 export function catchUpSteps(gapS: number, step = 0.1, maxS = 120): number[] {
   const out: number[] = [];
@@ -203,7 +208,9 @@ export class BackgroundClock {
     }
     this.worker.onmessage = () => {
       const now = performance.now();
-      if (now - this.lastDrawn < 400) {
+      // Seulement page réellement cachée : une image longue (compilation au départ, tuile lourde) ne doit pas faire
+      // croire à un onglet masqué, sinon la sortie avance deux fois (horloge + boucle) et la vue tremble.
+      if (!pageHidden() || now - this.lastDrawn < 400) {
         this.last = 0;
         return;
       }
