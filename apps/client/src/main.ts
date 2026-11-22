@@ -1592,8 +1592,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     hud.onMapClick = openMap;
     fullMap = { open: openMap, close: () => wmap.close(), get isOpen() { return wmap.isOpen; } };
   }
-  // En groupe, le panneau « À proximité » montre d'abord les coureurs réels.
-  hud.riderFilter = mp ? 'real' : 'all';
   // Musique plus discrète en sortie ; titres Spotify annoncés dans le HUD.
   musicCtl.base = 0.6;
   music.setDuck(musicCtl.base);

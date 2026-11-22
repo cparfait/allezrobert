@@ -68,10 +68,6 @@ const S = strings(
     finish: 'Arrivée',
     west: 'O',
     nearby: 'À proximité',
-    realOrAll: 'Coureurs réels ou tous',
-    players: 'Joueurs',
-    noPlayers: 'Aucun autre joueur ici : « Tous » montre aussi les IA.',
-    all: 'Tous',
     canFollow: 'À suivre',
     tooStrong: 'Trop fort',
     slower: 'Plus lent',
@@ -161,10 +157,6 @@ const S = strings(
     finish: 'Finish',
     west: 'W',
     nearby: 'Nearby',
-    realOrAll: 'Real riders or all',
-    players: 'Players',
-    noPlayers: 'No other player here: “All” also shows AI riders.',
-    all: 'All',
     canFollow: 'Can follow',
     tooStrong: 'Too strong',
     slower: 'Slower',
@@ -658,8 +650,6 @@ export class Hud {
   /** Centre du calque fixe de la carte locale (fond filtré + routes), déplacé quand le coureur s'en éloigne. */
   private openAnchor: { x: number; z: number } | null = null;
   private openRev = 0;
-  /** Panneau « À proximité » : coureurs réels seulement (multijoueur) ou tous (IA comprises). */
-  riderFilter: 'real' | 'all' = 'all';
   private lastJunction = '';
   /** Montée en cours ou proche, façon ClimbPro. */
   private readonly climb: ClimbPanel;
@@ -832,11 +822,6 @@ export class Hud {
     (this.el.riders as HTMLElement).addEventListener('click', (ev) => {
       // Bouton cliqué : il rend le focus, sinon Espace ou Entrée (commandes du jeu) le réactiveraient.
       (ev.target as HTMLElement).closest<HTMLElement>('button')?.blur();
-      if ((ev.target as HTMLElement).closest('[data-rfilter]')) {
-        const f = (ev.target as HTMLElement).closest<HTMLElement>('[data-rfilter]')?.dataset.rfilter;
-        this.riderFilter = f === 'real' || f === 'all' ? f : this.riderFilter === 'real' ? 'all' : 'real';
-        return;
-      }
       const id = (ev.target as HTMLElement).closest<HTMLElement>('[data-rideon]')?.dataset.rideon;
       if (id) {
         this.onRideOn?.(id);
@@ -1672,33 +1657,16 @@ export class Hud {
 
   /**
    * « À proximité » (façon Zwift) : jusqu'à 4 coureurs devant et 4 derrière, écart en temps à ma
-   * vitesse (et en distance), W/kg. Filtre « réels » : seulement les joueurs en ligne.
+   * vitesse (et en distance), W/kg. Tous les coureurs, IA comprises (le filtre Tous / Joueurs a été retiré).
    */
-  /**
-   * Filtre de la liste : deux choix côte à côte, celui en cours surligné (« Tous 4 · Joueurs 0 »). Avant, un seul
-   * bouton qui affichait le filtre actif : « Réels (0) » ne disait ni que les IA étaient masquées, ni comment les revoir.
-   */
-  private filterHtml(s: HudState, real: number, noTab = false): string {
-    const all = s.riders.filter((r) => !r.me).length;
-    const b = (f: 'all' | 'real', label: string, n: number) =>
-      `<button class="rd-filter${this.riderFilter === f ? ' on' : ''}" data-rfilter="${f}"${noTab ? ' tabindex="-1"' : ''} aria-pressed="${this.riderFilter === f}">${label} <span class="num">${n}</span></button>`;
-    return `<span class="rd-filters" role="group" title="${S('realOrAll')}">${b('all', S('all'), all)}${b('real', S('players'), real)}</span>`;
-  }
-
-  /** Filtre « Joueurs » sans autre joueur : une ligne le dit, au lieu d'une liste vide. */
-  private noPlayersHtml(real: number): string {
-    return this.riderFilter === 'real' && real === 0 ? `<p class="rd-none">${S('noPlayers')}</p>` : '';
-  }
-
   private nearbyHtml(s: HudState): string {
     const me = s.riders.find((r) => r.me);
     if (!me) return '';
-    const pool = s.riders.filter((r) => r.me || this.riderFilter === 'all' || (!r.isAI && !r.isGuest) || r.online).sort((a, b) => b.distM - a.distM);
+    const pool = [...s.riders].sort((a, b) => b.distM - a.distM);
     const i = pool.indexOf(me);
     const shown = pool.slice(Math.max(0, i - 5), i + 6);
     const speed = Math.max(s.speedKmh / 3.6, 2);
-    const real = s.riders.filter((r) => !r.me && !r.isAI).length;
-    const head = `<div class="rd-head"><b>${S('nearby')}</b>${this.filterHtml(s, real)}</div>`;
+    const head = `<div class="rd-head"><b>${S('nearby')}</b></div>`;
     const rows = shown
       .map((r) => {
         // Ligne serrée : à gauche le niveau en barres (couleur du coureur) et l'écart en temps ; à droite le nom
@@ -1731,7 +1699,7 @@ export class Hud {
         return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${S('friend')}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${S('myGroup')}"></i>` : ''}${verdict}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, getLang())}">${flag}</span>` : ''}</b><small class="nb-sub num">${sub}</small></span></div>`;
       })
       .join('');
-    return head + this.noPlayersHtml(real) + rows;
+    return head + rows;
   }
 
   /**
@@ -1741,9 +1709,8 @@ export class Hud {
   private nearbyCompactHtml(s: HudState): string {
     const me = s.riders.find((r) => r.me);
     if (!me) return '';
-    const others = s.riders.filter((r) => !r.me && (this.riderFilter === 'all' || (!r.isAI && !r.isGuest) || r.online));
-    const real = s.riders.filter((r) => !r.me && !r.isAI).length;
-    const head = `<div class="rd-head" data-rfold title="${S('fold')}"><i class="rd-caret">▾</i><b>${S('nearby')}</b><span class="rd-count num">${others.length}</span>${this.filterHtml(s, real, true)}</div>`;
+    const others = s.riders.filter((r) => !r.me);
+    const head = `<div class="rd-head" data-rfold title="${S('fold')}"><i class="rd-caret">▾</i><b>${S('nearby')}</b><span class="rd-count num">${others.length}</span></div>`;
     if (this.ridersFolded) return head;
     const near = others.sort((a, b) => Math.abs(a.distM - me.distM) - Math.abs(b.distM - me.distM)).slice(0, 3);
     const speed = Math.max(s.speedKmh / 3.6, 2);
@@ -1763,7 +1730,7 @@ export class Hud {
         return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b>${subLine ? `<small class="rd-sub">${subLine}</small>` : ''}</span><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u>${wkg ? `<small>${wkg}</small>` : ''}</span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
       })
       .join('');
-    return head + this.noPlayersHtml(real) + rows;
+    return head + rows;
   }
 
   /** Panneau « Bifurcation dans X m » : ← / → pour choisir, sortie retenue surlignée. */
