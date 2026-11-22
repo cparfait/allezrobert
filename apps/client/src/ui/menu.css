@@ -74,6 +74,14 @@
 .ab-btn.mm-signin:hover { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
 /* Le bandeau tient dans la largeur : la musique rétrécit d'abord (titre coupé), puis les mentions secondaires disparaissent. */
 .mm-right { min-width: 0; }
+/* Réglages › Général › Mes données. */
+.mm-acct-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ab-btn.mm-danger { background: rgba(239, 68, 68, 0.18); color: #fecaca; box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.55); }
+.ab-btn.mm-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.85); color: #fff; }
+.mm-delete-box { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.35); display: grid; gap: 10px; }
+.mm-delete-box p { margin: 0; font-size: 14px; color: #fecaca; }
+.mm-delete-box input { padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.2); background: rgba(0, 0, 0, 0.3); color: #fff; font: inherit; letter-spacing: 0.08em; }
+.mm-delete-msg:empty { display: none; }
 /* Carte « Heure et météo » : interrupteur et bouton de repli côte à côte. */
 .mm-wx-head { display: flex; align-items: center; gap: 8px; flex: none; }
 .mm-wx-fold { appearance: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #c3cddb; cursor: pointer; transition: transform 0.15s, background 0.15s; }

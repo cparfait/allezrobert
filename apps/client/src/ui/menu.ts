@@ -26,6 +26,7 @@ import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { musicSource, setMusicSource } from '../audio/musicSource.ts';
 import { renderStravaLink } from './stravaLink.ts';
+import { apiBase } from './account.ts';
 import { flagSvg } from './flagSvg.ts';
 import { enhanceSelects, listKeys } from './dropdown.ts';
 import { renderSoundSettings } from './soundSettings.ts';
@@ -826,6 +827,13 @@ const SET = strings(
     tutorial: 'Tutoriel',
     tutorialHelp: 'La présentation du premier lancement.',
     tutorialAgain: 'Revoir le tutoriel',
+    myData: 'Mes données',
+    myDataHelp: 'Tout ce que le serveur garde de ton compte, à télécharger ; ou tout effacer.',
+    exportData: 'Télécharger mes données',
+    deleteAccount: 'Supprimer mon compte',
+    deleteConfirmHelp: 'Le compte, ses sorties, ses fichiers FIT, ses amis et les liaisons Strava / intervals.icu seront effacés pour de bon. Tape SUPPRIMER pour confirmer.',
+    deleteForGood: 'Effacer définitivement',
+    deleteFailed: 'Échec de la suppression',
     stravaHelp: 'Envoi de tes sorties à la fin de chacune.',
     stravaSkip: 'Ne pas envoyer',
     stravaSend: 'Envoyer',
@@ -898,6 +906,13 @@ const SET = strings(
     tutorial: 'Tutorial',
     tutorialHelp: 'The first-launch walkthrough.',
     tutorialAgain: 'Watch the tutorial again',
+    myData: 'My data',
+    myDataHelp: 'Everything the server keeps about your account, to download; or erase it all.',
+    exportData: 'Download my data',
+    deleteAccount: 'Delete my account',
+    deleteConfirmHelp: 'Your account, rides, FIT files, friends and Strava / intervals.icu links will be erased for good. Type SUPPRIMER to confirm.',
+    deleteForGood: 'Erase for good',
+    deleteFailed: 'Deletion failed',
     stravaHelp: 'Uploads your rides when each one ends.',
     stravaSkip: 'Don’t upload',
     stravaSend: 'Upload',
@@ -3832,7 +3847,13 @@ export class MainMenu {
       ${opt(t('language'), '', this.seg('m-lang', s.lang, [['fr', 'Français'], ['en', 'English']]))}
       ${opt(SET('tutorial'), SET('tutorialHelp'), `<button type="button" class="ab-btn" id="m-tuto">${SET('tutorialAgain')}</button>`)}
       ${opt('Strava', SET('stravaHelp'), this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [['skip', SET('stravaSkip')], ['send', SET('stravaSend')]]))}
-      <div id="m-strava-link"></div>`;
+      <div id="m-strava-link"></div>
+      ${
+        // Compte connecté : portabilité (export JSON) et droit à l'effacement (confirmation en tapant SUPPRIMER).
+        this.account
+          ? opt(SET('myData'), SET('myDataHelp'), `<div class="mm-acct-actions"><button type="button" class="ab-btn" id="m-export">${SET('exportData')}</button><button type="button" class="ab-btn mm-danger" id="m-delete">${SET('deleteAccount')}</button></div><div class="mm-delete-box" id="m-delete-box" hidden><p>${SET('deleteConfirmHelp')}</p><div class="mm-acct-actions"><input type="text" id="m-delete-word" autocomplete="off" spellcheck="false" placeholder="SUPPRIMER" aria-label="${SET('deleteConfirmHelp')}" /><button type="button" class="ab-btn mm-danger" id="m-delete-go" disabled>${SET('deleteForGood')}</button></div><p class="mm-delete-msg" id="m-delete-msg" aria-live="polite"></p></div>`)
+          : ''
+      }`;
 
     const ico = (d: string): string => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
     const cats: Array<[id: string, name: string, icon: string, body: string]> = [
@@ -4220,6 +4241,33 @@ export class MainMenu {
     on('m-tuto', 'click', () => this.onTutorial?.());
     on('m-login', 'click', () => this.onLogin?.());
     on('m-logout', 'click', () => this.onLogout?.());
+    // Mes données : export JSON du compte, suppression après avoir tapé SUPPRIMER.
+    on('m-export', 'click', async () => {
+      const res = await fetch(`${apiBase()}/me/export`, { credentials: 'include' }).catch(() => null);
+      if (!res?.ok) return;
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: 'allez-robert-mes-donnees.json' });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    });
+    on('m-delete', 'click', () => {
+      const box = this.root.querySelector<HTMLElement>('#m-delete-box');
+      if (box) box.hidden = false;
+      this.root.querySelector<HTMLInputElement>('#m-delete-word')?.focus();
+    });
+    on<HTMLInputElement>('m-delete-word', 'input', (el) => {
+      const go = this.root.querySelector<HTMLButtonElement>('#m-delete-go');
+      if (go) go.disabled = el.value.trim() !== 'SUPPRIMER';
+    });
+    on('m-delete-go', 'click', async () => {
+      const res = await fetch(`${apiBase()}/me`, { method: 'DELETE', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: 'SUPPRIMER' }) }).catch(() => null);
+      if (res?.ok) {
+        this.onLogout?.();
+        return;
+      }
+      const msg = this.root.querySelector<HTMLElement>('#m-delete-msg');
+      if (msg) msg.textContent = `${SET('deleteFailed')}${res ? ` (${res.status})` : ''}`;
+    });
     // Application installée : enregistre le profil puis ferme le jeu.
     on('m-quit', 'click', () => void quitApp());
     // Crédits : mènent à l'atelier du garage, où ils se dépensent (le bloc voisin ouvre le profil, d'où stopPropagation).
