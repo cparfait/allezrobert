@@ -2723,8 +2723,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const onboard = (rig.mode === 'cockpit' || rig.mode === 'action' || rig.mode === 'gopro') && !rig.lookBack && !camTurn;
     avatar.setHeadVisible(!onboard);
     // Arrivée d'un parcours : arrêté, il déclipse et pose le pied à terre (la cadence simulée resterait sinon à ≈ 30 tr/min
-    // à l'arrêt, le coureur pédalait sur place).
-    const standDown = summitShown;
+    // à l'arrêt, le coureur pédalait sur place). Même chose avant le départ (intro, compte à rebours, grille de course) :
+    // la sortie attend, immobile, mais la cadence du capteur ou du simulateur arrive déjà ; il attend pied à terre et
+    // clipse au premier coup de pédale après le « go ».
+    const standDown = summitShown || (ride.paused && ride.state.speedMs < 0.4);
     v3?.update(dt, standDown ? 0 : ride.inputs.cadence, standDown ? 0 : ride.state.speedMs, ride.pose, { head: !onboard, helmet: !riderLook.noHelmet, effort: ride.inputs.watts / Math.max(1, s.ftpWatts), transitions: true });
     // Ombre de mon coureur : deux formes simplifiées (corps animé + vélo) au lieu de ~30 pièces (riderShadows.ts).
     if (v3) applyRiderShadows(avatar.root, true, (v3 as unknown as { group: THREE.Object3D }).group);
