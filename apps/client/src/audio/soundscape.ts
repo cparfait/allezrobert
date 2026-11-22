@@ -110,11 +110,14 @@ interface TireProfile {
   cobble: number;
 }
 
-/** Signature de chaque revêtement (facteurs relatifs à l'enrobé lisse). */
+/**
+ * Signature de chaque revêtement (facteurs relatifs à l'enrobé lisse). Sur l'enrobé, le roulement est un chuintement
+ * étroit et assez aigu (Q élevé, centre relevé) : en bande large et grave, ce bruit rose ressemblait à du vent.
+ */
 export const TIRE_PROFILES: Record<Surface, TireProfile> = {
-  smooth: { roar: 1, roarHz: 0, q: 1.1, hiss: 0.15, hissHz: 4200, crunch: 0, cobble: 0 },
-  rough: { roar: 1.45, roarHz: 70, q: 0.8, hiss: 0.8, hissHz: 3400, crunch: 0.15, cobble: 0 },
-  cobbles: { roar: 1.3, roarHz: 30, q: 0.6, hiss: 0.4, hissHz: 3000, crunch: 0.08, cobble: 1 },
+  smooth: { roar: 0.6, roarHz: 140, q: 3, hiss: 0.15, hissHz: 4200, crunch: 0, cobble: 0 },
+  rough: { roar: 1.2, roarHz: 110, q: 1.6, hiss: 0.8, hissHz: 3400, crunch: 0.15, cobble: 0 },
+  cobbles: { roar: 1.1, roarHz: 60, q: 1.1, hiss: 0.4, hissHz: 3000, crunch: 0.08, cobble: 1 },
   gravel: { roar: 0.8, roarHz: 60, q: 0.6, hiss: 0.25, hissHz: 1700, crunch: 0, cobble: 0 },
   dirt: { roar: 0.6, roarHz: -40, q: 0.6, hiss: 0.15, hissHz: 1500, crunch: 0, cobble: 0 },
 };
