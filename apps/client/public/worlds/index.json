@@ -1208,10 +1208,10 @@
     }
    ],
    "pack": {
-    "version": "4cab8cf831c8",
-    "bytes": 185751726,
+    "version": "dd5801eb8c8f",
+    "bytes": 185751790,
     "files": 1026,
-    "gzBytes": 82924826
+    "gzBytes": 82925338
    },
    "l93": {
     "minE": 704000,
@@ -1988,10 +1988,10 @@
     }
    ],
    "pack": {
-    "version": "ca4e62bd7de4",
-    "bytes": 182150169,
+    "version": "3ab4b19ac49b",
+    "bytes": 182147328,
     "files": 1026,
-    "gzBytes": 75740443
+    "gzBytes": 75741648
    },
    "l93": {
     "minE": 688000,
@@ -2820,10 +2820,10 @@
     }
    ],
    "pack": {
-    "version": "ffe5c986a776",
-    "bytes": 184718597,
+    "version": "7104fefe0f70",
+    "bytes": 184718414,
     "files": 1026,
-    "gzBytes": 72829763
+    "gzBytes": 72830666
    },
    "l93": {
     "minE": 720000,
@@ -2976,10 +2976,10 @@
     }
    ],
    "pack": {
-    "version": "02f1f03b72f4",
-    "bytes": 222731892,
+    "version": "b22690aa3cbf",
+    "bytes": 222731596,
     "files": 1026,
-    "gzBytes": 100168419
+    "gzBytes": 100169010
    },
    "l93": {
     "minE": 592000,
@@ -3028,10 +3028,10 @@
     }
    ],
    "pack": {
-    "version": "8dee2edec790",
-    "bytes": 189515096,
+    "version": "0236c17fd391",
+    "bytes": 189514904,
     "files": 1026,
-    "gzBytes": 82943778
+    "gzBytes": 82944797
    },
    "l93": {
     "minE": 688000,
@@ -3259,7 +3259,7 @@
      "name": "Boucle de 20 km depuis Vert-Saint-Denis",
      "nameEn": "20 km loop from Vert-Saint-Denis",
      "lengthM": 21868,
-     "elevationGainM": 106.26,
+     "elevationGainM": 106.19,
      "loop": false
     },
     {
@@ -3267,7 +3267,7 @@
      "name": "Boucle de 30 km depuis Vert-Saint-Denis",
      "nameEn": "30 km loop from Vert-Saint-Denis",
      "lengthM": 29526,
-     "elevationGainM": 151.61,
+     "elevationGainM": 151.29,
      "loop": false
     },
     {
@@ -3275,7 +3275,7 @@
      "name": "Boucle de 40 km depuis Vert-Saint-Denis",
      "nameEn": "40 km loop from Vert-Saint-Denis",
      "lengthM": 44360,
-     "elevationGainM": 214.16,
+     "elevationGainM": 211.91,
      "loop": false
     },
     {
@@ -3283,15 +3283,15 @@
      "name": "Boucle de 50 km depuis Vert-Saint-Denis",
      "nameEn": "50 km loop from Vert-Saint-Denis",
      "lengthM": 50152,
-     "elevationGainM": 261.24,
+     "elevationGainM": 258.86,
      "loop": false
     }
    ],
    "pack": {
-    "version": "993fb2d23898",
-    "bytes": 230095124,
+    "version": "4927792c239d",
+    "bytes": 230094292,
     "files": 1026,
-    "gzBytes": 97134257
+    "gzBytes": 97135708
    },
    "l93": {
     "minE": 672000,
@@ -3340,10 +3340,10 @@
     }
    ],
    "pack": {
-    "version": "0dda4966a379",
-    "bytes": 193220983,
+    "version": "56c2f1b208cf",
+    "bytes": 193220689,
     "files": 1026,
-    "gzBytes": 81238106
+    "gzBytes": 81238112
    },
    "l93": {
     "minE": 720000,
@@ -3387,15 +3387,15 @@
      "name": "Boucle de 50 km depuis Villeneuve-sur-Bellot",
      "nameEn": "50 km loop from Villeneuve-sur-Bellot",
      "lengthM": 46933.5,
-     "elevationGainM": 576.21,
+     "elevationGainM": 575.46,
      "loop": true
     }
    ],
    "pack": {
-    "version": "fad16266d981",
-    "bytes": 200539844,
+    "version": "c03c042cf98a",
+    "bytes": 200539738,
     "files": 1026,
-    "gzBytes": 86775713
+    "gzBytes": 86776916
    },
    "l93": {
     "minE": 720000,
@@ -3654,7 +3654,7 @@
      "name": "Les châteaux du Livradois",
      "nameEn": "The castles of the Livradois",
      "lengthM": 71322.88,
-     "elevationGainM": 1021.07,
+     "elevationGainM": 1017.78,
      "loop": true
     },
     {
@@ -3670,7 +3670,7 @@
      "name": "Billom – Lezoux",
      "nameEn": "Billom – Lezoux",
      "lengthM": 27054.13,
-     "elevationGainM": 318.31,
+     "elevationGainM": 316.8,
      "loop": true
     },
     {
@@ -3691,10 +3691,10 @@
     }
    ],
    "pack": {
-    "version": "dc52bbd0cacd",
-    "bytes": 340142310,
+    "version": "2b2aea0fa974",
+    "bytes": 340168400,
     "files": 1290,
-    "gzBytes": 164336104
+    "gzBytes": 164340428
    },
    "l93": {
     "minE": 726000,
@@ -3878,7 +3878,7 @@
      "name": "La boucle des Dômes par Orcines et Saint-Ours",
      "nameEn": "The Dômes loop via Orcines and Saint-Ours",
      "lengthM": 79620.19,
-     "elevationGainM": 1368.66,
+     "elevationGainM": 1366.45,
      "loop": true
     },
     {
@@ -3891,10 +3891,10 @@
     }
    ],
    "pack": {
-    "version": "2fe9f34a0728",
-    "bytes": 459766859,
+    "version": "e3222f85edb7",
+    "bytes": 459787370,
     "files": 1602,
-    "gzBytes": 230173672
+    "gzBytes": 230177541
    },
    "l93": {
     "minE": 684000,
@@ -4022,7 +4022,7 @@
      "name": "Le tour du Sancy par La Tour-d'Auvergne et Besse",
      "nameEn": "Sancy loop via La Tour-d'Auvergne and Besse",
      "lengthM": 81809.13,
-     "elevationGainM": 1717.76,
+     "elevationGainM": 1716.67,
      "loop": true
     },
     {
@@ -4038,7 +4038,7 @@
      "name": "Autour du Mont-Dore",
      "nameEn": "Around Le Mont-Dore",
      "lengthM": 66758,
-     "elevationGainM": 1634.14,
+     "elevationGainM": 1633.05,
      "loop": false
     },
     {
@@ -4052,18 +4052,18 @@
     {
      "id": "gravel-sancy",
      "name": "Sancy — gravel par Super Besse et Le Verdier",
+     "nameEn": "Sancy — gravel via Super Besse and Le Verdier",
      "lengthM": 51383.54,
      "elevationGainM": 1592.63,
      "loop": true,
-     "bike": "gravel",
-     "nameEn": "Sancy — gravel via Super Besse and Le Verdier"
+     "bike": "gravel"
     }
    ],
    "pack": {
-    "version": "bbd779d5e187",
-    "bytes": 335186917,
+    "version": "0fb6863ec7bd",
+    "bytes": 335197020,
     "files": 1322,
-    "gzBytes": 174860149
+    "gzBytes": 174862121
    },
    "l93": {
     "minE": 675000,
@@ -4096,10 +4096,10 @@
     }
    ],
    "pack": {
-    "version": "243a45218ff6",
-    "bytes": 419588737,
+    "version": "073559400253",
+    "bytes": 419585185,
     "files": 1566,
-    "gzBytes": 223956204
+    "gzBytes": 223955385
    },
    "l93": {
     "minE": 452000,
