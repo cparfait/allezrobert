@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { deltaDecodeU16, deltaEncodeU16 } from '@allezrobert/shared';
 import { LOD_HI, LOD_LO, ORIGIN_L93, TILE_SIZE_M } from './config.ts';
+import { writeAtomic } from './safe-fs.ts';
 import type { Dem } from './dem.ts';
 import { tileId, tileRect, type Rect } from './frame.ts';
 import { clipPolylineToBox, clipRingToBox, simplify, type Pt } from './geom.ts';
@@ -430,11 +431,11 @@ export function buildTile(
   const tilesDir = path.join(outDir, 'tiles');
   let bytes = 0;
   const loBuf = encodeGrid(lo, baseM, stepM, true);
-  fs.writeFileSync(path.join(tilesDir, `${id}.lo.u16`), loBuf);
+  writeAtomic(path.join(tilesDir, `${id}.lo.u16`), loBuf);
   bytes += loBuf.length;
   if (hiGrid) {
     const hb = encodeGrid(hiGrid, baseM, stepM, true);
-    fs.writeFileSync(path.join(tilesDir, `${id}.hi.u16`), hb);
+    writeAtomic(path.join(tilesDir, `${id}.hi.u16`), hb);
     bytes += hb.length;
   }
   // entités
@@ -537,7 +538,7 @@ export function buildTile(
   };
   decorate?.(json, (x, z) => gridSample(fine, x, z));
   const s = JSON.stringify(json);
-  fs.writeFileSync(path.join(tilesDir, `${id}.json`), s);
+  writeAtomic(path.join(tilesDir, `${id}.json`), s);
   bytes += Buffer.byteLength(s);
   return {
     id,

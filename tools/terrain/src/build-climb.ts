@@ -30,6 +30,7 @@ import { ATTRIBUTION_BDTOPO } from './bdtopo.ts';
 import { prepareEnrichment } from './enrich.ts';
 import { WORLDS_ROOT, writeCatalogue } from './packs.ts';
 import { ATTRIBUTION_LIDAR } from './lidar.ts';
+import { txCopyDir, txFile, writeAtomic, writeBuildMarker } from './safe-fs.ts';
 
 if (WORLD.kind !== 'climb') throw new Error('build-climb : monde de type « climb » attendu');
 const W: ClimbWorld = WORLD;
@@ -115,6 +116,9 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   fs.mkdirSync(path.join(OUT_DIR, 'routes'), { recursive: true });
   fs.mkdirSync(path.join(OUT_DIR, 'tiles'), { recursive: true });
+  // Itinéraires et world.json d'avant : copie de secours, rendue si la construction échoue.
+  txCopyDir(OUT_DIR, path.join(OUT_DIR, 'routes'));
+  txFile(OUT_DIR, path.join(OUT_DIR, 'world.json'));
   // monde privé : rien de son dossier n'entre dans le dépôt (pas même world.json ni l'itinéraire)
   if (W.private) fs.writeFileSync(path.join(OUT_DIR, '.gitignore'), '# Monde privé (data/private/worlds) : jamais versionné\n*\n');
   const analysisDir = path.join(CACHE_DIR, 'analysis');
@@ -386,8 +390,8 @@ async function main(): Promise<void> {
     ...(C.markings ? { markings: C.markings } : {}),
   };
   const routesDir = path.join(OUT_DIR, 'routes');
-  for (const f of fs.readdirSync(routesDir)) if (f.endsWith('.json')) fs.unlinkSync(path.join(routesDir, f));
-  fs.writeFileSync(path.join(routesDir, `${data.id}.json`), JSON.stringify(data));
+  writeAtomic(path.join(routesDir, `${data.id}.json`), JSON.stringify(data));
+  for (const f of fs.readdirSync(routesDir)) if (f.endsWith('.json') && f !== `${data.id}.json`) fs.unlinkSync(path.join(routesDir, f));
 
   // bilan comparé aux références
   const ref = C.reference;
@@ -484,7 +488,7 @@ async function main(): Promise<void> {
     ],
     ...(horizon ? { horizon } : {}),
   };
-  fs.writeFileSync(worldFile, JSON.stringify(meta, null, 1));
+  writeAtomic(worldFile, JSON.stringify(meta, null, 1));
 
   // bilan
   const sizes: Record<string, number> = {};
@@ -498,6 +502,8 @@ async function main(): Promise<void> {
   log(`   durée ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   // pack de cartes et catalogue des zones (seulement pour le dossier publié du jeu)
   if (path.resolve(OUT_DIR) === path.join(WORLDS_ROOT, W.id)) writeCatalogue(log);
+  // Témoin de fin : la zone est complète.
+  writeBuildMarker(OUT_DIR, W.id, meta.tiles.length);
 }
 
 try {

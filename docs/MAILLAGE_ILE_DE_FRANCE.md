@@ -36,11 +36,16 @@ tours restent dans `mesh/zones/` : elles ne sont ni construites ni listées tant
 ## Construction enchaînée et disque
 
 `mesh-build.ts` attend qu'aucune autre construction ni calcul de tours ne tourne, inscrit les zones, puis
-construit les zones du centre vers la périphérie. **Après chaque zone il supprime du cache lourd (LiDAR,
-MNT, BD TOPO, orthophotos) les seuls fichiers absents d'une photo prise au départ** : le cache des zones
-existantes n'est jamais touché, le cache OSM est gardé. Il saute les zones déjà construites, continue
-après un échec et s'arrête sous 30 Go libres. Journaux : `data/cache/mesh/build-<id>.log`,
-`build-report.json`. Options : `--only`, `--limit`, `--keep-cache`, `--min-free-gb`.
+construit les zones du centre vers la périphérie. **Le cache n'est jamais vidé par défaut.** Avec
+`--purge-cache` seulement, il supprime après chaque zone, dans le cache lourd (LiDAR, MNT, BD TOPO,
+orthophotos), les seuls fichiers absents d'une photo prise au départ : le cache des zones existantes
+n'est jamais touché, le cache OSM est gardé. Il saute les zones déjà construites (témoin `tiles/build.ok`,
+ou zone plus ancienne dont toutes les tuiles sont présentes ; une zone dont une partie seulement des
+tuiles est là est reconstruite), continue après un échec et s'arrête quand il reste moins de 30 Go sur
+le disque réel du cache ou sur celui du dossier de sortie, en nommant le disque en cause. Un verrou
+(`data/cache/mesh/mesh-build.lock`) empêche deux enchaînements en même temps. Journaux :
+`data/cache/mesh/build-<id>.log`, `build-report.json`. Options : `--only`, `--limit`, `--purge-cache`,
+`--min-free-gb` ; `--keep-cache`, l'ancienne option, reste acceptée et ne change plus rien.
 
 **État d'avancement** : `pnpm --filter @allezrobert/terrain mesh:status` (zones construites, en cours avec ses
 tuiles faites, en échec, durée moyenne, temps restant, disque libre).

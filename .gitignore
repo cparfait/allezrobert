@@ -54,3 +54,6 @@ deploy/.deploy-gui.json
 
 # Décors générés (make_props.py) : images, maillages TRELLIS et sorties Blender intermédiaires
 tools/blender/props/work/
+
+# Copie de secours d'une construction de zone en cours (tools/terrain/src/safe-fs.ts)
+apps/client/public/worlds/*/.build-backup/

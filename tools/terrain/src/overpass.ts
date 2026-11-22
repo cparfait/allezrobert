@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import { USER_AGENT } from './config.ts';
 import { cachePath, fetchWithRetry, hashKey } from './net.ts';
+import { writeAtomic } from './safe-fs.ts';
 
 const DEFAULT_MIRRORS = [
   'https://overpass.openstreetmap.fr/api/interpreter',
@@ -175,7 +176,7 @@ export async function fetchOsm(b: BBox, stepLon = 0.11, stepLat = 0.07, extra?: 
     if (fs.existsSync(file)) buf = fs.readFileSync(file);
     else {
       buf = await overpassOnce(q, `bloc ${i + 1}/${chunks.length}`);
-      fs.writeFileSync(file, buf);
+      writeAtomic(file, buf);
     }
     const json = JSON.parse(buf.toString('utf8')) as { elements: OsmElement[] };
     for (const el of json.elements) byKey.set(`${el.type}/${el.id}`, el);
@@ -244,7 +245,7 @@ export async function fetchOsmApi(b: BBox, stepLon = 0.02, stepLat = 0.015): Pro
     else {
       console.log(`  · API OSM bloc ${i + 1}/${chunks.length}`);
       buf = await fetchWithRetry(url, { timeoutMs: 180000, validate: (x) => (x.subarray(0, 50).toString().trimStart().startsWith('{') ? null : x.subarray(0, 160).toString()) });
-      fs.writeFileSync(file, buf);
+      writeAtomic(file, buf);
     }
     const json = JSON.parse(buf.toString('utf8')) as { elements: Array<ApiNode | ApiWay | ApiRelation> };
     for (const el of json.elements) {

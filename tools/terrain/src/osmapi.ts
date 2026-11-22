@@ -9,6 +9,7 @@
  */
 import fs from 'node:fs';
 import { cachePath, fetchWithRetry } from './net.ts';
+import { writeAtomic } from './safe-fs.ts';
 import type { BBox, OsmElement, OsmRelation, OsmWay } from './overpass.ts';
 
 const API = 'https://api.openstreetmap.org/api/0.6';
@@ -66,7 +67,7 @@ async function getJson(url: string, file: string): Promise<{ elements: ApiElemen
   if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf8')) as { elements: ApiElement[] };
   try {
     const buf = await fetchWithRetry(url, { timeoutMs: 120000, retries: 3, validate: (b) => (b.subarray(0, 1).toString() === '{' ? null : `pas du JSON : ${b.subarray(0, 120).toString()}`) });
-    fs.writeFileSync(file, buf);
+    writeAtomic(file, buf);
     return JSON.parse(buf.toString('utf8')) as { elements: ApiElement[] };
   } catch (err) {
     // Emprise trop riche (> 50 000 nœuds) : l'appelant la redécoupe.

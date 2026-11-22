@@ -50,6 +50,8 @@ import { RoadGraph, type Edge } from './graph.ts';
 import { bikeable, busyWeight, cyclePolyline, enumerateCycles, scoreCycle, segmentBonus, type CycleScore, type LoopSearchOptions } from './loop.ts';
 import { matchRide } from './mapmatch.ts';
 import { setOffline } from './net.ts';
+import { preflight } from './preflight.ts';
+import { BACKUP_NAME, txCopyDir, txFile, writeAtomic, writeBuildMarker } from './safe-fs.ts';
 import { buildOsmWorld, type Poi } from './osm.ts';
 import { fetchOsm } from './overpass.ts';
 import { assertCorridorSafe, auditWorldDir } from './privacy.ts';
@@ -82,6 +84,8 @@ if (args.has('--all')) {
 ${catalogue.zones.length - failed.length}/${catalogue.zones.length} mondes construits en ${min} min${failed.length ? ` ; échecs : ${failed.join(', ')}` : ''}`);
   process.exit(failed.length ? 1 : 0);
 }
+// Avant tout travail : reste d'une construction interrompue remis en place, puis place libre sur les disques.
+preflight();
 if (WORLD.kind !== 'open' && WORLD.open && !args.has('--routes-only')) {
   // monde ouvert autour des itinéraires déjà publiés (gardés tels quels) ; --routes-only les refait
   await import('./build-open.ts');
@@ -360,6 +364,9 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   fs.mkdirSync(path.join(OUT_DIR, 'routes'), { recursive: true });
   fs.mkdirSync(path.join(OUT_DIR, 'tiles'), { recursive: true });
+  // Itinéraires et world.json d'avant : copie de secours, rendue si la construction échoue.
+  txCopyDir(OUT_DIR, path.join(OUT_DIR, 'routes'));
+  txFile(OUT_DIR, path.join(OUT_DIR, 'world.json'));
   const analysisDir = path.join(CACHE_DIR, 'analysis');
   fs.mkdirSync(analysisDir, { recursive: true });
 
@@ -575,8 +582,10 @@ async function main(): Promise<void> {
   }
   // écriture des itinéraires
   const routesDir = path.join(OUT_DIR, 'routes');
-  for (const f of fs.readdirSync(routesDir)) if (f.endsWith('.json')) fs.unlinkSync(path.join(routesDir, f));
-  for (const p of picked) fs.writeFileSync(path.join(routesDir, `${p.built.data.id}.json`), JSON.stringify(p.built.data));
+  // Les nouveaux d'abord (d'un coup chacun), puis seulement ceux qui ne sont plus au programme.
+  const routeFiles = new Set(picked.map((p) => `${p.built.data.id}.json`));
+  for (const p of picked) writeAtomic(path.join(routesDir, `${p.built.data.id}.json`), JSON.stringify(p.built.data));
+  for (const f of fs.readdirSync(routesDir)) if (f.endsWith('.json') && !routeFiles.has(f)) fs.unlinkSync(path.join(routesDir, f));
 
   // 7. tuiles
   const tileResults: TileResult[] = [];
@@ -659,7 +668,7 @@ async function main(): Promise<void> {
       ...(ENRICH?.bdtopoBuildings ? [ATTRIBUTION_BDTOPO] : []),
     ],
   };
-  fs.writeFileSync(worldFile, JSON.stringify(meta, null, 1));
+  writeAtomic(worldFile, JSON.stringify(meta, null, 1));
 
   // 9. audit vie privée
   const violations = auditWorldDir(OUT_DIR, sensitive, PRIVACY_RADIUS_M);
@@ -671,6 +680,8 @@ async function main(): Promise<void> {
   let size = 0;
   const walk = (d: string) => {
     for (const f of fs.readdirSync(d, { withFileTypes: true })) {
+      // copies de secours de la construction en cours : supprimées à la fin, hors du bilan
+      if (f.name === BACKUP_NAME) continue;
       const p = path.join(d, f.name);
       if (f.isDirectory()) walk(p);
       else size += fs.statSync(p).size;
@@ -684,6 +695,9 @@ async function main(): Promise<void> {
   log(`   durée ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   // pack de cartes et catalogue des zones (seulement pour le dossier publié du jeu)
   if (path.resolve(OUT_DIR) === path.join(WORLDS_ROOT, WORLD_ID)) writeCatalogue(log);
+  // Témoin de fin : la zone est complète (mesh-build s'y fie pour ne pas la reconstruire). Pas en --routes-only,
+  // qui ne refait pas les tuiles.
+  if (!ROUTES_ONLY) writeBuildMarker(OUT_DIR, WORLD_ID, meta.tiles.length);
 }
 
 main().catch((err) => {

@@ -9,6 +9,18 @@
  */
 import fs from 'node:fs';
 import { cachePath, fetchWithRetry } from './net.ts';
+import { writeAtomic } from './safe-fs.ts';
+
+/** État d'un bloc fusionné du cache : `n` × `n` altitudes en float32. Un fichier d'une autre taille est tronqué. */
+export function cachedBlockState(file: string, n: number): 'ok' | 'missing' | 'truncated' {
+  let size: number;
+  try {
+    size = fs.statSync(file).size;
+  } catch {
+    return 'missing';
+  }
+  return size === n * n * 4 ? 'ok' : 'truncated';
+}
 
 export const LAYER_LIDAR = 'IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.LAMB93';
 export const LAYER_RGEALTI = 'ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES';
@@ -161,11 +173,18 @@ export class Dem {
 
   async ensureBlock(bx: number, by: number): Promise<void> {
     const merged = this.mergedFile(bx, by);
-    if (fs.existsSync(merged)) {
+    const n = this.samples;
+    const state = cachedBlockState(merged, n);
+    if (state === 'ok') {
       this.stats.fromCache++;
       return;
     }
-    const n = this.samples;
+    // Bloc tronqué (écriture interrompue, disque plein) : il serait relu comme valide. On le refait.
+    if (state === 'truncated') {
+      console.log(`    MNT ${this.label} : bloc ${bx}_${by} tronqué dans le cache, retéléchargé`);
+      fs.rmSync(merged, { force: true });
+      this.blocks.delete(`${bx}_${by}`);
+    }
     const lidar = await this.fetchLayer(LAYER_LIDAR, bx, by);
     const mask = invalidMask(lidar, n);
     let nodata = 0;
@@ -186,7 +205,7 @@ export class Dem {
       this.stats.filledFromRgeAlti += nodata;
       inpaint(lidar, mask, n);
     }
-    fs.writeFileSync(merged, Buffer.from(lidar.buffer, lidar.byteOffset, lidar.byteLength));
+    writeAtomic(merged, Buffer.from(lidar.buffer, lidar.byteOffset, lidar.byteLength));
     this.stats.downloaded++;
     this.missing.delete(`${bx}_${by}`);
   }
@@ -195,7 +214,7 @@ export class Dem {
     const k = `${bx}_${by}`;
     if (this.blocks.has(k)) return true;
     if (this.missing.has(k)) return false;
-    const ok = fs.existsSync(this.mergedFile(bx, by));
+    const ok = cachedBlockState(this.mergedFile(bx, by), this.samples) === 'ok';
     if (!ok) this.missing.add(k);
     return ok;
   }

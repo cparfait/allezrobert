@@ -9,6 +9,7 @@
  * avec journal en direct, annulation et reprise. Écoute 127.0.0.1 uniquement.
  */
 import fs from 'node:fs';
+import { writeAtomic } from './safe-fs.ts';
 import http from 'node:http';
 import path from 'node:path';
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
@@ -50,9 +51,7 @@ function backup(file: string): void {
 /** Écriture sûre : sauvegarde, fichier temporaire, renommage. */
 function safeWrite(file: string, text: string): void {
   backup(file);
-  const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, text);
-  fs.renameSync(tmp, file);
+  writeAtomic(file, text);
 }
 
 // ---- zones ---------------------------------------------------------------------------------

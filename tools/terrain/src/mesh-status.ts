@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkFreeSpace, spaceSummary, worldBuiltState } from './safe-fs.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const WORK = path.join(ROOT, 'data', 'cache', 'mesh');
@@ -23,7 +24,7 @@ const running: string[] = [];
 const todo: string[] = [];
 for (const z of plan.zones) {
   const r = report[z.id];
-  if (fs.existsSync(path.join(WORLDS, z.id, 'world.json'))) built.push(z.id);
+  if (worldBuiltState(path.join(WORLDS, z.id)).built) built.push(z.id);
   else if (fs.existsSync(path.join(WORK, `build-${z.id}.log`)) && Date.now() - fs.statSync(path.join(WORK, `build-${z.id}.log`)).mtimeMs < 15 * 60_000) running.push(z.id);
   else if (r && r.code !== 0) failed.push(z.id);
   else todo.push(z.id);
@@ -32,12 +33,19 @@ for (const z of plan.zones) {
 const mins = Object.values(report).filter((r) => r.code === 0).map((r) => r.minutes);
 const avg = mins.length ? mins.reduce((a, b) => a + b, 0) / mins.length : 0;
 const left = running.length + todo.length + failed.length;
-const s = fs.statfsSync(ROOT);
+// Disques réels du cache (souvent une jonction) et du dossier de sortie, pas celui du dépôt.
+const room = checkFreeSpace(
+  [
+    { label: 'cache', path: path.join(ROOT, 'data', 'cache', 'terrain') },
+    { label: 'sortie', path: process.env.TERRAIN_OUT_DIR ? path.resolve(process.env.TERRAIN_OUT_DIR) : WORLDS },
+  ],
+  0,
+);
 const total = plan.zones.length;
 const bar = '█'.repeat(Math.round((built.length / total) * 30)).padEnd(30, '░');
 
 console.log(`Île-de-France : ${built.length}/${total} zones construites  ${bar}`);
-console.log(`  en cours ${running.length} · à faire ${todo.length} · en échec ${failed.length} · disque libre ${((s.bavail * s.bsize) / 1024 ** 3).toFixed(0)} Go`);
+console.log(`  en cours ${running.length} · à faire ${todo.length} · en échec ${failed.length} · place libre : ${spaceSummary(room)}`);
 if (avg) console.log(`  durée moyenne ${Math.round(avg)} min par zone → reste ≈ ${Math.round((avg * left) / 60)} h`);
 for (const id of running) {
   const log = fs.readFileSync(path.join(WORK, `build-${id}.log`), 'utf8');

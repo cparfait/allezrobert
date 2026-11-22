@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { CACHE_DIR, USER_AGENT } from './config.ts';
+import { writeAtomic } from './safe-fs.ts';
 
 const lastCall = new Map<string, number>();
 const MIN_INTERVAL_MS: Record<string, number> = {
@@ -55,9 +56,7 @@ export function setOffline(v: boolean): void {
 export async function fetchCached(url: string, file: string, opts: FetchOptions = {}): Promise<Buffer> {
   if (fs.existsSync(file)) return fs.readFileSync(file);
   const buf = await fetchWithRetry(url, opts);
-  const tmp = `${file}.tmp`;
-  fs.writeFileSync(tmp, buf);
-  fs.renameSync(tmp, file);
+  writeAtomic(file, buf);
   return buf;
 }
 

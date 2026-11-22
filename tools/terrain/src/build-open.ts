@@ -29,6 +29,7 @@ import { simplify3 } from './geom.ts';
 import { RoadGraph, type Edge } from './graph.ts';
 import { writeHorizon } from './horizon.ts';
 import { setOffline } from './net.ts';
+import { txCopyDir, txFile, writeAtomic, writeBuildMarker } from './safe-fs.ts';
 import { buildOsmWorld } from './osm.ts';
 import { coastClauses, fetchOsm, fetchOsmApi, reachableOverpass } from './overpass.ts';
 import { detectClimbs, elevationGain } from './profile.ts';
@@ -98,6 +99,9 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   fs.mkdirSync(path.join(OUT_DIR, 'routes'), { recursive: true });
   fs.mkdirSync(path.join(OUT_DIR, 'tiles'), { recursive: true });
+  // Ce que la construction remplace hors des tuiles : copies de secours, rendues si elle échoue.
+  txCopyDir(OUT_DIR, path.join(OUT_DIR, 'routes'));
+  for (const f of ['world.json', 'graph.json', PLACES_FILE]) txFile(OUT_DIR, path.join(OUT_DIR, f));
   const rect = worldRect();
   const tiles: Array<[number, number]> = [];
   for (let tx = CORRIDOR_TILES.txMin; tx <= CORRIDOR_TILES.txMax; tx++) for (let tz = CORRIDOR_TILES.tzMin; tz <= CORRIDOR_TILES.tzMax; tz++) tiles.push([tx, tz]);
@@ -232,7 +236,7 @@ async function main(): Promise<void> {
   const graph: RoadGraphData = { formatVersion: 1, nodes, edges, attribution: [...ATTRIBUTION], osm: osmIds };
   const net = new RoadNet(graph);
   const graphFile = path.join(OUT_DIR, 'graph.json');
-  fs.writeFileSync(graphFile, JSON.stringify(graph));
+  writeAtomic(graphFile, JSON.stringify(graph));
   const km = edges.reduce((s, e) => s + e.len, 0) / 1000;
   const paved = edges.filter((e) => /^(asphalt|paved|concrete|chipseal)/.test(e.surface)).reduce((s, e) => s + e.len, 0) / 1000;
   log(`   ${edges.length} arêtes (${edges.filter((e) => e.border).length} au bord), ${nodes.length / 3} nœuds, ${km.toFixed(0)} km roulables (dont ${paved.toFixed(0)} km revêtus) — ${(fs.statSync(graphFile).size / 1e6).toFixed(1)} Mo`);
@@ -244,13 +248,13 @@ async function main(): Promise<void> {
   for (const tour of TOURS) {
     const route = buildTour(tour, g, net, edgeIndex, osm.pois);
     routes.push(route);
-    fs.writeFileSync(path.join(OUT_DIR, 'routes', `${route.id}.json`), JSON.stringify(route));
+    writeAtomic(path.join(OUT_DIR, 'routes', `${route.id}.json`), JSON.stringify(route));
     log(`   ${route.name} : ${(route.lengthM / 1000).toFixed(2)} km, D+ ${route.elevationGainM.toFixed(0)} m, ${route.segments.length} montée(s), repères ${route.landmarks?.map((l) => l.name).join(', ')}`);
   }
 
   // 5 bis. villes, villages et hameaux : noms sur la carte d'itinéraire du menu
   const places = placesOf(osm.pois);
-  fs.writeFileSync(path.join(OUT_DIR, PLACES_FILE), JSON.stringify(places));
+  writeAtomic(path.join(OUT_DIR, PLACES_FILE), JSON.stringify(places));
   log(`   ${places.length} lieux nommés (${PLACES_FILE})`);
 
   // 6. tuiles
@@ -306,7 +310,7 @@ async function main(): Promise<void> {
     open: { graph: 'graph.json', start: { x: r2(start[0]), z: r2(start[1]) }, places: PLACES_FILE },
     ...(W.sea ? { sea: { levelM: 0 } } : {}),
   };
-  fs.writeFileSync(path.join(OUT_DIR, 'world.json'), JSON.stringify(meta, null, 1));
+  writeAtomic(path.join(OUT_DIR, 'world.json'), JSON.stringify(meta, null, 1));
   // monde des sorties Garmin : même garde-fou vie privée que build-world (tuiles, emprise, itinéraires)
   if (W.kind === 'garmin' && fs.existsSync(GARMIN_DIR)) {
     const violations = auditWorldDir(OUT_DIR, sensitivePoints(loadRides(GARMIN_DIR)), PRIVACY_RADIUS_M);
@@ -325,6 +329,8 @@ async function main(): Promise<void> {
   log(`   durée ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   // pack de cartes et catalogue des zones (seulement pour le dossier publié du jeu)
   if (path.resolve(OUT_DIR) === path.join(WORLDS_ROOT, W.id)) writeCatalogue(log);
+  // Témoin de fin : la zone est complète (mesh-build s'y fie pour ne pas la reconstruire).
+  writeBuildMarker(OUT_DIR, W.id, meta.tiles.length);
 }
 
 /**

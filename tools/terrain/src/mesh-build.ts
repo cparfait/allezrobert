@@ -1,17 +1,23 @@
 /**
  * Construction enchaînée des zones du maillage d'Île-de-France (docs/MAILLAGE_ILE_DE_FRANCE.md), une
- * à la fois, en vidant le cache lourd entre deux zones pour que le disque suffise.
+ * à la fois. Le cache n'est jamais vidé, sauf demande explicite (`--purge-cache`).
  *
- *   npx tsx src/mesh-build.ts [--only <id>[,<id>…]] [--limit <n>] [--keep-cache] [--min-free-gb 30]
+ *   npx tsx src/mesh-build.ts [--only <id>[,<id>…]] [--limit <n>] [--purge-cache] [--min-free-gb 30]
+ *
+ * `--keep-cache` (ancienne option) reste accepté et ne change plus rien : garder le cache est le comportement
+ * par défaut.
  *
  * 1. Attend qu'aucune autre construction (`build-world`) ni calcul de tours (`mesh-tours`, `zone-plan`)
  *    ne tourne : le cache est partagé, rien n'est lancé en parallèle.
  * 2. Inscrit les zones au menu (`mesh-register.ts`), retire `enrich` des zones (bâti : qualité standard).
- * 3. Photographie le cache lourd (LiDAR, MNT, BD TOPO, orthophotos) la première fois seulement
- *    (`data/cache/mesh/cache-snapshot.json`, reprenable) : après chaque zone, seuls les fichiers
+ * 3. Seulement avec `--purge-cache` : photographie le cache lourd (LiDAR, MNT, BD TOPO, orthophotos) la
+ *    première fois (`data/cache/mesh/cache-snapshot.json`, reprenable) ; après chaque zone, seuls les fichiers
  *    ABSENTS de cette photo sont supprimés. Le cache des autres zones n'est jamais touché ; OSM est gardé.
  * 4. Construit les zones dans l'ordre du plan (du centre vers la périphérie), saute celles déjà
- *    construites (`world.json` présent), continue après un échec, s'arrête sous `--min-free-gb`.
+ *    construites (témoin `tiles/build.ok`, ou zone d'avant le témoin dont toutes les tuiles sont là : voir
+ *    `worldBuiltState`), continue après un échec, s'arrête quand la place libre passe sous `--min-free-gb`
+ *    sur le disque réel du cache ou sur celui du dossier de sortie.
+ * Un verrou (`data/cache/mesh/mesh-build.lock`) empêche deux enchaînements en même temps.
  * 5. Recopie le `.gitignore` des tuiles, puis `packs` (catalogue) à la fin.
  *
  * Journaux : `data/cache/mesh/build-<id>.log` et `data/cache/mesh/build-report.json`.
@@ -20,6 +26,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { parseMeshArgs } from './mesh-args.ts';
+import { acquireLock, checkFreeSpace, spaceMessage, spaceSummary, worldBuiltState, type SpaceCheck } from './safe-fs.ts';
 
 const TERRAIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ROOT = path.resolve(TERRAIN, '../..');
@@ -29,12 +37,11 @@ const WORLDS = path.join(ROOT, 'apps', 'client', 'public', 'worlds');
 const SNAP = path.join(WORK, 'cache-snapshot.json');
 const REPORT = path.join(WORK, 'build-report.json');
 
-const argv = process.argv.slice(2);
-const arg = (k: string) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : undefined; };
-const only = arg('--only')?.split(',');
-const limit = Number(arg('--limit') ?? Infinity);
-const keepCache = argv.includes('--keep-cache');
-const minFreeGb = Number(arg('--min-free-gb') ?? 30);
+const { only, limit, purgeCache, minFreeGb } = parseMeshArgs(process.argv.slice(2));
+/** Le cache est gardé sauf demande explicite de purge. */
+const keepCache = !purgeCache;
+/** Dossier où les zones sont écrites : celui du jeu, ou `TERRAIN_OUT_DIR` que les constructions héritent. */
+const OUT = process.env.TERRAIN_OUT_DIR ? path.resolve(process.env.TERRAIN_OUT_DIR) : WORLDS;
 const DLL_INIT_FAILED = 3221225794;
 
 const log = (s: string) => console.log(`[${new Date().toLocaleTimeString('fr-FR')}] ${s}`);
@@ -66,9 +73,19 @@ function listCache(): string[] {
   return out;
 }
 
+/** Place libre sur le disque réel du cache (souvent une jonction vers un autre disque) et sur celui de la sortie. */
+function space(): SpaceCheck {
+  return checkFreeSpace(
+    [
+      { label: 'cache', path: CACHE },
+      { label: 'sortie', path: OUT },
+    ],
+    minFreeGb,
+  );
+}
+/** Le plus petit des deux, pour le bilan. */
 function freeGb(): number {
-  const s = fs.statfsSync(ROOT);
-  return (s.bavail * s.bsize) / 1024 ** 3;
+  return Math.min(...space().readings.map((r) => r.freeGb));
 }
 
 function run(cmd: string, logFile: string): Promise<number> {
@@ -81,6 +98,12 @@ function run(cmd: string, logFile: string): Promise<number> {
 
 async function main(): Promise<void> {
   fs.mkdirSync(WORK, { recursive: true });
+  const lock = acquireLock(path.join(WORK, 'mesh-build.lock'), { what: 'mesh-build' });
+  if (!lock.ok) {
+    log(`arrêt : un autre enchaînement tourne déjà (processus ${lock.holder.pid}, lancé le ${lock.holder.startedAt})`);
+    process.exit(4);
+  }
+  process.on('exit', lock.release);
   for (let first = true; ; first = false) {
     const b = busy();
     if (!b.length) break;
@@ -110,8 +133,9 @@ async function main(): Promise<void> {
     for (const f of listCache()) if (!keep.has(f)) { fs.rmSync(path.join(CACHE, f), { force: true }); n++; }
     return n;
   }
+  if (keepCache) log(`cache gardé (aucune purge sans --purge-cache) ; place libre : ${spaceSummary(space())}`);
   // restes d'une zone interrompue
-  log(`nettoyage initial : ${purge()} fichier(s) hors photo, ${freeGb().toFixed(0)} Go libres`);
+  else log(`nettoyage initial : ${purge()} fichier(s) hors photo ; place libre : ${spaceSummary(space())}`);
 
   let done = 0;
   let failures = 0;
@@ -120,9 +144,12 @@ async function main(): Promise<void> {
     if (done >= limit) break;
     const zf = path.join(zonesDir, `${id}.json`);
     if (!fs.existsSync(zf)) { log(`${id} : pas de tours, ignorée`); continue; }
-    if (fs.existsSync(path.join(WORLDS, id, 'world.json'))) { log(`${id} : déjà construite`); continue; }
+    const state = worldBuiltState(path.join(WORLDS, id));
+    if (state.built) { log(`${id} : déjà construite (${state.reason})`); continue; }
+    if (fs.existsSync(path.join(WORLDS, id, 'world.json'))) log(`${id} : à reconstruire (${state.reason})`);
     if (failures >= 3) break;
-    if (freeGb() < minFreeGb) { log(`arrêt : ${freeGb().toFixed(0)} Go libres (< ${minFreeGb})`); break; }
+    const room = space();
+    if (!room.ok) { log(`arrêt : place insuffisante. ${spaceMessage(room, minFreeGb)}`); break; }
     const z = JSON.parse(fs.readFileSync(zf, 'utf8')) as Record<string, unknown>;
     if ('enrich' in z) { delete z.enrich; fs.writeFileSync(zf, JSON.stringify(z, null, 2) + '\n'); }
 

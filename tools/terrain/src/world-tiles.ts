@@ -15,6 +15,7 @@ import { fetchOrtho, harmonizeOrthos, orthoCacheFile, type HarmonizeTile } from 
 import type { OsmWorld, Poi } from './osm.ts';
 import { buildRoads3d, type Roads3d, type RouteOnGraph } from './roads3d.ts';
 import { buildTile, TileBuckets, type CarveLine, type TileInputs, type TileResult, type TileRoad } from './tiles.ts';
+import { txMoveDir } from './safe-fs.ts';
 
 export interface WriteTilesOptions {
   g: RoadGraph;
@@ -108,7 +109,9 @@ export async function writeWorldTiles(o: WriteTilesOptions): Promise<TileResult[
   for (const p of osm.pois) inputs.pois.add({ minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z }, p);
 
   const tilesDir = path.join(o.outDir, 'tiles');
-  for (const f of fs.readdirSync(tilesDir)) fs.unlinkSync(path.join(tilesDir, f));
+  // L'ancien dossier de tuiles est mis de côté (renommage) au lieu d'être vidé : si la construction échoue, il
+  // revient à la fin du processus (safe-fs.ts) et la zone précédente reste jouable.
+  txMoveDir(o.outDir, tilesDir);
   const total = o.tiles.length;
   let k = 0;
   const orthos: Array<{ res: TileResult; tile: HarmonizeTile }> = [];

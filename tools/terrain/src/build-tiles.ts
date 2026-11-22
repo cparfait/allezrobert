@@ -28,6 +28,7 @@ import { fetchOsmApi } from './osmapi.ts';
 import { fetchOsm, splitBBox, type BBox } from './overpass.ts';
 import type { RouteOnGraph } from './roads3d.ts';
 import { writeWorldTiles } from './world-tiles.ts';
+import { preflight } from './preflight.ts';
 
 const argv = process.argv.slice(2);
 const arg = (k: string): string | undefined => {
@@ -91,6 +92,8 @@ function intersects(a: BBox, b: BBox): boolean {
 
 async function main(): Promise<void> {
   const t0 = Date.now();
+  // Reste d'une construction interrompue remis en place, puis place libre sur les disques.
+  preflight();
   const meta = JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'world.json'), 'utf8')) as WorldMeta;
   const routes = meta.routes.map((r) => JSON.parse(fs.readFileSync(path.join(OUT_DIR, r.file), 'utf8')) as RouteData);
   const nearId = arg('--near') ?? meta.mainRoute;

@@ -173,12 +173,29 @@ Options utiles :
 
 - `--no-ortho` : sans orthophotos IGN (beaucoup plus rapide pour un essai) ;
 - `--offline` : cache seul, échoue si une donnée manque ;
-- `--graph-only` : ne réécrit que `graph.json` (quelques minutes, sans tuiles ni tours).
+- `--graph-only` : ne réécrit que `graph.json` (quelques minutes, sans tuiles ni tours) ;
+- `--min-free-gb N` : place libre exigée avant de commencer (10 Go par défaut, 0 coupe le contrôle).
 
 Variables d'environnement : `TERRAIN_WORLD=<id>` (équivalent de `--world`), `TERRAIN_OFFLINE=1`
 (équivalent de `--offline`), `TERRAIN_OUT_DIR=<dossier>` (construire à côté puis basculer d'un coup,
-utile si `C:` est plein). `--routes-only` (script `build:routes`) ne concerne que les mondes
-`garmin`, pas les zones `open`.
+utile si `C:` est plein), `TERRAIN_MIN_FREE_GB=<n>` (équivalent de `--min-free-gb`). `--routes-only`
+(script `build:routes`) ne concerne que les mondes `garmin`, pas les zones `open`.
+
+### Garde-fous d'une construction
+
+- **Place libre** : avant de commencer, la construction mesure la place sur le disque réel du cache
+  (`data/cache` est souvent une jonction vers un autre disque) et sur celui du dossier de sortie. Sous le
+  seuil, elle s'arrête tout de suite avec le code 3 et nomme le disque en cause.
+- **Une zone existante n'est jamais perdue** : les anciennes tuiles, les itinéraires, `world.json`,
+  `graph.json` et la liste des lieux sont mis de côté dans `<zone>/.build-backup/` pendant la
+  construction. Si elle échoue (erreur, disque plein, Ctrl+C), ils sont remis en place à la fin ; si elle
+  réussit, la copie est supprimée. Après un arrêt brutal (machine éteinte, processus tué), la remise en
+  place se fait au lancement suivant d'une construction de cette zone.
+- **Fichiers écrits d'un coup** : chaque fichier final passe par un fichier temporaire puis un renommage ;
+  une panne ne laisse pas de fichier tronqué. Un bloc d'altitudes tronqué dans le cache est détecté à sa
+  taille et retéléchargé.
+- **Témoin de fin** : une construction réussie écrit `tiles/build.ok` (date, nombre de tuiles). Il n'est
+  ni versionné ni livré dans le pack de cartes.
 
 Temps : environ 3 minutes la première fois pour une zone de 7 × 7 km, plusieurs dizaines de
 minutes pour une zone de 13 × 11 km avec orthophotos. Le journal détaille chaque étape (OSM, MNT
