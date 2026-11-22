@@ -398,16 +398,16 @@ function robertWait(): string {
   return `<div class="rb" aria-hidden="true"><div class="rb-bike">${l('base')}${l('leg', 'rb-leg')}<div class="rb-upper">${l('upper')}${l('arm', 'rb-arm')}</div></div></div>`;
 }
 
-/** Bloc d'état d'un maillon de la liaison (écrans d'attente). */
-function linkTile(ico: string, name: string, state: 'ok' | 'warn' | 'bad' | 'none', word: string): string {
-  return `<div class="st-tile is-${state}"><span class="st-ico" aria-hidden="true">${ico}</span><b>${esc(name)}</b><span class="ab-state"><i></i>${esc(word)}</span></div>`;
+/** État de la liaison des écrans d'attente : une seule mention (« Connecté », « Connexion… », « Hors ligne »). */
+function linkPill(): string {
+  const state = S.conn === 'connected' ? 'ok' : S.conn === 'down' ? 'bad' : 'warn';
+  const word = S.conn === 'connected' ? t.linkOk : S.conn === 'down' ? t.linkDown : t.linkWait;
+  return `<p class="st-pill is-${state}"><span class="ab-state"><i></i>${esc(word)}</span></p>`;
 }
 
 function waitingHtml(): string {
-  const phone = S.conn === 'connected' ? linkTile('📱', t.linkPhone, 'ok', t.linkOk) : linkTile('📱', t.linkPhone, S.conn === 'down' ? 'bad' : 'warn', S.conn === 'down' ? t.linkDown : t.linkWait);
   const gameUp = S.conn === 'connected' && S.presence.game && !!S.st;
-  const game = gameUp ? linkTile('🖥', t.linkGame, 'ok', t.linkOk) : linkTile('🖥', t.linkGame, 'none', t.linkWait);
-  const tiles = `<div class="st-grid">${phone}${game}</div>`;
+  const tiles = linkPill();
   if (S.conn !== 'connected') return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitConnTitle)}</h1><p class="ab-sub">${esc(S.conn === 'down' ? t.serverDown : t.connecting)}</p>${tiles}</div>`;
   if (!gameUp) return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitGameTitle)}</h1><p class="ab-sub">${esc(t.waitingGame)}</p>${tiles}<button class="btn ghost small" data-act="unpair">${esc(t.unpair)}</button></div>`;
   return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitMenuTitle)}</h1><p class="ab-sub">${esc(t.menu)}</p>${tiles}</div>`;

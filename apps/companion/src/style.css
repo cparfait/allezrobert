@@ -454,15 +454,11 @@ input[type='range'] { height: 40px; }
 .empty { gap: 12px; padding: 20px 16px; color: #c3cddb; justify-content: flex-start; padding-top: clamp(16px, 6vh, 48px); }
 .empty p { max-width: 420px; }
 .rb { height: clamp(120px, 26vh, 190px); }
-.st-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: min(460px, 100%); margin-top: 6px; }
-.st-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; border-radius: var(--r-tile); border: 2px solid var(--tile-line); background: var(--tile); text-align: left; }
-.st-tile b { font-size: 18px; font-weight: 800; color: var(--text); }
-.st-ico { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 15px; background: rgba(255, 255, 255, 0.07); font-size: 26px; }
-.st-tile.is-ok { border-color: rgba(34, 197, 94, 0.75); }
-.st-tile.is-ok .st-ico { background: rgba(34, 197, 94, 0.16); }
-.st-tile.is-warn { border-color: rgba(255, 210, 63, 0.7); }
-.st-tile.is-bad { border-color: rgba(239, 68, 68, 0.8); }
-.st-tile.is-bad .st-ico { background: rgba(239, 68, 68, 0.14); }
+/* État de la liaison sur les écrans d'attente : une seule mention. */
+.st-pill { margin: 4px 0 0; padding: 8px 16px; border-radius: 999px; border: 2px solid var(--tile-line); background: var(--tile); font-weight: 800; }
+.st-pill.is-ok { border-color: rgba(34, 197, 94, 0.75); }
+.st-pill.is-warn { border-color: rgba(255, 210, 63, 0.7); }
+.st-pill.is-bad { border-color: rgba(239, 68, 68, 0.8); }
 
 /* Feuille du choix d'un champ, bandeaux. */
 .sheet { border-radius: 24px 24px 0 0; gap: 14px; }
