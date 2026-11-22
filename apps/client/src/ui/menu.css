@@ -1366,3 +1366,11 @@ p.kom-empty { margin: 0; padding: 28px 14px; text-align: center; color: #aeb7c3;
 .mm-spdlg .sp-hint { margin: 10px 0 0; font-size: 14px; line-height: 1.4; color: #aeb7c3; }
 .mm-spdlg .sp-foot { margin-top: 2px; }
 @media (max-width: 560px) { .mm-dialog.mm-spdlg { padding: 18px 16px; } }
+
+/*
+ * Six modes sur une rangée : le nom suit la largeur de la rangée (requête de conteneur), pour qu'un mot long
+ * (« Entraînement ») tienne dans sa tuile au lieu d'en déborder ; coupure avec trait d'union en dernier recours.
+ */
+.mm-modes { container-type: inline-size; }
+.mm-mode { min-width: 0; }
+.mm-mode b { font-size: clamp(11px, 2.05cqi, 14px); max-width: 100%; overflow-wrap: break-word; hyphens: auto; }
