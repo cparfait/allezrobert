@@ -1001,7 +1001,8 @@ function updateChatControls(): void {
   const multi = !!S.st?.multiplayer;
   const solo = document.getElementById('chat-solo');
   if (solo) solo.hidden = multi;
-  document.querySelectorAll<HTMLElement>('#chat-quick, form[data-form="chat"]').forEach((el) => el.classList.toggle('disabled', !multi));
+  // Solo : ni champ ni messages rapides (personne pour les lire) ; seules les annonces du jeu restent.
+  document.querySelectorAll<HTMLElement>('#chat-quick, form[data-form="chat"]').forEach((el) => (el.hidden = !multi));
   const box = document.getElementById('rideon');
   if (!box) return;
   const riders = multi ? (S.st?.riders ?? []).filter((r) => !r.me && !r.ai) : [];
