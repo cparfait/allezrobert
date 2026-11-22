@@ -39,6 +39,13 @@ function tokenProvider(apiBase: string, name: string, onSession?: () => Promise<
   };
 }
 
+/** Maillages à squelette toujours dessinés (voir `render`). */
+function keepSkinsDrawn(group: THREE.Object3D): void {
+  group.traverse((o) => {
+    if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.frustumCulled = false;
+  });
+}
+
 /** Nombre stable tiré de l'identifiant d'un coureur (choix de son profil V3). */
 function hashId(id: string): number {
   let h = 2166136261;
@@ -107,6 +114,8 @@ export class Multiplayer {
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   /** Inclinaison affichée de chaque coureur distant en virage (rad, lissée). */
   private readonly banks = new Map<string, number>();
+  /** Compteur pour revoir de temps en temps les maillages V3 des coureurs distants (keepSkinsDrawn). */
+  private cullFrame = 0;
   private collision?: RouteBuildingCollision;
   private collisionPrediction?: CollisionPrediction;
   private readonly predictedSelf: RouteObstaclePose = { distM: 0, lateral: 0, speedMs: 0 };
@@ -352,6 +361,10 @@ export class Multiplayer {
         this.banks.set(r.id, bank);
         rem.avatar.update(dt, r.cadence, r.speedMs, r.pose, bank);
         rem.v3?.update(dt, r.cadence, r.speedMs, r.pose, { effort: r.watts / 250, transitions: true });
+        // Corps et tenue V3 (maillages à squelette) : jamais masqués « hors champ ». Leur sphère englobante, calculée
+        // une fois, pouvait être fausse : tout près de la caméra, seuls la tête et le vélo restaient (22/11/2026).
+        // Revu de temps en temps, les articles de la tenue arrivant après le corps.
+        if (rem.v3 && ++this.cullFrame % 90 === 0) keepSkinsDrawn((rem.v3 as unknown as { group: THREE.Object3D }).group);
       } else if (rem.v3 && root.visible && Math.random() < 1 / 30) {
         // Trop loin pour être animé : mise à jour de temps en temps pour que le coureur V3 se charge.
         rem.v3.update(1 / 60, r.cadence, r.speedMs, r.pose, { effort: r.watts / 250 });
