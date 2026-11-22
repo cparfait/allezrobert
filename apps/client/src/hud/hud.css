@@ -546,6 +546,20 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 /* Nom du lieu sous la mini-carte ronde, pas dessus (demande de l'utilisateur du 18/11) : le disque reste rond par son canevas. */
 .hud:not(.compact) .minimap:has(.map-town:not(.hidden)) { overflow: visible; margin-bottom: 30px; }
 .hud:not(.compact) .map-town { bottom: -28px; max-width: 120%; }
+/* Vent, altitude et tour intégrés à la mini-carte (cockpit complet) : plus de bloc à part sous la carte.
+   Vent : pastille en haut du disque, flèche par rapport au coureur. Tour : pastille dans le coin haut gauche.
+   Altitude : à la suite du lieu, dans la pastille du bas. */
+.hud:not(.compact) .minimap { overflow: visible; }
+.map-name.hidden { display: none; }
+.map-alt { font-weight: 700; color: #dfe5ec; }
+.map-alt:empty { display: none; }
+.map-name:not(.hidden) + .map-alt:not(.hud-off)::before { content: '·'; margin: 0 6px; color: var(--ar-muted); }
+.map-wind, .map-lap { position: absolute; display: flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; background: rgba(10, 14, 22, 0.78); color: var(--ar-fg); font-size: 12px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+.map-wind { top: 7px; left: 50%; transform: translateX(-50%); }
+.map-wind svg { flex: none; color: #93c5fd; }
+.map-wind.hidden { display: none; }
+.map-lap { top: 24px; left: -16px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #dfe5ec; }
+.map-lap b { font-size: 13px; color: var(--ar-fg); }
 .riders .row.nb:not(.me) { background: rgba(255, 255, 255, 0.03); border-color: transparent; }
 .riders .row.nb { grid-template-columns: 62px minmax(0, 1fr); gap: 8px; padding: 4px 10px; margin-top: 3px; border-radius: 9px; }
 .riders .nb-l { display: flex; align-items: center; gap: 7px; }
@@ -835,11 +849,6 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 
 /* Aspiration, vent, altitude et tour : à droite, sous le groupe et les coureurs à proximité. */
 .hud-col-right > .hud-left { align-self: flex-end; grid-template-columns: auto auto; flex: none; }
-/* Vent, altitude, tour : petit bloc serré à droite, sans le trait jaune des autres panneaux. */
-.hud:not(.compact) .hud-col-right > .hud-left { padding: 6px 12px; gap: 1px 14px; border-radius: 10px; }
-.hud:not(.compact) .hud-col-right > .hud-left::before { display: none; }
-.hud:not(.compact) .hud-col-right > .hud-left .k { font-size: 10px; }
-.hud:not(.compact) .hud-col-right > .hud-left .v { font-size: 12.5px; }
 .hud-col-right > .hud-left.panel { background: rgba(10, 14, 22, 0.38); }
 .hud-col-right > .hud-left .hud-note { max-width: none; }
 .hud.compact .hud-col-right > .hud-left { width: auto; }

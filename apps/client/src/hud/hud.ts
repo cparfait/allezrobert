@@ -466,7 +466,7 @@ function zoneColorHex(watts: number, ftp: number): string {
 const lastHtml = new WeakMap<HTMLElement, string>();
 /** Remplace le contenu de `el` seulement s'il a changé (pas de reconstruction ni de mise en page inutiles). */
 /** Blocs que masque le bouton « × » de chaque panneau de droite. */
-const PANEL_BLOCKS: Record<string, string[]> = { env: ['wind', 'alt', 'lap'], zones: ['zones'], group: ['group'], riders: ['riders'] };
+const PANEL_BLOCKS: Record<string, string[]> = { zones: ['zones'], group: ['group'], riders: ['riders'] };
 const PANEL_MIN_KEY = 'ar.hudPanelsMin';
 function readPanelSet(): Set<string> {
   try {
@@ -792,12 +792,12 @@ export class Hud {
         </div>
       </div>
       <div class="hud-col hud-col-right">
-        <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas><div class="map-town hidden" data-k="mapTown"></div></div>
-        <!-- Vent, altitude, tour : à droite, sous la carte, avant le groupe et les coureurs (l'aspiration est sous le cadran). -->
-        <div class="panel hud-left" data-pnl="env">
-          <span class="k" data-hud="wind">${S('wind')}</span><span class="v num" data-k="wind" data-hud="wind">–</span>
-          <span class="k" data-hud="alt">${S('altitude')}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
-          ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
+        <!-- Mini-carte ronde, avec le vent (flèche par rapport au coureur) en haut, le tour dans un coin, le lieu et l'altitude dessous. -->
+        <div class="panel minimap" data-hud="map">
+          <canvas width="460" height="460"></canvas>
+          <div class="map-wind num hidden" data-k="wind" data-hud="wind"></div>
+          ${track.route.loop ? `<div class="map-lap" data-hud="lap">${t('lap')} <b class="num" data-k="lap">1</b></div>` : ''}
+          <div class="map-town hidden" data-k="mapFoot"><span class="map-name hidden" data-k="mapTown"></span><span class="map-alt num" data-k="alt" data-hud="alt"></span></div>
         </div>
         ${groupPanel()}
         <div class="panel riders" data-k="riders" data-hud="riders" data-pnl="riders"></div>
@@ -1194,9 +1194,20 @@ export class Hud {
           ? ({ face: 'windHeadShort', dos: 'windTailShort', gauche: 'windLeftShort', droite: 'windRightShort' } as const)[s.wind.from]
           : ({ face: 'windHead', dos: 'windTail', gauche: 'windLeft', droite: 'windRight' } as const)[s.wind.from],
       );
-      (e.wind as HTMLElement).textContent = s.wind.kmh < 2 ? S('calm') : `${Math.round(s.wind.kmh)} km/h ${from}`;
+      const windTxt = s.wind.kmh < 2 ? S('calm') : `${Math.round(s.wind.kmh)} km/h ${from}`;
+      if (cx) (e.wind as HTMLElement).textContent = windTxt;
+      else {
+        // Sur la mini-carte : flèche dans le sens où le vent souffle, le coureur roulant vers le haut (de face = vers le bas).
+        const turn = { face: 0, dos: 180, gauche: -90, droite: 90 }[s.wind.from];
+        const el = e.wind as HTMLElement;
+        setHtml(el, s.wind.kmh < 2 ? S('calm') : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(${turn}deg)" aria-hidden="true"><path d="M12 4v15M6 13l6 6 6-6"/></svg>${Math.round(s.wind.kmh)} km/h`);
+        el.title = `${S('wind')} : ${windTxt}`;
+        el.classList.remove('hidden');
+      }
     }
     if (s.altitudeM !== undefined) (e.alt as HTMLElement).textContent = `${Math.round(s.altitudeM)} m`;
+    // Cockpit complet : la pastille sous la mini-carte porte le lieu et l'altitude ; elle apparaît dès qu'il y a l'un des deux.
+    if (e.mapFoot) (e.mapFoot as HTMLElement).classList.toggle('hidden', !s.place && s.altitudeM === undefined);
     // pas de compteur de tours sur un itinéraire aller simple
     if (e.lap) e.lap.textContent = String(s.lap);
     (e.gear as HTMLElement).textContent = s.gearLabel;
