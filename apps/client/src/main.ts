@@ -1134,7 +1134,7 @@ function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode
   startCheck = null;
   const panel = devicePanel;
   const q = new URLSearchParams(location.search);
-  if (!panel || !startCheckWanted({ autostart: q.has('autostart') && !relaunched, nointro: q.has('nointro'), guest: !!s.guest, tutorial: !!extras.tutorial, joining: !!(extras.inviteCode || extras.publicRoom || extras.nearFriend) })) return;
+  if (!panel || !startCheckWanted({ autostart: q.has('autostart') && !relaunched, nointro: q.has('nointro'), guest: !!s.guest, tutorial: !!extras.tutorial, joining: !!(extras.publicRoom || extras.nearFriend) })) return;
   const model = startCheckModel({ devices: panel.list() as CheckDevice[], live: panel.live?.(), simulatorOn: panel.simulatorOn(), loaded: true });
   if (skipStartCheck(model, startCheckSkipPref())) return;
   startCheck = openStartCheck(document.body, {
@@ -1853,6 +1853,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Sortie en pause tant que l'écran est là ; l'intro (qui la relance) part à la validation.
     ride.paused = true;
     void check.confirmed.then(playIntro);
+  } else if (check && room) {
+    // Course : l'écran des capteurs reste par-dessus le salon (le serveur tient le coureur sur la grille) ; il se
+    // ferme de lui-même au départ donné par le serveur, s'il n'a pas été validé avant.
+    const onHold = room.onHoldChange;
+    room.onHoldChange = (hold) => {
+      onHold?.(hold);
+      if (!hold) check.close();
+    };
   } else if (wantsIntro) {
     // Monde ouvert : pas d'intro ni de compte à rebours — le coureur est déjà dans la salle (parfois dans la roue d'un ami) et doit rouler tout de suite.
     playIntro();

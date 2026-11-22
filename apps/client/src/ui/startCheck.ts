@@ -138,7 +138,10 @@ export interface StartContext {
   /** Invité sans matériel, tutoriel (qui a son propre appairage). */
   guest: boolean;
   tutorial: boolean;
-  /** Entrée dans une salle qui existe déjà : code d'invitation, salle publique, ami à rejoindre. */
+  /**
+   * Monde ouvert partagé (salle publique, ami à rejoindre) : on roule tout de suite. Une course ou une sortie de
+   * groupe rejointe par un code garde l'écran : il s'affiche pendant le chargement, avant le salon.
+   */
   joining: boolean;
 }
 
