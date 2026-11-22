@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import type { RouteHairpin, RouteTrack } from '@allezrobert/shared';
 import { hairpinAltitude, hairpinShortName, plaqueLines } from '../game/climb.ts';
+import { groundChange, settleWhileVisible } from './groundSettle.ts';
 
 /** Texture d'un panneau d'entrée d'agglomération (fond blanc, liseré rouge, nom en capitales). */
 function signTexture(name: string): THREE.CanvasTexture {
@@ -136,6 +137,11 @@ export class TownSigns {
       sign.position.set(p.x, y, p.z);
       // Face vers les coureurs : la normale du panneau pointe à l'opposé de la direction de marche.
       sign.rotation.y = Math.atan2(-p.dirX, -p.dirZ);
+      // Tuile pas encore chargée ou maillage remplacé : poteau re-posé sur le sol affiché quand il est à l'écran.
+      settleWhileVisible(post, () => {
+        const yc = groundChange(sign.position.y, groundAt(p.x, p.z));
+        if (yc !== null) sign.position.y = yc;
+      });
       this.group.add(sign);
     }
   }
@@ -167,6 +173,11 @@ export class TownSigns {
     }
     sign.position.set(p.x, y, p.z);
     sign.rotation.y = Math.atan2(-p.dirX, -p.dirZ);
+    settleWhileVisible(face, () => {
+      const g = groundAt(p.x, p.z);
+      const yc = groundChange(sign.position.y, Number.isFinite(g) ? Math.min(g, p.y + 0.6) : g);
+      if (yc !== null) sign.position.y = yc;
+    });
     return sign;
   }
 }

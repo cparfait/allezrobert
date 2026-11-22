@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { climbCategory, climbCategoryLabel, komPoints, type RouteTrack } from '@allezrobert/shared';
+import { groundChange, settleWhileVisible } from './groundSettle.ts';
 
 type Kind = 'finish' | 'start' | 'km10' | 'km1' | 'summit' | 'komStart' | 'sprintStart' | 'sprintEnd';
 
@@ -155,7 +156,11 @@ export class FinishBanners {
     const span = half + 1.2; // poteaux à 1,2 m du bord de la chaussée
     const flameMat = new THREE.MeshStandardNodeMaterial({ color: '#d4141c', roughness: 0.6, side: THREE.DoubleSide });
     const TUBE = 0.5; // rayon du boudin gonflable
-    const tubeColor: Record<Kind, string> = { finish: '#1f5fbf', start: '#1f5fbf', km1: '#c8102e', km10: '#1f5fbf', summit: '#f4f4f4', komStart: '#f4f4f4', sprintStart: '#f4f4f4', sprintEnd: '#22a04b' };
+    // Fût d'un montant : hauteur 1 (mise à l'échelle), haut en y = 0 ; socle noir de 25 cm, bas en y = 0.
+    const legGeo = new THREE.CylinderGeometry(TUBE, TUBE, 1, 14).translate(0, -0.5, 0);
+    const footGeo = new THREE.CylinderGeometry(TUBE * 1.1, TUBE * 1.1, 0.25, 14).translate(0, 0.125, 0);
+    const footMat = new THREE.MeshStandardNodeMaterial({ color: '#222', roughness: 0.8 });
+    const tubeColor: Record<Kind, string> ={ finish: '#1f5fbf', start: '#1f5fbf', km1: '#c8102e', km10: '#1f5fbf', summit: '#f4f4f4', komStart: '#f4f4f4', sprintStart: '#f4f4f4', sprintEnd: '#22a04b' };
     for (const { d, kind, summit, label, backLabel } of spots) {
       const p = track.positionAt(d, 0);
       const ground = groundAt(p.x, p.z);
@@ -183,25 +188,36 @@ export class FinishBanners {
       const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(path), 96, TUBE, 14), tubeMat);
       tube.castShadow = true;
       g.add(tube);
-      // Pieds : socles noirs à la base des montants, posés sur le sol réel sous chaque montant (talus, dévers,
-      // pente) ; le montant est prolongé jusqu'au sol au lieu de rester à la hauteur du centre de la chaussée.
+      // Pieds : socles noirs posés sur le sol affiché sous chaque montant (talus, dévers, pente). Le boudin
+      // s'arrête à TUBE (0,5 m) au-dessus du centre de la chaussée : un fût le prolonge TOUJOURS jusqu'au socle,
+      // même en terrain plat (sinon le montant flottait 25 cm au-dessus de son pied).
       const len2 = Math.hypot(p.dirX, p.dirZ) || 1;
+      const feet: Array<{ x: number; z: number; leg: THREE.Mesh; foot: THREE.Mesh }> = [];
       for (const sx of [-1, 1]) {
         // Axe x local de l'arche après rotation (voir g.rotation.y plus bas) : (−dirZ, dirX) normalisé.
         const fx = p.x + (sx * hw * -p.dirZ) / len2;
         const fz = p.z + (sx * hw * p.dirX) / len2;
-        const fg = groundAt(fx, fz);
-        const drop = Number.isFinite(fg) ? Math.min(Math.max(y - fg, 0), 30) : 0;
-        if (drop > 0.03) {
-          const leg = new THREE.Mesh(new THREE.CylinderGeometry(TUBE, TUBE, drop + TUBE, 14), tubeMat);
-          leg.position.set(sx * hw, TUBE / 2 - drop / 2, 0);
-          leg.castShadow = true;
-          g.add(leg);
-        }
-        const foot = new THREE.Mesh(new THREE.CylinderGeometry(TUBE * 1.1, TUBE * 1.1, 0.25, 14), new THREE.MeshStandardNodeMaterial({ color: '#222', roughness: 0.8 }));
-        foot.position.set(sx * hw, 0.12 - drop, 0);
-        g.add(foot);
+        const leg = new THREE.Mesh(legGeo, tubeMat);
+        leg.position.set(sx * hw, TUBE, 0);
+        leg.castShadow = true;
+        const foot = new THREE.Mesh(footGeo, footMat);
+        foot.position.x = sx * hw;
+        g.add(leg, foot);
+        feet.push({ x: fx, z: fz, leg, foot });
       }
+      // Sol mesuré à la construction, puis de nouveau tant que l'arche est à l'écran : la tuile pouvait ne pas
+      // être chargée (arche posée à l'altitude de l'itinéraire) ou être remplacée par un maillage plus fin.
+      const settle = () => {
+        const yc = groundChange(g.position.y, groundAt(p.x, p.z));
+        if (yc !== null) g.position.y = yc;
+        for (const f of feet) {
+          const fg = groundAt(f.x, f.z);
+          const drop = Number.isFinite(fg) ? Math.min(Math.max(g.position.y - fg, 0), 30) : 0;
+          f.leg.scale.y = TUBE + drop;
+          f.foot.position.y = -drop;
+        }
+      };
+      settleWhileVisible(tube, settle);
       // Panneau d'inscription tendu sous le haut de l'arche, lisible des deux côtés.
       const bw = hw * 1.6;
       const bh = kind === 'km1' || kind === 'km10' ? 1.3 : 1.5;
@@ -224,6 +240,7 @@ export class FinishBanners {
       g.position.set(p.x, y, p.z);
       // Face vers les coureurs : la normale pointe à l'opposé de la direction de marche.
       g.rotation.y = Math.atan2(-p.dirX, -p.dirZ);
+      settle();
       this.group.add(g);
     }
     this.addFlags(track, groundAt, span);
@@ -244,6 +261,9 @@ export class FinishBanners {
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
       return g;
     };
+    // Pied de chaque drapeau et ses sommets dans le maillage fusionné (premier sommet, nombre) : re-posé plus tard.
+    const bases: Array<{ x: number; z: number; y: number; start: number; count: number }> = [];
+    let vertices = 0;
     for (const seg of track.route.segments) {
       if (seg.kind !== 'kom' && seg.kind !== 'sprint') continue;
       const colA = seg.kind === 'kom' ? '#e5322d' : '#22a04b';
@@ -260,11 +280,15 @@ export class FinishBanners {
             const m = new THREE.Matrix4().makeRotationY(yaw).setPosition(p.x, y, p.z);
             const pole = paint(new THREE.CylinderGeometry(0.03, 0.035, 3.2, 5).translate(0, 1.6, 0).toNonIndexed(), '#d8d8d8');
             const flag = paint(new THREE.BoxGeometry(0.02, 0.62, 0.95).translate(0, 2.8, -0.5).toNonIndexed(), col);
+            let count = 0;
             for (const g of [pole, flag]) {
               g.deleteAttribute('uv');
               g.applyMatrix4(m);
               parts.push(g);
+              count += g.getAttribute('position').count;
             }
+            bases.push({ x: p.x, z: p.z, y, start: vertices, count });
+            vertices += count;
           }
         }
       }
@@ -276,6 +300,23 @@ export class FinishBanners {
     const mesh = new THREE.Mesh(merged, mat);
     mesh.name = 'segment-flags';
     mesh.castShadow = true;
+    // Mâts posés sur le sol affiché dès qu'il est connu (tuile chargée après coup, maillage plus fin).
+    const pos = merged.getAttribute('position') as THREE.BufferAttribute;
+    settleWhileVisible(mesh, () => {
+      let moved = false;
+      for (const b of bases) {
+        const y = groundChange(b.y, groundAt(b.x, b.z));
+        if (y === null) continue;
+        const dy = y - b.y;
+        for (let i = b.start; i < b.start + b.count; i++) pos.setY(i, pos.getY(i) + dy);
+        b.y = y;
+        moved = true;
+      }
+      if (!moved) return;
+      pos.needsUpdate = true;
+      merged.computeBoundingSphere();
+      merged.computeBoundingBox();
+    });
     this.group.add(mesh);
   }
 }
