@@ -1427,6 +1427,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   hud.setPlaces(source.open?.places);
   const placeFinder = new PlaceFinder(source.open?.places, track.route.landmarks, track.length, !!track.route.loop, source.originL93);
   hud.setHidden(s.hudHidden ?? []);
+  // Bouton « × » d'un panneau de droite : ses blocs rejoignent les blocs masqués des réglages (Réglages › Interface).
+  hud.onHideBlocks = (ids) => {
+    s.hudHidden = [...new Set([...(s.hudHidden ?? []), ...ids])];
+    saveSettings(s);
+    hud.setHidden(s.hudHidden);
+    hud.toast(getLang() === 'fr' ? 'Panneau masqué · Réglages › Interface pour le réafficher' : 'Panel hidden · Settings › Interface to show it again', true, false);
+  };
   /** Carte complète de la sortie (parcours libre ou itinéraire fixe), aussi ouverte et fermée depuis le compagnon. */
   let fullMap: { open(): void; close(): void; readonly isOpen: boolean } | null = null;
   if (nav && source.open) hud.setOpen(source.open.graph);

@@ -6,6 +6,9 @@ import { getLang, strings, t } from '../i18n/index.ts';
 /** Textes du HUD (variables : gabarit `{n}` remplacé à l'appel). */
 const S = strings(
   {
+    panelCollapse: 'Réduire le panneau',
+    panelExpand: 'Déplier le panneau',
+    panelHide: 'Masquer le panneau (Réglages › Interface pour le réafficher)',
     group: 'Groupe',
     groupSlower: 'Groupe moins vite ( [ )',
     groupFaster: 'Groupe plus vite ( ] )',
@@ -95,6 +98,9 @@ const S = strings(
     lvl4: 'pro',
   },
   {
+    panelCollapse: 'Collapse the panel',
+    panelExpand: 'Expand the panel',
+    panelHide: 'Hide the panel (Settings › Interface to show it again)',
     group: 'Group',
     groupSlower: 'Slower group ( [ )',
     groupFaster: 'Faster group ( ] )',
@@ -464,6 +470,25 @@ function zoneColorHex(watts: number, ftp: number): string {
 
 const lastHtml = new WeakMap<HTMLElement, string>();
 /** Remplace le contenu de `el` seulement s'il a changé (pas de reconstruction ni de mise en page inutiles). */
+/** Blocs que masque le bouton « × » de chaque panneau de droite. */
+const PANEL_BLOCKS: Record<string, string[]> = { env: ['draft', 'wind', 'alt', 'lap'], group: ['group'], riders: ['riders'] };
+const PANEL_MIN_KEY = 'ar.hudPanelsMin';
+function readPanelSet(): Set<string> {
+  try {
+    const v = JSON.parse(localStorage.getItem(PANEL_MIN_KEY) ?? '[]') as unknown;
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+function writePanelSet(s: Set<string>): void {
+  try {
+    localStorage.setItem(PANEL_MIN_KEY, JSON.stringify([...s]));
+  } catch {
+    // Stockage plein ou interdit : réglage valable pour la sortie.
+  }
+}
+
 function setHtml(el: HTMLElement, html: string): void {
   if (lastHtml.get(el) === html) return;
   lastHtml.set(el, html);
@@ -510,7 +535,7 @@ const OPEN_PAVED = /^(asphalt|paved|concrete|chipseal)/;
  */
 function groupPanel(): string {
   const r = GROUP_RANGE_M;
-  return `<div class="panel grp hidden" data-k="group" data-hud="group">
+  return `<div class="panel grp hidden" data-k="group" data-hud="group" data-pnl="group">
           <div class="grp-head"><span class="grp-l">${S('group')}</span><span class="grp-pace hidden" data-k="grpPace"><button data-gpace="-1" tabindex="-1" title="${S('groupSlower')}">−</button><b class="num" data-k="grpPaceTxt"></b><button data-gpace="1" tabindex="-1" title="${S('groupFaster')}">+</button></span></div>
           <div class="grp-radar"><i class="grp-track"></i><div class="grp-dots" data-k="grpDots"></div><i class="grp-me"></i></div>
           <div class="grp-scale"><span>${r} m ${S('behind')}</span><span>${S('you')}</span><span>${r} m ${S('ahead')}</span></div>
@@ -587,7 +612,7 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
           <div class="cx-grade" data-hud="grade"><span class="cx-l">${ICONS.grade}${S('grade')}</span><b class="num" data-k="grade">0${dec()}0 %</b></div>
           <div class="cx-envline"><span data-hud="alt">▲ <b class="num" data-k="alt">–</b></span><span data-hud="wind">${S('wind')} <b class="num" data-k="wind">–</b></span></div>
         </div>
-        <div class="panel riders" data-k="riders" data-hud="riders"></div>
+        <div class="panel riders" data-k="riders" data-hud="riders" data-pnl="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
       </div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
@@ -768,7 +793,7 @@ export class Hud {
       <div class="hud-col hud-col-right">
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas><div class="map-town hidden" data-k="mapTown"></div></div>
         <!-- Aspiration, vent, altitude, tour : à droite, sous la carte, avant le groupe et les coureurs. -->
-        <div class="panel hud-left">
+        <div class="panel hud-left" data-pnl="env">
           <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
           <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
           <span class="hud-note" data-k="draftNote" data-hud="draft"></span>
@@ -777,7 +802,7 @@ export class Hud {
           ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
         </div>
         ${groupPanel()}
-        <div class="panel riders" data-k="riders" data-hud="riders"></div>
+        <div class="panel riders" data-k="riders" data-hud="riders" data-pnl="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
       </div>
       <div class="panel workout hidden" data-k="workout"><div class="row" style="justify-content:space-between"><b data-k="wName"></b><span class="num" data-k="wRemain"></span></div><div class="num" data-k="wTarget" style="font-size:30px;font-weight:800"></div><div class="num" data-k="wStep" style="color:var(--ar-muted);font-size:13px"></div><canvas width="900" height="90" data-k="wChart"></canvas></div>
@@ -788,6 +813,12 @@ export class Hud {
       <div class="attribution">${attribution.join(' · ')}</div>
     `;
     root.querySelectorAll<HTMLElement>('[data-k]').forEach((e) => (this.el[e.dataset.k as string] = e));
+    // Panneaux de droite (aspiration, groupe, coureurs) : réduire à leur titre ou masquer, pour dégager la route.
+    const minimized = readPanelSet();
+    root.querySelectorAll<HTMLElement>('[data-pnl]').forEach((p) => {
+      p.classList.toggle('pnl-min', minimized.has(p.dataset.pnl as string));
+      this.ensurePanelControls(p);
+    });
     (this.el.riders as HTMLElement).addEventListener('click', (ev) => {
       // Bouton cliqué : il rend le focus, sinon Espace ou Entrée (commandes du jeu) le réactiveraient.
       (ev.target as HTMLElement).closest<HTMLElement>('button')?.blur();
@@ -993,6 +1024,35 @@ export class Hud {
 
   /** FTP courante (couleurs des zones). */
   ftp = 250;
+
+  /** Panneau masqué depuis ses boutons : blocs à ajouter aux blocs masqués des réglages. */
+  onHideBlocks?: (ids: string[]) => void;
+
+  /** Boutons « réduire » et « masquer » d'un panneau (remis après chaque réécriture de son contenu). */
+  private ensurePanelControls(p: HTMLElement): void {
+    if (p.querySelector(':scope > .pnl-ctl')) return;
+    const key = p.dataset.pnl as string;
+    const ctl = document.createElement('div');
+    ctl.className = 'pnl-ctl';
+    const min = p.classList.contains('pnl-min');
+    ctl.innerHTML = `<button type="button" tabindex="-1" data-pnl-act="min" title="${min ? S('panelExpand') : S('panelCollapse')}" aria-label="${min ? S('panelExpand') : S('panelCollapse')}">${min ? '+' : '−'}</button><button type="button" tabindex="-1" data-pnl-act="hide" title="${S('panelHide')}" aria-label="${S('panelHide')}">×</button>`;
+    ctl.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const act = (ev.target as HTMLElement).closest<HTMLElement>('[data-pnl-act]')?.dataset.pnlAct;
+      (ev.target as HTMLElement).closest<HTMLElement>('button')?.blur();
+      if (act === 'min') {
+        const set = readPanelSet();
+        const on = !p.classList.contains('pnl-min');
+        p.classList.toggle('pnl-min', on);
+        if (on) set.add(key);
+        else set.delete(key);
+        writePanelSet(set);
+        ctl.remove();
+        this.ensurePanelControls(p);
+      } else if (act === 'hide') this.onHideBlocks?.(PANEL_BLOCKS[key] ?? [key]);
+    });
+    p.appendChild(ctl);
+  }
 
   /** Blocs masqués par le coureur (voir HUD_BLOCKS). */
   setHidden(ids: readonly string[]): void {
@@ -1230,6 +1290,7 @@ export class Hud {
     }
 
     setHtml(e.riders as HTMLElement, cx ? this.nearbyCompactHtml(s) : this.nearbyHtml(s));
+    this.ensurePanelControls(e.riders as HTMLElement);
     if (cx) {
       this.updateZones(s);
       this.updateToGo(s);
