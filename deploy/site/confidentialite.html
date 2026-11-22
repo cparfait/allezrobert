@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confidentialité — Allez Robert !</title>
+  <meta name="description" content="Ce qu'Allez Robert ! enregistre, ce qu'il envoie à Strava et intervals.icu, et comment tout effacer." />
+  <meta name="theme-color" content="#0b0c0f" />
+  <link rel="icon" href="/site/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/site/style.css" />
+  <style>
+    .legal { max-width: 52rem; margin: 0 auto; padding: 3.5rem var(--pad) 4rem; }
+    .legal h1 { font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; letter-spacing: -.02em; margin-bottom: .4rem; }
+    .legal .lead { color: var(--gris); margin-bottom: 2.4rem; }
+    .legal h2 { font-size: 1.35rem; font-weight: 800; margin: 2.2rem 0 .7rem; }
+    .legal p, .legal li { color: var(--craie); }
+    .legal ul { padding-left: 1.2rem; display: grid; gap: .45rem; }
+    .legal .back { display: inline-block; margin-bottom: 2rem; font-weight: 700; }
+    .legal .note { margin-top: 2.6rem; padding: 1rem 1.2rem; border-radius: 12px; background: var(--bitume-2); border: 1px solid var(--ligne); color: var(--gris); font-size: .95rem; }
+  </style>
+</head>
+<body>
+  <main class="legal">
+    <a class="back" href="/">← Allez Robert !</a>
+    <h1>Confidentialité</h1>
+    <p class="lead">Ce que le jeu enregistre, ce qu'il envoie à d'autres services, et comment tout effacer. Mise à jour : 22 novembre 2026.</p>
+
+    <h2>Sans compte</h2>
+    <p>On peut jouer sans compte. Les sorties, l'historique, les records et les réglages restent alors sur l'appareil (stockage du navigateur ou dossier de l'application) et ne sont envoyés nulle part.</p>
+
+    <h2>Avec un compte</h2>
+    <ul>
+      <li><b>Connexion</b> : par Google ou Discord. Le jeu garde l'identifiant fourni par ce service et le nom affiché ; il ne reçoit jamais le mot de passe.</li>
+      <li><b>Profil</b> : nom, poids, taille, FTP et apparence du coureur, pour la physique du jeu et l'affichage en groupe.</li>
+      <li><b>Sorties</b> : distance, durée, puissance, cadence, temps des montées, et le fichier FIT de la sortie quand on l'enregistre. La fréquence cardiaque n'est gardée que si on l'accepte dans son profil.</li>
+      <li><b>Amis et classements</b> : vos temps sur les montées ne sont visibles que de vos amis.</li>
+      <li><b>Hébergement</b> : un serveur en France. Les fichiers FIT, la fréquence cardiaque et les jetons des services liés sont chiffrés dans la base.</li>
+    </ul>
+
+    <h2>Strava</h2>
+    <ul>
+      <li>La liaison est facultative et se fait par le bouton « Connect with Strava », avec l'accord donné sur la page de Strava.</li>
+      <li>Le jeu demande seulement le droit d'<b>envoyer vos sorties</b> sur votre compte (<code>activity:write</code>) et de lire votre prénom Strava (<code>read</code>), affiché pour vous seul dans les réglages (« Relié à … »).</li>
+      <li>Le jeu <b>ne lit pas</b> vos activités Strava, vos abonnés ni vos segments, et n'affiche aucune donnée Strava à d'autres joueurs.</li>
+      <li>Les jetons de connexion sont chiffrés sur le serveur et ne sont jamais renvoyés au jeu.</li>
+      <li>Pour arrêter : Réglages › Général › Strava › « Délier », ou retirer l'accès depuis votre compte Strava (Réglages › Mes applications). Les jetons sont alors effacés du serveur.</li>
+      <li>On peut aussi garder la liaison et choisir « Ne pas envoyer » : aucune sortie ne part.</li>
+    </ul>
+
+    <h2>intervals.icu</h2>
+    <p>Facultatif aussi : la clé saisie sert seulement à y envoyer vos sorties. Elle est chiffrée sur le serveur et effacée quand vous la retirez.</p>
+
+    <h2>Voix et chat</h2>
+    <p>Le chat vocal d'une sortie de groupe passe en direct entre les joueurs ; il n'est ni enregistré ni conservé. Les messages écrits ne sont gardés que le temps de la sortie.</p>
+
+    <h2>Tout effacer</h2>
+    <p>Réglages › Compte › « Supprimer mon compte » efface définitivement le compte, ses sorties, ses fichiers FIT, ses amis et les jetons des services liés. Les sauvegardes du serveur, qui tournent sur quatorze jours, disparaissent ensuite d'elles-mêmes.</p>
+
+    <h2>Ce que le jeu ne fait pas</h2>
+    <ul>
+      <li>Pas de publicité, pas de revente ni de partage de données.</li>
+      <li>Pas de suivi publicitaire ni de mesure d'audience tierce.</li>
+    </ul>
+
+    <p class="note">Allez Robert ! est un projet entre amis. Strava est une marque de Strava, Inc. ; le jeu est compatible avec Strava mais n'est ni développé ni soutenu par Strava.</p>
+  </main>
+</body>
+</html>
