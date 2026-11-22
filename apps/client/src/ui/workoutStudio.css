@@ -97,3 +97,5 @@
 @media (max-width: 980px) {
   .ws-count { margin-left: 0; }
 }
+/* Une séance sur deux plus claire. */
+.ws-row:nth-child(even of .ws-row:not([hidden])) { background: rgba(255, 255, 255, 0.085); }

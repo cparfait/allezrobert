@@ -169,3 +169,5 @@
 .fr-panel button.ab-act { appearance: none; border: 0; cursor: pointer; font-family: inherit; }
 .fr-panel button.ab-act:hover:not(:disabled) { filter: brightness(1.08); }
 .fr-panel .ab-btn.ab-chip { grid-area: auto; justify-self: auto; }
+/* Sorties des amis : une ligne sur deux plus claire. */
+.fr-ride-row:nth-child(even of .fr-ride-row) { background: rgba(255, 255, 255, 0.085); }

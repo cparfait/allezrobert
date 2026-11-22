@@ -1853,6 +1853,8 @@ export class MainMenu {
   private picker: 'zones' | 'zone' | 'routes' | 'map' | 'route' | 'workouts' | 'koms' | null = null;
   /** Fenêtre « Défi KOM » : zone filtrée ('' = toutes) et montée d'une autre zone à choisir une fois cette zone chargée. */
   private komZone = '';
+  /** Tri du tableau des montées (clic sur un titre de colonne ; un second clic inverse l'ordre). */
+  private komSort: { key: 'name' | 'length' | 'grade' | 'best'; dir: 1 | -1 } | null = null;
   /** Recherche dans la liste des montées (filtre les lignes sur place, sans redessiner). */
   private komQuery = '';
   private pendingKom: { routeId: string; segId: string } | null = null;
@@ -2853,6 +2855,23 @@ export class MainMenu {
     const rows = zoneIds
       .filter((z) => !filter || z === filter)
       .flatMap((z) => (index[z] ?? []).map((c) => ({ zone: z, ...c, rec: readKomRecord(c.routeId, c.segId) })));
+    // Tri choisi par un clic sur un titre de colonne (sans record : toujours en fin de liste pour « Mon record »).
+    const sort = this.komSort;
+    if (sort) {
+      const key = (c: (typeof rows)[number]): number | string =>
+        sort.key === 'length' ? c.lengthM : sort.key === 'grade' ? c.grade : sort.key === 'best' ? (c.rec ? c.rec.timeS : Infinity) : c.name.toLocaleLowerCase(lang);
+      rows.sort((a, b) => {
+        const ka = key(a);
+        const kb = key(b);
+        if (sort.key === 'best' && (ka === Infinity || kb === Infinity)) return ka === kb ? 0 : ka === Infinity ? 1 : -1;
+        return (typeof ka === 'string' ? ka.localeCompare(kb as string, lang) : (ka as number) - (kb as number)) * sort.dir;
+      });
+    }
+    const head = (key: 'name' | 'length' | 'grade' | 'best', label: string) => {
+      const on = sort?.key === key;
+      const arrow = on ? (sort.dir === 1 ? ' ▲' : ' ▼') : '';
+      return `<button type="button" class="kom-sort${on ? ' on' : ''}" data-komsort="${key}" aria-sort="${on ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}">${label}${arrow}</button>`;
+    };
     const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
     const chips = [['', S('allAreas')] as const, ...zoneIds.map((z) => [z, this.zoneLabel(z)] as const)]
       .map(([z, label]) => `<button class="kom-chip${z === filter ? ' on' : ''}" data-komzone="${esc(z)}">${esc(label)}</button>`)
@@ -2880,7 +2899,7 @@ export class MainMenu {
         <header><div class="pk-head"><h2 class="ab-title">${S('komChallenge')}</h2><p class="ab-sub">${S('flyingStartGhostOf')}</p></div><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${S('searchAClimbA')}" aria-label="${S('searchAClimb')}" />
         <div class="kom-filter" role="group" aria-label="${S('filterByArea')}">${chips}</div>
-        <div class="kom-wrap"><div class="kom-list" role="list"><div class="kom-head" aria-hidden="true"><span>${S('colClimb')}</span><span>${S('colLength')}</span><span>${S('colGrade')}</span><span>${S('colBest')}</span><span></span></div>${body}</div></div>
+        <div class="kom-wrap"><div class="kom-list" role="list"><div class="kom-head">${head('name', S('colClimb'))}${head('length', S('colLength'))}${head('grade', S('colGrade'))}${head('best', S('colBest'))}<span></span></div>${body}</div></div>
         <div class="kom-foot"><span>${count(rows.length, 'climb1', 'climbN')} · ${count(records, 'record1', 'recordN')}</span><span>${S('aZoneSClimbs')}</span></div>
       </div></div>`;
   }
@@ -4430,6 +4449,16 @@ export class MainMenu {
     this.root.querySelectorAll<HTMLElement>('[data-komzone]').forEach((el) =>
       el.addEventListener('click', () => {
         this.komZone = el.dataset.komzone ?? '';
+        this.render();
+      }),
+    );
+    // Titres de colonnes du Défi KOM : tri par nom, longueur, pente ou record ; un second clic inverse l'ordre.
+    this.root.querySelectorAll<HTMLElement>('[data-komsort]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const key = el.dataset.komsort as 'name' | 'length' | 'grade' | 'best';
+        // Longueur et pente : la plus grande d'abord au premier clic ; nom et record : ordre croissant.
+        const first: 1 | -1 = key === 'length' || key === 'grade' ? -1 : 1;
+        this.komSort = this.komSort?.key === key ? { key, dir: this.komSort.dir === 1 ? -1 : 1 } : { key, dir: first };
         this.render();
       }),
     );

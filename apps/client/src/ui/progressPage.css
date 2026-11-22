@@ -312,3 +312,6 @@
   .pg h3.pg-sec, .pg .pg-tfam { margin-left: 16px; margin-right: 16px; }
 }
 .pg .pg-trophy > div.pg-prog { padding-right: 0; min-width: 0; }
+/* Détails : une ligne sur deux plus claire. */
+.pg-d-row:nth-child(even of .pg-d-row) { background: rgba(255, 255, 255, 0.085); }
+.pg-d-row { padding-left: 8px; padding-right: 8px; }
