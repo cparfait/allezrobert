@@ -15,18 +15,12 @@ import {
   panFor,
   surfaceAt,
   surfaceFromOsm,
-  tireMix,
   vehicleVoice,
   windMix,
   type AmbienceInput,
   type Surface,
 } from '../src/audio/soundscape.ts';
 import type { TileRoad } from '../src/world/types.ts';
-
-const tireTotal = (s: Surface, v: number, wet = 0) => {
-  const m = tireMix(s, v, wet);
-  return m.roar.gain + m.hiss.gain + m.crunch.gain + m.cobble.gain + m.spray;
-};
 
 describe('revêtement', () => {
   it('lit les tags OSM', () => {
@@ -55,51 +49,6 @@ describe('revêtement', () => {
     expect(surfaceAt(roads, 51, 15, 'boucle')).toBe('gravel');
     expect(surfaceAt(roads, 80, 29, 'boucle')).toBe('cobbles');
     expect(surfaceAt(roads, 80, 15, 'boucle')).toBeNull();
-  });
-});
-
-describe('roulement', () => {
-  it('se tait à l’arrêt et croît avec la vitesse', () => {
-    for (const s of SURFACES) {
-      expect(tireTotal(s, 0)).toBe(0);
-      let prev = 0;
-      for (const v of [1, 3, 6, 9, 12, 15, 20]) {
-        const t = tireTotal(s, v);
-        expect(t).toBeGreaterThan(prev);
-        prev = t;
-      }
-    }
-  });
-
-  it('est plus présent sur revêtement rugueux, et pavés que sur enrobé lisse ; discret sur les chemins', () => {
-    for (const v of [4, 8, 12]) {
-      const smooth = tireTotal('smooth', v);
-      expect(tireTotal('rough', v)).toBeGreaterThan(smooth * 1.4);
-      expect(tireTotal('cobbles', v)).toBeGreaterThan(tireTotal('rough', v));
-      // Chemins : roulement discret, sans craquement (trop fort et irréaliste).
-      expect(tireTotal('gravel', v)).toBeLessThan(tireTotal('rough', v));
-    }
-    expect(tireMix('smooth', 10).crunch.gain).toBe(0);
-    expect(tireMix('smooth', 10).cobble.gain).toBe(0);
-    expect(tireMix('gravel', 10).crunch.gain).toBe(0);
-  });
-
-  it('pavés : un impact tous les 16 cm', () => {
-    expect(tireMix('cobbles', 8).cobble.rate).toBeCloseTo(50, 5);
-  });
-
-  it('route mouillée : projection d’eau', () => {
-    expect(tireMix('smooth', 10, 0).spray).toBe(0);
-    expect(tireMix('smooth', 10, 1).spray).toBeGreaterThan(0.03);
-  });
-
-  it('reste dans son budget et sans NaN', () => {
-    for (const s of SURFACES)
-      for (const v of [Number.NaN, -3, 0, 5, 25, 40]) {
-        const t = tireTotal(s, v, 1);
-        expect(Number.isFinite(t)).toBe(true);
-        expect(t).toBeLessThan(0.9);
-      }
   });
 });
 

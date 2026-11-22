@@ -85,62 +85,8 @@ export function surfaceAt(roads: readonly TileRoad[], x: number, z: number, rout
   return best ? surfaceFromOsm(best.surface, best.kind) : null;
 }
 
-// ————————————————————————————————————————————— Roulement et vent
-
-export interface TireMix {
-  /** Bourdonnement du pneu (bruit rose filtré passe-bande). */
-  roar: { gain: number; freq: number; q: number };
-  /** Grain fin de la chaussée (bruit blanc passe-haut). */
-  hiss: { gain: number; freq: number };
-  /** Gravillons qui crépitent : vitesse de lecture du tampon de crépitement (1 = ~400 grains/s). */
-  crunch: { gain: number; rate: number };
-  /** Pavés : impacts par seconde (un pavé tous les 16 cm environ). */
-  cobble: { gain: number; rate: number };
-  /** Projection d'eau sur route mouillée. */
-  spray: number;
-}
-
-interface TireProfile {
-  roar: number;
-  roarHz: number;
-  q: number;
-  hiss: number;
-  hissHz: number;
-  crunch: number;
-  cobble: number;
-}
-
-/**
- * Signature de chaque revêtement (facteurs relatifs à l'enrobé lisse). Sur l'enrobé, le roulement est un chuintement
- * étroit et assez aigu (Q élevé, centre relevé) : en bande large et grave, ce bruit rose ressemblait à du vent.
- */
-export const TIRE_PROFILES: Record<Surface, TireProfile> = {
-  smooth: { roar: 0.6, roarHz: 140, q: 3, hiss: 0.15, hissHz: 4200, crunch: 0, cobble: 0 },
-  rough: { roar: 1.2, roarHz: 110, q: 1.6, hiss: 0.8, hissHz: 3400, crunch: 0.15, cobble: 0 },
-  cobbles: { roar: 1.1, roarHz: 60, q: 1.1, hiss: 0.4, hissHz: 3000, crunch: 0.08, cobble: 1 },
-  gravel: { roar: 0.8, roarHz: 60, q: 0.6, hiss: 0.25, hissHz: 1700, crunch: 0, cobble: 0 },
-  dirt: { roar: 0.6, roarHz: -40, q: 0.6, hiss: 0.15, hissHz: 1500, crunch: 0, cobble: 0 },
-};
-
-/** Espacement moyen des pavés (m). */
-export const COBBLE_SPACING_M = 0.16;
-
-/** Roulement selon le revêtement, la vitesse (m/s) et l'humidité de la chaussée (0–1). */
-export function tireMix(surface: Surface, speedMs: number, wet = 0): TireMix {
-  const v = Math.max(0, Number.isFinite(speedMs) ? speedMs : 0);
-  const p = TIRE_PROFILES[surface];
-  // Rien à l'arrêt, montée douce entre 0,3 et 2 m/s (pas de clic au démarrage).
-  const roll = smoothstep(0.3, 2, v);
-  const sp = Math.min(v / 12, 1.6);
-  const paved = surface === 'smooth' || surface === 'rough' || surface === 'cobbles';
-  return {
-    roar: { gain: 0.09 * p.roar * roll * sp ** 0.8, freq: Math.max(60, 110 + v * 22 + p.roarHz), q: p.q },
-    hiss: { gain: 0.05 * p.hiss * roll * Math.min(1.4, v / 10), freq: p.hissHz },
-    crunch: { gain: 0.4 * p.crunch * roll * Math.min(1.2, Math.sqrt(v / 8)), rate: clamp(0.35 + v / 12, 0.35, 1.3) },
-    cobble: { gain: 0.16 * p.cobble * roll * Math.min(1, v / 5), rate: v / COBBLE_SPACING_M },
-    spray: 0.05 * clamp(wet, 0, 1) * roll * Math.min(1.3, v / 10) * (paved ? 1 : 0.5),
-  };
-}
+// ————————————————————————————————————————————— Vent
+// (Roulement des pneus retiré le 22/11/2026 : jugé irréaliste, il ressemblait à du vent.)
 
 /**
  * Vitesse de l'air vue par le coureur (m/s) : vitesse propre, plus le vent météo (d'où il vient,

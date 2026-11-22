@@ -45,7 +45,7 @@ export const PAIR_MAX_PHONES = 5;
 export const PAIR_FAN_MODES = ['off', 'manual', 'speed', 'heartRate', 'grade'] as const;
 export type PairFanMode = (typeof PAIR_FAN_MODES)[number];
 /** Types de sons du jeu coupables depuis le téléphone (mêmes catégories que Réglages › Son). */
-export const PAIR_SOUND_BUSES = ['ambience', 'wind', 'tyres', 'bike', 'breath', 'crowd', 'traffic', 'voice'] as const;
+export const PAIR_SOUND_BUSES = ['ambience', 'wind', 'bike', 'breath', 'crowd', 'traffic', 'voice'] as const;
 export type PairSoundBus = (typeof PAIR_SOUND_BUSES)[number];
 
 /** Commandes du téléphone vers le jeu. */

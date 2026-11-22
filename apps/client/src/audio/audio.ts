@@ -13,7 +13,7 @@ import { followSink } from './devices.ts';
 import type { SoundSource } from './spatial.ts';
 import { freewheelDef, loopVoices, type FreewheelDef } from './freewheels.ts';
 import { BUSES, busGains, DEFAULT_MIX, type Bus, type SoundMix } from './mix.ts';
-import { COBBLE_BUFFER_RATE, cobbles, crackle, cricketChorus, hubClick, noise, roomImpulse, seeded } from './buffers.ts';
+import { crackle, cricketChorus, hubClick, noise, roomImpulse, seeded } from './buffers.ts';
 import {
   BreathModel,
   ambienceMix,
@@ -26,7 +26,6 @@ import {
   isCoasting,
   panFor,
   reverbWet,
-  tireMix,
   vehicleVoice,
   windMix,
   type AmbienceMix,
@@ -111,17 +110,11 @@ export class GameAudio {
     whiteMono: AudioBuffer;
     crackle: AudioBuffer;
     drops: AudioBuffer;
-    cobbles: AudioBuffer;
     crickets: AudioBuffer;
     clicks: AudioBuffer[];
   };
   private L!: {
     wind: Layer;
-    roar: Layer;
-    hiss: Layer;
-    crunch: Layer;
-    cobble: Layer;
-    spray: Layer;
     brake: Layer;
     windAmb: Layer;
     foliage: Layer;
@@ -195,7 +188,6 @@ export class GameAudio {
       whiteMono: make([noise(sr, 2, false, rnd)]),
       crackle: make([crackle(sr, 2, 400, rnd)]),
       drops: make([crackle(sr, 3, 700, rnd), crackle(sr, 3, 700, rnd)]),
-      cobbles: make([cobbles(sr, 2, rnd)]),
       crickets: make(cricketChorus(sr, 6, 7, rnd)),
       clicks: [make([hubClick(sr, 0, rnd)]), make([hubClick(sr, 1, rnd)])],
     };
@@ -259,11 +251,6 @@ export class GameAudio {
     this.L = {
       // Vent : bus à part (curseur « Vent »), l'air de la course comme celui de la météo.
       wind: layer(b.pink, B.wind, 'lowpass', 400),
-      roar: layer(b.pinkMono, B.tyres, 'bandpass', 250, 0.9),
-      hiss: layer(b.whiteMono, B.tyres, 'highpass', 4000),
-      crunch: layer(b.crackle, B.tyres, 'bandpass', 1800, 0.45),
-      cobble: layer(b.cobbles, B.tyres, 'lowpass', 1400),
-      spray: layer(b.white, B.tyres, 'bandpass', 5000, 0.5),
       // Freinage : frottement aigu et étroit des patins sur la jante (bande serrée).
       brake: layer(b.whiteMono, B.bike, 'bandpass', 3400, 7),
       windAmb: layer(b.pink, B.wind, 'lowpass', 380),
@@ -371,21 +358,10 @@ export class GameAudio {
     this.gustV += (Math.random() - 0.5) * dt * 1.6 - this.gustV * dt * 0.8;
     this.gust = Math.min(1.5, Math.max(0.55, this.gust + this.gustV * dt));
 
-    // Vélo : air, pneus.
+    // Vélo : air (pas de son de roulement des pneus, retiré car irréaliste).
     const air = windMix(apparentWind(v, s.windMs * (0.8 + 0.2 * this.gust), s.windFrom, s.heading));
     this.set(this.L.wind.gain.gain, air.gain);
     this.set(this.L.wind.filter.frequency, air.freq);
-    const t = tireMix(s.surface, v, s.wet);
-    this.set(this.L.roar.gain.gain, t.roar.gain);
-    this.set(this.L.roar.filter.frequency, t.roar.freq);
-    this.set(this.L.roar.filter.Q, t.roar.q);
-    this.set(this.L.hiss.gain.gain, t.hiss.gain);
-    this.set(this.L.hiss.filter.frequency, t.hiss.freq);
-    this.set(this.L.crunch.gain.gain, t.crunch.gain);
-    this.set(this.L.crunch.src.playbackRate, t.crunch.rate);
-    this.set(this.L.cobble.gain.gain, t.cobble.gain);
-    this.set(this.L.cobble.src.playbackRate, Math.max(0.05, t.cobble.rate / COBBLE_BUFFER_RATE));
-    this.set(this.L.spray.gain.gain, t.spray);
     // Frein : plus fort avec la vitesse, coupé à l'arrêt.
     this.set(this.L.brake.gain.gain, s.braking && v > 1.5 ? Math.min(0.16, 0.03 + v * 0.008) : 0);
     this.set(this.L.brake.filter.frequency, 2900 + Math.min(v, 15) * 60);

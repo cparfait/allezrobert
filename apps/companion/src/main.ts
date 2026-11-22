@@ -776,7 +776,7 @@ function ctrlHtml(): string {
   </section>`;
 }
 
-const SOUND_ICONS: Record<PairSoundBus, string> = { ambience: '🌳', wind: '💨', tyres: '🛞', bike: '🚲', breath: '😮‍💨', crowd: '📣', traffic: '🚗', voice: '🎙' };
+const SOUND_ICONS: Record<PairSoundBus, string> = { ambience: '🌳', wind: '💨', bike: '🚲', breath: '😮‍💨', crowd: '📣', traffic: '🚗', voice: '🎙' };
 
 /** Sons du jeu, un bouton par type : jaune = audible, barré = coupé (jeu trop ancien : rien). */
 function soundsHtml(st: PairState): string {

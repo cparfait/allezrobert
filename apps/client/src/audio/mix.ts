@@ -1,12 +1,12 @@
 /**
- * Mixage du son du jeu : un bus par catégorie (ambiance, vent, pneus, vélo, souffle, public, trafic, voix) sous un
+ * Mixage du son du jeu : un bus par catégorie (ambiance, vent, vélo, souffle, public, trafic, voix) sous un
  * volume général, réglés dans le menu Réglages et le menu pause, enregistrés localement
  * (`ar.sound`). La musique a ses propres réglages (music.ts).
  */
 
 import { DEFAULT_FREEWHEEL, isFreewheelId } from './freewheels.ts';
 
-export const BUSES = ['ambience', 'wind', 'tyres', 'bike', 'breath', 'crowd', 'traffic', 'voice'] as const;
+export const BUSES = ['ambience', 'wind', 'bike', 'breath', 'crowd', 'traffic', 'voice'] as const;
 export type Bus = (typeof BUSES)[number];
 
 export interface SoundMix {
@@ -14,8 +14,6 @@ export interface SoundMix {
   ambience: number;
   /** Vent : air de la course (selon la vitesse) et vent de la météo. */
   wind: number;
-  /** Pneus : roulement, grain de la route, pavés, projections d'eau. */
-  tyres: number;
   bike: number;
   breath: number;
   crowd: number;
@@ -28,13 +26,12 @@ export interface SoundMix {
   freewheel: string;
 }
 
-export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, wind: 0.8, tyres: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, voice: 1, breathOn: true, freewheel: DEFAULT_FREEWHEEL };
+export const DEFAULT_MIX: SoundMix = { master: 0.8, ambience: 0.8, wind: 0.8, bike: 0.8, breath: 0.5, crowd: 0.8, traffic: 0.7, voice: 1, breathOn: true, freewheel: DEFAULT_FREEWHEEL };
 
 export const BUS_LABELS: Record<Bus | 'master', { fr: string; en: string; hint: { fr: string; en: string } }> = {
   master: { fr: 'Général', en: 'Master', hint: { fr: 'Tous les sons du jeu (hors musique)', en: 'All game sounds (not music)' } },
   ambience: { fr: 'Ambiance', en: 'Ambience', hint: { fr: 'Nature, météo, villages, cloches', en: 'Nature, weather, villages, bells' } },
   wind: { fr: 'Vent', en: 'Wind', hint: { fr: 'Souffle de l’air selon la vitesse, vent de la météo', en: 'Rush of air with speed, weather wind' } },
-  tyres: { fr: 'Pneus', en: 'Tyres', hint: { fr: 'Roulement, grain de la route, pavés, eau', en: 'Rolling, road texture, cobbles, spray' } },
   bike: { fr: 'Vélo', en: 'Bike', hint: { fr: 'Roue libre, dérailleur, freins', en: 'Freewheel, shifting, brakes' } },
   breath: { fr: 'Souffle', en: 'Breathing', hint: { fr: 'Respiration du coureur à l’effort', en: 'Rider breathing when pushing' } },
   crowd: { fr: 'Public', en: 'Crowd', hint: { fr: 'Spectateurs des côtes et des sprints', en: 'Spectators on climbs and sprints' } },
@@ -100,7 +97,6 @@ export function busGains(m: SoundMix, c: MixContext): Record<Bus | 'master', num
     master: c.muted ? 0 : m.master,
     ambience: m.ambience * (p ? 0.5 : 1),
     wind: p ? 0 : m.wind,
-    tyres: p ? 0 : m.tyres,
     bike: p ? 0 : m.bike,
     breath: p || !m.breathOn ? 0 : m.breath,
     crowd: p ? 0 : m.crowd,
