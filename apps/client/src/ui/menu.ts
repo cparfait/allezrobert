@@ -758,6 +758,10 @@ const S = strings(
 /** Textes de l'onglet Réglages. */
 const SET = strings(
   {
+    ghost: 'Fantôme',
+    ghostHelp: 'Ton meilleur tour (ou celui d’un ami) roule à côté de toi. Touche G en sortie.',
+    shownOn: 'Affiché',
+    shownOff: 'Masqué',
     soloAi: 'Équipiers IA en sortie libre',
     soloAiHelp: 'Coureurs IA qui roulent avec toi. Chacun coûte des images par seconde : 0 pour rouler seul.',
     advanced: 'Avancé',
@@ -826,6 +830,10 @@ const SET = strings(
     renderNow: 'Rendu actuel',
   },
   {
+    ghost: 'Ghost',
+    ghostHelp: 'Your best lap (or a friend’s) rides next to you. G key while riding.',
+    shownOn: 'Shown',
+    shownOff: 'Hidden',
     soloAi: 'AI teammates on free rides',
     soloAiHelp: 'AI riders who ride with you. Each one costs frames per second: 0 to ride alone.',
     advanced: 'Advanced',
@@ -3764,6 +3772,7 @@ export class MainMenu {
 
     const ride = `
       ${opt(SET('soloAi'), SET('soloAiHelp'), this.stepper('m-solo-ai', 0, 8, s.soloAiRiders ?? 0))}
+      ${opt(SET('ghost'), SET('ghostHelp'), this.seg('m-ghost', s.showGhost === false ? '0' : '1', [['1', SET('shownOn')], ['0', SET('shownOff')]]))}
       ${opt(t('season'), '', this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)])), true)}
       ${opt(SET('startTime'), '', this.seg('m-realtime', s.realTime ? '1' : '0', [['1', `${SET('nowTime')} · ${this.hourLabel(nowHour())}`], ['0', SET('customTime')]]), true)}
       ${s.realTime ? '' : opt(`${t('hour')}${val('m-hourv', this.hourLabel(s.hour))}`, '', range('m-hour', 5, 22, 0.25, s.hour))}
@@ -5206,6 +5215,10 @@ export class MainMenu {
     });
     on<HTMLSelectElement>('m-strava', 'change', (el) => {
       s.skipStrava = el.value === 'skip';
+      changed();
+    });
+    on<HTMLSelectElement>('m-ghost', 'change', (el) => {
+      s.showGhost = el.value === '1';
       changed();
     });
     on<HTMLSelectElement>('m-target', 'change', (el) => {

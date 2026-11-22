@@ -1358,6 +1358,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     void fetchFriendGhost(track.route.id).then((g) => {
       if (!g || disposed) return;
       friendGhost = new FriendGhost(engine.scene, track, g, { ...DEFAULT_LOOK, ...g.look });
+      friendGhost.setShown(s.showGhost !== false);
       const L = getLang() === 'fr';
       hud.toast(`${L ? 'Fantôme de' : 'Ghost of'} ${g.name} · ${Math.floor(g.lapTimeS / 60)}:${String(Math.round(g.lapTimeS % 60)).padStart(2, '0')}`);
     });
@@ -1620,6 +1621,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       closeFtpResult = showFtpResult({ fr: L, ...ftpOutcome.result }, keepFtp);
     };
   }
+  // Fantômes affichés ou non (Réglages › Sortie, pause, touche G, appli compagnon) ; cachés, ils enregistrent toujours le tour.
+  const setGhostShown = (on: boolean, say = false) => {
+    s.showGhost = on;
+    saveSettings(s);
+    ghost.setShown(on);
+    friendGhost?.setShown(on);
+    if (say) hud.toast(getLang() === 'fr' ? (on ? 'Fantôme affiché' : 'Fantôme masqué') : on ? 'Ghost shown' : 'Ghost hidden', true);
+  };
+  ghost.setShown(s.showGhost !== false);
   ghost.onNewRecord = (lapS, prev) => hud.toast(`${t('newRecord')} ${Math.floor(lapS / 60)}:${String(Math.round(lapS % 60)).padStart(2, '0')}${prev ? ` (−${Math.round(prev - lapS)} s)` : ''}`);
   const keyboard = new KeyboardControls();
   // Caméra libre : les flèches déplacent la caméra, pas le coureur.
@@ -2199,6 +2209,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             saveSettings(s);
             hud.setHidden(s.hudHidden);
           },
+          ...(ghost.hasBest || friendGhost ? { ghost: { shown: s.showGhost !== false, onToggle: (on: boolean) => setGhostShown(on) } } : {}),
         },
         ...(mp?.net.roomId ? { roomId: mp.net.roomId } : {}),
         ...(room?.racing ? { finishLabel: getLang() === 'fr' ? 'Abandonner la course' : 'Abandon the race' } : {}),
@@ -2344,6 +2355,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         return cycleFormation();
       case 'photo':
         return photo();
+      case 'ghost':
+        if (ghost.hasBest || friendGhost) setGhostShown(s.showGhost === false, true);
+        return;
       case 'pause':
         e.preventDefault();
         return togglePause();
@@ -3075,6 +3089,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ...(fanPercent !== undefined ? { fanPercent } : {}),
       roadFeel: { percent: clampRoadFeel(s.roadFeelPercent), supported: input.roadFeelSupported?.() ?? false, surface: roadFeelNow },
       hudVisible: hud.visible,
+      // Fantôme : null quand cette sortie n'en a pas (le téléphone masque alors le bouton).
+      ghost: ghost.hasBest || friendGhost ? s.showGhost !== false : null,
       ...(fullMap ? { mapOpen: (fullMap as { isOpen: boolean }).isOpen } : {}),
       muted: audio.isMuted(),
       lookBack: rig.lookBack,
@@ -3160,6 +3176,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         break;
       case 'hud':
         hud.toggle();
+        break;
+      case 'ghost':
+        setGhostShown(c.on ?? s.showGhost === false, true);
         break;
       case 'lookBack':
         rig.lookBack = c.on;

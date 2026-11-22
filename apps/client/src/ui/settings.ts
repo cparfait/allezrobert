@@ -42,6 +42,8 @@ export interface Settings {
   aiRiders: number;
   /** Équipiers IA en sortie libre (0 : seul sur la route ; chaque coureur IA coûte des images par seconde). */
   soloAiRiders: number;
+  /** Fantômes affichés (son meilleur tour, celui d'un ami). */
+  showGhost: boolean;
   /** Niveau des coureurs IA en fraction de la FTP du joueur (0,8 / 1 / 1,15). */
   aiLevel: number;
   /** Sortie de groupe avec IA : vitesse moyenne visée (km/h) ; 0 = libre (allure des coureurs). */
@@ -111,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skipStrava: true,
   aiRiders: 4,
   soloAiRiders: 0,
+  showGhost: true,
   aiLevel: 1,
   groupTargetKmh: 0,
   powerSource: 'pedals',

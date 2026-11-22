@@ -754,6 +754,7 @@ function ctrlHtml(): string {
       <h2>${esc(t.ctrlView)}</h2>
       <div class="tiles">
         <button class="btn big tile" data-ico="▦" data-cmd="hud" id="c-hud">${esc(t.hud)}</button>
+        ${st.ghost === undefined || st.ghost === null ? '' : `<button class="btn big tile${st.ghost ? ' on' : ''}" data-ico="👻" data-cmd="ghost" id="c-ghost">${esc(st.ghost ? t.ghostOn : t.ghostOff)}</button>`}
         <button class="btn big tile" data-ico="🔊" data-cmd="mute" id="c-mute">${esc(st.muted ? t.unmute : t.mute)}</button>
         <button class="btn big tile wide2" data-ico="♪" data-music="toggle" id="c-music">${esc(st.music?.playing === false ? t.musicResume : t.musicCut)}</button>
       </div>
@@ -808,6 +809,11 @@ function updateCtrl(st: PairState): void {
   if (h) h.textContent = st.hudVisible === false ? t.hudOff : t.hudOn;
   const look = document.getElementById('c-look');
   if (look) look.classList.toggle('on', !!st.lookBack);
+  const ghostBtn = document.getElementById('c-ghost');
+  if (ghostBtn) {
+    ghostBtn.textContent = st.ghost ? t.ghostOn : t.ghostOff;
+    ghostBtn.classList.toggle('on', !!st.ghost);
+  }
   const mute = document.getElementById('c-mute');
   if (mute) mute.textContent = st.muted ? t.unmute : t.mute;
   // Radar du groupe : 30 m derrière à 30 m devant, moi au centre (comme le panneau « Groupe » du jeu).
@@ -1170,6 +1176,7 @@ app.addEventListener('click', (e) => {
     else if (d.cmd === 'pause') send({ kind: st?.phase === 'paused' ? 'resume' : 'pause' });
     else if (d.cmd === 'photo') send({ kind: 'photo' });
     else if (d.cmd === 'hud') send({ kind: 'hud' });
+    else if (d.cmd === 'ghost') send({ kind: 'ghost', on: !S.st?.ghost });
     else if (d.cmd === 'lookback') send({ kind: 'lookBack', on: !S.st?.lookBack });
     else if (d.cmd === 'mute') send({ kind: 'mute' });
     else if (d.cmd === 'uturn') send({ kind: 'uturn' });

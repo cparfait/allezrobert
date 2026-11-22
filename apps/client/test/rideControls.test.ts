@@ -11,6 +11,7 @@ describe('touches de la sortie', () => {
     expect(rideKeyAction({ key: ']', code: 'BracketRight' })).toEqual({ kind: 'pace', delta: 1 });
     expect(rideKeyAction({ key: '-', code: 'NumpadSubtract' })).toEqual({ kind: 'pace', delta: -1 });
     expect(rideKeyAction({ key: 'U', code: 'KeyU' })).toEqual({ kind: 'uturn' });
+    expect(rideKeyAction({ key: 'g', code: 'KeyG' })).toEqual({ kind: 'ghost' });
     expect(rideKeyAction({ key: 'z', code: 'KeyW' })).toBeNull();
   });
 });

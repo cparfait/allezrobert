@@ -87,7 +87,7 @@ export interface PauseCallbacks {
   /** Graphismes : préréglage (appliqué à la prochaine sortie) et effets d'image (tout de suite). */
   graphics?: PauseGraphics;
   /** Panneaux affichés en sortie : blocs masqués (HUD_BLOCKS) et bascule, appliquée tout de suite. */
-  display?: { hidden: readonly string[]; onToggle(ids: string[], shown: boolean): void };
+  display?: { hidden: readonly string[]; onToggle(ids: string[], shown: boolean): void; ghost?: { shown: boolean; onToggle(shown: boolean): void } };
 }
 
 /** Panneaux de la sortie proposés dans la pause, avec les blocs du HUD qu'ils regroupent. */
@@ -183,7 +183,7 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     <div class="pz-grid">
       <div class="pz-col">
         ${cb.graphics ? '<section class="pz-sec" id="p-graphics"></section>' : ''}
-        ${cb.display ? `<section class="pz-sec" id="p-display"><h3 class="ab-section">${fr ? 'Affichage' : 'Display'}</h3><p class="pz-help">${fr ? 'Panneaux montrés pendant la sortie (H masque tout).' : 'Panels shown while riding (H hides everything).'}</p><div class="pz-toggles">${PAUSE_PANELS.map(([ids, f, e], i) => `<label class="pz-toggle"><input type="checkbox" data-panel="${i}" ${ids.some((id) => !cb.display!.hidden.includes(id)) ? 'checked' : ''}/> <span>${fr ? f : e}</span></label>`).join('')}</div></section>` : ''}
+        ${cb.display ? `<section class="pz-sec" id="p-display"><h3 class="ab-section">${fr ? 'Affichage' : 'Display'}</h3><p class="pz-help">${fr ? 'Panneaux montrés pendant la sortie (H masque tout).' : 'Panels shown while riding (H hides everything).'}</p><div class="pz-toggles">${PAUSE_PANELS.map(([ids, f, e], i) => `<label class="pz-toggle"><input type="checkbox" data-panel="${i}" ${ids.some((id) => !cb.display!.hidden.includes(id)) ? 'checked' : ''}/> <span>${fr ? f : e}</span></label>`).join('')}${cb.display.ghost ? `<label class="pz-toggle"><input type="checkbox" id="p-ghost" ${cb.display.ghost.shown ? 'checked' : ''}/> <span>${fr ? 'Fantôme (G)' : 'Ghost (G)'}</span></label>` : ''}</div></section>` : ''}
         <section class="pz-sec"><h3 class="ab-section">${fr ? 'Roue libre et sortie audio' : 'Freewheel and audio output'}</h3><div id="p-sound-more"></div></section>
       </div>
       <section class="pz-sec pz-sound"><h3 class="ab-section">${fr ? 'Son' : 'Sound'}</h3><div id="p-music"></div><div id="p-sound"></div></section>
@@ -202,6 +202,8 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     const devices = sound.querySelector('.snd-devices');
     if (devices) more.appendChild(devices);
   }
+  const ghostBox = root.querySelector<HTMLInputElement>('#p-ghost');
+  if (ghostBox) ghostBox.onchange = () => cb.display?.ghost?.onToggle(ghostBox.checked);
   root.querySelectorAll<HTMLInputElement>('#p-display [data-panel]').forEach((box) => {
     box.onchange = () => {
       const panel = PAUSE_PANELS[Number(box.dataset.panel)];

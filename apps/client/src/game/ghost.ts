@@ -103,10 +103,20 @@ export class Ghost {
       this.v3 = new V3Visual(this.avatar.v3Mount(), () => ghostify(this.avatar.root), (error) => console.warn('[V3] fantôme', error));
       this.v3.set(look);
     }
-    this.avatar.root.visible = !!this.best;
+    this.avatar.root.visible = !!this.best && this.shown;
   }
 
   private v3?: V3Visual;
+  /** Fantôme affiché (réglage du joueur) ; caché, il continue d'enregistrer le tour en cours. */
+  private shown = true;
+  setShown(on: boolean): void {
+    this.shown = on;
+    this.avatar.root.visible = !!this.best && on;
+  }
+  /** Un record existe (le fantôme a quelque chose à montrer). */
+  get hasBest(): boolean {
+    return !!this.best;
+  }
 
   get bestLapS(): number | null {
     return this.best?.lapTimeS ?? null;
@@ -163,7 +173,7 @@ export class Ghost {
     this.current = [];
     this.lapStartT = elapsedS;
     this.lapStartD = distM;
-    this.avatar.root.visible = !!this.best;
+    this.avatar.root.visible = !!this.best && this.shown;
   }
 }
 
@@ -216,8 +226,14 @@ export class FriendGhost {
     this.avatar = ghostAvatar(scene, look);
   }
 
+  /** Fantôme de l'ami affiché (même réglage que le sien). */
+  setShown(on: boolean): void {
+    this.avatar.root.visible = on;
+  }
+
   /** Avance de dt ; l'ami est placé à la distance qu'il avait atteinte à ce moment de son tour. */
   update(dt: number, elapsedS: number): void {
+    if (!this.avatar.root.visible) return;
     const t = elapsedS - this.lapStartT;
     const i = Math.min(Math.floor(t), this.dist.length - 1);
     const f = Math.min(t - i, 1);

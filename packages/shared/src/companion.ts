@@ -69,6 +69,8 @@ export type PhoneCommand =
   /** Lance un résultat de recherche (URI Spotify : morceau, album, playlist ou artiste). */
   | { kind: 'musicPlay'; uri: string }
   | { kind: 'hud' }
+  /** Fantôme affiché ou masqué (sans `on` : bascule). */
+  | { kind: 'ghost'; on?: boolean }
   /** Regarder derrière (touche X) : activé ou relâché. */
   | { kind: 'lookBack'; on: boolean }
   /** Coupe / rétablit le son du jeu (touche M). */
@@ -152,6 +154,8 @@ export interface PairState {
   /** Ressenti route : intensité réglée (%), trainer capable (Tacx NEO), revêtement simulé en ce moment. */
   roadFeel?: { percent: number; supported: boolean; surface: string };
   hudVisible?: boolean;
+  /** Fantôme affiché ; null quand la sortie n'en a pas. */
+  ghost?: boolean | null;
   /** Carte complète ouverte à l'écran du jeu (absent : pas de carte pour cette sortie). */
   mapOpen?: boolean;
   /** Son du jeu coupé ; regard vers l'arrière ; allure demandée au groupe en % de FTP. */

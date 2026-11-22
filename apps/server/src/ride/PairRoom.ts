@@ -40,6 +40,7 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('musicSearch'), query: z.string().trim().max(100) }),
   z.object({ kind: z.literal('musicPlay'), uri: z.string().regex(SPOTIFY_URI_RE) }),
   z.object({ kind: z.literal('hud') }),
+  z.object({ kind: z.literal('ghost'), on: z.boolean().optional() }),
   z.object({ kind: z.literal('lookBack'), on: z.boolean() }),
   z.object({ kind: z.literal('mute') }),
   z.object({ kind: z.literal('photo') }),
