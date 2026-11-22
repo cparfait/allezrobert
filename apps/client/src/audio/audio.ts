@@ -257,7 +257,8 @@ export class GameAudio {
     this.breathVca.gain.value = 0;
     this.breathVca.connect(B.breath);
     this.L = {
-      wind: layer(b.pink, B.bike, 'lowpass', 400),
+      // Vent : bus à part (curseur « Vent »), l'air de la course comme celui de la météo.
+      wind: layer(b.pink, B.wind, 'lowpass', 400),
       roar: layer(b.pinkMono, B.bike, 'bandpass', 250, 0.9),
       hiss: layer(b.whiteMono, B.bike, 'highpass', 4000),
       crunch: layer(b.crackle, B.bike, 'bandpass', 1800, 0.45),
@@ -265,7 +266,7 @@ export class GameAudio {
       spray: layer(b.white, B.bike, 'bandpass', 5000, 0.5),
       // Freinage : frottement aigu et étroit des patins sur la jante (bande serrée).
       brake: layer(b.whiteMono, B.bike, 'bandpass', 3400, 7),
-      windAmb: layer(b.pink, B.ambience, 'lowpass', 380),
+      windAmb: layer(b.pink, B.wind, 'lowpass', 380),
       foliage: layer(b.white, B.ambience, 'bandpass', 3500, 0.4),
       crickets: layer(b.crickets, B.ambience, 'highpass', 2500),
       village: layer(b.pink, B.ambience, 'bandpass', 450, 0.6),
