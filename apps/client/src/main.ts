@@ -85,7 +85,7 @@ import { showSummit } from './ui/summit.ts';
 import { fetchMe, showLogin, earlyLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
 import { stravaReturnTab } from './ui/stravaLink.ts';
 import { sendRideInvites } from './ui/friends.ts';
-import { RideSequences } from './game/sequences.ts';
+import { RideSequences, readZonedTime, writeZonedTime } from './game/sequences.ts';
 import { GuestInputSource } from './game/guest.ts';
 import { Crowd } from './world/crowd.ts';
 import { FinishBanners } from './world/finishBanners.ts';
@@ -1711,8 +1711,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           return c;
         })()
       : null;
-  /** Meilleur temps de chaque segment sur cet itinéraire (voix : record battu ou écart). */
-  const segBestKey = (id: string) => `ar.segbest.${rankRouteId(track.route.id)}.${id}`;
+  // Meilleur temps de chaque segment (voix : record battu ou écart) : ar.segbest, rangé par zone (sequences.ts).
   const voiceFlags = { start: false, half: false, lastKm: false };
   ride.onSegmentStart = (seg) => {
     if (seg.kind === 'kom') void announcer.say([Math.random() < 0.5 ? 'komStart' : 'komStart2']);
@@ -1758,10 +1757,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const sequences = new RideSequences(document.getElementById('app') as HTMLElement, track);
   ride.onSegmentDone = (r) => {
     if (r.seg.kind === 'kom' || r.seg.kind === 'sprint') {
-      const prev = Number(localStorage.getItem(segBestKey(r.seg.id)) ?? NaN);
+      const prev = readZonedTime('ar.segbest', rankRouteId(track.route.id), r.seg.id) ?? NaN;
       const record = Number.isFinite(prev) && prev > 0 ? prev : readKomRecord(rankRouteId(track.route.id), r.seg.id, { lenM: r.seg.endM - r.seg.startM })?.timeS ?? null;
       announcer.segmentResult(r.seg.kind, r.timeS, record);
-      if (!s.guest && (record === null || r.timeS < record)) localStorage.setItem(segBestKey(r.seg.id), String(r.timeS));
+      if (!s.guest && (record === null || r.timeS < record)) writeZonedTime('ar.segbest', rankRouteId(track.route.id), r.seg.id, r.timeS);
     }
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
     // Rang solo : classé seul (1 sur 1), la séquence masque alors le bloc du rang ; en multijoueur le serveur fournit le vrai rang.

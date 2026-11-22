@@ -25,6 +25,10 @@ let komZone = '';
 export function setKomZone(zone: string): void {
   komZone = zone;
 }
+/** Zone affichée, pour ranger aussi par zone les autres meilleurs temps (segments, voix). */
+export function recordZone(): string {
+  return komZone;
+}
 /** Élan avant le pied de la côte (m). */
 export const CHALLENGE_RUNUP_M = 150;
 

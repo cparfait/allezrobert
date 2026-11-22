@@ -37,3 +37,30 @@ describe('records KOM rangés par zone', () => {
     expect(store.has('ar.kom.idf-angerville.boucle-30-km.boucle-30-km-kom-1')).toBe(false);
   });
 });
+
+const { readZonedTime, writeZonedTime, readSegmentPr } = await import('../src/game/sequences.ts');
+
+describe('meilleurs temps de segments rangés par zone', () => {
+  beforeEach(() => {
+    store.clear();
+    setKomZone('');
+  });
+
+  it('un temps d’une zone ne vaut pas pour le même segment d’une autre zone', () => {
+    setKomZone('idf-ablis');
+    writeZonedTime('ar.segbest', 'boucle-30-km', 'boucle-30-km-kom-1', 120);
+    expect(readZonedTime('ar.segbest', 'boucle-30-km', 'boucle-30-km-kom-1')).toBe(120);
+    setKomZone('idf-angerville');
+    expect(readZonedTime('ar.segbest', 'boucle-30-km', 'boucle-30-km-kom-1')).toBeNull();
+  });
+
+  it('un ancien temps sans zone est repris pour un itinéraire propre à une zone, écarté pour un itinéraire commun', () => {
+    store.set('ar.pr.cote-de-la-madeleine.kom-hautvilliers', '200');
+    store.set('ar.pr.boucle-30-km.boucle-30-km-kom-1', '150');
+    setKomZone('chevreuse');
+    expect(readSegmentPr('cote-de-la-madeleine', 'kom-hautvilliers')).toBe(200);
+    expect(store.get('ar.pr.chevreuse.cote-de-la-madeleine.kom-hautvilliers')).toBe('200');
+    setKomZone('idf-ablis');
+    expect(readSegmentPr('boucle-30-km', 'boucle-30-km-kom-1')).toBeNull();
+  });
+});

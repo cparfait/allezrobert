@@ -3,8 +3,43 @@ import type { RouteData, RouteTrack } from '@allezrobert/shared';
 import { getLang } from '../i18n/index.ts';
 import type { SegmentResult } from './ride.ts';
 import type { Season } from '../world/environment.ts';
+import { recordZone } from './challenge.ts';
 
-const PR_KEY = (routeId: string, segId: string) => `ar.pr.${routeId}.${segId}`;
+/**
+ * Meilleurs temps par segment, rangés par zone : `<préfixe>.<zone>.<itinéraire>.<segment>`. Plusieurs zones ont
+ * les mêmes identifiants d'itinéraire (boucle-30-km…) et de segment : sans la zone, un temps valait pour toutes.
+ */
+const zonedKey = (prefix: string, routeId: string, segId: string, zone: string) => (zone ? `${prefix}.${zone}.${routeId}.${segId}` : `${prefix}.${routeId}.${segId}`);
+/** Identifiants d'itinéraire communs à plusieurs zones : un ancien temps (clé sans zone) n'y est attribuable à aucune. */
+const SHARED_ROUTE_ID = /^boucle-\d+-km$/;
+
+/**
+ * Meilleur temps (s) rangé sous `prefix` pour ce segment de la zone `zone` (défaut : zone affichée), ou null.
+ * Un ancien temps sans zone est repris (et recopié avec la zone) seulement si l'itinéraire n'existe que dans une zone.
+ */
+export function readZonedTime(prefix: string, routeId: string, segId: string, zone = recordZone()): number | null {
+  const num = (raw: string | null) => {
+    const v = Number(raw ?? 'NaN');
+    return Number.isFinite(v) ? v : null;
+  };
+  try {
+    const v = num(localStorage.getItem(zonedKey(prefix, routeId, segId, zone)));
+    if (v !== null || !zone || SHARED_ROUTE_ID.test(routeId)) return v;
+    const old = num(localStorage.getItem(zonedKey(prefix, routeId, segId, '')));
+    if (old !== null) localStorage.setItem(zonedKey(prefix, routeId, segId, zone), String(old));
+    return old;
+  } catch {
+    return null;
+  }
+}
+
+export function writeZonedTime(prefix: string, routeId: string, segId: string, timeS: number, zone = recordZone()): void {
+  try {
+    localStorage.setItem(zonedKey(prefix, routeId, segId, zone), String(timeS));
+  } catch {
+    // Stockage indisponible : le temps ne sera pas gardé.
+  }
+}
 
 /** Lieux de départ et d'arrivée d'un itinéraire (repères à moins de 1,5 km des bouts), sinon vides. */
 export function routeEnds(r: RouteData): { start: string; finish: string } {
@@ -17,9 +52,8 @@ export function routeEnds(r: RouteData): { start: string; finish: string } {
 }
 
 /** Record personnel (s) sur une montée ou un sprint, enregistré sur cet appareil, ou null. */
-export function readSegmentPr(routeId: string, segId: string): number | null {
-  const v = Number(localStorage.getItem(PR_KEY(routeId, segId)) ?? 'NaN');
-  return Number.isFinite(v) ? v : null;
+export function readSegmentPr(routeId: string, segId: string, zone?: string): number | null {
+  return readZonedTime('ar.pr', routeId, segId, zone);
 }
 
 /**
@@ -78,10 +112,9 @@ export class RideSequences {
 
   /** Segment terminé : temps, record personnel (stockage local). */
   segment(res: SegmentResult, riderName: string, routeId: string, rank: number, total: number): void {
-    const key = PR_KEY(routeId, res.seg.id);
-    const prev = Number(localStorage.getItem(key) ?? 'NaN');
+    const prev = readZonedTime('ar.pr', routeId, res.seg.id) ?? NaN;
     const pr = !Number.isFinite(prev) || res.timeS < prev;
-    if (pr) localStorage.setItem(key, String(res.timeS));
+    if (pr) writeZonedTime('ar.pr', routeId, res.seg.id, res.timeS);
     if (!this.enabled || this.tvActive) return;
     void this.player.play(res.seg.kind === 'sprint' ? 'sprint' : 'kom', {
       segment_name: res.seg.name,
