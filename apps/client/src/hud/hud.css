@@ -331,7 +331,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0a0e16; col
    Le panneau rogne toujours en hauteur (liste longue) mais plus en largeur (overflow-y: clip, overflow-x: visible). */
 .hud [data-pnl] { position: relative; overflow-x: visible; overflow-y: clip; }
 .pnl-ctl { position: absolute; top: 4px; right: 100%; margin-right: 6px; z-index: 3; display: flex; gap: 4px; padding: 3px; border-radius: 9px; background: rgba(8, 11, 18, 0.92); opacity: 0; transition: opacity 0.15s; pointer-events: auto; }
-.hud [data-pnl]:hover > .pnl-ctl, .pnl-ctl:focus-within, .hud [data-pnl].pnl-min > .pnl-ctl { opacity: 1; }
+/* Seulement au survol, réduit ou non : rien ne reste affiché sur la route. Un panneau réduit se rouvre aussi d'un clic. */
+.hud [data-pnl]:hover > .pnl-ctl, .pnl-ctl:focus-within { opacity: 1; }
+.hud [data-pnl].pnl-min { cursor: pointer; }
 .pnl-ctl button { width: 26px; height: 26px; border: 0; border-radius: 7px; background: rgba(255, 255, 255, 0.14); color: #fff; font: 800 16px/1 var(--font, system-ui); cursor: pointer; }
 .pnl-ctl button:hover { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
 /* Réduit : seule la première ligne (le titre) reste. */

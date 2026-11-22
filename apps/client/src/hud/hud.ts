@@ -1052,6 +1052,14 @@ export class Hud {
       } else if (act === 'hide') this.onHideBlocks?.(PANEL_BLOCKS[key] ?? [key]);
     });
     p.appendChild(ctl);
+    // Panneau réduit : un clic sur son titre le rouvre (les boutons n'apparaissent qu'au survol).
+    if (!p.dataset.pnlClick) {
+      p.dataset.pnlClick = '1';
+      p.addEventListener('click', () => {
+        if (!p.classList.contains('pnl-min')) return;
+        p.querySelector<HTMLElement>(':scope > .pnl-ctl [data-pnl-act="min"]')?.click();
+      });
+    }
   }
 
   /** Blocs masqués par le coureur (voir HUD_BLOCKS). */
