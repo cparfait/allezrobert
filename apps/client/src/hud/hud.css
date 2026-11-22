@@ -836,6 +836,13 @@ button.ab-tile.pz-quit:hover { border-color: rgba(239, 68, 68, 0.75); }
 .pz-grid > .pz-sec:only-child { grid-column: 1 / -1; }
 .pz-sec { padding: 16px 18px; border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.08); background: linear-gradient(180deg, rgba(22, 29, 43, 0.6), rgba(12, 16, 25, 0.55)); }
 .pz-sec .ab-section { margin-bottom: 10px; }
+.pz-col { display: grid; gap: 16px; align-content: start; }
+.pz-help { margin: -4px 0 10px; font-size: 14px; color: #c3cddb; }
+.pz-toggles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; }
+.pz-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); font-size: 15px; font-weight: 600; cursor: pointer; }
+.pz-toggle:hover { background: rgba(255, 255, 255, 0.09); }
+.pz-toggle input { width: 18px; height: 18px; accent-color: var(--ar-accent, #ffd23f); flex: none; }
+.pz-toggle:has(input:focus-visible) { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
 .pz-seg { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); }
 .pz-seg button { flex: 1 1 0; appearance: none; border: 0; border-radius: 9px; padding: 9px 10px; font: 700 14px var(--font); color: #c3cddb; background: transparent; cursor: pointer; white-space: nowrap; }
 .pz-seg button:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }

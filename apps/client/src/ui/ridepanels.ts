@@ -86,7 +86,18 @@ export interface PauseCallbacks {
   onCompanion?(): void;
   /** Graphismes : préréglage (appliqué à la prochaine sortie) et effets d'image (tout de suite). */
   graphics?: PauseGraphics;
+  /** Panneaux affichés en sortie : blocs masqués (HUD_BLOCKS) et bascule, appliquée tout de suite. */
+  display?: { hidden: readonly string[]; onToggle(ids: string[], shown: boolean): void };
 }
+
+/** Panneaux de la sortie proposés dans la pause, avec les blocs du HUD qu'ils regroupent. */
+const PAUSE_PANELS: ReadonlyArray<[ids: string[], fr: string, en: string]> = [
+  [['draft', 'wind', 'alt', 'lap'], 'Aspiration, vent, altitude', 'Draft, wind, altitude'],
+  [['group'], 'Radar du groupe', 'Group radar'],
+  [['riders'], 'Coureurs à proximité', 'Nearby riders'],
+  [['map'], 'Mini-carte', 'Mini-map'],
+  [['profile'], 'Profil du parcours', 'Route profile'],
+];
 
 export interface PauseGraphics {
   /** Préréglage enregistré pour les prochaines sorties. */
@@ -170,16 +181,19 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     </div>
     <div id="p-friends"></div>
     <div class="pz-grid">
-      ${cb.graphics ? '<section class="pz-sec" id="p-graphics"></section>' : ''}
-      <section class="pz-sec pz-sound"><h3 class="ab-section">${fr ? 'Son' : 'Sound'}</h3><div id="p-music"></div><div id="p-sound"></div>
-        <details class="pz-more"><summary>${fr ? 'Avancé' : 'Advanced'}</summary><div id="p-sound-more"></div></details></section>
+      <div class="pz-col">
+        ${cb.graphics ? '<section class="pz-sec" id="p-graphics"></section>' : ''}
+        ${cb.display ? `<section class="pz-sec" id="p-display"><h3 class="ab-section">${fr ? 'Affichage' : 'Display'}</h3><p class="pz-help">${fr ? 'Panneaux montrés pendant la sortie (H masque tout).' : 'Panels shown while riding (H hides everything).'}</p><div class="pz-toggles">${PAUSE_PANELS.map(([ids, f, e], i) => `<label class="pz-toggle"><input type="checkbox" data-panel="${i}" ${ids.some((id) => !cb.display!.hidden.includes(id)) ? 'checked' : ''}/> <span>${fr ? f : e}</span></label>`).join('')}</div></section>` : ''}
+        <section class="pz-sec"><h3 class="ab-section">${fr ? 'Roue libre et sortie audio' : 'Freewheel and audio output'}</h3><div id="p-sound-more"></div></section>
+      </div>
+      <section class="pz-sec pz-sound"><h3 class="ab-section">${fr ? 'Son' : 'Sound'}</h3><div id="p-music"></div><div id="p-sound"></div></section>
     </div>
     <details class="pz-sec pz-keys"><summary>${fr ? 'Raccourcis clavier' : 'Keyboard shortcuts'}</summary>${shortcutsHtml()}</details>
   </div></div>`;
   if (cb.graphics) renderGraphics(root.querySelector('#p-graphics'), cb.graphics);
   renderMusicControls(root.querySelector('#p-music'));
   renderSoundSettings(root.querySelector('#p-sound'));
-  // Choix rares (roue libre, micro, sortie audio) : déplacés tels quels sous « Avancé », écouteurs compris.
+  // Choix rares (roue libre, micro, sortie audio) : déplacés tels quels dans la colonne de gauche, écouteurs compris.
   const more = root.querySelector<HTMLElement>('#p-sound-more');
   const sound = root.querySelector<HTMLElement>('#p-sound');
   if (more && sound) {
@@ -188,6 +202,12 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     const devices = sound.querySelector('.snd-devices');
     if (devices) more.appendChild(devices);
   }
+  root.querySelectorAll<HTMLInputElement>('#p-display [data-panel]').forEach((box) => {
+    box.onchange = () => {
+      const panel = PAUSE_PANELS[Number(box.dataset.panel)];
+      if (panel) cb.display?.onToggle(panel[0], box.checked);
+    };
+  });
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
   // « Terminer » en deux temps : le premier appui demande confirmation (4 s), le second termine. Évite d'arrêter
   // une longue sortie par un appui de trop sur la manette ou le cintre.
