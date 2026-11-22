@@ -178,6 +178,10 @@ const S = strings(
     changeClimb: 'Changer de montée',
     best: 'Record',
     allAreas: 'Toutes les zones',
+    colClimb: 'Montée',
+    colLength: 'Longueur',
+    colGrade: 'Pente moy.',
+    colBest: 'Mon record',
     myBest: 'mon record',
     bestOn: 'Record du',
     notRiddenYet: 'À découvrir',
@@ -522,6 +526,10 @@ const S = strings(
     changeClimb: 'Change climb',
     best: 'Best',
     allAreas: 'All areas',
+    colClimb: 'Climb',
+    colLength: 'Length',
+    colGrade: 'Avg grade',
+    colBest: 'My best',
     myBest: 'my best',
     bestOn: 'Best on',
     notRiddenYet: 'Not ridden yet',
@@ -2810,12 +2818,13 @@ export class MainMenu {
             const on = c.routeId === this.s.routeId && c.segId === this.s.challengeSeg && this.s.mode === 'challenge';
             const date = c.rec ? new Date(c.rec.date).toLocaleDateString(MX('locale'), { day: 'numeric', month: 'short', year: 'numeric' }) : '';
             const hay = `${c.name} ${c.routeName} ${this.zoneLabel(c.zone)}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-            return `<button type="button" class="ab-tile kom-tile${on ? ' is-on' : ''}" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}" data-search="${esc(hay)}">
-              <span class="ab-ico sm">${ICON.challenge}</span>
-              <span class="ab-name">${esc(c.name)}</span>
-              <span class="ab-detail">${esc(c.routeName)} · ${esc(this.zoneLabel(c.zone))}</span>
-              <span class="ab-val kom-vals"><span><b>${this.km(c.lengthM)}</b><small>km</small></span><span><b>${dec(c.grade)}</b><small>%</small></span><span class="kom-best">${c.rec ? `<b>${fmt(c.rec.timeS)}</b><small>${S('myBest')}</small>` : `<small>${S('noRecordYet')}</small>`}</span></span>
-              <span class="ab-state${on ? ' is-ok' : ''}"><i></i>${on ? (S('selected')) : date ? `${S('bestOn')} ${date}` : S('notRiddenYet')}</span>
+            // Une ligne par montée (liste plus lisible qu'une grille de blocs) : colonnes alignées sur l'en-tête.
+            return `<button type="button" class="kom-tile kom-row${on ? ' is-on' : ''}" role="listitem" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}" data-search="${esc(hay)}">
+              <span class="kr-ico">${ICON.challenge}</span>
+              <span class="kr-main"><b>${esc(c.name)}</b><small>${esc(c.routeName)} · ${esc(this.zoneLabel(c.zone))}</small></span>
+              <span class="kr-num"><b>${this.km(c.lengthM)}</b><small>km</small></span>
+              <span class="kr-num"><b>${dec(c.grade)}</b><small>%</small></span>
+              <span class="kr-best">${c.rec ? `<b>${fmt(c.rec.timeS)}</b><small>${date}</small>` : `<small>${S('noRecordYet')}</small>`}</span>
               <span class="ab-act${on ? ' quiet' : ''}">${on ? (S('selected')) : S('challenge')}</span>
             </button>`;
           })
@@ -2827,7 +2836,7 @@ export class MainMenu {
         <header><div class="pk-head"><h2 class="ab-title">${S('komChallenge')}</h2><p class="ab-sub">${S('flyingStartGhostOf')}</p></div><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${S('searchAClimbA')}" aria-label="${S('searchAClimb')}" />
         <div class="kom-filter" role="group" aria-label="${S('filterByArea')}">${chips}</div>
-        <div class="kom-wrap"><div class="ab-grid kom-grid">${body}</div></div>
+        <div class="kom-wrap"><div class="kom-list" role="list"><div class="kom-head" aria-hidden="true"><span></span><span>${S('colClimb')}</span><span>${S('colLength')}</span><span>${S('colGrade')}</span><span>${S('colBest')}</span><span></span></div>${body}</div></div>
         <div class="kom-foot"><span>${count(rows.length, 'climb1', 'climbN')} · ${count(records, 'record1', 'recordN')}</span><span>${S('aZoneSClimbs')}</span></div>
       </div></div>`;
   }

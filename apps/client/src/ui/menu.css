@@ -1208,6 +1208,32 @@ button.mm-credits small { font-size: 12px; font-weight: 600; color: #e6cf86; }
 /* Montées : un bloc par montée. */
 .mm-picker.kom-dialog.pk { width: min(1180px, 94vw) !important; }
 .kom-wrap:has(.kom-grid) { background: none; border-radius: 0; padding: 2px 4px 2px 2px; }
+/* Défi KOM en liste : une ligne par montée, colonnes alignées (icône, montée et parcours, longueur, pente, record, action). */
+.kom-list { --kom-cols: 44px minmax(0, 1fr) 96px 104px 132px 104px; display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.kom-head { display: grid; grid-template-columns: var(--kom-cols); gap: 14px; padding: 2px 14px 4px; font-size: 13px; font-weight: 700; color: #9aa6b5; position: sticky; top: 0; z-index: 1; background: rgba(12, 16, 25, 0.96); }
+.kom-head span:nth-child(n + 3) { text-align: right; }
+.kom-row { appearance: none; display: grid; grid-template-columns: var(--kom-cols); align-items: center; gap: 14px; width: 100%; padding: 10px 14px; border: 2px solid rgba(255, 255, 255, 0.07); border-radius: 14px; background: rgba(255, 255, 255, 0.04); color: var(--ar-fg, #f5f7fa); font: inherit; text-align: left; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.kom-row:hover { border-color: rgba(255, 210, 63, 0.6); background: rgba(255, 255, 255, 0.07); }
+.kom-row:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.kom-row.is-on { border-color: var(--ar-accent, #ffd23f); }
+.kom-row[hidden] { display: none; }
+.kr-ico { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); color: #c3cddb; }
+.kr-ico svg { width: 26px; height: 26px; }
+.kr-main { display: flex; flex-direction: column; min-width: 0; }
+.kr-main b { font-size: 17px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kr-main small { font-size: 13.5px; color: #aeb7c3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kr-num { display: flex; align-items: baseline; justify-content: flex-end; gap: 4px; }
+.kr-num b, .kr-best b { font-family: var(--mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; font-size: 21px; font-weight: 800; }
+.kr-num small { font-size: 13px; color: #aeb7c3; }
+.kr-best { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+.kr-best b { color: var(--ar-accent, #ffd23f); }
+.kr-best small { font-size: 12.5px; color: #9aa6b5; text-align: right; }
+.kom-row .ab-act { grid-area: auto; justify-self: end; }
+@media (max-width: 900px) {
+  .kom-list { --kom-cols: 36px minmax(0, 1fr) 70px 70px 90px; }
+  .kom-head span:last-child, .kom-row .ab-act { display: none; }
+  .kr-ico { width: 36px; height: 36px; }
+}
 .kom-tile { grid-template-areas: 'ico name' 'ico detail' 'val val' 'state act'; padding: 14px 16px; border-radius: 18px; }
 .kom-tile[hidden] { display: none; }
 .kom-tile .ab-name { font-size: 18px; }
