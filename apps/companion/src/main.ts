@@ -878,7 +878,7 @@ function updateCtrl(st: PairState): void {
 
 function musicHtml(): string {
   return `<section class="music">
-    <div class="disc">♪</div>
+    <div class="disc" id="mu-disc">♪</div>
     <div class="np"><span id="mu-src"></span><b id="mu-title">–</b></div>
     <div class="transport">
       <button class="btn round" data-music="previous" aria-label="${esc(t.previous)}">⏮</button>
@@ -983,6 +983,14 @@ function updateMusic(): void {
   if (title) title.textContent = mu ? (mu.playing ? mu.title || '…' : mu.title ? `${mu.title} (${t.stop.toLowerCase()})` : t.musicOff) : '–';
   const play = document.getElementById('mu-play');
   if (play) play.textContent = mu?.playing ? '⏸' : '▶';
+  // Pochette Spotify à la place de la note ; seule une adresse https de Spotify est acceptée.
+  const disc = document.getElementById('mu-disc');
+  const cover = mu?.source === 'spotify' && mu.cover && /^https:\/\/[a-z0-9.-]*scdn\.co\//.test(mu.cover) ? mu.cover : '';
+  if (disc && disc.dataset.cover !== cover) {
+    disc.dataset.cover = cover;
+    disc.classList.toggle('has-cover', !!cover);
+    disc.innerHTML = cover ? `<img src="${esc(cover)}" alt="" />` : '♪';
+  }
   // Recherche toujours visible : active quand Spotify est relié dans le jeu, sinon grisée avec la marche à suivre.
   const search = document.getElementById('mu-search');
   if (search) {

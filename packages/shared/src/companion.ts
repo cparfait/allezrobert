@@ -179,7 +179,8 @@ export interface PairState {
   sounds?: Record<PairSoundBus, boolean>;
   lookBack?: boolean;
   groupPacePct?: number;
-  music?: { source: 'game' | 'spotify'; playing: boolean; title: string; volume: number };
+  /** `cover` : pochette Spotify du morceau en cours (adresse https de i.scdn.co). */
+  music?: { source: 'game' | 'spotify'; playing: boolean; title: string; volume: number; cover?: string };
   junction?: PairJunction | null;
   /** Parcours libre : destination du guidage et distance restante par la route (m). */
   destination?: { name: string; remainingM: number; x: number; z: number } | null;

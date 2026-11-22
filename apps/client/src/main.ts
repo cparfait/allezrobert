@@ -463,11 +463,11 @@ function createMenuVideo(el: HTMLVideoElement | null) {
 }
 
 /** Musique : volume de base (plus bas en sortie) et annonce des titres Spotify pendant la sortie. */
-const musicCtl = { base: 1, lastTitle: '', spotifyPlaying: false, onTrack: null as ((label: string) => void) | null };
+const musicCtl = { base: 1, lastTitle: '', cover: '', spotifyPlaying: false, onTrack: null as ((label: string) => void) | null };
 
 /** Musique vue par l'appli compagnon : Spotify s'il est connecté, sinon la musique du jeu. */
 function companionMusic(): NonNullable<PairState['music']> {
-  if (spotify.connected) return { source: 'spotify', playing: musicCtl.spotifyPlaying, title: musicCtl.lastTitle, volume: music.volume };
+  if (spotify.connected) return { source: 'spotify', playing: musicCtl.spotifyPlaying, title: musicCtl.lastTitle, volume: music.volume, ...(musicCtl.cover ? { cover: musicCtl.cover } : {}) };
   return { source: 'game', playing: music.playing, title: music.current?.title ?? '', volume: music.volume };
 }
 
@@ -700,6 +700,8 @@ async function boot(): Promise<void> {
       noteSpotifyPlaying();
     }
     const label = np ? `${np.title} — ${np.artist}` : '';
+    // Pochette du morceau en cours (affichée par l'appli compagnon).
+    if (np) musicCtl.cover = np.cover ?? np.image ?? '';
     if (np?.isPlaying && label !== musicCtl.lastTitle) {
       musicCtl.lastTitle = label;
       musicCtl.onTrack?.(label);

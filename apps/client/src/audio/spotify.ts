@@ -50,6 +50,8 @@ export interface NowPlaying {
   artist: string;
   isPlaying: boolean;
   image?: string;
+  /** Pochette en grand (≈ 300 px) pour l'appli compagnon. */
+  cover?: string;
 }
 
 /** Adresse de retour à déclarer chez Spotify ; « localhost » y est refusé, d'où 127.0.0.1 en local. */
@@ -418,8 +420,11 @@ class SpotifyRemote {
     if (!r || r.status !== 200) return null;
     const j = (await r.json()) as { is_playing: boolean; item?: { name: string; artists?: Array<{ name: string }>; album?: { images?: Array<{ url: string }> }; show?: { name: string } } };
     if (!j.item) return null;
-    const image = j.item.album?.images?.at(-1)?.url;
-    return { title: j.item.name, artist: j.item.artists?.map((a) => a.name).join(', ') ?? j.item.show?.name ?? '', isPlaying: j.is_playing, ...(image ? { image } : {}) };
+    const images = j.item.album?.images ?? [];
+    const image = images.at(-1)?.url;
+    // Spotify range les pochettes de la plus grande à la plus petite (640, 300, 64 px).
+    const cover = (images[1] ?? images[0])?.url;
+    return { title: j.item.name, artist: j.item.artists?.map((a) => a.name).join(', ') ?? j.item.show?.name ?? '', isPlaying: j.is_playing, ...(image ? { image } : {}), ...(cover ? { cover } : {}) };
   }
 
   async play(): Promise<void> {
