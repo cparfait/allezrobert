@@ -3998,13 +3998,18 @@ export class MainMenu {
     pop.innerHTML = `<div class="mm-pop-head">${S('myPlaylists')}</div><div class="mm-hint">${S('loading2')}</div>`;
     const lists = await spotify.playlists();
     pop.innerHTML = `<div class="mm-pop-head">${S('myPlaylists')}
-        <label class="mm-vol">Volume<input id="sp-vol" type="range" min="0" max="1" step="0.05" value="0.7" /></label></div>
+        <label class="mm-vol">Volume<input id="sp-vol" type="range" min="0" max="1" step="0.05" value="${spotify.volume}" /></label></div>
       <div class="mm-pop-list">${
         lists.length
           ? lists.map((p) => `<button class="mm-pl" data-uri="${esc(p.uri)}">${p.image ? `<img src="${esc(p.image)}" alt="" />` : '<i></i>'}<b>${esc(p.name)}</b><span>${p.tracks}</span></button>`).join('')
           : `<p class="mm-hint">${spotify.canPlayHere ? (S('noPlaylists')) : S('clickPlayHereReconnect')}</p>`
       }</div>`;
-    pop.querySelector('#sp-vol')?.addEventListener('input', (e) => spotify.setHereVolume(Number((e.target as HTMLInputElement).value)));
+    pop.querySelector('#sp-vol')?.addEventListener('input', (e) => {
+      // Même volume partout (Réglages, pause, compagnon) : Spotify et la musique du jeu.
+      const v = Number((e.target as HTMLInputElement).value);
+      spotify.setHereVolume(v);
+      music.setVolume(v);
+    });
     pop.querySelectorAll<HTMLElement>('[data-uri]').forEach((b) =>
       b.addEventListener('click', () => {
         pop.hidden = true;

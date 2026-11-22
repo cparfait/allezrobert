@@ -45,6 +45,16 @@ interface Tokens {
   scope?: string;
 }
 
+/** Volume de musique enregistré (ar.music.volume), 0,5 par défaut comme music.ts : le curseur affiché dit vrai. */
+function storedMusicVolume(): number {
+  try {
+    const v = Number(localStorage.getItem('ar.music.volume'));
+    return localStorage.getItem('ar.music.volume') !== null && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5;
+  } catch {
+    return 0.5;
+  }
+}
+
 export interface NowPlaying {
   title: string;
   artist: string;
@@ -147,7 +157,8 @@ class SpotifyRemote {
       const create = () => {
         const Player = w.Spotify?.Player;
         if (!Player) return reject(new Error('SDK Spotify indisponible'));
-        const p = new Player({ name: PLAYER_NAME, volume: 0.7, getOAuthToken: (cb) => void this.token().then((t) => t && cb(t)) });
+        // Volume de départ : celui du curseur de musique (avant : 0,7 fixe, d'où une musique faible même à 100 %).
+        const p = new Player({ name: PLAYER_NAME, volume: this.hereVolume, getOAuthToken: (cb) => void this.token().then((t) => t && cb(t)) });
         // Lecteur intégré : état réel (lecture / pause) dès qu'il change.
         p.addListener('player_state_changed', (st) => {
           const state = st as unknown as { paused?: boolean } | null;
@@ -292,9 +303,15 @@ class SpotifyRemote {
     return this.togglePlay();
   }
 
+  /** Volume du lecteur intégré (0–1), repris du curseur de musique enregistré. */
+  private hereVolume = storedMusicVolume();
   /** Volume du lecteur intégré (0–1). */
   setHereVolume(v: number): void {
-    void this.player?.setVolume(v);
+    this.hereVolume = Math.min(1, Math.max(0, v));
+    void this.player?.setVolume(this.hereVolume);
+  }
+  get volume(): number {
+    return this.hereVolume;
   }
 
   /** L'appareil actif est-il le jeu ? */
