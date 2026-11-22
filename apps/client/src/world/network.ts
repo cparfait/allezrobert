@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec2, vec3, vec4, float, uniform, mx_noise_float, positionWorld, positionLocal, clamp, abs, max, fwidth, mrt, normalMap, normalView, output, packNormalToRGB, cos, mod, cameraPosition } from 'three/tsl';
 import { LOW_POLY } from '../engine/style.ts';
+import { longchampInfieldRoads } from './longchampRacecourse.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { isRouteTwin } from './splat.ts';
@@ -347,6 +348,7 @@ export class RoadNetwork {
       seen.add(key);
       return true;
     });
+    roads = longchampInfieldRoads(tile, roads);
     if (roads.length) {
       const lamps: LampSpot[] = [];
       const bollards: LampSpot[] = [];

@@ -19,6 +19,7 @@ import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
 import { windowLamp } from './windowLighting.ts';
 import { createEiffelTower, EIFFEL_SITE, isEiffelSourceBuilding, ownsEiffelTower } from './parisEiffel.ts';
+import { buildLongchampRails, createLongchampBuildings, createRailMaterial, hasLongchampRails, isLongchampSourceBuilding, ownsLongchampBuildings } from './longchampRacecourse.ts';
 import { urbanRoofPlan } from './urbanRoof.ts';
 import { tune } from '../dev/tuning.ts';
 import { FACADE_DEPTH, FacadeLightingModel, facadeFrame, roomInterior, shopInterior as shopRoom } from './facadeDepth.ts';
@@ -464,6 +465,10 @@ export class Buildings {
   private readonly material: THREE.MeshStandardNodeMaterial;
   private readonly tiles = new Map<string, THREE.Mesh>();
   private eiffel?: { tileId: string; mesh: ReturnType<typeof createEiffelTower> };
+  /** Hippodrome de Longchamp : volumes et lices ajoutés par tuile (voir longchampRacecourse.ts). */
+  private readonly longchamp = new Map<string, { meshes: THREE.Mesh[]; buildings: boolean }>();
+  private railMaterial?: THREE.MeshStandardNodeMaterial;
+  private worldId = '';
   private paris = false;
   private ileDeFrance = false;
   /** Emprises des bâtiments chargés (collision de la caméra, sans lancer de rayon sur les triangles). */
@@ -507,6 +512,7 @@ export class Buildings {
   /** Monde courant : son profil de style s'applique aux tuiles ajoutées ensuite. */
   setWorld(id: string): void {
     this.style = worldStyle(id);
+    this.worldId = id;
     this.paris = id === 'idf-paris';
     this.ileDeFrance = id.startsWith('idf-') || id === 'montmartre';
   }
@@ -1023,6 +1029,7 @@ export class Buildings {
         this.eiffel = { tileId: tile.id, mesh };
       }
     }
+    this.addLongchamp(tile);
     if (this.tiles.has(tile.id) || !tile.features.buildings.length) return;
     const r = rng(tile.tx * 92821 + tile.tz * 68917);
     const parts: THREE.BufferGeometry[] = [];
@@ -1047,6 +1054,7 @@ export class Buildings {
     const ileDeFrance = source ? source.startsWith('idf-') || source === 'montmartre' : this.ileDeFrance;
     for (const bld of tile.features.buildings) {
       if (this.eiffel?.tileId === tile.id && isEiffelSourceBuilding(bld.id)) continue;
+      if (this.longchamp.get(tile.id)?.buildings && isLongchampSourceBuilding(bld.id)) continue;
       if (bld.pts.length < 6) continue;
       // Bâtiment posé sur une route carrossable (emprise OSM/BD TOPO qui mord sur la chaussée) : pas dessiné,
       // sinon le coureur le traverse.
@@ -1336,7 +1344,40 @@ export class Buildings {
     this.tiles.set(tile.id, mesh);
   }
 
+  /** Hippodrome de Longchamp : tribune, moulin, poteau et écran sur leur tuile, lices sur chaque tuile traversée. */
+  private addLongchamp(tile: LoadedTile): void {
+    // ?longchamp=0 : sans l'hippodrome (comparaison des images par seconde).
+    if (this.longchamp.has(tile.id) || new URLSearchParams(globalThis.location?.search ?? '').get('longchamp') === '0') return;
+    const buildings = ownsLongchampBuildings(tile, this.worldId);
+    if (!buildings && !hasLongchampRails(tile, this.worldId)) return;
+    const entry = { meshes: [] as THREE.Mesh[], buildings: false };
+    const volumes = buildings ? createLongchampBuildings(this.groundAt) : null;
+    if (volumes) {
+      entry.meshes.push(volumes);
+      entry.buildings = true;
+    }
+    const rails = buildLongchampRails(tile, this.groundAt);
+    if (rails) {
+      const mesh = new THREE.Mesh(rails, (this.railMaterial ??= createRailMaterial()));
+      mesh.name = 'lices-longchamp';
+      // Pas d'ombre portée (traits trop fins pour la carte d'ombres), ombres reçues seulement.
+      mesh.receiveShadow = true;
+      entry.meshes.push(mesh);
+    }
+    for (const mesh of entry.meshes) this.group.add(mesh);
+    this.longchamp.set(tile.id, entry);
+  }
+
   removeTile(tile: LoadedTile): void {
+    const longchamp = this.longchamp.get(tile.id);
+    if (longchamp) {
+      for (const mesh of longchamp.meshes) {
+        this.group.remove(mesh);
+        mesh.geometry.dispose();
+        if (mesh.material !== this.railMaterial) (mesh.material as THREE.Material).dispose();
+      }
+      this.longchamp.delete(tile.id);
+    }
     if (this.eiffel?.tileId === tile.id) {
       const { mesh } = this.eiffel;
       this.group.remove(mesh);
