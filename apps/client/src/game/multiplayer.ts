@@ -5,6 +5,9 @@ import { RideNetClient, type InterpolatedRider } from '../net/index.ts';
 import { CollisionPoseFollower, CollisionPrediction } from '../net/collision-follow.ts';
 import { frameAfterTurn, gapAlongRoute, toRouteFrame } from '../net/frame.ts';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import type { V3Visual } from '../v3/visuals.ts';
+import { crowdV3 } from './v3Crowd.ts';
+import { applyRiderShadows } from './riderShadows.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
 
 const _pose: RoadPose = { y: 0, pitch: 0 };
@@ -36,8 +39,17 @@ function tokenProvider(apiBase: string, name: string, onSession?: () => Promise<
   };
 }
 
+/** Nombre stable tiré de l'identifiant d'un coureur (choix de son profil V3). */
+function hashId(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
 interface Remote {
   avatar: RiderAvatarLike;
+  /** Style Bêta : coureur et vélo V3 montés sur l'avatar, comme les IA en solo (v3Crowd.ts). */
+  v3?: V3Visual;
   collisionPose?: { follower: CollisionPoseFollower; pose: RouteObstaclePose };
   /** Repère d'ami (nom doré et flèche au-dessus de la tête), visible de loin et à travers le décor. */
   label: THREE.Sprite | null;
@@ -292,7 +304,12 @@ export class Multiplayer {
       this.gaps.set(r.id, gapAlongRoute(r.unwrappedM, refM, L, !!this.track.route.loop));
       let rem = this.remotes.get(r.id);
       if (!rem) {
-        rem = { avatar: createAvatar(r.avatar), label: null };
+        const avatar = createAvatar(r.avatar);
+        // Bêta : sans cela, les autres coureurs (joueurs et IA du serveur) restaient en coureurs du mode Réel.
+        // Leur équipement V3 n'est pas transmis : profil validé choisi d'après leur identifiant.
+        const seed = hashId(r.id);
+        const v3 = crowdV3(avatar, r.avatar, seed >> 1, (seed & 1) === 1);
+        rem = { avatar, label: null, ...(v3 ? { v3 } : {}) };
         this.scene.add(rem.avatar.root);
         this.remotes.set(r.id, rem);
       }
@@ -334,13 +351,19 @@ export class Multiplayer {
         const bank = (this.banks.get(r.id) ?? 0) + (lean - (this.banks.get(r.id) ?? 0)) * Math.min(1, dt * 3);
         this.banks.set(r.id, bank);
         rem.avatar.update(dt, r.cadence, r.speedMs, r.pose, bank);
+        rem.v3?.update(dt, r.cadence, r.speedMs, r.pose, { effort: r.watts / 250, transitions: true });
+      } else if (rem.v3 && root.visible && Math.random() < 1 / 30) {
+        // Trop loin pour être animé : mise à jour de temps en temps pour que le coureur V3 se charge.
+        rem.v3.update(1 / 60, r.cadence, r.speedMs, r.pose, { effort: r.watts / 250 });
       }
       rem.avatar.setShadows(dist < 40);
+      if (rem.v3) applyRiderShadows(root, dist < 40, (rem.v3 as unknown as { group: THREE.Object3D }).group);
       this.updateMarker(rem, r.id, r.name, root.position, dist);
     }
     for (const [id, rem] of this.remotes) {
       if (seen.has(id)) continue;
       this.dropMarker(rem);
+      rem.v3?.dispose();
       this.scene.remove(rem.avatar.root);
       this.remotes.delete(id);
       this.banks.delete(id);
@@ -372,6 +395,7 @@ export class Multiplayer {
   async dispose(): Promise<void> {
     for (const rem of this.remotes.values()) {
       this.dropMarker(rem);
+      rem.v3?.dispose();
       this.scene.remove(rem.avatar.root);
     }
     this.remotes.clear();
