@@ -242,7 +242,6 @@ const S = strings(
     dragToRotate: 'Glisser pour tourner',
     backToProgress: 'Retour à la progression',
     bodyMeasurementsAndFtp: 'Mensurations et FTP',
-    v3StyleLocalZwift: 'Style V3 : ressources de l’installation Zwift locale, pour l’étude seulement (jamais distribuées).',
     jersey: 'Maillot',
     jerseyStripe: 'Bande du maillot',
     helmet: 'Casque',
@@ -587,7 +586,6 @@ const S = strings(
     dragToRotate: 'Drag to rotate',
     backToProgress: 'Back to progress',
     bodyMeasurementsAndFtp: 'Body measurements and FTP',
-    v3StyleLocalZwift: 'V3 style: local Zwift install assets, for study only (never distributed).',
     jersey: 'Jersey',
     jerseyStripe: 'Jersey stripe',
     helmet: 'Helmet',
@@ -3256,8 +3254,7 @@ export class MainMenu {
           <details class="set-sec">
             <summary>${S('bodyMeasurementsAndFtp')}</summary>
             <div class="set-body grid2b">${this.bodyMeasurementFields()}<div class="field"><label for="m-ftp">${t('ftp')}</label>${this.stepper('m-ftp', 50, 600, this.s.ftpWatts)}</div></div>
-          </details>
-          <p>${S('v3StyleLocalZwift')}</p></div>
+          </details></div>
       </section>`;
     const items =
       this.garageSlot === 'skin' || this.garageSlot === 'hair' || this.garageSlot === 'beard'
