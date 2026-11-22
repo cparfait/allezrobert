@@ -3699,9 +3699,9 @@ export class MainMenu {
     return `<div class="mm-opt${col ? ' mm-opt-col' : ''}"><div class="mm-opt-l"><b>${label}</b>${help ? `<small>${help}</small>` : ''}</div>${control}</div>`;
   }
 
-  /** Réglages rares ou techniques d'une catégorie : un seul repli, fermé par défaut, état mémorisé. */
+  /** Réglages rares ou techniques d'une catégorie : toujours visibles (la place ne manque pas), sous un intertitre « Avancé ». */
   private setAdvanced(id: string, body: string): string {
-    return `<details class="set-adv" data-sec="adv-${id}" ${this.settingsOpen.has(`adv-${id}`) ? 'open' : ''}><summary>${SET('advanced')}</summary>${body}</details>`;
+    return `<section class="set-adv" data-sec="adv-${id}"><h4 class="set-adv-t">${SET('advanced')}</h4>${body}</section>`;
   }
 
   /** Limite d'images par seconde enregistrée (`ar.fpsCap`, '0' = celle de l'écran), lue par engine/display.ts au chargement. */
