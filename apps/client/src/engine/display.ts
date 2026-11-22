@@ -72,7 +72,8 @@ export function renderPixelRatio(i: PixelRatioInput): number {
   return Math.max(MIN_PIXEL_RATIO, Math.min(base, fit) * Math.min(i.scale ?? 1, 1));
 }
 
-export const DEFAULT_UI_ASPECT_CAP: AspectCap = 'full';
+/** 21:9 par défaut : sur un écran 32:9, HUD et menus restent groupés au centre (la 3D, elle, remplit l'écran). */
+export const DEFAULT_UI_ASPECT_CAP: AspectCap = '21:9';
 
 /** Format maximal de la zone sûre de l'interface (HUD et menus) : la 3D remplit l'écran, les informations restent groupées au centre. */
 export function getUiAspectCap(): AspectCap {

@@ -511,6 +511,10 @@ export class Hud {
     this.track = track;
     root.classList.toggle('compact', this.compact);
     root.classList.toggle('facet', this.layout === 'facet');
+    // HUD complet lisible de loin en 1440p et 4K : agrandi avec la hauteur de la fenêtre (hud.css, --hud-zoom).
+    const scale = () => root.style.setProperty('--hud-zoom', Math.min(2.2, Math.max(1, innerHeight / 1080)).toFixed(3));
+    scale();
+    window.addEventListener('resize', scale);
     root.classList.remove('cx-open');
     // Trois colonnes empilées en flex (centre, gauche, droite) : aucun panneau ne dépend de la
     // hauteur d'un autre, rien ne se chevauche quelle que soit la taille de la fenêtre.
@@ -827,6 +831,27 @@ export class Hud {
 
   get visible(): boolean {
     return !this.root.classList.contains('hidden');
+  }
+
+  /** Bandeaux d'alerte persistants (capteur perdu, réseau perdu), par clé ; `null` retire le bandeau. */
+  private readonly alerts = new Map<string, HTMLElement>();
+  setAlert(key: string, text: string | null): void {
+    const cur = this.alerts.get(key);
+    if (!text) {
+      cur?.remove();
+      this.alerts.delete(key);
+      return;
+    }
+    if (cur) {
+      if (cur.textContent !== text) cur.textContent = text;
+      return;
+    }
+    const d = document.createElement('div');
+    d.className = 'panel hud-alert';
+    d.setAttribute('role', 'alert');
+    d.textContent = text;
+    this.toasts.prepend(d);
+    this.alerts.set(key, d);
   }
 
   /** Annonce temporaire au centre ; `small` : discrète (passage d'un lacet) ; `relay` : aussi sur l'appli compagnon. */
