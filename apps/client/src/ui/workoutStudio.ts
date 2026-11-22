@@ -1,8 +1,9 @@
 /**
- * « Studio » du choix de séance : en haut l'échelle des familles, puis la recherche, le filtre de durée et le tri ; à
- * gauche la liste des séances (miniature du profil, durée, TSS), à droite la fiche de la séance regardée : grand profil de
- * puissance (axes en % de FTP et en watts), intensité réglable (80–120 %), répartition du temps par zone, déroulé des
- * étapes, et le bouton pour la choisir. Un clic sur une ligne la montre ; « Choisir cette séance » la valide.
+ * « Studio » du choix de séance, en trois colonnes sous une seule barre d'outils (recherche, durée, tri) : à gauche
+ * l'échelle des familles (de la plus facile à la plus dure), au milieu la liste des séances (miniature du profil, durée,
+ * TSS), à droite la fiche de la séance regardée : grand profil de puissance (repères en % de FTP et en watts),
+ * répartition du temps par zone, déroulé des étapes ; en pied de fiche l'intensité réglable (80–120 %) et le bouton
+ * pour la choisir. Un clic sur une ligne la montre ; « Choisir cette séance » la valide.
  */
 import type { LibraryWorkout, WorkoutStep, WorkoutType } from '@allezrobert/physics';
 import { strings } from '../i18n/index.ts';
@@ -38,6 +39,8 @@ const S = strings(
     searchWorkouts: 'Rechercher une séance…',
     sortBy: 'Trier par',
     allOut: 'à fond',
+    steps: 'Déroulé',
+    families: 'Familles de séances',
   },
   {
     nWorkouts: '{n} workouts',
@@ -67,6 +70,8 @@ const S = strings(
     searchWorkouts: 'Search workouts…',
     sortBy: 'Sort by',
     allOut: 'all out',
+    steps: 'Steps',
+    families: 'Workout families',
   },
 );
 
@@ -221,9 +226,14 @@ function profileOf(w: LibraryWorkout, zoneIndex: (f: number) => number, k = 1): 
   return { steps, total, ifv, tss: Math.round((total / 3600) * ifv * ifv * 100), avg: sum / total, zones };
 }
 
-/** Polygones du profil (une forme par suite de paliers de même zone) dans une boîte W × H, l'axe vertical allant de 0 à 160 % de FTP. */
-function shapes(steps: WorkoutStep[], total: number, W: number, H: number, zoneColor: (f: number) => string, gap = 1, k = 1): string {
-  const y = (p: number) => (H - (Math.min(p, PMAX) / PMAX) * H).toFixed(1);
+/** Puissance la plus haute de la séance (fraction de FTP), à l'intensité donnée. */
+function peakOf(steps: WorkoutStep[], k = 1): number {
+  return steps.reduce((m, st) => Math.max(m, powerOf(st, st.powerStart, k), powerOf(st, st.powerEnd, k)), 0);
+}
+
+/** Polygones du profil (une forme par suite de paliers de même zone) dans une boîte W × H, l'axe vertical allant de 0 à `pmax` (fraction de FTP). */
+function shapes(steps: WorkoutStep[], total: number, W: number, H: number, zoneColor: (f: number) => string, gap = 1, k = 1, pmax = PMAX): string {
+  const y = (p: number) => (H - (Math.min(p, pmax) / pmax) * H).toFixed(1);
   const runs: Array<{ color: string; pts: Array<[number, number]> }> = [];
   let t = 0;
   for (const st of steps) {
@@ -288,21 +298,25 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
   const selected = all.find((w) => w.id === ctx.selected) ?? all.find((w) => w.id === ctx.current) ?? visible[0];
   const count = (f: WorkoutType | 'mine' | '') => (f === '' ? ctx.library.length : f === 'mine' ? ctx.favs.size + ctx.mine.length : ctx.library.filter((w) => w.type === f).length);
 
-  // Échelle de l'intensité : une famille = une couleur de zone et 1 à 6 barres.
-  const tile = (f: WorkoutType | 'mine' | '', label: string, level: number, color: string) =>
-    `<button type="button" class="ws-tile${f === filter ? ' on' : ''}" data-wkfilter="${f}" style="--wk:${color}"><span class="ws-lvl">${[1, 2, 3, 4, 5, 6].map((i) => `<i${i <= level ? ' class="on"' : ''}></i>`).join('')}</span><b>${esc(label)}</b><small>${count(f)}</small></button>`;
-  const tiles =
-    tile('', S('all'), 0, '#ffd23f') +
-    ctx.types.map((t, i) => tile(t, ctx.typeLabels[t][lang], i + 1, ctx.typeColors[t])).join('') +
-    tile('mine', `★ ${S('mine')}`, 0, '#ffd23f');
+  // Échelle des familles : une famille = une couleur de zone et 1 à 6 barres ; « Toutes » porte les six couleurs.
+  const bars = (level: number) => [1, 2, 3, 4, 5, 6].map((i) => `<i${i <= level ? ' class="on"' : ''}></i>`).join('');
+  const allBars = ctx.types.slice(0, 6).map((t) => `<i class="on" style="background:${ctx.typeColors[t]}"></i>`).join('');
+  const fam = (f: WorkoutType | 'mine' | '', label: string, mark: string, color: string) =>
+    `<button type="button" class="ws-fam${f === filter ? ' on' : ''}" data-wkfilter="${f}" aria-pressed="${f === filter}" style="--wk:${color}"><span class="ws-lvl">${mark}</span><b>${esc(label)}</b><small>${count(f)}</small></button>`;
+  const rail =
+    fam('', S('all'), allBars, '#ffd23f') +
+    ctx.types.map((t, i) => fam(t, ctx.typeLabels[t][lang], bars(i + 1), ctx.typeColors[t])).join('') +
+    fam('mine', S('mine'), '<em>★</em>', '#ffd23f');
 
+  const grouped = !filter && ctx.sort === 'type';
   const row = (w: LibraryWorkout) => {
     const p = profileOf(w, zoneIndex, k);
     const isSel = selected?.id === w.id;
     const fav = ctx.favs.has(w.id);
+    const sub = grouped ? `TSS ${p.tss}` : `${ctx.typeLabels[w.type][lang]} · TSS ${p.tss}`;
     return `<div class="ws-row${isSel ? ' sel' : ''}${w.id === ctx.current ? ' cur' : ''}" data-wksel="${esc(w.id)}" role="button" tabindex="0" style="--wk:${ctx.typeColors[w.type]}">
-      <svg class="ws-spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true">${shapes(p.steps, p.total, 120, 30, ctx.zoneColor, 0.5, k)}</svg>
-      <span class="ws-name"><b>${esc(w.name[lang])}</b><small>${ctx.typeLabels[w.type][lang]} · TSS ${p.tss}</small></span>
+      <svg class="ws-spark" viewBox="0 0 120 40" preserveAspectRatio="none" aria-hidden="true">${shapes(p.steps, p.total, 120, 40, ctx.zoneColor, 0.5, k, Math.max(1, peakOf(p.steps, k) * 1.08))}</svg>
+      <span class="ws-name"><b>${esc(w.name[lang])}</b><small>${sub}</small></span>
       <em>${dur(p.total)}</em>
       <span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${esc(w.id)}" role="button" tabindex="0" aria-pressed="${fav}" title="${S(fav ? 'unfav' : 'fav')}">${fav ? '★' : '☆'}</span>
     </div>`;
@@ -313,7 +327,7 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
     : `<p class="ws-empty">${S('starWorkoutsToFind')}</p>`;
   const list = !visible.length
     ? empty
-    : filter || ctx.sort !== 'type'
+    : !grouped
       ? visible.map(row).join('')
       : ctx.types
           .map((t) => {
@@ -327,41 +341,58 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
   if (selected) {
     const p = profileOf(selected, zoneIndex, k);
     const W = 640;
-    const H = 210;
-    const grid = [0.5, 1, 1.5]
+    const H = 220;
+    // Échelle verticale ajustée à la séance : le profil remplit le cadre au lieu de rester tassé en bas.
+    const pmax = Math.max(1.25, peakOf(p.steps, k) * 1.12);
+    const marks = pmax >= 1.6 ? [0.5, 1, 1.5] : [0.5, 1];
+    const grid = marks
       .map((f) => {
-        const yy = H - (f / PMAX) * H;
-        return `<line x1="0" x2="${W}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}" class="${f === 1 ? 'ftp' : ''}"/><text x="4" y="${(yy - 4).toFixed(1)}">${f === 1 ? 'FTP · ' : ''}${Math.round(f * 100)} % · ${Math.round(f * ctx.ftp)} W</text>`;
+        const yy = H - (f / pmax) * H;
+        return `<line x1="0" x2="${W}" y1="${yy.toFixed(1)}" y2="${yy.toFixed(1)}"${f === 1 ? ' class="ftp"' : ''}/>`;
       })
+      .join('');
+    const gridLabels = marks
+      .map((f) => `<span${f === 1 ? ' class="ftp"' : ''} style="bottom:${((f / pmax) * 100).toFixed(1)}%">${f === 1 ? 'FTP · ' : ''}${Math.round(f * 100)} % · ${Math.round(f * ctx.ftp)} W</span>`)
       .join('');
     const tick = p.total > 5400 ? 1800 : p.total > 2400 ? 900 : 600;
     const ticks: string[] = [];
     for (let t = tick; t < p.total - tick / 3; t += tick) ticks.push(`<span style="left:${((t / p.total) * 100).toFixed(1)}%">${dur(t)}</span>`);
     const zoneBar = p.zones
-      .map((s, i) => (s > 0 ? `<i style="flex:${s};background:${ZONE_ORDER[i]}" title="Z${i + 1} · ${dur(s)}"><span>${s / p.total > 0.09 ? `Z${i + 1}` : ''}</span></i>` : ''))
+      .map((s, i) => {
+        if (s <= 0) return '';
+        const share = s / p.total;
+        const label = share > 0.2 ? `Z${i + 1} · ${dur(s)}` : share > 0.07 ? `Z${i + 1}` : '';
+        return `<i style="flex:${s};background:${ZONE_ORDER[i]}" title="Z${i + 1} · ${dur(s)}"><span>${label}</span></i>`;
+      })
       .join('');
     const isCur = selected.id === ctx.current;
+    const changed = Math.abs(k - 1) > 1e-6;
     detail = `<div class="ws-hero" style="--wk:${ctx.typeColors[selected.type]}">
-        <header><span class="ws-type">${ctx.typeLabels[selected.type][lang]}</span><h3>${esc(selected.name[lang])}</h3><p>${esc(selected.description[lang])}</p></header>
+        <div class="ws-head"><span class="ws-type">${ctx.typeLabels[selected.type][lang]}</span><h3 class="ws-title">${esc(selected.name[lang])}</h3><p class="ws-desc">${esc(selected.description[lang])}</p></div>
         <div class="ws-stats">
           <div><small>${S('duration')}</small><b>${dur(p.total)}</b></div>
           <div><small>TSS</small><b>${p.tss}</b></div>
           <div><small>IF</small><b>${p.ifv.toFixed(2).replace('.', S('decimal'))}</b></div>
           <div><small>${S('avgPower')}</small><b>${Math.round(p.avg * ctx.ftp)} W</b></div>
         </div>
-        <div class="ws-int${Math.abs(k - 1) > 1e-6 ? ' changed' : ''}">
+        <div class="ws-graph">
+          <div class="ws-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${grid}<g class="shapes">${shapes(p.steps, p.total, W, H, ctx.zoneColor, 1.5, k, pmax)}</g></svg><div class="ws-marks">${gridLabels}</div></div>
+          <div class="ws-zones" title="${S('timeInZone')}">${zoneBar}</div>
+          <div class="ws-ticks">${ticks.join('')}</div>
+        </div>
+        <h4 class="ab-section ws-h">${S('steps')}</h4>
+        <ol class="ws-steps">${stepRows(p, ctx)}</ol>
+      </div>`;
+    actions = `<div class="ws-actions">
+        <div class="ws-int${changed ? ' changed' : ''}" title="${S('allWorkoutTargetsFor')}">
           <span class="ws-int-lbl">${S('intensity')}</span>
           <button type="button" class="ws-int-btn" data-wkint="-1" aria-label="${S('lowerIntensity')}"${k <= 0.8 + 1e-6 ? ' disabled' : ''}>−</button>
           <b class="ws-int-val">${Math.round(k * 100)} %</b>
           <button type="button" class="ws-int-btn" data-wkint="1" aria-label="${S('raiseIntensity')}"${k >= 1.2 - 1e-6 ? ' disabled' : ''}>+</button>
-          ${Math.abs(k - 1) > 1e-6 ? `<button type="button" class="mm-link ws-int-reset" data-wkint="0">${S('backTo100')}</button>` : ''}
-          <small>${S('allWorkoutTargetsFor')}</small>
+          ${changed ? `<button type="button" class="mm-link ws-int-reset" data-wkint="0">${S('backTo100')}</button>` : ''}
         </div>
-        <div class="ws-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${grid.replace(/<text/g, '<text')}<g class="shapes">${shapes(p.steps, p.total, W, H, ctx.zoneColor, 1.5, k)}</g></svg><div class="ws-ticks">${ticks.join('')}</div></div>
-        <div class="ws-zones" title="${S('timeInZone')}">${zoneBar}</div>
-        <ol class="ws-steps">${stepRows(p, ctx)}</ol>
+        <button type="button" class="ab-btn ab-go ws-go${isCur ? ' is-cur' : ''}" data-preset="${esc(selected.id)}">${isCur ? S('chosen') : S('chooseThisWorkout')}</button>
       </div>`;
-    actions = `<div class="ws-actions"><button type="button" class="ab-btn ab-go ws-go" data-preset="${esc(selected.id)}">${isCur ? S('chosen') : S('chooseThisWorkout')}</button></div>`;
   }
 
   const durs = WORKOUT_DUR_FILTERS.map((d) => `<button type="button" class="ws-seg${d.id === ctx.dur ? ' on' : ''}" data-wkdur="${d.id}" aria-pressed="${d.id === ctx.dur}">${d[lang]}</button>`).join('');
@@ -378,8 +409,9 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
       <span class="ws-count">${S(visible.length > 1 ? 'nWorkouts' : 'oneWorkout').replace('{n}', String(visible.length))}</span>
     </div>`;
 
-  return `<div class="ws-top"><div class="ws-tiles">${tiles}</div>${toolbar}</div>
+  return `${toolbar}
     <div class="ws-body">
+      <nav class="ws-rail" aria-label="${S('families')}">${rail}</nav>
       <div class="ws-list mm-wks-grid">${list}</div>
       <section class="ws-detail"><div class="ws-scroll">${detail}</div>${actions}</section>
     </div>`;
