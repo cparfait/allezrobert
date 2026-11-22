@@ -156,3 +156,10 @@
 }
 /* Quatre blocs pour une sortie, cinq pour un test FTP ou une sortie de l'historique : la grille s'adapte au nombre. */
 .sum-heroes { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+
+/* Les graphiques gardent leur hauteur et leur bloc grandit avec eux : sur un écran bas (1600 × 900), les colonnes
+   n'ont plus le droit de rétrécir sous leur contenu (min-height: 0 laissait les courbes déborder sur « Garde ta
+   sortie » et « Carte de sortie ») ; c'est l'écran entier (.sum, overflow-y: auto) qui défile. */
+.sum-body { flex: 1 0 auto; min-height: auto; }
+.sum-main, .sum-charts { flex: none; min-height: auto; }
+.sum-chart { min-height: auto; }

@@ -890,6 +890,72 @@ const SET = strings(
     renderNow: 'Current render',
   },
 );
+
+/** Gabarits, pluriels et confirmations du menu ({n}, {w}, {what}, {name} remplacés à l'appel). */
+const MX = strings(
+  {
+    locale: 'fr-FR',
+    dec: ',',
+    favAdd: 'Ajouter aux favoris',
+    favRemove: 'Retirer des favoris',
+    ftpNow: 'FTP actuelle : {w} W. Bien reposé, ventilateur allumé, bidon à portée de main.',
+    route1: '{n} parcours',
+    routeN: '{n} parcours',
+    climb1: '{n} montée',
+    climbN: '{n} montées',
+    record1: '{n} record',
+    recordN: '{n} records',
+    climbFound1: '{n} montée trouvée',
+    climbFoundN: '{n} montées trouvées',
+    zoneRoutes1: '{n} parcours déjà tracé dans la zone.',
+    zoneRoutesN: '{n} parcours déjà tracés dans la zone.',
+    area1: '{n} zone',
+    areaN: '{n} zones',
+    stopQueued: 'Arrêter ({n} en attente)',
+    confirmDownload: 'Télécharger {what} ? Elles arrivent une par une ; tu peux continuer à utiliser le jeu.',
+    confirmRemove: 'Supprimer la zone « {name} » de cet appareil ? Tu pourras la télécharger de nouveau.',
+    levelsToGo: 'dans {n} niv.',
+    previewUnlocks: 'Aperçu · se débloque au niveau {n}',
+    garageTitle: 'Garage',
+    garageSub: 'Ta tenue, ton vélo et ton home trainer.',
+    menu: 'Menu',
+    spSteps: 'Déclarer le jeu chez Spotify',
+    spClientId: 'Identifiant client (Client ID)',
+  },
+  {
+    locale: 'en-GB',
+    dec: '.',
+    favAdd: 'Add to favourites',
+    favRemove: 'Remove from favourites',
+    ftpNow: 'Current FTP: {w} W. Be rested, fan on, bottle within reach.',
+    route1: '{n} route',
+    routeN: '{n} routes',
+    climb1: '{n} climb',
+    climbN: '{n} climbs',
+    record1: '{n} record',
+    recordN: '{n} records',
+    climbFound1: '{n} climb found',
+    climbFoundN: '{n} climbs found',
+    zoneRoutes1: '{n} ready-made route in the area.',
+    zoneRoutesN: '{n} ready-made routes in the area.',
+    area1: '{n} area',
+    areaN: '{n} areas',
+    stopQueued: 'Stop ({n} queued)',
+    confirmDownload: 'Download {what}? They arrive one at a time; you can keep using the game.',
+    confirmRemove: 'Remove “{name}” from this device? You can download it again.',
+    levelsToGo: '{n} to go',
+    previewUnlocks: 'Preview · unlocks at level {n}',
+    garageTitle: 'Garage',
+    garageSub: 'Your kit, your bike and your smart trainer.',
+    menu: 'Menu',
+    spSteps: 'Declare the game on Spotify',
+    spClientId: 'Client ID',
+  },
+);
+/** Nombre + nom accordé : `count(n, 'route1', 'routeN')`. */
+const count = (n: number, one: Parameters<typeof MX>[0], many: Parameters<typeof MX>[0]): string => MX(n > 1 ? many : one).replace('{n}', String(n));
+/** Nombre décimal à la virgule ou au point selon la langue. */
+const dec = (v: number, d = 1): string => v.toFixed(d).replace('.', MX('dec'));
 import './blocks.css';
 import './menu.css';
 
@@ -942,7 +1008,7 @@ function roadFeelValue(percent: number, L: boolean): string {
 
 /** Ressenti route : message sous le curseur, en alerte à partir du seuil « fort » (id m-roadfeelmsg). */
 function roadFeelMessage(percent: number, L: boolean): string {
-  const T = ROAD_FEEL_TEXT[L ? 'fr' : 'en'];
+  const T = ROAD_FEEL_TEXT[getLang()];
   const level = roadFeelLevel(percent);
   const cls = level === 'extreme' ? 'warning mm-roadfeel-extreme' : level === 'strong' ? 'warning' : 'mm-hint';
   return `<p id="m-roadfeelmsg" class="${cls}">${esc(T[level])} ${esc(T.unsupported)}</p>`;
@@ -1122,14 +1188,13 @@ function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: s
   const tss = Math.round((total / 3600) * ifv * ifv * 100);
   const dur = fmtWkDur(total);
   const ftpPct = (((1 / PMAX) * (H - 2)) / H) * 100;
-  const L = lang === 'fr';
   const favHtml =
     fav === undefined
       ? ''
-      : `<span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${w.id}" role="button" tabindex="0" aria-pressed="${fav}" title="${L ? (fav ? 'Retirer des favoris' : 'Ajouter aux favoris') : fav ? 'Remove from favourites' : 'Add to favourites'}">${fav ? '★' : '☆'}</span>`;
+      : `<span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${w.id}" role="button" tabindex="0" aria-pressed="${fav}" title="${MX(fav ? 'favRemove' : 'favAdd')}">${fav ? '★' : '☆'}</span>`;
   return `<button class="mm-wk${on ? ' on' : ''}" ${opens ? `data-picker="${opens}"` : `data-preset="${w.id}"`} style="--wk:${TYPE_COLORS[w.type]}">
     <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em>${favHtml}</span>
-    <span class="mm-wk-meta"><span class="mm-wk-type">${WORKOUT_TYPE_LABELS[w.type][lang]}</span><span class="mm-wk-stat"><small>TSS</small>${tss}</span><span class="mm-wk-stat"><small>IF</small>${ifv.toFixed(2).replace('.', L ? ',' : '.')}</span>${on && !opens ? `<span class="mm-wk-chosen">✓ ${S('selected')}</span>` : ''}</span>
+    <span class="mm-wk-meta"><span class="mm-wk-type">${WORKOUT_TYPE_LABELS[w.type][lang]}</span><span class="mm-wk-stat"><small>TSS</small>${tss}</span><span class="mm-wk-stat"><small>IF</small>${dec(ifv, 2)}</span>${on && !opens ? `<span class="mm-wk-chosen">✓ ${S('selected')}</span>` : ''}</span>
     <span class="mm-wk-desc">${esc(w.description[lang])}</span>
     <span class="mm-wk-graph" aria-hidden="true"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${shapes}</svg><i class="mm-wk-ftp" style="bottom:${ftpPct.toFixed(1)}%"><span>FTP</span></i></span>
   </button>`;
@@ -2148,7 +2213,7 @@ export class MainMenu {
   }
 
   private km(m: number): string {
-    return (m / 1000).toFixed(1).replace('.', fr() ? ',' : '.');
+    return dec(m / 1000);
   }
 
   /** Durée indicative à allure d'endurance (≈ 26 km/h à plat, plus 1 h par 700 m de D+). */
@@ -2182,7 +2247,6 @@ export class MainMenu {
   // ————————————————————————————————————————————— Cadre commun
 
   private render(): void {
-    const L = fr();
     const tabs: Array<[Tab, string]> = [
       ['ride', t('ride')],
       ['garage', 'Garage'],
@@ -2252,7 +2316,7 @@ export class MainMenu {
           <div class="mm-account">
             <div class="mm-avatar mm-me" data-tab="profile" role="button" title="${S('myProfile')}" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
             <div class="mm-who mm-me" data-tab="profile" role="button" title="${S('myProfile')}"><b>${esc(name)}</b>
-              <span>${S('level')} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${S('creditsOpenTheGarage')}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
+              <span>${S('level')} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${S('creditsOpenTheGarage')}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(MX('locale'))}</em></span></div>
             ${this.account ? `<button class="mm-link" id="m-logout">${S('signOut')}</button>` : `<button class="mm-link" id="m-login">${S('signIn')}</button>`}
           </div>
           ${inDesktop ? `<button class="mm-quit" id="m-quit" title="${S('quitAllezRobert')}" aria-label="${S('quit')}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>` : ''}
@@ -2344,12 +2408,11 @@ export class MainMenu {
 
   private rideHtml(): string {
     const s = this.s;
-    const L = fr();
     // Parcours choisi en cours de chargement : pas de carte d'un autre parcours en attendant.
     const r = this.routes.find((x) => x.id === s.routeId) ?? (this.routeAsked.has(s.routeId) ? undefined : this.routes[0]);
     // Roulage libre (choisi dans la fenêtre de la zone) : une sortie libre.
     const shown = s.mode === 'open' ? 'free' : s.mode;
-    const line = MODE_LINES[L ? 'fr' : 'en'];
+    const line = MODE_LINES[getLang()];
     return `<section class="mm-panel mm-left">
       <header class="mm-head"><h2 class="ab-title">${S('whatDoYouWant')}</h2></header>
       <div class="mm-modes">${this.modes()
@@ -2412,10 +2475,9 @@ export class MainMenu {
 
   /** Liste déroulante des nationalités, drapeau devant chaque pays (le <select> du navigateur n'affiche pas d'images). */
   private nationHtml(): string {
-    const L = fr();
     const cur = COUNTRIES.find((c) => c.code === this.s.look.nationality);
     const item = (code: string, label: string) => `<button type="button" role="option" class="mm-dd-opt${code === (cur?.code ?? '') ? ' on' : ''}" data-nation="${code}">${code ? flagSvg(code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(label)}</span></button>`;
-    return `<div class="mm-dd" id="m-nation"><button type="button" class="mm-dd-btn" aria-haspopup="listbox">${cur ? flagSvg(cur.code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(cur ? cur[L ? 'fr' : 'en'] : S('chooseMyCountry'))}</span><em>▾</em></button><div class="mm-dd-list" role="listbox" hidden>${item('', S('none'))}${COUNTRIES.map((c) => item(c.code, c[L ? 'fr' : 'en'])).join('')}</div></div>`;
+    return `<div class="mm-dd" id="m-nation"><button type="button" class="mm-dd-btn" aria-haspopup="listbox">${cur ? flagSvg(cur.code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(cur ? cur[getLang()] : S('chooseMyCountry'))}</span><em>▾</em></button><div class="mm-dd-list" role="listbox" hidden>${item('', S('none'))}${COUNTRIES.map((c) => item(c.code, c[getLang()])).join('')}</div></div>`;
   }
 
   /** Lecteur au-dessus du titre (onglet Rouler, écran large) ; sinon dans la barre du haut (petits écrans, autres onglets). */
@@ -2527,7 +2589,7 @@ export class MainMenu {
       <details class="mm-more"><summary>${S('howTheTestWorks')}</summary>
         <ol>${steps.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ol>
       </details>
-      <p class="mm-hint">${L ? `FTP actuelle : ${Math.round(this.s.ftpWatts)} W. Bien reposé, ventilateur allumé, bidon à portée de main.` : `Current FTP: ${Math.round(this.s.ftpWatts)} W. Be rested, fan on, bottle within reach.`}</p>
+      <p class="mm-hint">${MX('ftpNow').replace('{w}', String(Math.round(this.s.ftpWatts)))}</p>
     </div>`;
   }
 
@@ -2571,7 +2633,6 @@ export class MainMenu {
   /** Fenêtre centrée : liste des zones (avec leurs packs) ou des parcours de la zone. */
   private pickerHtml(): string {
     if (!this.picker) return '';
-    const L = fr();
     // Zone ouverte choisie : sa carte, où l'on trace son itinéraire (ou roulage libre).
     if (this.picker === 'map') {
       const w = WORLD_LIST.find((x) => x.id === this.worldId);
@@ -2594,7 +2655,7 @@ export class MainMenu {
     else if (this.routeSort === 'climb') sorted.sort((x, y) => x.elevationGainM - y.elevationGainM);
     const waiting = !this.routeStore.complete && !this.routesFailed;
     const ghosts = waiting ? Array.from({ length: Math.max(0, Math.min(3, this.routeIds.length - sorted.length)) }, () => `<div class="rpk rpk-ghost" aria-hidden="true"></div>`).join('') : '';
-    const list = `<div class="rpk-bar"><span class="rpk-count">${sorted.length} ${L ? 'parcours' : sorted.length > 1 ? 'routes' : 'route'}${waiting ? ` · ${S('loadingTheOthers')}` : ''}</span>${this.seg('m-routesort', this.routeSort, [
+    const list = `<div class="rpk-bar"><span class="rpk-count">${count(sorted.length, 'route1', 'routeN')}${waiting ? ` · ${S('loadingTheOthers')}` : ''}</span>${this.seg('m-routesort', this.routeSort, [
       ['default', S('areaOrder')],
       ['dist', S('byDistance')],
       ['climb', S('byClimbing')],
@@ -2700,7 +2761,6 @@ export class MainMenu {
 
   /** Panneau de gauche du mode Défi KOM : la montée choisie et son record, un clic rouvre le tableau. */
   private challengeChoiceHtml(r: RouteData | undefined): string {
-    const L = fr();
     const koms = this.zoneClimbs(r);
     if (!koms.length) return `<p class="mm-hint">${S('noTimedClimbIn')}</p><button class="ab-btn mm-change" data-picker="koms">${S('seeAllClimbs')}</button>`;
     const cur = koms.find((c) => c.k.id === this.s.challengeSeg && c.route.id === this.s.routeId) ?? (koms[0] as (typeof koms)[number]);
@@ -2708,13 +2768,12 @@ export class MainMenu {
     const rec = readKomRecord(cur.route.id, cur.k.id);
     const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
     return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${S('changeClimb')}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(cur.k.name)}</b><span class="ab-detail">${S('best')} : ${t}</span>
-        <span class="mm-kom-vals"><span class="ab-val"><b>${this.km(cur.k.endM - cur.k.startM)}</b><small>km</small></span><span class="ab-val"><b>${cur.k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')}</b><small>%</small></span></span></button>
+        <span class="mm-kom-vals"><span class="ab-val"><b>${this.km(cur.k.endM - cur.k.startM)}</b><small>km</small></span><span class="ab-val"><b>${dec(cur.k.avgGrade)}</b><small>%</small></span></span></button>
       <button class="ab-btn mm-change" data-picker="koms">${S('changeClimb')}</button>`;
   }
 
   /** Fenêtre centrale « Défi KOM » : tableau des montées et de tes records, filtre par zone. */
   private komsHtml(): string {
-    const L = fr();
     const lang = getLang();
     // Zones connues : celle affichée (toujours à jour) et celles déjà visitées.
     this.indexClimbs();
@@ -2732,13 +2791,13 @@ export class MainMenu {
       ? rows
           .map((c) => {
             const on = c.routeId === this.s.routeId && c.segId === this.s.challengeSeg && this.s.mode === 'challenge';
-            const date = c.rec ? new Date(c.rec.date).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+            const date = c.rec ? new Date(c.rec.date).toLocaleDateString(MX('locale'), { day: 'numeric', month: 'short', year: 'numeric' }) : '';
             const hay = `${c.name} ${c.routeName} ${this.zoneLabel(c.zone)}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
             return `<button type="button" class="ab-tile kom-tile${on ? ' is-on' : ''}" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}" data-search="${esc(hay)}">
               <span class="ab-ico sm">${ICON.challenge}</span>
               <span class="ab-name">${esc(c.name)}</span>
               <span class="ab-detail">${esc(c.routeName)} · ${esc(this.zoneLabel(c.zone))}</span>
-              <span class="ab-val kom-vals"><span><b>${this.km(c.lengthM)}</b><small>km</small></span><span><b>${c.grade.toFixed(1).replace('.', L ? ',' : '.')}</b><small>%</small></span><span class="kom-best">${c.rec ? `<b>${fmt(c.rec.timeS)}</b><small>${S('myBest')}</small>` : `<small>${S('noRecordYet')}</small>`}</span></span>
+              <span class="ab-val kom-vals"><span><b>${this.km(c.lengthM)}</b><small>km</small></span><span><b>${dec(c.grade)}</b><small>%</small></span><span class="kom-best">${c.rec ? `<b>${fmt(c.rec.timeS)}</b><small>${S('myBest')}</small>` : `<small>${S('noRecordYet')}</small>`}</span></span>
               <span class="ab-state${on ? ' is-ok' : ''}"><i></i>${on ? (S('selected')) : date ? `${S('bestOn')} ${date}` : S('notRiddenYet')}</span>
               <span class="ab-act${on ? ' quiet' : ''}">${on ? (S('selected')) : S('challenge')}</span>
             </button>`;
@@ -2752,7 +2811,7 @@ export class MainMenu {
         <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${S('searchAClimbA')}" aria-label="${S('searchAClimb')}" />
         <div class="kom-filter" role="group" aria-label="${S('filterByArea')}">${chips}</div>
         <div class="kom-wrap"><div class="ab-grid kom-grid">${body}</div></div>
-        <div class="kom-foot"><span>${rows.length} ${L ? (rows.length > 1 ? 'montées' : 'montée') : rows.length > 1 ? 'climbs' : 'climb'} · ${records} ${L ? (records > 1 ? 'records' : 'record') : records > 1 ? 'records' : 'record'}</span><span>${S('aZoneSClimbs')}</span></div>
+        <div class="kom-foot"><span>${count(rows.length, 'climb1', 'climbN')} · ${count(records, 'record1', 'recordN')}</span><span>${S('aZoneSClimbs')}</span></div>
       </div></div>`;
   }
 
@@ -2761,7 +2820,6 @@ export class MainMenu {
    * celles du parcours choisi d'abord), avec le record de chacune ; en choisir une prend son parcours.
    */
   private challengeHtml(r: RouteData | undefined, onlySelected = false): string {
-    const L = fr();
     const ordered = r ? [r, ...this.routes.filter((x) => x.id !== r.id)] : this.routes;
     const seen = new Set<string>();
     const koms: Array<{ route: RouteData; k: RouteSegment }> = [];
@@ -2781,7 +2839,7 @@ export class MainMenu {
         const rec = readKomRecord(route.id, k.id);
         const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
         const on = route.id === cur && k.id === this.s.challengeSeg;
-        return `<button class="mm-route ab-tile ab-plain ${on ? 'on is-on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b class="ab-name">${esc(k.name)}</b><span class="ab-detail">${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${S('best2')} ${t}</span></button>`;
+        return `<button class="mm-route ab-tile ab-plain ${on ? 'on is-on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b class="ab-name">${esc(k.name)}</b><span class="ab-detail">${this.km(k.endM - k.startM)} km · ${dec(k.avgGrade)} % · ${S('best2')} ${t}</span></button>`;
       })
       .join('')}</div>`;
   }
@@ -2791,14 +2849,13 @@ export class MainMenu {
    * Publiée = présente dans le catalogue `worlds/index.json` (sans catalogue : celles de WORLD_LIST).
    */
   private mapZones(): MapZone[] {
-    const L = fr();
     const lang = getLang();
     return ZONE_SPOTS.map((spot) => {
       const w = WORLD_LIST.find((x) => x.id === spot.id);
       const z = this.zones.find((c) => c.id === spot.id);
       const available = this.zones.length ? !!z : !!w;
       const n = z ? routesForBike(z.routes, bikeSetupFor(loadProgress().equipped).tyre).length : 0;
-      const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (S('openWorld')) : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
+      const info = [n ? count(n, 'route1', 'routeN') : '', spot.open ? (S('openWorld')) : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
             return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(z?.l93 ? { rect: z.l93 } : {}), ...(spot.image ? { image: spot.image } : {}) };
     });
   }
@@ -2917,7 +2974,7 @@ export class MainMenu {
       : '';
     const kom = this.s.mode === 'challenge';
     const choices = `<div class="zc-choices">
-          ${n ? card('routes', ZONE_ICONS.routes, S('routes'), L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} dans la zone.` : `${n} ready-made route${n > 1 ? 's' : ''} in the area.`) : ''}
+          ${n ? card('routes', ZONE_ICONS.routes, S('routes'), count(n, 'zoneRoutes1', 'zoneRoutesN')) : ''}
           ${card('free', ZONE_ICONS.free, S('freeRide'), S('youPickYourRoad'))}
           ${card('draw', ZONE_ICONS.draw, S('drawARoute'), S('startWaypointsAndFinish'))}
         </div>`;
@@ -3022,7 +3079,7 @@ export class MainMenu {
     const mine = installedPacks();
     // Application Windows : place réelle sur le disque (fichiers décompressés) ; navigateur : fichiers gardés compressés.
     const total = mine.reduce((sum, p) => sum + (inTauri ? p.bytes : (zones.find((z) => z.id === p.id)?.pack?.gzBytes ?? p.bytes)), 0);
-    const used = mine.length ? `${S('spaceUsed')} : <b>${formatBytes(total, L)}</b> · ${mine.length} ${L ? (mine.length > 1 ? 'zones' : 'zone') : mine.length > 1 ? 'areas' : 'area'}` : S('noAreaDownloaded');
+    const used = mine.length ? `${S('spaceUsed')} : <b>${formatBytes(total, L)}</b> · ${count(mine.length, 'area1', 'areaN')}` : S('noAreaDownloaded');
     // Zones à télécharger ou à mettre à jour, hors celles en cours ou déjà en file.
     const missing = zones.filter((z) => {
       const st = packState(z.id, z.pack?.version);
@@ -3031,7 +3088,7 @@ export class MainMenu {
     });
     const missingBytes = missing.reduce((s, z) => s + (z.pack?.gzBytes ?? z.pack?.bytes ?? 0), 0);
     const allBtn = this.queued.size
-      ? `<button class="btn small" data-zqueue-stop>${L ? `Arrêter (${this.queued.size} en attente)` : `Stop (${this.queued.size} queued)`}</button>`
+      ? `<button class="btn small" data-zqueue-stop>${MX('stopQueued').replace('{n}', String(this.queued.size))}</button>`
       : '';
     const getAll = missing.length ? `<button class="btn small primary" data-zpack-all>${S('downloadAll')} · ${formatBytes(missingBytes, L)}</button>` : '';
     const where = inTauri ? (S('mapsAreKeptIn')) : S('mapsAreStoredOn');
@@ -3066,8 +3123,8 @@ export class MainMenu {
     }
     box.querySelector('[data-zpack-all]')?.addEventListener('click', () => {
       const n = missing.length;
-      const what = L ? `${n} zone${n > 1 ? 's' : ''} (${formatBytes(missingBytes, L)})` : `${n} area${n > 1 ? 's' : ''} (${formatBytes(missingBytes, L)})`;
-      if (!confirm(L ? `Télécharger ${what} ? Elles arrivent une par une ; tu peux continuer à utiliser le jeu.` : `Download ${what}? They arrive one at a time; you can keep using the game.`)) return;
+      const what = `${count(n, 'area1', 'areaN')} (${formatBytes(missingBytes, L)})`;
+      if (!confirm(MX('confirmDownload').replace('{what}', what))) return;
       void this.downloadAll(missing.map((z) => z.id));
     });
     box.querySelector('[data-zqueue-stop]')?.addEventListener('click', () => {
@@ -3078,7 +3135,7 @@ export class MainMenu {
     box.querySelectorAll<HTMLElement>('[data-zunpack]').forEach((el) =>
       el.addEventListener('click', () => {
         const id = el.dataset.zunpack as string;
-        if (!confirm(L ? `Supprimer la zone « ${nameOf(id)} » de cet appareil ? Tu pourras la télécharger de nouveau.` : `Remove “${nameOf(id)}” from this device? You can download it again.`)) return;
+        if (!confirm(MX('confirmRemove').replace('{name}', nameOf(id)))) return;
         void removePack(id).then(() => this.renderZonesSettings());
       }),
     );
@@ -3169,9 +3226,9 @@ export class MainMenu {
     const camera = `<div class="mm-dragzone" id="m-dragzone"></div>
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
         <span class="mm-drag">${ICON.rotate} ${S('dragToRotate')}</span></div>`;
-    const reopen = `<button class="gr-reopen" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ Menu</button>`;
+    const reopen = `<button class="gr-reopen ab-btn" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ ${MX('menu')}</button>`;
     // Venu d'une fiche de la page Progression : retour direct à la frise, au même endroit.
-    const back = this.fromProgress ? `<button class="gr-back" data-grback>‹ ${S('backToProgress')}</button>` : '';
+    const back = this.fromProgress ? `<button class="gr-back ab-btn" data-grback>‹ ${S('backToProgress')}</button>` : '';
     if (V3_STYLE) return `${camera}${back}${reopen}
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}<div data-v3-top></div></div>
@@ -3203,7 +3260,7 @@ export class MainMenu {
             ${this.glovesToggle()}
             ${this.gloveColorField()}
           </div>
-          <h3 class="mm-presets-title">${S('kitPresets')}</h3>
+          <h3 class="mm-presets-title ab-section">${S('kitPresets')}</h3>
           <div class="mm-items mm-kits">${OUTFITS.map(
             (o) =>
               `<button class="mm-item" data-outfit="${o.id}"><i style="background:linear-gradient(90deg, ${o.look.jersey} 0 50%, ${o.look.jerseyAccent} 50% 100%)"></i><b>${esc(o.name[lang])}</b><span>${esc(o.hint[lang])}</span></button>`,
@@ -3222,7 +3279,7 @@ export class MainMenu {
       ${isFaceSlot(this.garageSlot) ? '' : this.roadEffect()}
       ${back}${reopen}
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
-        <div class="gr-top">${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
+        <div class="gr-top"><div class="gr-titles"><h2 class="ab-title gr-title">${MX('garageTitle')}</h2><p class="ab-sub gr-sub-line">${MX('garageSub')}</p></div>${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
         <div class="gr-body">${items}</div>
         <div class="gr-foot">${this.bikeSummary()}<p>${S('gearUnlocksAsYou')}</p></div>
       </section>`;
@@ -3230,10 +3287,9 @@ export class MainMenu {
 
   /** En-tête du garage : niveau et progression, crédits, fermeture. */
   private garageHeader(lp: ReturnType<typeof levelProgress>, xp: number): string {
-    const L = fr();
     return `<div class="gr-head">
         <div class="gr-lvl"><b>${S('level')} ${lp.level}</b><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i><span>${xp}${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''} XP</span></div>
-        <span class="gr-coins" title="${S('workshopCredits')}">${COIN} <b>${(this.account?.credits ?? loadProgress().credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b></span>
+        <span class="gr-coins" title="${S('workshopCredits')}">${COIN} <b>${(this.account?.credits ?? loadProgress().credits).toLocaleString(MX('locale'))}</b></span>
         <button class="gr-fold" data-gr="fold" aria-label="${S('collapseTheMenu')}" title="${S('collapseTheMenuFor')}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 10.5 8 5.5l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <button class="gr-x" data-tab="ride" aria-label="${S('close')}" title="${S('closeEsc')}">×</button>
       </div>`;
@@ -3270,20 +3326,19 @@ export class MainMenu {
 
   /** Vignette d'un équipement du garage (équipé, verrouillé, en aperçu). */
   private itemHtml(c: CosmeticItem, level: number, equipped: string | undefined): string {
-    const L = fr();
-    const lang = L ? 'fr' : 'en';
+    const lang = getLang();
     const locked = c.level > level;
     const on = equipped === c.id;
     const prev = [...this.previews.values()].includes(c.id);
     if (SLOT_PICTO[c.slot as GarageSlot]) {
       const bg = swatch(c);
-      const stateTxt = prev ? `${S('preview')} · ${S('lvl')} ${c.level}` : locked ? `${S('level')} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (S('equipped')) : S('unlocked');
+      const stateTxt = prev ? `${S('preview')} · ${S('lvl')} ${c.level}` : locked ? `${S('level')} ${c.level} · ${MX('levelsToGo').replace('{n}', String(c.level - level))}` : on ? (S('equipped')) : S('unlocked');
       return `<button class="gr-chip ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" data-cap-name="${esc(c.name[lang])}" data-cap-effect="${esc(c.effect?.[lang] ?? '')}" data-cap-state="${esc(stateTxt)}" aria-label="${esc(c.name[lang])} — ${esc(stateTxt)}" style="background:${bg};color:${pictoInk(bg)}">${locked ? `<u>${ICON.pLock}</u>` : on ? '<u class="ok">✓</u>' : ''}</button>`;
     }
     return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (S('clickToTryIt')) : ''}">
                 <i style="background:${swatch(c)}"></i>
                 <span class="mm-it-txt"><b>${esc(c.name[lang])}</b>${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
-                <span class="mm-it-state st-${prev ? 'preview' : locked ? 'locked' : on ? 'on' : 'free'}">${prev ? `${S('preview')} · ${S('lvl')} ${c.level}` : locked ? `${S('level')} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (S('equipped')) : S('unlocked')}</span></span></button>`;
+                <span class="mm-it-state st-${prev ? 'preview' : locked ? 'locked' : on ? 'on' : 'free'}">${prev ? `${S('preview')} · ${S('lvl')} ${c.level}` : locked ? `${S('level')} ${c.level} · ${MX('levelsToGo').replace('{n}', String(c.level - level))}` : on ? (S('equipped')) : S('unlocked')}</span></span></button>`;
   }
 
   /** Cuissard court ou long (look.legs) ; aperçu immédiat. */
@@ -3333,7 +3388,7 @@ export class MainMenu {
 
   /** Maillots regroupés par pack (en-tête, puis grille) ; un pack inconnu garde son identifiant comme titre. */
   private jerseyPacksHtml(level: number, equipped: string | undefined): string {
-    const lang = fr() ? 'fr' : 'en';
+    const lang = getLang();
     const jerseys = this.garageItems(level);
     const known = new Set(JERSEY_PACKS.map((k) => k.id));
     const packs = [...JERSEY_PACKS, ...[...new Set(jerseys.map((c) => c.pack ?? ''))].filter((id) => !known.has(id)).map((id) => ({ id, name: { fr: id, en: id } }))];
@@ -3342,7 +3397,7 @@ export class MainMenu {
       .filter((g) => g.items.length)
       .map(
         (g) =>
-          `${g.k.id || packs.length > 1 ? `<h3 class="mm-presets-title mm-pack">${esc(g.k.name[lang])} <span>${g.items.length}</span></h3>` : ''}<div class="mm-items">${g.items.map((c) => this.itemHtml(c, level, equipped)).join('')}</div>`,
+          `${g.k.id || packs.length > 1 ? `<h3 class="mm-presets-title ab-section mm-pack">${esc(g.k.name[lang])} <span>${g.items.length}</span></h3>` : ''}<div class="mm-items">${g.items.map((c) => this.itemHtml(c, level, equipped)).join('')}</div>`,
       )
       .join('');
   }
@@ -3361,10 +3416,9 @@ export class MainMenu {
 
   /** Vélo réellement roulé avec l'équipement porté : masse, traînée, pneus. */
   private bikeSummary(): string {
-    const L = fr();
     const b = bikeSetupFor(loadProgress().equipped);
     const drag = Math.round((b.cda / DEFAULT_BIKE.cda - 1) * 1000) / 10;
-    const num = (v: number, d = 1) => v.toFixed(d).replace('.', L ? ',' : '.');
+    const num = dec;
     return `<p class="mm-hint mm-bikephys">${S('riding')} : <b>${num(b.massKg)} kg</b> · ${S('drag')} <b>${drag > 0 ? '+' : ''}${num(drag)} %</b> · ${
       b.tyre === 'gravel' ? (S('gravelTyres')) : b.tyre === 'mtb' ? (S('mtbTyres')) : S('roadTyres')
     }</p>`;
@@ -3561,7 +3615,7 @@ export class MainMenu {
     const tags = [bike ? BIKE_TYPE[bike.type][L ? 0 : 1] : '', from ?? '', bike?.year ? String(bike.year) : ''].filter(Boolean);
     return `<div class="mm-bikefocus ${previewed ? 'preview' : ''}">${bikeThumbHtml(c.id, 'mm-bikeicon big', c.colors?.length ? c.colors : [c.color ?? '#7a8594'])}
       <div class="mm-bf-txt">
-        <small>${previewed ? (L ? `Aperçu · se débloque au niveau ${c.level}` : `Preview · unlocks at level ${c.level}`) : S('yourBike')}</small>
+        <small>${previewed ? MX('previewUnlocks').replace('{n}', String(c.level)) : S('yourBike')}</small>
         <b>${esc(c.name[lang])}</b>
         <span class="mm-bf-tags">${tags.map((x) => `<em>${esc(x)}</em>`).join('')}${c.effect ? `<em class="fx">${esc(c.effect[lang])}</em>` : ''}</span>
         ${bike ? `<p>${esc(bike.desc[lang])}</p>` : ''}
@@ -3573,7 +3627,6 @@ export class MainMenu {
 
   private profileHtml(): string {
     const s = this.s;
-    const L = fr();
     const wkg = s.ftpWatts / s.massKg;
     const sub = `<nav class="hp-tabs mm-subtabs" role="tablist">${(
       [
@@ -3593,8 +3646,8 @@ export class MainMenu {
       `<div class="mm-opt"><div class="mm-opt-l"><b>${forId ? `<label for="${forId}">${label}</label>` : label}</b>${help ? `<small>${help}</small>` : ''}</div>${control}</div>`;
     return `<section class="mm-panel mm-center">${this.closeBtn()}
       <header class="mm-head"><h2 class="ab-title">${t('profile')}</h2></header>${sub}
-      <div class="mm-bigstats ab-grid ab-grid-4">${stat(wkg.toFixed(1).replace('.', L ? ',' : '.'), 'W/kg')}${stat(String(Math.round(s.ftpWatts)), 'W FTP')}${stat(String(s.massKg), 'kg')}${stat(
-        Math.round((rideHistory.summary?.totals.distanceM ?? 0) / 1000).toLocaleString(L ? 'fr-FR' : 'en-GB'),
+      <div class="mm-bigstats ab-grid ab-grid-4">${stat(dec(wkg), 'W/kg')}${stat(String(Math.round(s.ftpWatts)), 'W FTP')}${stat(String(s.massKg), 'kg')}${stat(
+        Math.round((rideHistory.summary?.totals.distanceM ?? 0) / 1000).toLocaleString(MX('locale')),
         S('kmRidden'),
         S('kilometresRiddenInThe'),
       )}</div>
@@ -3714,7 +3767,7 @@ export class MainMenu {
       ${opt(SET('fog'), '', range('m-fog', 0, 1, 0.05, s.fog))}
       ${opt(SET('evolve'), '', this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [['0', SET('fixed')], ['1', SET('changing')]]), true)}`;
 
-    const RF = ROAD_FEEL_TEXT[L ? 'fr' : 'en'];
+    const RF = ROAD_FEEL_TEXT[getLang()];
     const trainer = `
       ${opt(`${t('difficulty')}${val('m-diffv', `${Math.round(s.trainerDifficulty * 100)} %`)}`, SET('diffHelp'), range('m-diff', 0, 1, 0.05, s.trainerDifficulty))}
       ${opt(SET('drive'), SET('driveHelp'), this.seg('m-drive', s.drivetrain, [['cog', SET('virtual')], ['cassette', SET('cassette')]]), true)}
@@ -3908,19 +3961,27 @@ export class MainMenu {
     const local = location.hostname === 'localhost';
     const dlg = document.createElement('div');
     dlg.className = 'mm-modal';
-    dlg.innerHTML = `<div class="mm-dialog">
-      <h2><i class="sp">●</i> ${S('connectSpotify')}</h2>
-      <p>${S('oneTimeOnlySpotify')}</p>
-      <ol>
-        <li>${S('open')} <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> ${S('andClickCreateApp')}</li>
-        <li>${S('nameAllezRobertApi')}</li>
-        <li>${S('redirectUriCopyExactly')} <code>${esc(uri)}</code> <button class="mm-link" id="sp-copy">${S('copy')}</button></li>
-        <li>${S('saveThenPasteThe')}</li>
-      </ol>
-      <input id="sp-id" class="mm-input" placeholder="Client ID" autocomplete="off" spellcheck="false" />
-      ${local ? `<p class="mm-hint">${S('spotifyRejectsLocalhostOn')}</p>` : ''}
-      <p class="mm-hint">${S('musicPlaysFromYour')}</p>
-      <div class="mm-dialog-foot"><button class="btn" id="sp-cancel">${S('cancel')}</button><button class="btn primary" id="sp-ok">${S('signInToSpotify')}</button></div>
+    dlg.innerHTML = `<div class="mm-dialog mm-spdlg" role="dialog" aria-modal="true" aria-labelledby="sp-title">
+      <header class="sp-head">
+        <h2 class="ab-title" id="sp-title"><i class="sp" aria-hidden="true">●</i> ${S('connectSpotify')}</h2>
+        <p class="ab-sub">${S('oneTimeOnlySpotify')}</p>
+      </header>
+      <section class="sp-sec">
+        <h3 class="ab-section">${MX('spSteps')}</h3>
+        <ol class="sp-steps">
+          <li>${S('open')} <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> ${S('andClickCreateApp')}</li>
+          <li>${S('nameAllezRobertApi')}</li>
+          <li>${S('redirectUriCopyExactly')} <span class="sp-uri"><code>${esc(uri)}</code> <button class="ab-btn ab-chip sp-copy" id="sp-copy">${S('copy')}</button></span></li>
+          <li>${S('saveThenPasteThe')}</li>
+        </ol>
+      </section>
+      <section class="sp-sec">
+        <h3 class="ab-section"><label for="sp-id">${MX('spClientId')}</label></h3>
+        <input id="sp-id" class="mm-input sp-input" placeholder="Client ID" autocomplete="off" spellcheck="false" />
+        ${local ? `<p class="sp-hint">${S('spotifyRejectsLocalhostOn')}</p>` : ''}
+        <p class="sp-hint">${S('musicPlaysFromYour')}</p>
+      </section>
+      <div class="ab-foot sp-foot"><div class="ab-btns"><button class="ab-btn" id="sp-cancel">${S('cancel')}</button><button class="ab-btn ab-go" id="sp-ok">${S('signInToSpotify')}</button></div></div>
     </div>`;
     this.root.appendChild(dlg);
     const close = () => dlg.remove();
@@ -4246,7 +4307,7 @@ export class MainMenu {
           if (ok) n++;
         });
         const foot = this.root.querySelector<HTMLElement>('.kom-foot span');
-        if (foot && words.length) foot.textContent = `${n} ${fr() ? (n > 1 ? 'montées trouvées' : 'montée trouvée') : n > 1 ? 'climbs found' : 'climb found'}`;
+        if (foot && words.length) foot.textContent = count(n, 'climbFound1', 'climbFoundN');
         let none = this.root.querySelector<HTMLElement>('.kom-nomatch');
         if (words.length && n === 0 && !none) {
           none = document.createElement('p');
@@ -4682,7 +4743,6 @@ export class MainMenu {
       el.value = '';
       if (!f || !this.root.querySelector<HTMLInputElement>('#fe-consent')?.checked) return;
       const msg = this.root.querySelector<HTMLElement>('#fe-photo-msg');
-      const L = getLang() === 'fr';
       if (msg) msg.textContent = S('analysingOnYourDevice');
       try {
         // Repères détectés, à corriger à la main dans une fenêtre avant l'ajustement de l'avatar.
@@ -5078,7 +5138,7 @@ export class MainMenu {
       const out = this.root.querySelector<HTMLElement>('#m-res-now');
       const c = document.getElementById('scene') as HTMLCanvasElement | null;
       if (!out || !c?.width) return;
-      const lang = fr() ? 'fr-FR' : 'en-GB';
+      const lang = MX('locale');
       out.textContent = `${SET('renderNow')}${S('txt')}${c.width.toLocaleString(lang)} × ${c.height.toLocaleString(lang)} · ${((c.width * c.height) / 1e6).toLocaleString(lang, { maximumFractionDigits: 1 })} Mpx`;
     };
     showRes();
@@ -5205,7 +5265,7 @@ export class MainMenu {
     });
     on<HTMLInputElement>('m-roadfeel', 'change', (el) => {
       const extreme = roadFeelLevel(s.roadFeelPercent) === 'extreme';
-      if (extreme && !roadFeelConfirmed && !confirm(ROAD_FEEL_TEXT[fr() ? 'fr' : 'en'].confirm)) {
+      if (extreme && !roadFeelConfirmed && !confirm(ROAD_FEEL_TEXT[getLang()].confirm)) {
         s.roadFeelPercent = ROAD_FEEL.extremePercent - 5;
         el.value = String(s.roadFeelPercent);
         el.dispatchEvent(new Event('input', { bubbles: true }));

@@ -9,15 +9,100 @@ import { readKomRecord } from '../game/challenge.ts';
 import { readGhostBest } from '../game/ghost.ts';
 import { readSegmentPr } from '../game/sequences.ts';
 import { rideHistory } from '../data/history/instance.ts';
-import { getLang } from '../i18n/index.ts';
+import { strings } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
 import './blocks.css';
 import { loadProgress } from './garage.ts';
 import './routeDetail.css';
 
-const fr = () => getLang() === 'fr';
+/** Textes du module (français, anglais). */
+const S = strings(
+  {
+    dec: ',',
+    more: 'autres',
+    clickTheRouteOr: 'Clique sur le tracé ou fais glisser <b>D</b> pour partir d’ailleurs',
+    start: 'Départ',
+    afterTheOriginalStart: 'après le départ d’origine',
+    originalStart: 'Départ d’origine',
+    locale: 'fr-FR',
+    bestTimeOnThe: 'Meilleur temps sur le parcours',
+    ridesOnThisRoute: 'Sorties sur ce parcours',
+    last: 'dernière',
+    routeAlreadyFinished: 'parcours déjà terminé',
+    neverRidden: 'jamais roulé',
+    climb: 'Montée',
+    signIn: 'connecte-toi',
+    challengeBeatYourRecord: 'Défi : bats ton record sur cette montée',
+    challenge: 'Défi',
+    climbing: 'Dénivelé',
+    steepest: 'Pente maximale',
+    estimatedTime: 'Durée estimée',
+    climbs: 'Montées',
+    yourRecords: 'Tes records',
+    wholeRoute: 'Parcours entier',
+    yourFriends: 'Tes amis',
+    signInToSee: 'connecte-toi pour voir leurs temps',
+    fastest: 'Meilleur temps',
+    villagesOnTheWay: 'Villages traversés',
+    rideThisRoute: 'Rouler ce parcours',
+    timedClimbsAndSprints: 'Montées et sprints chronométrés',
+    segment: 'Segment',
+    yourBest: 'Ton record',
+    timesCountWhenYou: 'Les temps comptent quand tu roules avec un compte, hors séance ERG.',
+    noTimedClimbOr: 'Pas de montée ni de sprint chronométré sur ce parcours.',
+    offline: 'hors ligne',
+    nobodyYet: 'personne encore',
+    you: 'toi',
+    noFriendHasRidden: 'aucun ami n’a encore roulé ce parcours',
+    noTimesYet: 'pas encore de temps',
+    altitudeRange: 'Altitude <b>{a} à {b} m</b>',
+  },
+  {
+    dec: '.',
+    more: 'more',
+    clickTheRouteOr: 'Click the route or drag <b>D</b> to start elsewhere',
+    start: 'Start',
+    afterTheOriginalStart: 'after the original start',
+    originalStart: 'Original start',
+    locale: 'en-GB',
+    bestTimeOnThe: 'Best time on the route',
+    ridesOnThisRoute: 'Rides on this route',
+    last: 'last',
+    routeAlreadyFinished: 'route already finished',
+    neverRidden: 'never ridden',
+    climb: 'Climb',
+    signIn: 'sign in',
+    challengeBeatYourRecord: 'Challenge: beat your record on this climb',
+    challenge: 'Challenge',
+    climbing: 'Climbing',
+    steepest: 'Steepest',
+    estimatedTime: 'Estimated time',
+    climbs: 'Climbs',
+    yourRecords: 'Your records',
+    wholeRoute: 'Whole route',
+    yourFriends: 'Your friends',
+    signInToSee: 'sign in to see their times',
+    fastest: 'Fastest',
+    villagesOnTheWay: 'Villages on the way',
+    rideThisRoute: 'Ride this route',
+    timedClimbsAndSprints: 'Timed climbs and sprints',
+    segment: 'Segment',
+    yourBest: 'Your best',
+    timesCountWhenYou: 'Times count when you ride with an account, outside ERG workouts.',
+    noTimedClimbOr: 'No timed climb or sprint on this route.',
+    offline: 'offline',
+    nobodyYet: 'nobody yet',
+    you: 'you',
+    noFriendHasRidden: 'no friend has ridden this route yet',
+    noTimesYet: 'no times yet',
+    altitudeRange: 'Altitude <b>{a} to {b} m</b>',
+  },
+);
+
+/** Gabarit à plusieurs variables : `fill(S('k'), { a: 1, b: 'x' })` remplace {a} et {b}. */
+const fill = (s: string, v: Record<string, unknown>): string => s.replace(/\{(\w+)\}/g, (_, k: string) => String(v[k]));
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
-const num = (v: number, d = 1) => v.toFixed(d).replace('.', fr() ? ',' : '.');
+const num = (v: number, d = 1) => v.toFixed(d).replace('.', S('dec'));
 
 /** Durée lisible : 4:32, 1:02:05. */
 export function formatTime(s: number): string {
@@ -157,11 +242,10 @@ function bigProfile(r: RouteData, segs: RouteSegment[]): string {
 
 /** Villages traversés : les 12 premiers, le reste dépliable. */
 function placesList(list: Array<{ name: string; d: number }>): string {
-  const L = fr();
   const item = (l: { name: string; d: number }) => `${esc(l.name)} <small>km ${num(l.d / 1000)}</small>`;
   const head = list.slice(0, 12).map(item).join(' · ');
   const rest = list.slice(12);
-  return `<div class="rd-places">${head}${rest.length ? `<details><summary>+ ${rest.length} ${L ? 'autres' : 'more'}</summary>${rest.map(item).join(' · ')}</details>` : ''}</div>`;
+  return `<div class="rd-places">${head}${rest.length ? `<details><summary>+ ${rest.length} ${S('more')}</summary>${rest.map(item).join(' · ')}</details>` : ''}</div>`;
 }
 
 /**
@@ -169,12 +253,11 @@ function placesList(list: Array<{ name: string; d: number }>): string {
  * départ d'origine. `startM` : distance du départ choisi sur le tracé d'origine (0 = d'origine).
  */
 function startBar(r: RouteData, startM: number): string {
-  const L = fr();
-  if (!(startM > 0)) return `<div class="rd-startbar"><span>${L ? 'Clique sur le tracé ou fais glisser <b>D</b> pour partir d’ailleurs' : 'Click the route or drag <b>D</b> to start elsewhere'}</span></div>`;
+  if (!(startM > 0)) return `<div class="rd-startbar"><span>${S('clickTheRouteOr')}</span></div>`;
   const gap = (d: number) => Math.min(d, r.lengthM - d);
   const near = r.landmarks?.slice().sort((a, b) => gap(a.d) - gap(b.d))[0];
   const at = near && gap(near.d) < 800 ? `${esc(near.name)} · ` : '';
-  return `<div class="rd-startbar"><span>${L ? 'Départ' : 'Start'} : <b>${at}km ${num(startM / 1000)}</b> ${L ? 'après le départ d’origine' : 'after the original start'}</span><button class="mm-link" data-rd-start="0">↺ ${L ? 'Départ d’origine' : 'Original start'}</button></div>`;
+  return `<div class="rd-startbar"><span>${S('start')} : <b>${at}km ${num(startM / 1000)}</b> ${S('afterTheOriginalStart')}</span><button class="mm-link" data-rd-start="0">↺ ${S('originalStart')}</button></div>`;
 }
 
 /**
@@ -183,7 +266,6 @@ function startBar(r: RouteData, startM: number): string {
  * d'origine, 0 = d'origine).
  */
 export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: boolean; start?: { movable: boolean; startM: number } }): string {
-  const L = fr();
   // Un départ déplacé ne change ni la boucle ni ses montées : records et classements partagés.
   const rank = rankRouteId(r.id);
   const startM = opts.start?.startM ?? 0;
@@ -205,10 +287,10 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
   const done = loadProgress().routesDone.some((id) => rankRouteId(id) === rank);
   // Quatre chiffres clés en grands blocs ; altitude et nombre de montées sur une ligne dessous.
   const stat = (label: string, v: string, u = '') => `<div class="ab-tile ab-plain rd-fig"><span class="ab-detail">${label}</span><span class="ab-val"><b>${v}</b>${u ? `<small>${u}</small>` : ''}</span></div>`;
-  const dateFmt = (d: number | string) => new Date(d).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const dateFmt = (d: number | string) => new Date(d).toLocaleDateString(S('locale'), { day: 'numeric', month: 'short', year: 'numeric' });
   const mine = [
-    ghost ? `<li><span>${L ? 'Meilleur temps sur le parcours' : 'Best time on the route'}</span><b>${formatTime(ghost.lapTimeS)}</b><small>${dateFmt(ghost.date)}</small></li>` : '',
-    `<li><span>${L ? 'Sorties sur ce parcours' : 'Rides on this route'}</span><b>${count}${done && !count ? ' ✓' : ''}</b>${last ? `<small>${L ? 'dernière' : 'last'} ${dateFmt(last.date)} · ${num(last.avgSpeedKmh)} km/h · ${Math.round(last.avgWatts)} W</small>` : `<small>${done ? (L ? 'parcours déjà terminé' : 'route already finished') : L ? 'jamais roulé' : 'never ridden'}</small>`}</li>`,
+    ghost ? `<li><span>${S('bestTimeOnThe')}</span><b>${formatTime(ghost.lapTimeS)}</b><small>${dateFmt(ghost.date)}</small></li>` : '',
+    `<li><span>${S('ridesOnThisRoute')}</span><b>${count}${done && !count ? ' ✓' : ''}</b>${last ? `<small>${S('last')} ${dateFmt(last.date)} · ${num(last.avgSpeedKmh)} km/h · ${Math.round(last.avgWatts)} W</small>` : `<small>${done ? (S('routeAlreadyFinished')) : S('neverRidden')}</small>`}</li>`,
   ].join('');
   const rows = segs
     .map((s) => {
@@ -216,11 +298,11 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
       const best = myLocalBest(rank, s);
       return `<tr data-seg="${esc(s.id)}">
         <td class="rd-n">${s.kind === 'kom' ? `<i class="rd-badge">${n + 1}</i>` : '<i class="rd-badge rd-sprint">S</i>'}</td>
-        <td><b>${esc(s.name)}</b><small>${s.kind === 'kom' ? (L ? 'Montée' : 'Climb') : 'Sprint'} · ${num((s.endM - s.startM) / 1000)} km${s.kind === 'kom' ? ` · ${num(s.avgGrade)} %` : ''} · km ${num(s.startM / 1000)}</small></td>
+        <td><b>${esc(s.name)}</b><small>${s.kind === 'kom' ? (S('climb')) : 'Sprint'} · ${num((s.endM - s.startM) / 1000)} km${s.kind === 'kom' ? ` · ${num(s.avgGrade)} %` : ''} · km ${num(s.startM / 1000)}</small></td>
         <td class="rd-me" data-mine="${best ?? ''}">${best !== null ? `<b>${formatTime(best)}</b>` : `<span class="rd-none">—</span>`}</td>
-        <td class="rd-friends">${opts.loggedIn ? '<span class="rd-load">…</span>' : `<span class="rd-none">${L ? 'connecte-toi' : 'sign in'}</span>`}</td>
+        <td class="rd-friends">${opts.loggedIn ? '<span class="rd-load">…</span>' : `<span class="rd-none">${S('signIn')}</span>`}</td>
         <td class="rd-top"><span class="rd-load">…</span></td>
-        <td>${s.kind === 'kom' ? `<button class="rd-defi" data-rd-kom="${esc(s.id)}" title="${L ? 'Défi : bats ton record sur cette montée' : 'Challenge: beat your record on this climb'}">${L ? 'Défi' : 'Challenge'}</button>` : ''}</td>
+        <td>${s.kind === 'kom' ? `<button class="rd-defi" data-rd-kom="${esc(s.id)}" title="${S('challengeBeatYourRecord')}">${S('challenge')}</button>` : ''}</td>
       </tr>`;
     })
     .join('');
@@ -233,29 +315,29 @@ export function routeDetailHtml(r: RouteData, name: string, opts: { loggedIn: bo
       <div class="rd-side">
         <div class="rd-stats">
           ${stat('Distance', num(r.lengthM / 1000), 'km')}
-          ${stat(L ? 'Dénivelé' : 'Climbing', String(Math.round(r.elevationGainM)), 'm')}
-          ${stat(L ? 'Pente maximale' : 'Steepest', r.maxGradePct !== undefined ? String(Math.round(r.maxGradePct)) : '—', '%')}
-          ${stat(L ? 'Durée estimée' : 'Estimated time', eta)}
+          ${stat(S('climbing'), String(Math.round(r.elevationGainM)), 'm')}
+          ${stat(S('steepest'), r.maxGradePct !== undefined ? String(Math.round(r.maxGradePct)) : '—', '%')}
+          ${stat(S('estimatedTime'), eta)}
         </div>
-        <p class="rd-minor">${r.minElevationM !== undefined && r.maxElevationM !== undefined ? `<span>Altitude <b>${Math.round(r.minElevationM)} à ${Math.round(r.maxElevationM)} m</b></span>` : ''}<span>${kom.length > 1 ? (L ? 'Montées' : 'Climbs') : L ? 'Montée' : 'Climb'} <b>${kom.length}</b></span></p>
-        <h3 class="ab-section">${L ? 'Tes records' : 'Your records'}</h3>
+        <p class="rd-minor">${r.minElevationM !== undefined && r.maxElevationM !== undefined ? `<span>${fill(S('altitudeRange'), { a: Math.round(r.minElevationM), b: Math.round(r.maxElevationM) })}</span>` : ''}<span>${kom.length > 1 ? (S('climbs')) : S('climb')} <b>${kom.length}</b></span></p>
+        <h3 class="ab-section">${S('yourRecords')}</h3>
         <ul class="rd-mine">${mine}</ul>
-        <h3 class="ab-section">${L ? 'Parcours entier' : 'Whole route'}</h3>
+        <h3 class="ab-section">${S('wholeRoute')}</h3>
         <div class="rd-route-board">
-          <div><span>${L ? 'Tes amis' : 'Your friends'}</span><div class="rd-rb-friends">${opts.loggedIn ? '<span class="rd-load">…</span>' : `<span class="rd-none">${L ? 'connecte-toi pour voir leurs temps' : 'sign in to see their times'}</span>`}</div></div>
-          <div><span>${L ? 'Meilleur temps' : 'Fastest'}</span><div class="rd-rb-top"><span class="rd-load">…</span></div></div>
+          <div><span>${S('yourFriends')}</span><div class="rd-rb-friends">${opts.loggedIn ? '<span class="rd-load">…</span>' : `<span class="rd-none">${S('signInToSee')}</span>`}</div></div>
+          <div><span>${S('fastest')}</span><div class="rd-rb-top"><span class="rd-load">…</span></div></div>
         </div>
-        ${r.landmarks?.length ? `<h3 class="ab-section">${L ? 'Villages traversés' : 'Villages on the way'}</h3>${placesList(r.landmarks)}` : ''}
-        <button class="rd-go ab-btn ab-go" data-rd="ride">${L ? 'Rouler ce parcours' : 'Ride this route'}</button>
+        ${r.landmarks?.length ? `<h3 class="ab-section">${S('villagesOnTheWay')}</h3>${placesList(r.landmarks)}` : ''}
+        <button class="rd-go ab-btn ab-go" data-rd="ride">${S('rideThisRoute')}</button>
       </div>
     </div>
     ${bigProfile(r, segs)}
     ${
       segs.length
-        ? `<h3 class="ab-section">${L ? 'Montées et sprints chronométrés' : 'Timed climbs and sprints'}</h3>
-      <table class="rd-table"><thead><tr><th></th><th>${L ? 'Segment' : 'Segment'}</th><th>${L ? 'Ton record' : 'Your best'}</th><th>${L ? 'Tes amis' : 'Your friends'}</th><th>${L ? 'Meilleur temps' : 'Fastest'}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-      <p class="mm-hint">${L ? 'Les temps comptent quand tu roules avec un compte, hors séance ERG.' : 'Times count when you ride with an account, outside ERG workouts.'}</p>`
-        : `<p class="mm-hint">${L ? 'Pas de montée ni de sprint chronométré sur ce parcours.' : 'No timed climb or sprint on this route.'}</p>`
+        ? `<h3 class="ab-section">${S('timedClimbsAndSprints')}</h3>
+      <table class="rd-table"><thead><tr><th></th><th>${S('segment')}</th><th>${S('yourBest')}</th><th>${S('yourFriends')}</th><th>${S('fastest')}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="mm-hint">${S('timesCountWhenYou')}</p>`
+        : `<p class="mm-hint">${S('noTimedClimbOr')}</p>`
     }
   </div>`;
 }
@@ -283,7 +365,6 @@ async function getJson<T>(path: string): Promise<T | null> {
  * cases indiquent « hors ligne ».
  */
 export async function loadRouteBoards(root: ParentNode, route: RouteData, loggedIn: boolean): Promise<void> {
-  const L = fr();
   const enc = encodeURIComponent;
   const r = { id: rankRouteId(route.id), segments: route.segments };
   // Parcours entier : amis (3 meilleurs, toi compris) et meilleur temps de tous.
@@ -293,15 +374,15 @@ export async function loadRouteBoards(root: ParentNode, route: RouteData, logged
   ]).then(([all, friends]) => {
     const top = root.querySelector<HTMLElement>('.rd-rb-top');
     const t0 = all?.[0];
-    if (top) top.innerHTML = all === null ? `<span class="rd-none">${L ? 'hors ligne' : 'offline'}</span>` : t0 ? `<b>${formatTime(t0.bestMs / 1000)}</b> ${esc(t0.name)}` : `<span class="rd-none">${L ? 'personne encore' : 'nobody yet'}</span>`;
+    if (top) top.innerHTML = all === null ? `<span class="rd-none">${S('offline')}</span>` : t0 ? `<b>${formatTime(t0.bestMs / 1000)}</b> ${esc(t0.name)}` : `<span class="rd-none">${S('nobodyYet')}</span>`;
     const fc = root.querySelector<HTMLElement>('.rd-rb-friends');
     if (!fc || !loggedIn) return;
     fc.innerHTML =
       friends === null
-        ? `<span class="rd-none">${L ? 'hors ligne' : 'offline'}</span>`
+        ? `<span class="rd-none">${S('offline')}</span>`
         : friends.some((x) => !x.me)
-          ? `<ol>${friends.slice(0, 4).map((x) => `<li class="${x.me ? 'rd-is-me' : ''}"><b>${formatTime(x.bestMs / 1000)}</b> ${x.me ? (L ? 'toi' : 'you') : esc(x.name)}</li>`).join('')}</ol>`
-          : `<span class="rd-none">${L ? 'aucun ami n’a encore roulé ce parcours' : 'no friend has ridden this route yet'}</span>`;
+          ? `<ol>${friends.slice(0, 4).map((x) => `<li class="${x.me ? 'rd-is-me' : ''}"><b>${formatTime(x.bestMs / 1000)}</b> ${x.me ? (S('you')) : esc(x.name)}</li>`).join('')}</ol>`
+          : `<span class="rd-none">${S('noFriendHasRidden')}</span>`;
   });
   const mineSrv = loggedIn ? await getJson<Array<{ segmentId: string; bestMs: number }>>(`/me/segments?routeId=${enc(r.id)}`) : null;
   await Promise.all(
@@ -319,16 +400,16 @@ export async function loadRouteBoards(root: ParentNode, route: RouteData, logged
       if (me && srv !== undefined && !(local <= srv / 1000)) me.innerHTML = `<b>${formatTime(srv / 1000)}</b>`;
       const top = row.querySelector<HTMLElement>('.rd-top');
       const t0 = all?.[0];
-      if (top) top.innerHTML = all === null ? `<span class="rd-none">${L ? 'hors ligne' : 'offline'}</span>` : t0 ? `<b>${formatTime(t0.bestMs / 1000)}</b><small>${esc(t0.name)}</small>` : `<span class="rd-none">${L ? 'personne encore' : 'nobody yet'}</span>`;
+      if (top) top.innerHTML = all === null ? `<span class="rd-none">${S('offline')}</span>` : t0 ? `<b>${formatTime(t0.bestMs / 1000)}</b><small>${esc(t0.name)}</small>` : `<span class="rd-none">${S('nobodyYet')}</span>`;
       const fc = row.querySelector<HTMLElement>('.rd-friends');
       if (!fc || !loggedIn) return;
       const others = (friends ?? []).filter((f) => !f.me).slice(0, 3);
       fc.innerHTML =
         friends === null
-          ? `<span class="rd-none">${L ? 'hors ligne' : 'offline'}</span>`
+          ? `<span class="rd-none">${S('offline')}</span>`
           : others.length
             ? `<ol>${others.map((f) => `<li><b>${formatTime(f.bestMs / 1000)}</b> ${esc(f.name)}</li>`).join('')}</ol>`
-            : `<span class="rd-none">${L ? 'pas encore de temps' : 'no times yet'}</span>`;
+            : `<span class="rd-none">${S('noTimesYet')}</span>`;
     }),
   );
 }

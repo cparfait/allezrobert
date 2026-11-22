@@ -20,7 +20,7 @@ import {
   type TuneEvent,
   type TuneItem,
 } from '@allezrobert/shared';
-import { getLang } from '../i18n/index.ts';
+import { getLang, strings } from '../i18n/index.ts';
 import { TROPHIES, earnedTrophies, trophyTotalKm } from '../game/trophies.ts';
 import { rideHistory } from '../data/history/instance.ts';
 import { loadProgress } from './garage.ts';
@@ -92,9 +92,189 @@ const XP_PER_KM = 20 + (2 * 60) / 28;
 const XP_PER_HOUR = 28 * 20 + 120;
 const MILESTONE = (l: number) => l % 10 === 0;
 
+/** Textes du module (français, anglais). */
+const S = strings(
+  {
+    locale: 'fr-FR',
+    equipped: 'Équipé',
+    unlocked: 'Débloqué',
+    level: 'Niveau',
+    partSet: 'Ensemble de {n} pièces',
+    complete: 'Complet',
+    owned: 'Possédé',
+    available: 'Disponible',
+    levelsAndRewards: 'Niveaux et récompenses',
+    trophiesAndChallenges: 'Trophées et défis',
+    dec: ',',
+    weight: 'Masse',
+    aeroDragCda: 'Traînée aéro (CdA)',
+    rollingResistance: 'Résistance au roulement',
+    wheelInertia: 'Inertie des roues',
+    drivetrainEfficiency: 'Rendement transmission',
+    brand: 'Marque',
+    flatGain: 'Gain sur le plat',
+    climbingGain: 'Gain en côte',
+    parts: 'Pièces',
+    price: 'Prix',
+    year: 'Année',
+    brakes: 'Freins',
+    disc: 'à disque',
+    rim: 'sur jante',
+    category: 'Catégorie',
+    unlock: 'Déblocage',
+    level2: 'niveau',
+    close: 'Fermer',
+    seeInTheGarage: 'Voir au garage',
+    seeInTheWorkshop: 'Voir à l’atelier',
+    tryInTheGarage: 'Essayer au garage',
+    maxLevelReached: 'Niveau maximum atteint',
+    bXpBTo: 'Encore <b>{a} XP</b> pour le niveau {b}',
+    about: 'soit',
+    onTheFlat: 'à plat',
+    earningXp: 'Gagner de l’XP :',
+    trophies: 'trophées',
+    max: 'max',
+    ride: 'sortie',
+    trophies2: 'Trophées',
+    rewardsUnlocked: 'Récompenses débloquées',
+    workshopChallenges: 'Défis de l’atelier',
+    d: 'j',
+    currentStreak: 'Série en cours',
+    ridingDaysInA: 'Jours de sortie d’affilée',
+    credits: 'Crédits',
+    earnedByRidingSpent: 'Gagnés en roulant, dépensés à l’atelier',
+    all: 'Tout',
+    nextUnlock: 'Prochain déblocage',
+    bXpBTo2: 'Encore <b>{n} XP</b>',
+    levelMilestoneXp: 'Palier du niveau {a} : {b} XP ({c})',
+    showLess: 'Réduire',
+    showTheRest: 'Afficher le reste',
+    nothingInTheseCategories: 'Rien dans ces catégories à ce niveau.',
+    youAreHere: 'Tu es ici',
+    next: 'Prochain',
+    milestone: 'Palier',
+    fromTheStart: 'Au départ',
+    rewards: 'récompenses',
+    reward: 'récompense',
+    everyLevel: 'Tous les niveaux',
+    clickARewardTo: 'Clique une récompense pour la voir.',
+    bestRide: 'meilleure sortie',
+    inTotal: 'au total',
+    climb: 'montée',
+    earned: 'Obtenu',
+    inProgress: 'En cours',
+    toDo: 'À faire',
+    route: 'parcours',
+    routes: 'parcours',
+    climbs: 'montées',
+    days: 'jours',
+    winItInA: 'À gagner en course',
+    reward2: 'Récompense',
+    title: 'Titre',
+    parts2: 'pièces',
+    unlocked2: 'débloqués',
+    complete2: 'complets',
+    owned2: 'possédées',
+    earned2: 'gagnés',
+    partsThatCannotBe: 'Des pièces qui ne s’achètent pas',
+    sets: 'Ensembles',
+    aCompleteSetEarns: 'Un ensemble complet donne son titre',
+    collection: 'Collection',
+  },
+  {
+    locale: 'en-GB',
+    equipped: 'Equipped',
+    unlocked: 'Unlocked',
+    level: 'Level',
+    partSet: '{n}-part set',
+    complete: 'Complete',
+    owned: 'Owned',
+    available: 'Available',
+    levelsAndRewards: 'Levels and rewards',
+    trophiesAndChallenges: 'Trophies and challenges',
+    dec: '.',
+    weight: 'Weight',
+    aeroDragCda: 'Aero drag (CdA)',
+    rollingResistance: 'Rolling resistance',
+    wheelInertia: 'Wheel inertia',
+    drivetrainEfficiency: 'Drivetrain efficiency',
+    brand: 'Brand',
+    flatGain: 'Flat gain',
+    climbingGain: 'Climbing gain',
+    parts: 'Parts',
+    price: 'Price',
+    year: 'Year',
+    brakes: 'Brakes',
+    disc: 'disc',
+    rim: 'rim',
+    category: 'Category',
+    unlock: 'Unlock',
+    level2: 'level',
+    close: 'Close',
+    seeInTheGarage: 'See in the garage',
+    seeInTheWorkshop: 'See in the workshop',
+    tryInTheGarage: 'Try in the garage',
+    maxLevelReached: 'Max level reached',
+    bXpBTo: '<b>{a} XP</b> to level {b}',
+    about: 'about',
+    onTheFlat: 'on the flat',
+    earningXp: 'Earning XP:',
+    trophies: 'trophies',
+    max: 'max',
+    ride: 'ride',
+    trophies2: 'Trophies',
+    rewardsUnlocked: 'Rewards unlocked',
+    workshopChallenges: 'Workshop challenges',
+    d: 'd',
+    currentStreak: 'Current streak',
+    ridingDaysInA: 'Riding days in a row',
+    credits: 'Credits',
+    earnedByRidingSpent: 'Earned by riding, spent in the workshop',
+    all: 'All',
+    nextUnlock: 'Next unlock',
+    bXpBTo2: '<b>{n} XP</b> to go',
+    levelMilestoneXp: 'Level {a} milestone: {b} XP ({c})',
+    showLess: 'Show less',
+    showTheRest: 'Show the rest',
+    nothingInTheseCategories: 'Nothing in these categories at this level.',
+    youAreHere: 'You are here',
+    next: 'Next',
+    milestone: 'Milestone',
+    fromTheStart: 'From the start',
+    rewards: 'rewards',
+    reward: 'reward',
+    everyLevel: 'Every level',
+    clickARewardTo: 'Click a reward to see it.',
+    bestRide: 'best ride',
+    inTotal: 'in total',
+    climb: 'climb',
+    earned: 'Earned',
+    inProgress: 'In progress',
+    toDo: 'To do',
+    route: 'route',
+    routes: 'routes',
+    climbs: 'climbs',
+    days: 'days',
+    winItInA: 'Win it in a race',
+    reward2: 'Reward',
+    title: 'Title',
+    parts2: 'parts',
+    unlocked2: 'unlocked',
+    complete2: 'complete',
+    owned2: 'owned',
+    earned2: 'earned',
+    partsThatCannotBe: 'Parts that cannot be bought',
+    sets: 'Sets',
+    aCompleteSetEarns: 'A complete set earns its title',
+    collection: 'Collection',
+  },
+);
+/** Gabarit à plusieurs variables : `fill(S('k'), { a: 1, b: 'x' })` remplace {a} et {b}. */
+const fill = (s: string, v: Record<string, unknown>): string => s.replace(/\{(\w+)\}/g, (_, k: string) => String(v[k]));
+
 const fr = () => getLang() === 'fr';
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
-const int = (v: number) => Math.round(v).toLocaleString(fr() ? 'fr-FR' : 'en-GB');
+const int = (v: number) => Math.round(v).toLocaleString(S('locale'));
 const pct = (v: number) => `${(Math.min(1, Math.max(0, v)) * 100).toFixed(1)}%`;
 
 /** « ≈ 27 km » ou « ≈ 1 040 km » : distance à plat pour gagner `xp`. */
@@ -192,7 +372,7 @@ export class ProgressPage {
   private rewards(level: number): Reward[] {
     if (V3_STYLE) return this.v3Rewards(level);
     const L = fr();
-    const lang = L ? 'fr' : 'en';
+    const lang = getLang();
     const p = loadProgress();
     const out: Reward[] = [];
     for (const c of COSMETICS) {
@@ -217,7 +397,7 @@ export class ProgressPage {
         sub,
         thumb,
         state: on ? 'on' : open ? 'open' : 'lock',
-        stateText: on ? (L ? 'Équipé' : 'Equipped') : open ? (L ? 'Débloqué' : 'Unlocked') : `${L ? 'Niveau' : 'Level'} ${c.level}`,
+        stateText: on ? (S('equipped')) : open ? (S('unlocked')) : `${S('level')} ${c.level}`,
         tune: false,
         title: bike ? bike.desc[lang] : '',
       });
@@ -236,11 +416,11 @@ export class ProgressPage {
         level: lvl,
         id: t.id,
         name: t.name[lang],
-        sub: [kit ? (L ? `Ensemble de ${t.pieces?.length ?? 0} pièces` : `${t.pieces?.length ?? 0}-part set`) : t.slot ? TUNE_SLOT_LABEL[t.slot][L ? 0 : 1] : '', rar[lang]].filter(Boolean).join(' · '),
+        sub: [kit ? (S('partSet').replace('{n}', String(t.pieces?.length ?? 0))) : t.slot ? TUNE_SLOT_LABEL[t.slot][L ? 0 : 1] : '', rar[lang]].filter(Boolean).join(' · '),
         thumb,
         rar: kit ? (t.badge ?? rar.color) : rar.color,
         state: on ? 'on' : owned ? 'own' : open ? 'open' : 'lock',
-        stateText: on ? (L ? 'Équipé' : 'Equipped') : owned ? (kit ? (L ? 'Complet' : 'Complete') : L ? 'Possédé' : 'Owned') : open ? (kit ? (L ? 'Disponible' : 'Available') : `${COIN} ${int(t.price)}`) : `${L ? 'Niveau' : 'Level'} ${lvl}`,
+        stateText: on ? (S('equipped')) : owned ? (kit ? (S('complete')) : S('owned')) : open ? (kit ? (S('available')) : `${COIN} ${int(t.price)}`) : `${S('level')} ${lvl}`,
         tune: true,
         title: `${t.desc[lang]} — ${t.effect[lang]}`,
       });
@@ -250,7 +430,6 @@ export class ProgressPage {
 
   /** Style Beta : vélos, roues et articles du catalogue V3 (v3/progression.ts), chargés en tâche de fond. */
   private v3Rewards(level: number): Reward[] {
-    const L = fr();
     const sex = readV3Equipment().sex ?? lookSex(this.host.look());
     const list = v3Rewards(sex, () => this.host.rerender()) ?? [];
     return list.map((r) => {
@@ -263,7 +442,7 @@ export class ProgressPage {
         sub: r.sub,
         thumb: r.image ? `<img class="pg-bikeimg" loading="lazy" alt="" data-pgv3="${r.cat}" src="${esc(r.image)}"/>` : v3RewardIcon(r.cat),
         state: r.worn ? 'on' : open ? 'open' : 'lock',
-        stateText: r.worn ? (L ? 'Équipé' : 'Equipped') : open ? (L ? 'Débloqué' : 'Unlocked') : `${L ? 'Niveau' : 'Level'} ${r.level}`,
+        stateText: r.worn ? (S('equipped')) : open ? (S('unlocked')) : `${S('level')} ${r.level}`,
         tune: false,
         title: r.name,
         v3: true,
@@ -289,15 +468,14 @@ export class ProgressPage {
   // ————————————————————————————————————————————— Affichage
 
   html(close: string): string {
-    const L = fr();
     const level = this.host.level();
     const xp = this.xp(level);
     // Défilement gardé d'un rendu à l'autre (même vue).
     this.scroll = this.kept >= 0 ? this.kept : this.shownView === this.view ? (this.root.querySelector<HTMLElement>('.pg')?.scrollTop ?? 0) : -1;
     this.kept = -1;
     const views: Array<[ProgressView, string]> = [
-      ['levels', L ? 'Niveaux et récompenses' : 'Levels and rewards'],
-      ['trophies', L ? 'Trophées et défis' : 'Trophies and challenges'],
+      ['levels', S('levelsAndRewards')],
+      ['trophies', S('trophiesAndChallenges')],
     ];
     const sub = `<nav class="hp-tabs mm-subtabs pg-subtabs" role="tablist">${views.map(([v, label]) => `<button role="tab" class="hp-tab${v === this.view ? ' on' : ''}" aria-selected="${v === this.view}" data-pgview="${v}">${label}</button>`).join('')}</nav>`;
     const rewards = this.rewards(level);
@@ -315,17 +493,17 @@ export class ProgressPage {
     const r = rewards.find((x) => x.id === d.id);
     if (!r) return '';
     const L = fr();
-    const lang = L ? 'fr' : 'en';
+    const lang = getLang();
     const rows: Array<[string, string]> = [];
-    const pm = (v: number, unit: string) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString(L ? 'fr-FR' : 'en-GB', { maximumFractionDigits: 3 })} ${unit}`;
-    const factor = (f: number) => `${f < 1 ? '−' : '+'}${Math.abs((f - 1) * 100).toFixed(1).replace('.', L ? ',' : '.')} %`;
+    const pm = (v: number, unit: string) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toLocaleString(S('locale'), { maximumFractionDigits: 3 })} ${unit}`;
+    const factor = (f: number) => `${f < 1 ? '−' : '+'}${Math.abs((f - 1) * 100).toFixed(1).replace('.', S('dec'))} %`;
     const perf = (o: { massKg?: number; cdaFactor?: number; crrFactor?: number; wheelInertia?: number; drivetrain?: number } | undefined) => {
       if (!o) return;
-      if (o.massKg !== undefined) rows.push([L ? 'Masse' : 'Weight', pm(o.massKg, 'kg')]);
-      if (o.cdaFactor !== undefined) rows.push([L ? 'Traînée aéro (CdA)' : 'Aero drag (CdA)', factor(o.cdaFactor)]);
-      if (o.crrFactor !== undefined) rows.push([L ? 'Résistance au roulement' : 'Rolling resistance', factor(o.crrFactor)]);
-      if (o.wheelInertia !== undefined) rows.push([L ? 'Inertie des roues' : 'Wheel inertia', `${o.wheelInertia.toLocaleString(L ? 'fr-FR' : 'en-GB')} kg·m²`]);
-      if (o.drivetrain !== undefined) rows.push([L ? 'Rendement transmission' : 'Drivetrain efficiency', `+${(o.drivetrain * 100).toFixed(1).replace('.', L ? ',' : '.')} %`]);
+      if (o.massKg !== undefined) rows.push([S('weight'), pm(o.massKg, 'kg')]);
+      if (o.cdaFactor !== undefined) rows.push([S('aeroDragCda'), factor(o.cdaFactor)]);
+      if (o.crrFactor !== undefined) rows.push([S('rollingResistance'), factor(o.crrFactor)]);
+      if (o.wheelInertia !== undefined) rows.push([S('wheelInertia'), `${o.wheelInertia.toLocaleString(S('locale'))} kg·m²`]);
+      if (o.drivetrain !== undefined) rows.push([S('drivetrainEfficiency'), `+${(o.drivetrain * 100).toFixed(1).replace('.', S('dec'))} %`]);
     };
     let desc = '';
     let effect = '';
@@ -334,12 +512,12 @@ export class ProgressPage {
       if (t) {
         desc = t.desc[lang];
         effect = t.effect[lang];
-        if (t.brand) rows.push([L ? 'Marque' : 'Brand', t.brand]);
+        if (t.brand) rows.push([S('brand'), t.brand]);
         perf(t.perf);
-        if (t.bonus?.flat !== undefined) rows.push([L ? 'Gain sur le plat' : 'Flat gain', `+${t.bonus.flat} %`]);
-        if (t.bonus?.climb !== undefined) rows.push([L ? 'Gain en côte' : 'Climbing gain', `+${t.bonus.climb} %`]);
-        if (t.pieces?.length) rows.push([L ? 'Pièces' : 'Parts', String(t.pieces.length)]);
-        if (t.price) rows.push([L ? 'Prix' : 'Price', `${COIN} ${int(t.price)}`]);
+        if (t.bonus?.flat !== undefined) rows.push([S('flatGain'), `+${t.bonus.flat} %`]);
+        if (t.bonus?.climb !== undefined) rows.push([S('climbingGain'), `+${t.bonus.climb} %`]);
+        if (t.pieces?.length) rows.push([S('parts'), String(t.pieces.length)]);
+        if (t.price) rows.push([S('price'), `${COIN} ${int(t.price)}`]);
       }
     } else {
       const c = COSMETICS.find((x) => x.id === d.id);
@@ -349,28 +527,27 @@ export class ProgressPage {
         effect = c.effect?.[lang] ?? '';
         if (bike) {
           const brand = BIKE_BRANDS.find((b) => b.id === bike.brand)?.name;
-          if (brand) rows.push([L ? 'Marque' : 'Brand', brand]);
-          if (bike.year) rows.push([L ? 'Année' : 'Year', String(bike.year)]);
-          rows.push([L ? 'Freins' : 'Brakes', bike.params.brakes === 'disc' ? (L ? 'à disque' : 'disc') : bike.params.brakes === 'rim' ? (L ? 'sur jante' : 'rim') : '—']);
+          if (brand) rows.push([S('brand'), brand]);
+          if (bike.year) rows.push([S('year'), String(bike.year)]);
+          rows.push([S('brakes'), bike.params.brakes === 'disc' ? (S('disc')) : bike.params.brakes === 'rim' ? (S('rim')) : '—']);
         }
         perf(c.physics);
       }
     }
-    if (d.v3) rows.push([L ? 'Catégorie' : 'Category', esc(CATS.find(([c]) => c === r.cat)?.[L ? 1 : 2] ?? r.cat)]);
-    rows.push([L ? 'Déblocage' : 'Unlock', `${L ? 'niveau' : 'level'} ${r.level}`]);
+    if (d.v3) rows.push([S('category'), esc(CATS.find(([c]) => c === r.cat)?.[L ? 1 : 2] ?? r.cat)]);
+    rows.push([S('unlock'), `${S('level2')} ${r.level}`]);
     const body = rows.map(([k, v]) => `<div class="pg-d-row"><span>${esc(k)}</span><b>${v}</b></div>`).join('');
     return `<div class="pg-modal" data-pgclose><div class="pg-detail ${r.state}" role="dialog" aria-label="${esc(r.name)}" ${r.rar ? `style="--rar:${r.rar}"` : ''}>
-      <button class="pg-d-x" data-pgclose aria-label="${L ? 'Fermer' : 'Close'}">×</button>
+      <button class="pg-d-x" data-pgclose aria-label="${S('close')}">×</button>
       <div class="pg-d-thumb">${r.thumb}</div>
       <div class="pg-d-main"><h3>${esc(r.name)}</h3><p class="pg-d-sub">${esc(r.sub)}</p><span class="pg-d-state ${r.state}">${r.stateText}</span>
         ${desc ? `<p class="pg-d-desc">${esc(desc)}</p>` : ''}${effect ? `<p class="pg-d-effect">${esc(effect)}</p>` : ''}
         <div class="pg-d-rows">${body}</div>
-        <div class="pg-d-actions"><button class="btn primary" data-pgtry>${d.v3 ? (L ? 'Voir au garage' : 'See in the garage') : d.tune ? (L ? 'Voir à l’atelier' : 'See in the workshop') : L ? 'Essayer au garage' : 'Try in the garage'}</button><button class="btn" data-pgclose>${L ? 'Fermer' : 'Close'}</button></div></div>
+        <div class="pg-d-actions"><button class="btn primary" data-pgtry>${d.v3 ? (S('seeInTheGarage')) : d.tune ? (S('seeInTheWorkshop')) : S('tryInTheGarage')}</button><button class="btn" data-pgclose>${S('close')}</button></div></div>
     </div></div>`;
   }
 
   private heroHtml(level: number, xp: number, rewards: Reward[]): string {
-    const L = fr();
     const p = loadProgress();
     const max = level >= MAX_LEVEL;
     const cur = xpForLevel(level);
@@ -389,20 +566,20 @@ export class ProgressPage {
     return `<header class="pg-hero">
       <div class="pg-badge" style="--p:${prog}">
         <svg viewBox="0 0 110 110" aria-hidden="true"><circle cx="55" cy="55" r="${R}" class="pg-ring-bg"/><circle cx="55" cy="55" r="${R}" class="pg-ring" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - prog)).toFixed(1)}"/></svg>
-        <span><small>${L ? 'Niveau' : 'Level'}</small><b>${level}</b></span>
+        <span><small>${S('level')}</small><b>${level}</b></span>
       </div>
       <div class="pg-hero-main">
-        <h2 class="ab-title">${max ? (L ? 'Niveau maximum atteint' : 'Max level reached') : `${L ? 'Niveau' : 'Level'} ${level}`}</h2>
-        <div class="pg-xpline"><b>${int(xp)} XP</b>${max ? '' : `<span>${L ? `Encore <b>${int(left)} XP</b> pour le niveau ${level + 1}` : `<b>${int(left)} XP</b> to level ${level + 1}`}, ${L ? 'soit' : 'about'} ${kmFor(left).replace('≈ ', '')} ${L ? 'à plat' : 'on the flat'}</span>`}</div>
+        <h2 class="ab-title">${max ? (S('maxLevelReached')) : `${S('level')} ${level}`}</h2>
+        <div class="pg-xpline"><b>${int(xp)} XP</b>${max ? '' : `<span>${fill(S('bXpBTo'), { a: int(left), b: level + 1 })}, ${S('about')} ${kmFor(left).replace('≈ ', '')} ${S('onTheFlat')}</span>`}</div>
         <div class="pg-xpbar"><i style="width:${pct(prog)}"></i><span>${int(cur)}</span><span>${max ? '' : int(next)}</span></div>
-        <div class="pg-rules"><span>${L ? 'Gagner de l’XP :' : 'Earning XP:'}</span><em>20 XP / km</em><em>1 XP / m D+</em><em>2 XP / min</em><em>${ICON.trophy} ${L ? 'trophées' : 'trophies'} +100 → +600</em><em class="dim">${L ? 'max' : 'max'} ${int(MAX_XP_PER_RIDE)} XP / ${L ? 'sortie' : 'ride'}</em></div>
+        <div class="pg-rules"><span>${S('earningXp')}</span><em>20 XP / km</em><em>1 XP / m D+</em><em>2 XP / min</em><em>${ICON.trophy} ${S('trophies')} +100 → +600</em><em class="dim">${S('max')} ${int(MAX_XP_PER_RIDE)} XP / ${S('ride')}</em></div>
       </div>
       <div class="pg-tiles">
-        ${tile(`${earned.size}<i>/${TROPHIES.length}</i>`, L ? 'Trophées' : 'Trophies', ICON.trophy)}
-        ${tile(`${unlocked}<i>/${rewards.length}</i>`, L ? 'Récompenses débloquées' : 'Rewards unlocked', ICON.star)}
-        ${tile(`${events}<i>/10</i>`, L ? 'Défis de l’atelier' : 'Workshop challenges', ICON.gear)}
-        ${tile(`${streak}<i> ${L ? 'j' : 'd'}</i>`, L ? 'Série en cours' : 'Current streak', ICON.flame, L ? 'Jours de sortie d’affilée' : 'Riding days in a row')}
-        ${tile(`${COIN} ${int(this.host.credits())}`, L ? 'Crédits' : 'Credits', '', L ? 'Gagnés en roulant, dépensés à l’atelier' : 'Earned by riding, spent in the workshop')}
+        ${tile(`${earned.size}<i>/${TROPHIES.length}</i>`, S('trophies2'), ICON.trophy)}
+        ${tile(`${unlocked}<i>/${rewards.length}</i>`, S('rewardsUnlocked'), ICON.star)}
+        ${tile(`${events}<i>/10</i>`, S('workshopChallenges'), ICON.gear)}
+        ${tile(`${streak}<i> ${S('d')}</i>`, S('currentStreak'), ICON.flame, S('ridingDaysInA'))}
+        ${tile(`${COIN} ${int(this.host.credits())}`, S('credits'), '', S('earnedByRidingSpent'))}
       </div>
     </header>`;
   }
@@ -424,7 +601,7 @@ export class ProgressPage {
       const open = list.filter((r) => r.state !== 'lock').length;
       return `<button class="pg-chip ${on ? 'on' : ''}" data-pgcat="${c}" aria-pressed="${on}">${label}<i>${open}/${list.length}</i></button>`;
     };
-    const filters = `<div class="pg-filters">${chip('', L ? 'Tout' : 'All', all)}${CATS.map(([c, f, e]) => chip(c, L ? f : e, all.filter((r) => r.cat === c))).join('')}</div>`;
+    const filters = `<div class="pg-filters">${chip('', S('all'), all)}${CATS.map(([c, f, e]) => chip(c, L ? f : e, all.filter((r) => r.cat === c))).join('')}</div>`;
 
     // À la une : le prochain niveau et ce qu'il apporte.
     let spot = '';
@@ -436,11 +613,11 @@ export class ProgressPage {
       const mile = Math.min(MAX_LEVEL, Math.ceil((level + 1) / 10) * 10);
       const mileLeft = xpForLevel(mile) - xp;
       spot = `<article class="pg-spot">
-        <div class="pg-spot-h"><small>${L ? 'Prochain déblocage' : 'Next unlock'}</small><h3>${L ? 'Niveau' : 'Level'} ${nextL}</h3>
-          <p>${L ? `Encore <b>${int(left)} XP</b>` : `<b>${int(left)} XP</b> to go`} · ${kmFor(left)} · ${timeFor(left)}</p>
-          ${mile !== nextL ? `<p class="dim">${L ? `Palier du niveau ${mile} : ${int(mileLeft)} XP (${kmFor(mileLeft)})` : `Level ${mile} milestone: ${int(mileLeft)} XP (${kmFor(mileLeft)})`}</p>` : ''}
+        <div class="pg-spot-h"><small>${S('nextUnlock')}</small><h3>${S('level')} ${nextL}</h3>
+          <p>${S('bXpBTo2').replace('{n}', String(int(left)))} · ${kmFor(left)} · ${timeFor(left)}</p>
+          ${mile !== nextL ? `<p class="dim">${fill(S('levelMilestoneXp'), { a: mile, b: int(mileLeft), c: kmFor(mileLeft) })}</p>` : ''}
         </div>
-        <div class="pg-spot-items">${list.length ? list.slice(0, this.spotAll ? list.length : 8).map((r) => this.card(r, true)).join('') + (list.length > 8 ? `<button type="button" class="pg-more" data-pgmore title="${this.spotAll ? (L ? 'Réduire' : 'Show less') : L ? 'Afficher le reste' : 'Show the rest'}">${this.spotAll ? '−' : `+${list.length - 8}`}</button>` : '') : `<p class="dim">${L ? 'Rien dans ces catégories à ce niveau.' : 'Nothing in these categories at this level.'}</p>`}</div>
+        <div class="pg-spot-items">${list.length ? list.slice(0, this.spotAll ? list.length : 8).map((r) => this.card(r, true)).join('') + (list.length > 8 ? `<button type="button" class="pg-more" data-pgmore title="${this.spotAll ? (S('showLess')) : S('showTheRest')}">${this.spotAll ? '−' : `+${list.length - 8}`}</button>` : '') : `<p class="dim">${S('nothingInTheseCategories')}</p>`}</div>
       </article>`;
     }
 
@@ -452,15 +629,15 @@ export class ProgressPage {
       const curLv = l === level;
       const need = xpForLevel(l);
       const cls = `${done ? 'done' : 'lock'} ${curLv ? 'cur' : ''} ${l === level + 1 ? 'next' : ''} ${MILESTONE(l) ? 'mile' : ''}`;
-      const tag = curLv ? `<em class="pg-tag here">${L ? 'Tu es ici' : 'You are here'}</em>` : l === level + 1 ? `<em class="pg-tag">${L ? 'Prochain' : 'Next'}</em>` : MILESTONE(l) ? `<em class="pg-tag mile">${L ? 'Palier' : 'Milestone'}</em>` : '';
-      const meta = `<span class="pg-lv-xp">${l === 1 ? (L ? 'Au départ' : 'From the start') : `${int(need)} XP`}</span>${!done ? `<span class="pg-lv-eta">${kmFor(need - xp)}</span>` : ''}<span class="pg-lv-n">${list.length} ${list.length > 1 ? (L ? 'récompenses' : 'rewards') : L ? 'récompense' : 'reward'}</span>`;
+      const tag = curLv ? `<em class="pg-tag here">${S('youAreHere')}</em>` : l === level + 1 ? `<em class="pg-tag">${S('next')}</em>` : MILESTONE(l) ? `<em class="pg-tag mile">${S('milestone')}</em>` : '';
+      const meta = `<span class="pg-lv-xp">${l === 1 ? (S('fromTheStart')) : `${int(need)} XP`}</span>${!done ? `<span class="pg-lv-eta">${kmFor(need - xp)}</span>` : ''}<span class="pg-lv-n">${list.length} ${list.length > 1 ? (S('rewards')) : S('reward')}</span>`;
       const items = `<div class="pg-items">${list.map((r) => this.card(r)).join('')}</div>`;
       // Niveaux déjà atteints : repliés (une ligne de miniatures), sauf le niveau actuel.
       const minis = `<span class="pg-minis">${list
         .slice(0, 14)
         .map((r) => `<i class="pg-mini" title="${esc(r.name)}">${r.thumb}</i>`)
         .join('')}${list.length > 14 ? `<i class="pg-mini more">+${list.length - 14}</i>` : ''}</span>`;
-      const head = `<h4>${L ? 'Niveau' : 'Level'} ${l}</h4>${tag}${meta}`;
+      const head = `<h4>${S('level')} ${l}</h4>${tag}${meta}`;
       rows.push(
         done && !curLv
           ? `<li class="pg-lv ${cls}" id="pg-lv-${l}"><span class="pg-node"><b>${l}</b></span><details class="pg-lv-main"><summary>${head}${minis}</summary>${items}</details></li>`
@@ -468,7 +645,7 @@ export class ProgressPage {
       );
     }
     return `<div class="pg-sticky">${filters}</div>${spot}
-      <h3 class="pg-sec">${L ? 'Tous les niveaux' : 'Every level'} <small>${L ? 'Clique une récompense pour la voir.' : 'Click a reward to see it.'}</small></h3>
+      <h3 class="pg-sec">${S('everyLevel')} <small>${S('clickARewardTo')}</small></h3>
       <ol class="pg-road">${rows.join('')}</ol>`;
   }
 
@@ -476,24 +653,24 @@ export class ProgressPage {
 
   private trophiesHtml(level: number, rewards: Reward[]): string {
     const L = fr();
-    const lang = L ? 'fr' : 'en';
+    const lang = getLang();
     const p = loadProgress();
     const earned = new Set(earnedTrophies());
     const tot = rideHistory.summary?.totals;
     const bestKm = (tot?.bestDistanceM ?? 0) / 1000;
     const bestD = tot?.bestElevationM ?? 0;
     const totalKm = trophyTotalKm();
-    const n1 = (v: number) => (Math.floor(v * 10) / 10).toLocaleString(L ? 'fr-FR' : 'en-GB');
-    const best = L ? 'meilleure sortie' : 'best ride';
+    const n1 = (v: number) => (Math.floor(v * 10) / 10).toLocaleString(S('locale'));
+    const best = S('bestRide');
     // Avancement mesurable des trophées : [valeur, objectif, texte].
     const prog: Record<string, [number, number, string] | undefined> = {
-      'first-ride': [tot?.rides ?? 0, 1, `${tot?.rides ?? 0} / 1 ${L ? 'sortie' : 'ride'}`],
+      'first-ride': [tot?.rides ?? 0, 1, `${tot?.rides ?? 0} / 1 ${S('ride')}`],
       'ten-km': [bestKm, 10, `${n1(bestKm)} / 10 km · ${best}`],
       'fifty-km': [bestKm, 50, `${n1(bestKm)} / 50 km · ${best}`],
       'hundred-km': [bestKm, 100, `${n1(bestKm)} / 100 km · ${best}`],
-      'total-500': [totalKm, 500, `${int(totalKm)} / 500 km ${L ? 'au total' : 'in total'}`],
+      'total-500': [totalKm, 500, `${int(totalKm)} / 500 km ${S('inTotal')}`],
       'climber-500': [bestD, 500, `${int(bestD)} / 500 m D+ · ${best}`],
-      'first-kom': [p.koms, 1, `${p.koms} / 1 ${L ? 'montée' : 'climb'}`],
+      'first-kom': [p.koms, 1, `${p.koms} / 1 ${S('climb')}`],
     };
     const xpWon = TROPHIES.filter((t) => earned.has(t.id)).reduce((a, t) => a + t.xp, 0);
     const xpAll = TROPHIES.reduce((a, t) => a + t.xp, 0);
@@ -512,7 +689,7 @@ export class ProgressPage {
             <span class="ab-detail">${esc(t.description[lang])}</span>
             <span class="ab-tag pg-xp ${tr}" title="${TIER_LABEL[tr][L ? 0 : 1]}">+${t.xp} XP</span>
             ${won ? '' : pr ? `<div class="pg-prog">${bar(pr[0] / pr[1], esc(pr[2]))}</div>` : ''}
-            <span class="ab-state"><i></i>${won ? (L ? 'Obtenu' : 'Earned') : pr && pr[0] > 0 ? (L ? 'En cours' : 'In progress') : L ? 'À faire' : 'To do'}</span></article>`;
+            <span class="ab-state"><i></i>${won ? (S('earned')) : pr && pr[0] > 0 ? (S('inProgress')) : S('toDo')}</span></article>`;
           })
           .join('')}</div></div>`;
       })
@@ -524,13 +701,13 @@ export class ProgressPage {
     const streak = p.streak.last === today || p.streak.last === yesterday ? p.streak.days : 0;
     const routes = p.routesDone.length;
     const evProg: Partial<Record<TuneEvent, [number, number, string]>> = {
-      'route-finish': [routes, 1, `${Math.min(routes, 1)} / 1 ${L ? 'parcours' : 'route'}`],
-      'routes-10': [routes, 10, `${routes} / 10 ${L ? 'parcours' : 'routes'}`],
-      kom: [p.koms, 1, `${Math.min(p.koms, 1)} / 1 ${L ? 'montée' : 'climb'}`],
-      'kom-5': [p.koms, 5, `${p.koms} / 5 ${L ? 'montées' : 'climbs'}`],
-      'streak-3': [streak, 3, `${streak} / 3 ${L ? 'jours' : 'days'}`],
-      'streak-7': [streak, 7, `${streak} / 7 ${L ? 'jours' : 'days'}`],
-      'streak-30': [streak, 30, `${streak} / 30 ${L ? 'jours' : 'days'}`],
+      'route-finish': [routes, 1, `${Math.min(routes, 1)} / 1 ${S('route')}`],
+      'routes-10': [routes, 10, `${routes} / 10 ${S('routes')}`],
+      kom: [p.koms, 1, `${Math.min(p.koms, 1)} / 1 ${S('climb')}`],
+      'kom-5': [p.koms, 5, `${p.koms} / 5 ${S('climbs')}`],
+      'streak-3': [streak, 3, `${streak} / 3 ${S('days')}`],
+      'streak-7': [streak, 7, `${streak} / 7 ${S('days')}`],
+      'streak-30': [streak, 30, `${streak} / 30 ${S('days')}`],
       century: [bestKm, 100, `${n1(bestKm)} / 100 km · ${best}`],
     };
     const evItems = TUNE_ITEMS.filter((t) => t.family === 'event' && 'event' in t.unlock);
@@ -542,8 +719,8 @@ export class ProgressPage {
         const rar = RARITY_LABEL[t.rarity];
         return `<button class="pg-ch ${won ? 'won' : ''}" data-pgtune="${t.id}" style="--rar:${rar.color}" title="${esc(`${t.desc[lang]} — ${t.effect[lang]}`)}">
           <span class="pg-ch-goal">${ICON.trophy}<b>${esc(TUNE_EVENT_LABEL[ev][lang])}</b></span>
-          ${won ? `<span class="ab-state is-ok"><i></i>${L ? 'Obtenu' : 'Earned'}</span>` : pr ? `${bar(pr[0] / pr[1], esc(pr[2]))}<span class="ab-state"><i></i>${pr[0] > 0 ? (L ? 'En cours' : 'In progress') : L ? 'À faire' : 'To do'}</span>` : `<span class="ab-state"><i></i>${L ? 'À gagner en course' : 'Win it in a race'}</span>`}
-          <span class="pg-ch-rw"><i class="pg-tune" style="background:${tuneSwatch(t)}"></i><span><small>${L ? 'Récompense' : 'Reward'} · <em>${rar[lang]}</em></small><b>${esc(t.name[lang])}</b><small>${t.slot ? TUNE_SLOT_LABEL[t.slot][L ? 0 : 1] : ''} · ${esc(t.effect[lang])}</small></span></span>
+          ${won ? `<span class="ab-state is-ok"><i></i>${S('earned')}</span>` : pr ? `${bar(pr[0] / pr[1], esc(pr[2]))}<span class="ab-state"><i></i>${pr[0] > 0 ? (S('inProgress')) : S('toDo')}</span>` : `<span class="ab-state"><i></i>${S('winItInA')}</span>`}
+          <span class="pg-ch-rw"><i class="pg-tune" style="background:${tuneSwatch(t)}"></i><span><small>${S('reward2')} · <em>${rar[lang]}</em></small><b>${esc(t.name[lang])}</b><small>${t.slot ? TUNE_SLOT_LABEL[t.slot][L ? 0 : 1] : ''} · ${esc(t.effect[lang])}</small></span></span>
         </button>`;
       })
       .join('');
@@ -559,8 +736,8 @@ export class ProgressPage {
         return `<button class="pg-kit ${kp.complete ? 'won' : ''} ${locked ? 'lock' : ''}" data-pgtune="${k.id}" style="--rar:${k.badge ?? RARITY_LABEL[k.rarity].color}">
           <span class="pg-kit-img">${bikeThumb(build, k.id)}</span>
           <b>${esc(k.name[lang])}</b>
-          <small>${L ? 'Titre' : 'Title'} « ${esc(k.title?.[lang] ?? '')} »</small>
-          ${bar(kp.have / Math.max(1, kp.total), `${kp.have}/${kp.total} ${L ? 'pièces' : 'parts'}${locked ? ` · ${L ? 'niveau' : 'level'} ${lvl}` : ''}`, kp.complete)}
+          <small>${S('title')} « ${esc(k.title?.[lang] ?? '')} »</small>
+          ${bar(kp.have / Math.max(1, kp.total), `${kp.have}/${kp.total} ${S('parts2')}${locked ? ` · ${S('level2')} ${lvl}` : ''}`, kp.complete)}
         </button>`;
       })
       .join('');
@@ -570,16 +747,16 @@ export class ProgressPage {
       const list = rewards.filter((r) => r.cat === c);
       const open = list.filter((r) => r.state !== 'lock').length;
       const own = c === 'tune' || c === 'kit' ? list.filter((r) => r.state === 'own' || r.state === 'on').length : null;
-      return `<div class="pg-coll"><b>${L ? f : e}</b>${bar(open / Math.max(1, list.length), `${open}/${list.length} ${L ? 'débloqués' : 'unlocked'}${own !== null ? ` · ${own} ${c === 'kit' ? (L ? 'complets' : 'complete') : L ? 'possédées' : 'owned'}` : ''}`)}</div>`;
+      return `<div class="pg-coll"><b>${L ? f : e}</b>${bar(open / Math.max(1, list.length), `${open}/${list.length} ${S('unlocked2')}${own !== null ? ` · ${own} ${c === 'kit' ? (S('complete2')) : S('owned2')}` : ''}`)}</div>`;
     }).join('');
 
-    return `<h3 class="pg-sec">${L ? 'Trophées' : 'Trophies'} <i>${earned.size}/${TROPHIES.length}</i><small>${int(xpWon)} / ${int(xpAll)} XP ${L ? 'gagnés' : 'earned'}</small></h3>
+    return `<h3 class="pg-sec">${S('trophies2')} <i>${earned.size}/${TROPHIES.length}</i><small>${int(xpWon)} / ${int(xpAll)} XP ${S('earned2')}</small></h3>
       ${trophies}
-      <h3 class="pg-sec">${L ? 'Défis de l’atelier' : 'Workshop challenges'} <i>${evItems.filter((t) => p.events.includes((t.unlock as { event: TuneEvent }).event) || p.owned.includes(t.id)).length}/${evItems.length}</i><small>${L ? 'Des pièces qui ne s’achètent pas' : 'Parts that cannot be bought'}</small></h3>
+      <h3 class="pg-sec">${S('workshopChallenges')} <i>${evItems.filter((t) => p.events.includes((t.unlock as { event: TuneEvent }).event) || p.owned.includes(t.id)).length}/${evItems.length}</i><small>${S('partsThatCannotBe')}</small></h3>
       <div class="pg-chs">${challenges}</div>
-      <h3 class="pg-sec">${L ? 'Ensembles' : 'Sets'} <i>${TUNE_KITS.filter((k) => kitProgress(k, p.owned).complete).length}/${TUNE_KITS.length}</i><small>${L ? 'Un ensemble complet donne son titre' : 'A complete set earns its title'}</small></h3>
+      <h3 class="pg-sec">${S('sets')} <i>${TUNE_KITS.filter((k) => kitProgress(k, p.owned).complete).length}/${TUNE_KITS.length}</i><small>${S('aCompleteSetEarns')}</small></h3>
       <div class="pg-kits">${kits}</div>
-      <h3 class="pg-sec">${L ? 'Collection' : 'Collection'}</h3>
+      <h3 class="pg-sec">${S('collection')}</h3>
       <div class="pg-colls">${coll}</div>`;
   }
 

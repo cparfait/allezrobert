@@ -1,7 +1,33 @@
-import { getLang } from '../i18n/index.ts';
+import { getLang, strings } from '../i18n/index.ts';
 import { thousands, type SummitStats } from '../game/climb.ts';
 import './blocks.css';
 import './summit.css';
+
+/** Textes du module (français, anglais). */
+const S = strings(
+  {
+    personalBest: 'record personnel',
+    offTheRecord: 'sur le record',
+    summitFinish: 'Arrivée au sommet',
+    time: 'Temps',
+    avgPower: 'Puissance moy.',
+    climbing: 'Dénivelé',
+    backToMenu: 'Retour au menu',
+    fullSummary: 'Bilan détaillé',
+    dec: ',',
+  },
+  {
+    personalBest: 'personal best',
+    offTheRecord: 'off the record',
+    summitFinish: 'Summit finish',
+    time: 'Time',
+    avgPower: 'Avg power',
+    climbing: 'Climbing',
+    backToMenu: 'Back to menu',
+    fullSummary: 'Full summary',
+    dec: '.',
+  },
+);
 
 export interface SummitCallbacks {
   /** Bilan complet de la sortie (graphiques, records, fichiers FIT / GPX). */
@@ -27,7 +53,7 @@ function esc(s: string): string {
  */
 export function showSummit(root: HTMLElement, data: { routeName: string; altitudeM: number; stats: SummitStats }, cb: SummitCallbacks): void {
   const fr = getLang() === 'fr';
-  const nf1 = (v: number) => (fr ? v.toFixed(1).replace('.', ',') : v.toFixed(1));
+  const nf1 = (v: number) => v.toFixed(1).replace('.', S('dec'));
   const s = data.stats;
   const tile = (label: string, value: string, unit = '') => `<div class="ab-tile ab-plain smt-tile"><span class="ab-detail">${label}</span><span class="ab-val"><b>${value}</b>${unit ? `<small>${unit}</small>` : ''}</span></div>`;
   const k = s.kom;
@@ -35,7 +61,7 @@ export function showSummit(root: HTMLElement, data: { routeName: string; altitud
   if (k) {
     const rec = k.recordS;
     const best = rec !== null && k.timeS <= rec + 0.5;
-    const delta = rec === null ? '' : best ? (fr ? 'record personnel' : 'personal best') : `+${fmtTime(k.timeS - rec)} ${fr ? 'sur le record' : 'off the record'} (${fmtTime(rec)})`;
+    const delta = rec === null ? '' : best ? (S('personalBest')) : `+${fmtTime(k.timeS - rec)} ${S('offTheRecord')} (${fmtTime(rec)})`;
     komHtml = `<section class="smt-kom">
       <h3 class="ab-section"><span class="smt-dots" aria-hidden="true"></span>${esc(k.name)}</h3>
       <div class="smt-kom-row">
@@ -47,20 +73,20 @@ export function showSummit(root: HTMLElement, data: { routeName: string; altitud
   }
   root.innerHTML = `<div class="smt">
     <div class="smt-card">
-      <p class="smt-kicker">${fr ? 'Arrivée au sommet' : 'Summit finish'}</p>
+      <p class="smt-kicker">${S('summitFinish')}</p>
       <h1 class="ab-title">${esc(data.routeName)}</h1>
       <p class="smt-alt num">${thousands(data.altitudeM, fr)} m</p>
       <div class="smt-tiles">
-        ${tile(fr ? 'Temps' : 'Time', fmtTime(s.timeS))}
-        ${tile(fr ? 'Puissance moy.' : 'Avg power', String(Math.round(s.avgWatts)), 'W')}
+        ${tile(S('time'), fmtTime(s.timeS))}
+        ${tile(S('avgPower'), String(Math.round(s.avgWatts)), 'W')}
         ${tile('W/kg', nf1(s.wkg))}
         ${tile('VAM', thousands(s.vam, fr), 'm/h')}
-        ${tile(fr ? 'Dénivelé' : 'Climbing', thousands(s.elevationGainM, fr), 'm')}
+        ${tile(S('climbing'), thousands(s.elevationGainM, fr), 'm')}
       </div>
       ${komHtml}
       <div class="smt-actions">
-        <button class="smt-btn accent ab-btn ab-go" id="smt-menu">${fr ? 'Retour au menu' : 'Back to menu'}</button>
-        <button class="smt-btn ab-btn" id="smt-summary">${fr ? 'Bilan détaillé' : 'Full summary'}</button>
+        <button class="smt-btn accent ab-btn ab-go" id="smt-menu">${S('backToMenu')}</button>
+        <button class="smt-btn ab-btn" id="smt-summary">${S('fullSummary')}</button>
       </div>
     </div>
   </div>`;

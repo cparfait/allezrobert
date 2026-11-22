@@ -1,4 +1,4 @@
-import { getLang } from '../i18n/index.ts';
+import { getLang, strings } from '../i18n/index.ts';
 import type { RideSession } from '../game/ride.ts';
 import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, type RideStats } from '../game/stats.ts';
 import type { HistoryRide, RideFeedback } from '@allezrobert/shared';
@@ -95,8 +95,164 @@ const FEELINGS: Array<[RideFeedback, string, string]> = [
   ['failed', 'Pas tenu', 'Couldn’t finish'],
 ];
 
+/** Textes du module (français, anglais). */
+const S = strings(
+  {
+    dec: ',',
+    vsLastTime: 'Vs dernière fois',
+    on: 'le',
+    locale: 'fr-FR',
+    firstTimeHere: 'première fois ici',
+    time: 'Temps',
+    climbing: 'Dénivelé +',
+    avgSpeed: 'Vitesse moy.',
+    avgPower: 'Puissance moy.',
+    normalized: 'Normalisée',
+    loadTssIf: 'Charge (TSS) · IF',
+    avgHr: 'Cardio moy.',
+    energy: 'Énergie',
+    climbing2: 'Dénivelé',
+    heartRate: 'Cardio',
+    level: 'Niveau',
+    vsLastTime2: 'vs dernière fois',
+    wellDoneEmGreat: 'Bravo, <em>belle sortie</em> !',
+    resume: 'Reprendre',
+    newRide: 'Nouvelle sortie',
+    quit: 'Quitter',
+    credits: 'crédits',
+    unlocked: 'Débloqué',
+    workshop: 'Atelier',
+    guest: 'Invité',
+    noRankingsXpOr: 'Sortie hors classements, sans XP ni export.',
+    challenge: 'Défi',
+    firstRecordSet: 'Premier record établi',
+    recordBeatenBy: 'Record battu de',
+    best: 'Record',
+    trophies: 'Trophées',
+    newRecords: 'Nouveaux records',
+    inTheGroup: 'En groupe',
+    onAWheel: 'Dans les roues',
+    energySaved: 'Énergie économisée',
+    pullsTaken: 'Relais pris',
+    summitPhotos: 'Photos au sommet',
+    saveThePhoto: 'Enregistrer la photo',
+    summitPhoto: 'Photo au sommet',
+    howDidItFeel: 'Ton ressenti',
+    keepThisRide: 'Garde ta sortie',
+    withoutAnAccountIt: 'Sans compte, elle reste sur cet appareil.',
+    signIn: 'Se connecter',
+    rideCard: 'Carte de sortie',
+    anImageToPost: 'Une image à poster.',
+    save: 'Enregistrer',
+    copy: 'Copier',
+    share: 'Partager…',
+    rideFiles: 'Fichiers de la sortie',
+    fitForStravaAnd: '.fit pour Strava et Garmin, .gpx pour le tracé.',
+    theTest: 'Le test',
+    yourPowerAndThe: 'Ta puissance et la consigne',
+    heartRateAndPower: 'Cardio et puissance',
+    powerCurve: 'Courbe de puissance',
+    thisRide: 'Cette sortie',
+    yourRecordsBefore: 'Tes records (avant)',
+    profilePowerHeartRate: 'Profil · puissance · cardio',
+    timeInZone: 'Temps par zone',
+    segmentsAndRecords: 'Segments et records',
+    imageCopiedPasteIt: 'Image copiée : colle-la dans ton message.',
+    copyNotAvailableHere: 'Copie impossible ici : utilise « Enregistrer ».',
+    fileSharingNotAvailable: 'Partage de fichier indisponible ici.',
+    couldNotShare: 'Partage impossible.',
+    avgCadence: 'Cadence moy.',
+    backToHistory: 'Retour à l’historique',
+    noZoneDataFor: 'Zones inconnues pour cette sortie.',
+    record: 'record',
+    elevation: 'Altitude',
+    power: 'Puissance',
+    beaten1: '{n} record battu',
+    beatenN: '{n} records battus',
+    trophy1: '{n} trophée',
+    trophyN: '{n} trophées',
+    rpm: 'tr/min',
+  },
+  {
+    dec: '.',
+    vsLastTime: 'Vs last time',
+    on: 'on',
+    locale: 'en-GB',
+    firstTimeHere: 'first time here',
+    time: 'Time',
+    climbing: 'Climbing',
+    avgSpeed: 'Avg speed',
+    avgPower: 'Avg power',
+    normalized: 'Normalized',
+    loadTssIf: 'Load (TSS) · IF',
+    avgHr: 'Avg HR',
+    energy: 'Energy',
+    climbing2: 'Climbing',
+    heartRate: 'Heart rate',
+    level: 'Level',
+    vsLastTime2: 'vs last time',
+    wellDoneEmGreat: 'Well done, <em>great ride</em>!',
+    resume: 'Resume',
+    newRide: 'New ride',
+    quit: 'Quit',
+    credits: 'credits',
+    unlocked: 'Unlocked',
+    workshop: 'Workshop',
+    guest: 'Guest',
+    noRankingsXpOr: 'No rankings, XP or export.',
+    challenge: 'Challenge',
+    firstRecordSet: 'First record set',
+    recordBeatenBy: 'Record beaten by',
+    best: 'Best',
+    trophies: 'Trophies',
+    newRecords: 'New records',
+    inTheGroup: 'In the group',
+    onAWheel: 'On a wheel',
+    energySaved: 'Energy saved',
+    pullsTaken: 'Pulls taken',
+    summitPhotos: 'Summit photos',
+    saveThePhoto: 'Save the photo',
+    summitPhoto: 'Summit photo',
+    howDidItFeel: 'How did it feel?',
+    keepThisRide: 'Keep this ride',
+    withoutAnAccountIt: 'Without an account it stays on this device.',
+    signIn: 'Sign in',
+    rideCard: 'Ride card',
+    anImageToPost: 'An image to post.',
+    save: 'Save',
+    copy: 'Copy',
+    share: 'Share…',
+    rideFiles: 'Ride files',
+    fitForStravaAnd: '.fit for Strava and Garmin, .gpx for the route.',
+    theTest: 'The test',
+    yourPowerAndThe: 'Your power and the target',
+    heartRateAndPower: 'Heart rate and power',
+    powerCurve: 'Power curve',
+    thisRide: 'This ride',
+    yourRecordsBefore: 'Your records (before)',
+    profilePowerHeartRate: 'Profile · power · heart rate',
+    timeInZone: 'Time in zone',
+    segmentsAndRecords: 'Segments and records',
+    imageCopiedPasteIt: 'Image copied: paste it in your message.',
+    copyNotAvailableHere: 'Copy not available here: use “Save”.',
+    fileSharingNotAvailable: 'File sharing not available here.',
+    couldNotShare: 'Could not share.',
+    avgCadence: 'Avg cadence',
+    backToHistory: 'Back to history',
+    noZoneDataFor: 'No zone data for this ride.',
+    record: 'record',
+    elevation: 'Elevation',
+    power: 'Power',
+    beaten1: '{n} record beaten',
+    beatenN: '{n} records beaten',
+    trophy1: '{n} trophy',
+    trophyN: '{n} trophies',
+    rpm: 'rpm',
+  },
+);
+
 const fr = () => getLang() === 'fr';
-const num = (v: number, d = 0) => v.toFixed(d).replace('.', fr() ? ',' : '.');
+const num = (v: number, d = 0) => v.toFixed(d).replace('.', S('dec'));
 
 function hms(s: number): string {
   const h = Math.floor(s / 3600);
@@ -116,47 +272,47 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   const prev = d.previous;
   const vs = prev ? s.avgSpeedKmh - prev.avgSpeedKmh : null;
   const vsTile: [string, string, string] = [
-    L ? 'Vs dernière fois' : 'Vs last time',
+    S('vsLastTime'),
     vs === null ? '—' : `${vs >= 0 ? '+' : '−'}${num(Math.abs(vs), 1)} km/h`,
-    prev ? `${L ? 'le' : 'on'} ${new Date(prev.date).toLocaleDateString(L ? 'fr-FR' : 'en-GB')}` : L ? 'première fois ici' : 'first time here',
+    prev ? `${S('on')} ${new Date(prev.date).toLocaleDateString(S('locale'))}` : S('firstTimeHere'),
   ];
   // Deux familles : le parcours (distance, temps, allure) et l'effort (puissance, cœur, énergie).
   const course: Array<[string, string, string?]> = [
     ['Distance', `${num(s.distanceM / 1000, 2)} km`],
-    [L ? 'Temps' : 'Time', hms(s.movingS)],
-    [L ? 'Dénivelé +' : 'Climbing', `${Math.round(s.elevationGainM)} m`],
-    [L ? 'Vitesse moy.' : 'Avg speed', `${num(s.avgSpeedKmh, 1)} km/h`, `max ${num(s.maxSpeedKmh, 1)}`],
+    [S('time'), hms(s.movingS)],
+    [S('climbing'), `${Math.round(s.elevationGainM)} m`],
+    [S('avgSpeed'), `${num(s.avgSpeedKmh, 1)} km/h`, `max ${num(s.maxSpeedKmh, 1)}`],
     vsTile,
   ];
   const effort: Array<[string, string, string?]> = [
-    [L ? 'Puissance moy.' : 'Avg power', `${Math.round(s.avgWatts)} W`, `${num(s.avgWatts / d.massKg, 1)} W/kg`],
-    [L ? 'Normalisée' : 'Normalized', `${Math.round(s.np)} W`, `max ${Math.round(s.maxWatts)} W`],
-    [L ? 'Charge (TSS) · IF' : 'Load (TSS) · IF', `${Math.round(s.tss)} · ${num(s.ifactor, 2)}`],
-    [L ? 'Cardio moy.' : 'Avg HR', s.avgHr ? `${Math.round(s.avgHr)} bpm` : '— bpm', [s.maxHr ? `max ${Math.round(s.maxHr)}` : '', s.avgCadence ? `${Math.round(s.avgCadence)} tr/min` : ''].filter(Boolean).join(' · ')],
-    [L ? 'Énergie' : 'Energy', `${Math.round(s.kcal)} kcal`, `${Math.round(s.workKJ)} kJ`],
+    [S('avgPower'), `${Math.round(s.avgWatts)} W`, `${num(s.avgWatts / d.massKg, 1)} W/kg`],
+    [S('normalized'), `${Math.round(s.np)} W`, `max ${Math.round(s.maxWatts)} W`],
+    [S('loadTssIf'), `${Math.round(s.tss)} · ${num(s.ifactor, 2)}`],
+    [S('avgHr'), s.avgHr ? `${Math.round(s.avgHr)} bpm` : '— bpm', [s.maxHr ? `max ${Math.round(s.maxHr)}` : '', s.avgCadence ? `${Math.round(s.avgCadence)} ${S('rpm')}` : ''].filter(Boolean).join(' · ')],
+    [S('energy'), `${Math.round(s.kcal)} kcal`, `${Math.round(s.workKJ)} kJ`],
   ];
   // Bilan lisible d'un coup d'œil : quatre grands chiffres, le reste sur une ligne.
   const heroTiles: Array<[string, string, string?]> = [course[0], course[1], effort[0], course[3]] as Array<[string, string, string?]>;
   const minor: Array<[string, string]> = [
-    [L ? 'Dénivelé' : 'Climbing', `${Math.round(s.elevationGainM)} m`],
-    [L ? 'Normalisée' : 'Normalized', `${Math.round(s.np)} W`],
+    [S('climbing2'), `${Math.round(s.elevationGainM)} m`],
+    [S('normalized'), `${Math.round(s.np)} W`],
     ['TSS', `${Math.round(s.tss)}`],
     ['IF', num(s.ifactor, 2)],
-    ...(s.avgHr ? ([[L ? 'Cardio' : 'Heart rate', `${Math.round(s.avgHr)} bpm${s.maxHr ? ` (max ${Math.round(s.maxHr)})` : ''}`]] as Array<[string, string]>) : []),
+    ...(s.avgHr ? ([[S('heartRate'), `${Math.round(s.avgHr)} bpm${s.maxHr ? ` (max ${Math.round(s.maxHr)})` : ''}`]] as Array<[string, string]>) : []),
     ...(s.avgCadence ? ([['Cadence', `${Math.round(s.avgCadence)} tr/min`]] as Array<[string, string]>) : []),
-    [L ? 'Énergie' : 'Energy', `${Math.round(s.kcal)} kcal`],
+    [S('energy'), `${Math.round(s.kcal)} kcal`],
     ...(vs !== null ? ([[vsTile[0], vsTile[1]]] as Array<[string, string]>) : []),
   ];
   const minorHtml = `<div class="sum-minor">${minor.map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join('')}</div>`;
   const tilesHtml = (list: Array<[string, string, string?]>, icons: string[] = []) => list.map(([k, v, sub], i) => figureBlock(k, v, sub, icons[i])).join('');
   // Pastilles du résumé : ce qui compte en un coup d'œil.
   const chips: string[] = [];
-  if (d.records.beaten.length) chips.push(`<span class="sum-chip gold">🏅 ${d.records.beaten.length} ${L ? (d.records.beaten.length > 1 ? 'records battus' : 'record battu') : d.records.beaten.length > 1 ? 'records beaten' : 'record beaten'}</span>`);
-  if (d.xp?.levelUp) chips.push(`<span class="sum-chip gold">🎉 ${L ? 'Niveau' : 'Level'} ${d.xp.level}</span>`);
-  if (d.trophies?.length) chips.push(`<span class="sum-chip gold">🏆 ${d.trophies.length} ${L ? (d.trophies.length > 1 ? 'trophées' : 'trophée') : d.trophies.length > 1 ? 'trophies' : 'trophy'}</span>`);
+  if (d.records.beaten.length) chips.push(`<span class="sum-chip gold">🏅 ${S(d.records.beaten.length > 1 ? 'beatenN' : 'beaten1').replace('{n}', String(d.records.beaten.length))}</span>`);
+  if (d.xp?.levelUp) chips.push(`<span class="sum-chip gold">🎉 ${S('level')} ${d.xp.level}</span>`);
+  if (d.trophies?.length) chips.push(`<span class="sum-chip gold">🏆 ${S(d.trophies.length > 1 ? 'trophyN' : 'trophy1').replace('{n}', String(d.trophies.length))}</span>`);
   const ftpT = d.ftpTest;
   const fv = ftpT ? ftpReportView(ftpT, L) : null;
-  if (vs !== null && !ftpT) chips.push(`<span class="sum-chip ${vs >= 0 ? 'up' : 'down'}">${vs >= 0 ? '▲' : '▼'} ${num(Math.abs(vs), 1)} km/h ${L ? 'vs dernière fois' : 'vs last time'}</span>`);
+  if (vs !== null && !ftpT) chips.push(`<span class="sum-chip ${vs >= 0 ? 'up' : 'down'}">${vs >= 0 ? '▲' : '▼'} ${num(Math.abs(vs), 1)} km/h ${S('vsLastTime2')}</span>`);
   if (d.xp) chips.push(`<span class="sum-chip">+${d.xp.gained} XP</span>`);
   const segs = d.ride.segmentResults;
   const g = d.ride.group;
@@ -164,43 +320,43 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
       <div class="sum-hero"><span class="sum-robert" aria-hidden="true"></span>
-        <div><h1 class="ab-title">${fv ? fv.title : L ? 'Bravo, <em>belle sortie</em> !' : 'Well done, <em>great ride</em>!'}</h1><p class="ab-sub">${fv ? esc(fv.subtitle) : esc(d.routeName)}</p>
+        <div><h1 class="ab-title">${fv ? fv.title : S('wellDoneEmGreat')}</h1><p class="ab-sub">${fv ? esc(fv.subtitle) : esc(d.routeName)}</p>
           ${chips.length ? `<div class="sum-chips">${chips.join('')}</div>` : ''}</div></div>
       <nav class="sum-actions">
-        ${a.onResume ? `<button class="sum-btn ab-btn" id="s-resume">${L ? 'Reprendre' : 'Resume'}</button>` : ''}
-        <button class="sum-btn accent ab-btn ab-go" id="s-new">${L ? 'Nouvelle sortie' : 'New ride'}</button>
-        <button class="sum-btn ab-btn" id="s-quit">${L ? 'Quitter' : 'Quit'}</button>
+        ${a.onResume ? `<button class="sum-btn ab-btn" id="s-resume">${S('resume')}</button>` : ''}
+        <button class="sum-btn accent ab-btn ab-go" id="s-new">${S('newRide')}</button>
+        <button class="sum-btn ab-btn" id="s-quit">${S('quit')}</button>
       </nav>
     </header>
     <div class="sum-body">
       <aside class="sum-side">
         ${
           d.xp
-            ? `<section class="sum-card sum-level">${blockHead(IC.level, `${L ? 'Niveau' : 'Level'} ${d.xp.level}${d.xp.levelUp ? ' 🎉' : ''}`)}<div class="sum-lv"><i class="sum-xp"><i style="width:${(d.xp.progress * 100).toFixed(0)}%"></i></i></div>
-              <p>+${d.xp.gained} XP <span>(${esc(d.xp.detail)})</span>${d.xp.credits ? ` · <b class="sum-credits">+${d.xp.credits} ${L ? 'crédits' : 'credits'}</b>` : ''}</p>${d.xp.unlocked.length ? `<p class="sum-unlock">${L ? 'Débloqué' : 'Unlocked'} : ${d.xp.unlocked.map(esc).join(', ')}</p>` : ''}${d.xp.won?.length ? `<p class="sum-unlock">🔧 ${L ? 'Atelier' : 'Workshop'} : ${d.xp.won.map(esc).join(', ')}</p>` : ''}</section>`
-            : `<section class="sum-card">${blockHead(IC.user, L ? 'Invité' : 'Guest')}<p class="sum-muted">${L ? 'Sortie hors classements, sans XP ni export.' : 'No rankings, XP or export.'}</p></section>`
+            ? `<section class="sum-card sum-level">${blockHead(IC.level, `${S('level')} ${d.xp.level}${d.xp.levelUp ? ' 🎉' : ''}`)}<div class="sum-lv"><i class="sum-xp"><i style="width:${(d.xp.progress * 100).toFixed(0)}%"></i></i></div>
+              <p>+${d.xp.gained} XP <span>(${esc(d.xp.detail)})</span>${d.xp.credits ? ` · <b class="sum-credits">+${d.xp.credits} ${S('credits')}</b>` : ''}</p>${d.xp.unlocked.length ? `<p class="sum-unlock">${S('unlocked')} : ${d.xp.unlocked.map(esc).join(', ')}</p>` : ''}${d.xp.won?.length ? `<p class="sum-unlock">🔧 ${S('workshop')} : ${d.xp.won.map(esc).join(', ')}</p>` : ''}</section>`
+            : `<section class="sum-card">${blockHead(IC.user, S('guest'))}<p class="sum-muted">${S('noRankingsXpOr')}</p></section>`
         }
         ${
           d.challenge
-            ? `<section class="sum-card sum-challenge">${blockHead(IC.flag, `${L ? 'Défi' : 'Challenge'} · ${esc(d.challenge.name)}`)}<span class="ab-val"><b>${hms(d.challenge.timeS)}</b></span><p>${
+            ? `<section class="sum-card sum-challenge">${blockHead(IC.flag, `${S('challenge')} · ${esc(d.challenge.name)}`)}<span class="ab-val"><b>${hms(d.challenge.timeS)}</b></span><p>${
                 d.challenge.isRecord
                   ? d.challenge.previousS === null
-                    ? L ? 'Premier record établi' : 'First record set'
-                    : `🏆 ${L ? 'Record battu de' : 'Record beaten by'} ${Math.round(d.challenge.previousS - d.challenge.timeS)} s`
-                  : `${L ? 'Record' : 'Best'} ${hms(d.challenge.previousS as number)} (+${Math.round(d.challenge.timeS - (d.challenge.previousS as number))} s)`
+                    ? S('firstRecordSet')
+                    : `🏆 ${S('recordBeatenBy')} ${Math.round(d.challenge.previousS - d.challenge.timeS)} s`
+                  : `${S('best')} ${hms(d.challenge.previousS as number)} (+${Math.round(d.challenge.timeS - (d.challenge.previousS as number))} s)`
               }</p></section>`
             : ''
         }
         ${
           d.trophies?.length
-            ? `<section class="sum-card">${blockHead(IC.cup, L ? 'Trophées' : 'Trophies')}${d.trophies
+            ? `<section class="sum-card">${blockHead(IC.cup, S('trophies'))}${d.trophies
                 .map((t) => `<div class="sum-row sum-trophy"><span><b>${esc(t.name)}</b><small>${esc(t.description)}</small></span><b></b><em>+${t.xp} XP</em></div>`)
                 .join('')}</section>`
             : ''
         }
         ${
           beaten.length
-            ? `<section class="sum-card">${blockHead(IC.medal, L ? 'Nouveaux records' : 'New records')}${beaten
+            ? `<section class="sum-card">${blockHead(IC.medal, S('newRecords'))}${beaten
                 .map((dur) => {
                   const w = s.curve.find((p) => p.durationS === dur)?.watts ?? 0;
                   return `<div class="sum-row"><span>${durationLabel(dur)}</span><b>${Math.round(w)} W</b><em>+${Math.max(1, Math.round(w - (d.records.previous[dur] ?? 0)))} W</em></div>`;
@@ -210,33 +366,33 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         }
         ${
           d.withGroup && (g.draftS > 0 || g.pulls > 0 || g.savedJ > 0)
-            ? `<section class="sum-card">${blockHead(IC.group, L ? 'En groupe' : 'In the group')}
-              <div class="sum-row"><span>${L ? 'Dans les roues' : 'On a wheel'}</span><b>${hms(g.draftS)}</b></div>
-              <div class="sum-row"><span>${L ? 'Énergie économisée' : 'Energy saved'}</span><b>${Math.round(g.savedJ / 1000)} kJ</b></div>
-              <div class="sum-row"><span>${L ? 'Relais pris' : 'Pulls taken'}</span><b>${g.pulls}</b></div></section>`
+            ? `<section class="sum-card">${blockHead(IC.group, S('inTheGroup'))}
+              <div class="sum-row"><span>${S('onAWheel')}</span><b>${hms(g.draftS)}</b></div>
+              <div class="sum-row"><span>${S('energySaved')}</span><b>${Math.round(g.savedJ / 1000)} kJ</b></div>
+              <div class="sum-row"><span>${S('pullsTaken')}</span><b>${g.pulls}</b></div></section>`
             : ''
         }
         ${
           d.ride.summitPhotos.length
-            ? `<section class="sum-card">${blockHead(IC.camera, L ? 'Photos au sommet' : 'Summit photos')}<div class="sum-photos">${d.ride.summitPhotos
-                .map((src, i) => `<a href="${src}" download="allez-robert-sommet-${i + 1}.jpg" title="${L ? 'Enregistrer la photo' : 'Save the photo'}"><img src="${src}" alt="${L ? 'Photo au sommet' : 'Summit photo'} ${i + 1}" /></a>`)
+            ? `<section class="sum-card">${blockHead(IC.camera, S('summitPhotos'))}<div class="sum-photos">${d.ride.summitPhotos
+                .map((src, i) => `<a href="${src}" download="allez-robert-sommet-${i + 1}.jpg" title="${S('saveThePhoto')}"><img src="${src}" alt="${S('summitPhoto')} ${i + 1}" /></a>`)
                 .join('')}</div></section>`
             : ''
         }
         ${
           a.onFeedback
-            ? `<section class="sum-card sum-feel">${blockHead(IC.feel, L ? 'Ton ressenti' : 'How did it feel?')}<div class="sum-feel-row">${FEELINGS.map(([id, f, e]) => `<button class="sum-btn" data-feel="${id}">${L ? f : e}</button>`).join('')}</div></section>`
+            ? `<section class="sum-card sum-feel">${blockHead(IC.feel, S('howDidItFeel'))}<div class="sum-feel-row">${FEELINGS.map(([id, f, e]) => `<button class="sum-btn" data-feel="${id}">${L ? f : e}</button>`).join('')}</div></section>`
             : ''
         }
         ${
           localStorage.getItem('ar.skipLogin')
-            ? `<section class="sum-card sum-login">${blockHead(IC.user, L ? 'Garde ta sortie' : 'Keep this ride')}<p>${L ? 'Sans compte, elle reste sur cet appareil.' : 'Without an account it stays on this device.'}</p><button class="sum-btn" id="s-login">${L ? 'Se connecter' : 'Sign in'}</button></section>`
+            ? `<section class="sum-card sum-login">${blockHead(IC.user, S('keepThisRide'))}<p>${S('withoutAnAccountIt')}</p><button class="sum-btn" id="s-login">${S('signIn')}</button></section>`
             : ''
         }
         <section class="sum-card sum-share">
-          ${blockHead(IC.share, L ? 'Carte de sortie' : 'Ride card')}
-          <p class="sum-muted">${L ? 'Une image à poster.' : 'An image to post.'}</p>
-          <div class="sum-share-btns"><button class="sum-btn" id="s-card">${L ? 'Enregistrer' : 'Save'}</button>${a.cardBlob ? `<button class="sum-btn" id="s-card-copy">${L ? 'Copier' : 'Copy'}</button><button class="sum-btn" id="s-card-share" hidden>${L ? 'Partager…' : 'Share…'}</button>` : ''}</div>
+          ${blockHead(IC.share, S('rideCard'))}
+          <p class="sum-muted">${S('anImageToPost')}</p>
+          <div class="sum-share-btns"><button class="sum-btn" id="s-card">${S('save')}</button>${a.cardBlob ? `<button class="sum-btn" id="s-card-copy">${S('copy')}</button><button class="sum-btn" id="s-card-share" hidden>${S('share')}</button>` : ''}</div>
           <div class="sum-online" id="s-online"></div>
           <p class="sum-share-msg" id="s-share-msg" role="status"></p>
         </section>
@@ -244,8 +400,8 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
           d.guest
             ? ''
             : `<section class="sum-card sum-files">
-          ${blockHead(IC.file, L ? 'Fichiers de la sortie' : 'Ride files')}
-          <p class="sum-muted">${L ? '.fit pour Strava et Garmin, .gpx pour le tracé.' : '.fit for Strava and Garmin, .gpx for the route.'}</p>
+          ${blockHead(IC.file, S('rideFiles'))}
+          <p class="sum-muted">${S('fitForStravaAnd')}</p>
           <div class="sum-share-btns"><button class="sum-btn" id="s-fit">.fit</button><button class="sum-btn" id="s-gpx">.gpx</button></div>
         </section>`
         }
@@ -254,29 +410,29 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         ftpT && fv
           ? `
         ${ftpResultCardHtml(ftpT, L)}
-        <h3 class="sum-cap">${L ? 'Le test' : 'The test'}</h3>
+        <h3 class="sum-cap">${S('theTest')}</h3>
         <div class="sum-tiles sum-heroes">${tilesHtml(fv.tiles)}</div>
-        <section class="sum-card sum-chart ftprep-chart"><h3>${L ? 'Ta puissance et la consigne' : 'Your power and the target'}</h3>${ftpTestChartSvg(ftpT, L)}</section>
+        <section class="sum-card sum-chart ftprep-chart"><h3>${S('yourPowerAndThe')}</h3>${ftpTestChartSvg(ftpT, L)}</section>
         <div class="sum-charts ftprep-grid">
           ${ftpZonesHtml(ftpT, L)}
           ${ftpProfileHtml(ftpT, L)}
           ${ftpHistoryHtml(ftpT, L)}
-          <section class="sum-card sum-chart"><h3>${L ? 'Cardio et puissance' : 'Heart rate and power'}</h3>
+          <section class="sum-card sum-chart"><h3>${S('heartRateAndPower')}</h3>
             <div class="sum-canvas tall"><canvas id="c-time"></canvas><div class="sum-tip" hidden></div></div></section>
         </div>`
           : `
         <div class="sum-tiles sum-heroes">${tilesHtml(heroTiles, [IC.distance, IC.time, IC.power, IC.speed])}</div>
         ${minorHtml}
         <div class="sum-charts">
-          <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
-            <div class="sum-legend"><span><i style="background:${C_RIDE}"></i>${L ? 'Cette sortie' : 'This ride'}</span><span><i class="dash" style="border-color:${C_RECORD}"></i>${L ? 'Tes records (avant)' : 'Your records (before)'}</span></div>
+          <section class="sum-card sum-chart"><h3>${S('powerCurve')}</h3>
+            <div class="sum-legend"><span><i style="background:${C_RIDE}"></i>${S('thisRide')}</span><span><i class="dash" style="border-color:${C_RECORD}"></i>${S('yourRecordsBefore')}</span></div>
             <div class="sum-canvas"><canvas id="c-curve"></canvas><div class="sum-tip" hidden></div></div></section>
-          <section class="sum-card sum-chart"><h3>${L ? 'Profil · puissance · cardio' : 'Profile · power · heart rate'}</h3>
+          <section class="sum-card sum-chart"><h3>${S('profilePowerHeartRate')}</h3>
             <div class="sum-canvas tall"><canvas id="c-time"></canvas><div class="sum-tip" hidden></div></div></section>
-          <section class="sum-card sum-chart${segs.length ? '' : ' sum-wide'}"><h3>${L ? 'Temps par zone' : 'Time in zone'}</h3><div class="sum-zones" id="c-zones"></div></section>
+          <section class="sum-card sum-chart${segs.length ? '' : ' sum-wide'}"><h3>${S('timeInZone')}</h3><div class="sum-zones" id="c-zones"></div></section>
           ${
             segs.length
-              ? `<section class="sum-card sum-chart"><h3>${L ? 'Segments et records' : 'Segments and records'}</h3>${segs
+              ? `<section class="sum-card sum-chart"><h3>${S('segmentsAndRecords')}</h3>${segs
                   .map(
                     (r) =>
                       `<div class="sum-row"><span>${r.seg.kind === 'kom' ? 'KOM' : 'Sprint'} · ${esc(r.seg.name)}</span><b>${hms(r.timeS)}</b><em>${Math.round(r.avgWatts)} W</em></div>`,
@@ -311,9 +467,9 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         try {
           if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') throw new Error('clipboard');
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': getBlob() })]);
-          say(L ? 'Image copiée : colle-la dans ton message.' : 'Image copied: paste it in your message.');
+          say(S('imageCopiedPasteIt'));
         } catch {
-          say(L ? 'Copie impossible ici : utilise « Enregistrer ».' : 'Copy not available here: use “Save”.');
+          say(S('copyNotAvailableHere'));
         }
       })();
     });
@@ -325,10 +481,10 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         void (async () => {
           try {
             const f = await file();
-            if (!navigator.canShare({ files: [f] })) return say(L ? 'Partage de fichier indisponible ici.' : 'File sharing not available here.');
+            if (!navigator.canShare({ files: [f] })) return say(S('fileSharingNotAvailable'));
             await navigator.share({ files: [f], title: d.routeName, text: `${d.routeName} · ${num(s.distanceM / 1000, 1)} km · Allez Robert !` });
           } catch (e) {
-            if ((e as Error).name !== 'AbortError') say(L ? 'Partage impossible.' : 'Could not share.');
+            if ((e as Error).name !== 'AbortError') say(S('couldNotShare'));
           }
         })();
     }
@@ -364,38 +520,38 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
 export function showPastRide(root: HTMLElement, r: HistoryRide, o: { massKg: number; ftp: number; onClose(): void }): void {
   const L = fr();
   const n = (v: number | null | undefined) => (v === null || v === undefined ? null : v);
-  const date = new Date(r.startedAt).toLocaleDateString(L ? 'fr-FR' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const date = new Date(r.startedAt).toLocaleDateString(S('locale'), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const tiles: Array<[string, string, string?]> = [
     ['Distance', `${num(r.distanceM / 1000, 2)} km`],
-    [L ? 'Temps' : 'Time', hms(r.movingS)],
+    [S('time'), hms(r.movingS)],
     ['D+', `${Math.round(r.elevationM)} m`],
-    [L ? 'Vitesse moy.' : 'Avg speed', n(r.avgSpeedKmh) === null ? '—' : `${num(r.avgSpeedKmh as number, 1)} km/h`],
-    [L ? 'Cardio moy.' : 'Avg HR', r.avgHr ? `${Math.round(r.avgHr)} bpm` : '— bpm', r.maxHr ? `max ${Math.round(r.maxHr)}` : ''],
-    [L ? 'Puissance moy.' : 'Avg power', n(r.avgWatts) === null ? '—' : `${Math.round(r.avgWatts as number)} W`, r.avgWatts ? `${num(r.avgWatts / o.massKg, 1)} W/kg` : ''],
-    [L ? 'Normalisée' : 'Normalized', n(r.np) === null ? '—' : `${Math.round(r.np as number)} W`, r.maxWatts ? `max ${Math.round(r.maxWatts)} W` : ''],
+    [S('avgSpeed'), n(r.avgSpeedKmh) === null ? '—' : `${num(r.avgSpeedKmh as number, 1)} km/h`],
+    [S('avgHr'), r.avgHr ? `${Math.round(r.avgHr)} bpm` : '— bpm', r.maxHr ? `max ${Math.round(r.maxHr)}` : ''],
+    [S('avgPower'), n(r.avgWatts) === null ? '—' : `${Math.round(r.avgWatts as number)} W`, r.avgWatts ? `${num(r.avgWatts / o.massKg, 1)} W/kg` : ''],
+    [S('normalized'), n(r.np) === null ? '—' : `${Math.round(r.np as number)} W`, r.maxWatts ? `max ${Math.round(r.maxWatts)} W` : ''],
     ['TSS · IF', n(r.tss) === null ? '—' : `${Math.round(r.tss as number)} · ${r.intensity === null ? '—' : num(r.intensity, 2)}`],
-    [L ? 'Énergie' : 'Energy', r.workKJ ? `${Math.round(r.workKJ)} kJ` : '—', r.workKJ ? `${Math.round(r.workKJ / (4.184 * 0.24))} kcal` : ''],
-    [L ? 'Cadence moy.' : 'Avg cadence', r.avgCadence ? `${Math.round(r.avgCadence)} tr/min` : '—'],
+    [S('energy'), r.workKJ ? `${Math.round(r.workKJ)} kJ` : '—', r.workKJ ? `${Math.round(r.workKJ / (4.184 * 0.24))} kcal` : ''],
+    [S('avgCadence'), r.avgCadence ? `${Math.round(r.avgCadence)} ${S('rpm')}` : '—'],
   ];
   const feel = r.feedback ? FEELINGS.find((f) => f[0] === r.feedback) : undefined;
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
       <div><h1>${esc(r.name)}</h1><p>${esc(date)} · ${num(r.distanceM / 1000, 1)} km${r.workoutName ? ` · ${esc(r.workoutName)}` : ''}${feel ? ` · ${L ? feel[1] : feel[2]}` : ''}</p></div>
-      <nav class="sum-actions"><button class="sum-btn accent ab-btn ab-go" id="s-close">${L ? 'Retour à l’historique' : 'Back to history'}</button></nav>
+      <nav class="sum-actions"><button class="sum-btn accent ab-btn ab-go" id="s-close">${S('backToHistory')}</button></nav>
     </header>
     <main class="sum-main">
       <div class="sum-tiles sum-heroes">${tiles.map(([k, v, sub]) => figureBlock(k, v, sub)).join('')}</div>
       <div class="sum-charts">
-        <section class="sum-card sum-chart"><h3>${L ? 'Courbe de puissance' : 'Power curve'}</h3>
+        <section class="sum-card sum-chart"><h3>${S('powerCurve')}</h3>
           <div class="sum-canvas"><canvas id="c-curve"></canvas><div class="sum-tip" hidden></div></div></section>
-        <section class="sum-card sum-chart"><h3>${L ? 'Temps par zone' : 'Time in zone'}</h3><div class="sum-zones" id="c-zones"></div></section>
+        <section class="sum-card sum-chart"><h3>${S('timeInZone')}</h3><div class="sum-zones" id="c-zones"></div></section>
       </div>
     </main>
   </div>`;
   (root.querySelector('#s-close') as HTMLElement).onclick = o.onClose;
   const stats = { curve: r.curve.map(([durationS, watts]) => ({ durationS, watts })) } as RideStats;
   if (r.zonesS.length) drawZones(root.querySelector('#c-zones') as HTMLElement, r.zonesS, r.ftpAtRide ?? o.ftp);
-  else (root.querySelector('#c-zones') as HTMLElement).innerHTML = `<p class="sum-muted">${L ? 'Zones inconnues pour cette sortie.' : 'No zone data for this ride.'}</p>`;
+  else (root.querySelector('#c-zones') as HTMLElement).innerHTML = `<p class="sum-muted">${S('noZoneDataFor')}</p>`;
   interactiveCanvas(root.querySelector('#c-curve') as HTMLCanvasElement, (ctx, w, h, hx) => drawCurve(ctx, w, h, hx, stats, {}));
 }
 
@@ -508,7 +664,7 @@ function drawCurve(ctx: CanvasRenderingContext2D, w: number, h: number, hx: numb
     ctx.stroke();
   }
   const r = records[best.durationS];
-  return `<b>${durationLabel(best.durationS)}</b><span><i style="background:${C_RIDE}"></i>${Math.round(best.watts)} W</span>${r !== undefined ? `<span><i style="background:${C_RECORD}"></i>${fr() ? 'record' : 'record'} ${r} W</span>` : ''}`;
+  return `<b>${durationLabel(best.durationS)}</b><span><i style="background:${C_RIDE}"></i>${Math.round(best.watts)} W</span>${r !== undefined ? `<span><i style="background:${C_RECORD}"></i>${S('record')} ${r} W</span>` : ''}`;
 }
 
 /**
@@ -534,10 +690,10 @@ function drawTimeline(ctx: CanvasRenderingContext2D, w: number, h: number, hx: n
     return s / n;
   });
   const series: Array<{ label: string; color: string; values: number[]; unit: string; area?: boolean }> = [
-    { label: fr() ? 'Altitude' : 'Elevation', color: C_ALT, values: rec.map((r) => r.altitudeM), unit: 'm', area: true },
-    { label: fr() ? 'Puissance' : 'Power', color: C_RIDE, values: smooth, unit: 'W' },
+    { label: S('elevation'), color: C_ALT, values: rec.map((r) => r.altitudeM), unit: 'm', area: true },
+    { label: S('power'), color: C_RIDE, values: smooth, unit: 'W' },
   ];
-  if (hasHr) series.push({ label: fr() ? 'Cardio' : 'Heart rate', color: C_HR, values: rec.map((r) => r.hr ?? 0), unit: 'bpm' });
+  if (hasHr) series.push({ label: S('heartRate'), color: C_HR, values: rec.map((r) => r.hr ?? 0), unit: 'bpm' });
   let idx = -1;
   if (hx !== null) {
     const dm = ((hx - PAD.l) / (w - PAD.l - PAD.r)) * D;

@@ -40,7 +40,7 @@ import { companion } from './game/companionLink.ts';
 import { companionQr } from './ui/companionQr.ts';
 import { spotify } from './audio/spotify.ts';
 import { musicSource, noteSpotifyPlaying } from './audio/musicSource.ts';
-import { t, setLang, getLang } from './i18n/index.ts';
+import { t, setLang, getLang, strings } from './i18n/index.ts';
 import { loadSettings, saveSettings, type Settings } from './ui/settings.ts';
 import { MainMenu } from './ui/menu.ts';
 import { autoEnhanceSelects } from './ui/dropdown.ts';
@@ -136,11 +136,11 @@ async function firstRoute(source: WorldSource): Promise<RouteData> {
 async function loadScene(settings: Settings): Promise<Scene3D> {
   const params = new URLSearchParams(location.search);
   const q = withUrlOverrides(QUALITY_PRESETS[(params.get('quality') as Settings['quality'] | null) ?? settings.quality]);
-  bootStep(20, 'Démarrage du moteur 3D (WebGPU)');
+  bootStep(20, BOOT('engine'));
   const engine = await createEngine(document.getElementById('scene') as HTMLCanvasElement, q);
   performance.mark('ar:moteur prêt');
   GltfRiderAvatar.lodScale = { low: 0.6, medium: 0.8, high: 1, ultra: 1.5 }[q.level];
-  bootStep(35, 'Monde et itinéraires');
+  bootStep(35, BOOT('world'));
   const source = await loadWorldSource(params.get('world') ?? settings.world ?? 'longchamp');
   performance.mark('ar:monde chargé');
   // Le mode « monde ouvert » n'existe que dans un monde qui a un graphe routier.
@@ -284,6 +284,12 @@ function nextPaint(): Promise<void> {
 /** Version des médias du menu (vidéos, images) : à augmenter quand on les régénère (cache navigateur). */
 /** Drapeau posé en quittant une sortie : le menu s'ouvre sur l'onglet Rouler au rechargement. */
 const AFTER_RIDE_KEY = 'ar.afterRide';
+
+/** Étapes de l'écran de chargement. */
+const BOOT = strings(
+  { engine: 'Démarrage du moteur 3D (WebGPU)', world: 'Monde et itinéraires', game: 'Chargement du jeu', home: 'Chargement de l’accueil', avatars: 'Chargement des avatars', garage: 'Préparation du garage', landscape: 'Préparation du paysage' },
+  { engine: 'Starting the 3D engine (WebGPU)', world: 'World and routes', game: 'Loading the game', home: 'Loading the home screen', avatars: 'Loading avatars', garage: 'Preparing the garage', landscape: 'Preparing the landscape' },
+);
 
 /** Sortie récupérée d'un brouillon : historique (sans records de puissance au simulateur) et XP restante. */
 async function saveRecoveredRide(d: RideDraft): Promise<{ xp: number }> {
@@ -528,12 +534,12 @@ async function boot(): Promise<void> {
   syncV3Offline(settings.look);
   // Connexion ou « sans compte » : demandée tout de suite, pendant que le jeu se charge (sauf lancement direct d'une sortie).
   const earlyAuth: Promise<Me | null> | null = new URLSearchParams(location.search).has('autostart') ? null : earlyLogin(settings);
-  bootStep(20, 'Chargement du jeu');
+  bootStep(20, BOOT('game'));
   // Fond du menu : boucle vidéo de la saison (aucun calcul 3D pendant ce temps). Elle se télécharge en premier : modèles,
   // moteur et shaders attendent qu'elle soit jouable, sinon ils lui prennent le réseau et le processeur et elle saccade.
   const menuVideo = createMenuVideo(document.getElementById('menu-bg') as HTMLVideoElement | null);
   const videoReady = new URLSearchParams(location.search).has('autostart') ? Promise.resolve() : menuVideo.preload(settings.season);
-  bootStep(20, 'Chargement de l’accueil');
+  bootStep(20, BOOT('home'));
   await videoReady;
   // Avatars Blender (glTF) : chargés en parallèle, attendus seulement quand la 3D sert.
   const modelsReady = GltfRiderAvatar.load([bikeOfLook(settings.look).family, ...CROWD_FAMILIES]);
@@ -1014,12 +1020,12 @@ async function boot(): Promise<void> {
   // Tout ce qui se télécharge ou se compile pour l'accueil et le garage se fait ici, sous l'écran de chargement :
   // une fois le menu (et sa vidéo) affiché, « Rouler » est utilisable tout de suite.
   if (!autostart) {
-    bootStep(50, 'Chargement des avatars');
+    bootStep(50, BOOT('avatars'));
     await modelsReady.catch(() => undefined);
-    bootStep(60, 'Préparation du garage');
+    bootStep(60, BOOT('garage'));
     await prepareAtelier();
     // Paysage du départ choisi, véhicules : prêts avant l'accueil, « Rouler » démarre sans attente.
-    bootStep(80, 'Préparation du paysage');
+    bootStep(80, BOOT('landscape'));
     bootWorld = (p) => bootProgress(80 + 19 * (p / 0.85));
     await Promise.all([prepareWorld().catch(() => undefined), vehiclesReady]);
     bootWorld = null;

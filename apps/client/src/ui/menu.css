@@ -1236,3 +1236,55 @@ p.kom-empty { margin: 0; padding: 28px 14px; text-align: center; color: #aeb7c3;
 .rpk .mm-stats .ab-val small { font-size: 12px; font-weight: 600; color: #9aa6b5; }
 .rpk-foot { padding: 6px 14px 12px; min-height: 0; }
 .rpk-foot .ab-state { font-size: 14px; }
+
+/* Garage (style réaliste) au langage « gros blocs » : titre et sous-titre en tête, rubriques et sections en casse
+   normale (plus de capitales espacées ni de chasse fixe), vignettes à coins ronds, état écrit en clair, focus visible.
+   Les sélecteurs passent par .gr-panel pour l'emporter sur les couches plus anciennes ci-dessus. */
+.gr-titles { display: grid; gap: 2px; }
+.gr-panel .gr-title { font-size: clamp(24px, 2.2vw, 30px); }
+.gr-panel .gr-sub-line { margin: 0; font-size: 14px; }
+.gr-panel .gr-lvl b { font-style: normal; text-transform: none; letter-spacing: -0.01em; font-weight: 800; font-size: 16px; }
+.gr-panel .gr-group { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 800; font-size: 15px; border-radius: 10px; padding: 10px 6px; }
+.gr-panel .gr-groups { border-radius: 14px; }
+.gr-panel .gr-typename { font-style: normal; text-transform: none; letter-spacing: -0.01em; font-weight: 800; font-size: 17px; }
+/* Libellés des emplacements (masqués aujourd'hui) : 12 px, espacement réduit plutôt que taille, sans débordement. */
+.gr-panel .gr-slot small { letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.gr-panel .gr-slot { border-radius: 12px; }
+.gr-panel .gr-slot i { border-radius: 10px; }
+.gr-panel .gr-f { font: 700 13px/1 var(--font, system-ui); letter-spacing: 0; text-transform: none; padding: 8px 13px; }
+.gr-panel .gr-filter { border-radius: 10px; }
+.gr-panel .gr-vopt > small, .gr-panel .gr-colors > small, .gr-panel .gr-opts .field { font: 700 13px/1.2 var(--font, system-ui); letter-spacing: 0; text-transform: none; color: #c3cddb; }
+.gr-panel .gr-vchip { font-size: 13px; border-radius: 10px; }
+.gr-panel .gr-cap em { font: 700 13px/1.5 var(--font, system-ui); letter-spacing: 0; text-transform: none; }
+.gr-panel .mm-presets-title.ab-section { margin: 18px 2px 10px; font: 800 17px/1.2 var(--font, system-ui); letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg, #f5f7fa); }
+.gr-panel .mm-presets-title.ab-section:first-child { margin-top: 0; }
+.gr-panel .gr-body .mm-item { border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 16px; background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); transition: transform 0.12s, border-color 0.12s; }
+.gr-panel .gr-body .mm-item:hover:not(:disabled) { border-color: rgba(255, 210, 63, 0.7); background: linear-gradient(180deg, rgba(28, 36, 52, 0.95), rgba(14, 19, 29, 0.92)); }
+.gr-panel .gr-body .mm-item.on { border-color: var(--ar-accent, #ffd23f); background: linear-gradient(180deg, rgba(255, 210, 63, 0.1), rgba(12, 16, 25, 0.9)); }
+.gr-panel .gr-body .mm-item.preview { border-color: rgba(96, 165, 250, 0.8); }
+.gr-panel .gr-body .mm-item b { font-size: 15px; font-weight: 800; }
+.gr-panel .gr-body .mm-item .mm-it-state { font: 700 13px/1.4 var(--font, system-ui); letter-spacing: 0; text-transform: none; border-radius: 8px; padding: 2px 9px; }
+.gr-panel .gr-body .mm-item:focus-visible, .gr-panel .gr-slot:focus-visible, .gr-panel .gr-group:focus-visible, .gr-panel .gr-sub:focus-visible,
+.gr-panel .gr-f:focus-visible, .gr-panel .gr-vchip:focus-visible, .gr-panel .gr-fold:focus-visible, .gr-panel .gr-x:focus-visible, .gr-panel .gr-dice:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.gr-panel .gr-foot p { font-size: 13px; color: #aeb7c3; }
+.gr-reopen.ab-btn, .gr-back.ab-btn { padding: 10px 18px; font-size: 15px; }
+.gr-reopen.ab-btn:focus-visible, .gr-back.ab-btn:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
+@media (max-height: 760px) { .gr-panel .gr-sub-line { display: none; } .gr-panel .gr-title { font-size: 22px; } }
+@media (prefers-reduced-motion: reduce) { .gr-panel .gr-body .mm-item { transition: none; } }
+
+/* Fenêtre de connexion Spotify au langage « gros blocs » : titre, sous-titre, deux sections, une seule action jaune. */
+.mm-dialog.mm-spdlg { width: min(620px, 94vw); padding: 26px 28px 22px; border-radius: 22px; font-size: 15px; color: #d8dee6; display: grid; gap: 18px; max-height: calc(100% - 40px); overflow-y: auto; }
+.mm-spdlg .sp-head .ab-title { font-size: clamp(24px, 2.4vw, 32px); }
+.mm-spdlg .sp-sec .ab-section { margin-bottom: 8px; }
+.mm-spdlg .sp-sec .ab-section label { cursor: pointer; }
+.mm-spdlg .sp-steps { margin: 0; padding-left: 22px; display: grid; gap: 8px; line-height: 1.5; }
+.mm-spdlg a { color: #1ed760; font-weight: 700; }
+.mm-spdlg a:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; border-radius: 4px; }
+.mm-spdlg .sp-uri { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.mm-spdlg code { font-size: 14px; word-break: break-all; }
+.mm-spdlg .sp-copy { grid-area: auto; justify-self: auto; }
+.mm-spdlg .sp-input { margin-top: 0; padding: 12px 14px; font-size: 16px; border-radius: 12px; }
+.mm-spdlg .sp-input.bad { box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.8); }
+.mm-spdlg .sp-hint { margin: 10px 0 0; font-size: 14px; line-height: 1.4; color: #aeb7c3; }
+.mm-spdlg .sp-foot { margin-top: 2px; }
+@media (max-width: 560px) { .mm-dialog.mm-spdlg { padding: 18px 16px; } }
