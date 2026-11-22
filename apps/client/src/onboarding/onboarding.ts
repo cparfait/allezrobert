@@ -252,8 +252,6 @@ const DI2_MODELS: Array<[string, string | null]> = [
 
 /** Icônes au trait des blocs (24 × 24, couleur du texte). */
 const ico = (path: string): string => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
-const ICON_VOICE_ON = ico('<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>');
-const ICON_VOICE_OFF = ico('<path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>');
 const ICON_SENSOR = ico('<circle cx="12" cy="12" r="3"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/>');
 
 /** Aperçu 3D du coureur derrière le tutoriel (étape avatar). */
@@ -381,16 +379,12 @@ export class Onboarding {
     let body = '';
     switch (this.step) {
       case 'welcome': {
-        const on = this.voice.enabled;
         title = S('tutorial');
         sub = S('welcomeSub');
         body = `<h3 class="ab-section">${S('language')}</h3>
           <div class="ab-grid ab-grid-2 ob-langs">${(['fr', 'en'] as const)
             .map((l) => `<button type="button" class="ab-tile ab-plain ${fr === (l === 'fr') ? 'is-on' : ''}" data-lang="${l}" aria-pressed="${fr === (l === 'fr')}"><span class="ab-name">${l === 'fr' ? 'Français' : 'English'}</span></button>`)
-            .join('')}</div>
-          <div class="ab-grid ob-infos">
-            <button type="button" class="ab-tile ${on ? 'is-ok' : ''}" id="o-voice" title="${on ? S('voiceOn') : S('voiceOff')}" aria-pressed="${on}"><span class="ab-ico sm">${on ? ICON_VOICE_ON : ICON_VOICE_OFF}</span><span class="ab-name">${S('voice')}</span><span class="ab-detail">${S('voiceDetail')}</span><span class="ab-state"><i></i>${on ? S('voiceOnState') : S('voiceOffState')}</span></button>
-          </div>`;
+            .join('')}</div>`;
         break;
       }
       case 'style':
@@ -580,10 +574,6 @@ export class Onboarding {
         this.render();
       }),
     );
-    $('o-voice')?.addEventListener('click', () => {
-      this.voice.setEnabled(!this.voice.enabled);
-      this.render();
-    });
     const num = (id: string, key: 'massKg' | 'heightCm' | 'ftpWatts') => $<HTMLInputElement>(id)?.addEventListener('change', (e) => (this.s[key] = Number((e.target as HTMLInputElement).value)));
     num('o-mass', 'massKg');
     num('o-height', 'heightCm');
