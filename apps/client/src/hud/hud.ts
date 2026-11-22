@@ -1,7 +1,191 @@
 import { climbCategory, climbCategoryLabel, countryName, type RoadGraphData, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
 import { flagSvg } from '../ui/flagSvg.ts';
 import { cadenceLabel } from './riderLevel.ts';
-import { getLang, t } from '../i18n/index.ts';
+import { getLang, strings, t } from '../i18n/index.ts';
+
+/** Textes du HUD (variables : gabarit `{n}` remplacé à l'appel). */
+const S = strings(
+  {
+    group: 'Groupe',
+    groupSlower: 'Groupe moins vite ( [ )',
+    groupFaster: 'Groupe plus vite ( ] )',
+    behind: 'derrière',
+    ahead: 'devant',
+    you: 'toi',
+    alongside: 'à côté',
+    avg: 'moy.',
+    hr: 'Cardio',
+    details: 'Détails (I)',
+    average: 'Moyenne',
+    gain: 'D+',
+    cadence: 'Cadence',
+    rpm: 'tr/min',
+    instant: 'Instantanée',
+    zoneTime: 'Temps par zone',
+    grade: 'Pente',
+    wind: 'Vent',
+    altitude: 'Altitude',
+    fullMap: 'Carte complète',
+    noRecord: 'pas de record',
+    record: 'record',
+    climbStartsIn: 'Pied de la côte dans',
+    challenge: 'Défi',
+    workoutFree: 'Libre',
+    step: 'Étape {i}/{n}',
+    then: 'ensuite',
+    voiceUnavailable: 'voix indisponible',
+    micOn: 'micro ouvert (V)',
+    micOff: 'micro coupé (V)',
+    phoneMicOn: 'micro du téléphone ouvert (V)',
+    phoneMicOff: 'micro du téléphone coupé (V)',
+    discord: 'Rejoindre le salon Discord',
+    shelterLeft: ' · abri à gauche de la roue',
+    shelterRight: ' · abri à droite de la roue',
+    nobodyAhead: 'Personne devant',
+    wheelAheadAt: 'Roue devant à',
+    windHeadShort: 'de face',
+    windTailShort: 'de dos',
+    windLeftShort: 'côté g.',
+    windRightShort: 'côté d.',
+    windHead: 'de face',
+    windTail: 'de dos',
+    windLeft: 'de gauche',
+    windRight: 'de droite',
+    calm: 'calme',
+    firstAttemptGhost: 'premier passage : ton temps deviendra ton fantôme',
+    firstAttempt: 'premier passage',
+    live: 'en cours',
+    chrono: 'chrono',
+    toGo: 'restant',
+    climbLeft: 'D+ restant',
+    estimate: 'estimé',
+    in: 'dans',
+    paceFree: 'libre',
+    lapEndsIn: 'Fin du tour',
+    finish: 'Arrivée',
+    west: 'O',
+    nearby: 'À proximité',
+    realOrAll: 'Coureurs réels ou tous',
+    realN: 'Réels ({n})',
+    all: 'Tous',
+    canFollow: 'À suivre',
+    tooStrong: 'Trop fort',
+    slower: 'Plus lent',
+    friend: 'Ami',
+    myGroup: 'Mon groupe',
+    fold: 'Replier / déplier',
+    left: 'À gauche',
+    straight: 'Tout droit',
+    right: 'À droite',
+    back: 'Demi-tour',
+    junction: 'Bifurcation',
+    myWay: 'je continue',
+    lockedIn: 'choix retenu',
+    chooseKeys: '← → pour choisir · U demi-tour',
+    z1: 'Récup',
+    z2: 'Endurance',
+    z3: 'Tempo',
+    z4: 'Seuil',
+    z5: 'VO2max',
+    z6: 'Anaérobie',
+    z7: 'Sprint',
+    lvl1: 'loisir',
+    lvl2: 'régulier',
+    lvl3: 'sportif',
+    lvl4: 'pro',
+  },
+  {
+    group: 'Group',
+    groupSlower: 'Slower group ( [ )',
+    groupFaster: 'Faster group ( ] )',
+    behind: 'behind',
+    ahead: 'ahead',
+    you: 'you',
+    alongside: 'alongside',
+    avg: 'avg',
+    hr: 'HR',
+    details: 'Details (I)',
+    average: 'Average',
+    gain: 'Gain',
+    cadence: 'Cadence',
+    rpm: 'rpm',
+    instant: 'Instant',
+    zoneTime: 'Time in zones',
+    grade: 'Grade',
+    wind: 'Wind',
+    altitude: 'Altitude',
+    fullMap: 'Full map',
+    noRecord: 'no record',
+    record: 'best',
+    climbStartsIn: 'Climb starts in',
+    challenge: 'Challenge',
+    workoutFree: 'Free',
+    step: 'Step {i}/{n}',
+    then: 'then',
+    voiceUnavailable: 'voice unavailable',
+    micOn: 'mic on (V)',
+    micOff: 'mic muted (V)',
+    phoneMicOn: 'phone mic on (V)',
+    phoneMicOff: 'phone mic muted (V)',
+    discord: 'Join the Discord channel',
+    shelterLeft: ' · shelter on the left of the wheel',
+    shelterRight: ' · shelter on the right of the wheel',
+    nobodyAhead: 'Nobody ahead',
+    wheelAheadAt: 'Wheel ahead at',
+    windHeadShort: 'head',
+    windTailShort: 'tail',
+    windLeftShort: 'left',
+    windRightShort: 'right',
+    windHead: 'head',
+    windTail: 'tail',
+    windLeft: 'from left',
+    windRight: 'from right',
+    calm: 'calm',
+    firstAttemptGhost: 'first attempt: your time becomes your ghost',
+    firstAttempt: 'first attempt',
+    live: 'live',
+    chrono: 'time',
+    toGo: 'to go',
+    climbLeft: 'climb left',
+    estimate: 'estimate',
+    in: 'in',
+    paceFree: 'free',
+    lapEndsIn: 'Lap ends in',
+    finish: 'Finish',
+    west: 'W',
+    nearby: 'Nearby',
+    realOrAll: 'Real riders or all',
+    realN: 'Real ({n})',
+    all: 'All',
+    canFollow: 'Can follow',
+    tooStrong: 'Too strong',
+    slower: 'Slower',
+    friend: 'Friend',
+    myGroup: 'My group',
+    fold: 'Fold / unfold',
+    left: 'Left',
+    straight: 'Straight on',
+    right: 'Right',
+    back: 'Turn back',
+    junction: 'Junction',
+    myWay: 'my way',
+    lockedIn: 'locked in',
+    chooseKeys: '← → to choose · U turn back',
+    z1: 'Recovery',
+    z2: 'Endurance',
+    z3: 'Tempo',
+    z4: 'Threshold',
+    z5: 'VO2max',
+    z6: 'Anaerobic',
+    z7: 'Sprint',
+    lvl1: 'leisure',
+    lvl2: 'regular',
+    lvl3: 'sporty',
+    lvl4: 'pro',
+  },
+);
+/** Séparateur décimal de la langue de l'interface (virgule en français, point en anglais). */
+const dec = (): string => (getLang() === 'fr' ? ',' : '.');
 import { BASEMAP_ATTRIBUTION, basemapUrl } from '../ui/basemap.ts';
 import { GRAPHIC_STYLE, LOW_POLY } from '../engine/style.ts';
 import { ClimbPanel } from './climbPanel.ts';
@@ -124,7 +308,26 @@ export interface HudRider {
 
 /** Niveau en barres (1 à 4) pour « À proximité » : loisir, régulier, sportif, pro ; 0 si inconnu. */
 function levelBars(level: string | undefined): number {
-  return level === 'pro' ? 4 : level === 'sportif' ? 3 : level === 'régulier' ? 2 : level === 'loisir' ? 1 : 0;
+  switch (level) {
+    case 'pro':
+      return 4;
+    case 'sportif':
+    case 'sporty':
+      return 3;
+    case 'régulier':
+    case 'regular':
+      return 2;
+    case 'loisir':
+    case 'leisure':
+      return 1;
+    default:
+      return 0;
+  }
+}
+/** Nom du niveau dans la langue de l'interface (les cyclistes croisés le donnent en français). */
+function levelName(level: string | undefined): string {
+  const n = levelBars(level);
+  return n ? S(`lvl${n}` as 'lvl1') : (level ?? '');
 }
 
 /** « Matteo MORETTI » → « M. MORETTI » (un seul mot ou « Groupe de 3 » : inchangé). */
@@ -236,24 +439,15 @@ const ICONS = {
   np: ico('<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>'),
   pin: ico('<path d="M12 21s7-6.200 7-11a7 7 0 0 0-14 0c0 4.800 7 11 7 11Z"/><circle cx="12" cy="10" r="2.500"/>'),
 };
-/** Noms des zones de puissance (Coggan). */
-const ZONE_NAMES: Array<[string, string]> = [
-  ['Récup', 'Recovery'],
-  ['Endurance', 'Endurance'],
-  ['Tempo', 'Tempo'],
-  ['Seuil', 'Threshold'],
-  ['VO2max', 'VO2max'],
-  ['Anaérobie', 'Anaerobic'],
-  ['Sprint', 'Sprint'],
-];
 /** Indice (0 à 6) de la zone de puissance. */
 function zoneIndex(watts: number, ftp: number): number {
   const idx = ZONES.findIndex((z) => watts / Math.max(ftp, 1) < z);
   return idx === -1 ? 6 : idx;
 }
-function zoneLabel(watts: number, ftp: number, fr: boolean): string {
+/** « Z4 Seuil » : zone de puissance et son nom (Coggan). */
+function zoneLabel(watts: number, ftp: number): string {
   const i = zoneIndex(watts, ftp);
-  return `Z${i + 1} ${(ZONE_NAMES[i] as [string, string])[fr ? 0 : 1]}`;
+  return `Z${i + 1} ${S(`z${i + 1}` as 'z1')}`;
 }
 function zoneColor(watts: number, ftp: number): string {
   const r = watts / Math.max(ftp, 1);
@@ -314,12 +508,12 @@ const OPEN_PAVED = /^(asphalt|paved|concrete|chipseal)/;
  * 30 m devant (moi au centre, un point par coureur), puis les trois coureurs les plus proches. Squelette
  * fixe : seuls l'allure, les points et la liste sont réécrits (les boutons restent cliquables).
  */
-function groupPanel(fr: boolean): string {
+function groupPanel(): string {
   const r = GROUP_RANGE_M;
   return `<div class="panel grp hidden" data-k="group" data-hud="group">
-          <div class="grp-head"><span class="grp-l">${fr ? 'Groupe' : 'Group'}</span><span class="grp-pace hidden" data-k="grpPace"><button data-gpace="-1" tabindex="-1" title="${fr ? 'Groupe moins vite ( [ )' : 'Slower group ( [ )'}">−</button><b class="num" data-k="grpPaceTxt"></b><button data-gpace="1" tabindex="-1" title="${fr ? 'Groupe plus vite ( ] )' : 'Faster group ( ] )'}">+</button></span></div>
+          <div class="grp-head"><span class="grp-l">${S('group')}</span><span class="grp-pace hidden" data-k="grpPace"><button data-gpace="-1" tabindex="-1" title="${S('groupSlower')}">−</button><b class="num" data-k="grpPaceTxt"></b><button data-gpace="1" tabindex="-1" title="${S('groupFaster')}">+</button></span></div>
           <div class="grp-radar"><i class="grp-track"></i><div class="grp-dots" data-k="grpDots"></div><i class="grp-me"></i></div>
-          <div class="grp-scale"><span>${r} m ${fr ? 'derrière' : 'behind'}</span><span>${fr ? 'toi' : 'you'}</span><span>${r} m ${fr ? 'devant' : 'ahead'}</span></div>
+          <div class="grp-scale"><span>${r} m ${S('behind')}</span><span>${S('you')}</span><span>${r} m ${S('ahead')}</span></div>
           <div class="grp-list" data-k="grpList"></div>
         </div>`;
 }
@@ -332,9 +526,8 @@ function groupPanel(fr: boolean): string {
  * pour les valeurs partagées : `update` remplit l'un ou l'autre.
  */
 function compactLayout(track: RouteTrack, attribution: string[]): string {
-  const fr = getLang() === 'fr';
   const cell = (hud: string, k: string, label: string, value: string, unit: string, cls = '', avg = '') =>
-    `<div class="cx-cell ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span>${avg ? `<span class="cx-avg num">${fr ? 'moy.' : 'avg'} <b data-k="${avg}">–</b></span>` : ''}</div>`;
+    `<div class="cx-cell ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span>${avg ? `<span class="cx-avg num">${S('avg')} <b data-k="${avg}">–</b></span>` : ''}</div>`;
   const mini = (hud: string, k: string, label: string, value: string, unit: string, cls = '') =>
     `<div class="cx-mini ${cls}" data-hud="${hud}"><span class="cx-l">${label}</span><span class="cx-v num"><b data-k="${k}">${value}</b>${unit ? `<small>${unit}</small>` : ''}</span></div>`;
   const zoneBars = ZONE_HEX.map((c) => `<i style="background:${c}"></i>`).join('');
@@ -342,9 +535,9 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
   return `
       <div class="hud-center">
         <div class="panel cx-strip">
-          ${cell('speed', 'speed', t('speed'), '0,0', 'km/h', 'cx-speed', 'avgSpeed')}
-          ${cell('dist', 'dist', t('distance'), '0,00', 'km')}
-          ${cell('hr', 'hr', fr ? 'Cardio' : 'HR', '--', 'bpm', 'hr', 'avgHr')}
+          ${cell('speed', 'speed', t('speed'), `0${dec()}0`, 'km/h', 'cx-speed', 'avgSpeed')}
+          ${cell('dist', 'dist', t('distance'), `0${dec()}00`, 'km')}
+          ${cell('hr', 'hr', S('hr'), '--', 'bpm', 'hr', 'avgHr')}
           ${cell('time', 'time', t('time'), '0:00', '')}
         </div>
         <div class="panel junction hidden" data-k="junction"></div>
@@ -361,20 +554,20 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
       <div class="hud-col hud-col-left">
         <div class="cx-pwr">
           <div class="panel cx-power" data-k="powerBox">
-            <div class="cx-head"><span class="cx-l" data-hud="power">${t('power')} 3 s</span><button class="cx-more" data-k="moreBtn" tabindex="-1" aria-expanded="false" title="${fr ? 'Détails (I)' : 'Details (I)'}">+</button></div>
+            <div class="cx-head"><span class="cx-l" data-hud="power">${t('power')} 3 s</span><button class="cx-more" data-k="moreBtn" tabindex="-1" aria-expanded="false" title="${S('details')}">+</button></div>
             <div class="cx-watts num" data-hud="power"><b data-k="watts">0</b><small>W</small></div>
             <div class="cx-zone" data-k="zone" data-hud="power">Z1</div>
             <div class="cx-grid">
-              ${mini('power', 'wkg', 'W/kg', '0,0', '')}
-              ${mini('avg', 'avg', fr ? 'Moyenne' : 'Average', '0', 'W')}
-              ${mini('gain', 'gain', fr ? 'D+' : 'Gain', '0', 'm')}
-              ${mini('cadence', 'cad', `${ICONS.cadence}${fr ? 'Cadence' : 'Cadence'}`, '0', fr ? 'tr/min' : 'rpm', 'cad')}
+              ${mini('power', 'wkg', 'W/kg', `0${dec()}0`, '')}
+              ${mini('avg', 'avg', S('average'), '0', 'W')}
+              ${mini('gain', 'gain', S('gain'), '0', 'm')}
+              ${mini('cadence', 'cad', `${ICONS.cadence}${S('cadence')}`, '0', S('rpm'), 'cad')}
             </div>
           </div>
           <div class="panel gearbox cx-gear" data-hud="gear"><span class="cx-l">${t('gear')}</span><div class="value num" data-k="gear">34×17</div><div class="bars" data-k="gearbars"></div></div>
         </div>
         <div class="panel hud-left cx-details">
-          <span class="k">${fr ? 'Instantanée' : 'Instant'}</span><span class="v num" data-k="wattsNow">0 W</span>
+          <span class="k">${S('instant')}</span><span class="v num" data-k="wattsNow">0 W</span>
           <span class="k" data-hud="np">${t('np')}</span><span class="v num" data-k="np" data-hud="np">0 W</span>
           ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
           <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draftAll" data-hud="draft">0 %</span>
@@ -383,16 +576,16 @@ function compactLayout(track: RouteTrack, attribution: string[]): string {
         <div class="hud-bl">
           <div class="voice-chip panel hidden" data-k="voice"></div>
           <div class="devices-chip" data-k="devices"></div>
-          <div class="panel cx-zones" data-hud="zones"><div class="cx-zhead"><span class="cx-l">${fr ? 'Temps par zone' : 'Time in zones'}</span><b class="num" data-k="zoneTime"></b></div><div class="cx-zbars" data-k="zoneBars">${zoneBars}</div><div class="cx-zlab">${zoneLabels}</div></div>
+          <div class="panel cx-zones" data-hud="zones"><div class="cx-zhead"><span class="cx-l">${S('zoneTime')}</span><b class="num" data-k="zoneTime"></b></div><div class="cx-zbars" data-k="zoneBars">${zoneBars}</div><div class="cx-zlab">${zoneLabels}</div></div>
         </div>
       </div>
       <div class="hud-col hud-col-right">
         <div class="panel minimap" data-hud="map"><canvas width="460" height="460"></canvas></div>
         <div class="panel hud-loc cx-loc hidden" data-k="loc"></div>
-        ${groupPanel(fr)}
+        ${groupPanel()}
         <div class="panel cx-env">
-          <div class="cx-grade" data-hud="grade"><span class="cx-l">${ICONS.grade}${fr ? 'Pente' : 'Grade'}</span><b class="num" data-k="grade">0,0 %</b></div>
-          <div class="cx-envline"><span data-hud="alt">▲ <b class="num" data-k="alt">–</b></span><span data-hud="wind">${fr ? 'Vent' : 'Wind'} <b class="num" data-k="wind">–</b></span></div>
+          <div class="cx-grade" data-hud="grade"><span class="cx-l">${ICONS.grade}${S('grade')}</span><b class="num" data-k="grade">0${dec()}0 %</b></div>
+          <div class="cx-envline"><span data-hud="alt">▲ <b class="num" data-k="alt">–</b></span><span data-hud="wind">${S('wind')} <b class="num" data-k="wind">–</b></span></div>
         </div>
         <div class="panel riders" data-k="riders" data-hud="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
@@ -486,7 +679,7 @@ export class Hud {
     const m = this.root.querySelector<HTMLElement>('.minimap');
     if (!m) return;
     m.classList.toggle('map-click', !!fn);
-    m.title = fn ? (getLang() === 'fr' ? 'Carte complète' : 'Full map') : '';
+    m.title = fn ? S('fullMap') : '';
     m.onclick = fn ? () => fn() : null;
   }
 
@@ -525,11 +718,11 @@ export class Hud {
         <div class="hud-top">
           <div class="tile-col tile-col-out">
             <div class="tile tm" data-hud="time"><div class="label">${ICONS.time}${t('time')}</div><div class="value num"><span data-k="time">0:00</span></div></div>
-            <div class="tile dst" data-hud="dist"><div class="label">${ICONS.dist}${t('distance')}</div><div class="value num"><span data-k="dist">0,00</span><span class="unit">km</span></div></div>
+            <div class="tile dst" data-hud="dist"><div class="label">${ICONS.dist}${t('distance')}</div><div class="value num"><span data-k="dist">0${dec()}00</span><span class="unit">km</span></div></div>
           </div>
           <div class="tile-col">
             <div class="tile hr" data-hud="hr"><div class="label">${ICONS.heart}${t('heartRate')}</div><div class="value num"><span data-k="hr">--</span><span class="unit">bpm</span></div></div>
-            <div class="tile cad" data-hud="cadence"><div class="label">${ICONS.cadence}${t('cadence')}</div><div class="value num"><span data-k="cad">0</span><span class="unit">${getLang() === 'fr' ? 'tr/min' : 'rpm'}</span></div></div>
+            <div class="tile cad" data-hud="cadence"><div class="label">${ICONS.cadence}${t('cadence')}</div><div class="value num"><span data-k="cad">0</span><span class="unit">${S('rpm')}</span></div></div>
           </div>
           <div class="dial" data-k="powerBox" data-hud="power">
             <svg class="dial-svg" viewBox="0 0 160 160" aria-hidden="true">
@@ -544,13 +737,13 @@ export class Hud {
               <div class="label">${t('power')} 3 s</div>
               <div class="value num" data-k="watts">0</div>
               <div class="unit">W</div>
-              <div class="dial-avg num" data-hud="avg">${getLang() === 'fr' ? 'moy.' : 'avg'} <b data-k="avg">0</b> W</div>
-              <div class="sub num" data-k="wkg">0,0 W/kg</div>
+              <div class="dial-avg num" data-hud="avg">${S('avg')} <b data-k="avg">0</b> W</div>
+              <div class="sub num" data-k="wkg">0${dec()}0 W/kg</div>
             </div>
           </div>
           <div class="tile-col">
-            <div class="tile spd" data-hud="speed"><div class="label">${ICONS.speed}${t('speed')}</div><div class="value num"><span data-k="speed">0,0</span><span class="unit">km/h</span></div></div>
-            <div class="tile grade" data-hud="grade"><div class="label">${ICONS.grade}${getLang() === 'fr' ? 'Pente' : 'Grade'}</div><div class="value num" data-k="grade">0,0 %</div></div>
+            <div class="tile spd" data-hud="speed"><div class="label">${ICONS.speed}${t('speed')}</div><div class="value num"><span data-k="speed">0${dec()}0</span><span class="unit">km/h</span></div></div>
+            <div class="tile grade" data-hud="grade"><div class="label">${ICONS.grade}${S('grade')}</div><div class="value num" data-k="grade">0${dec()}0 %</div></div>
           </div>
           <div class="tile-col tile-col-out">
             <div class="tile gn" data-hud="gain"><div class="label">${ICONS.gain}${t('elevation')}</div><div class="value num"><span data-k="gain">0</span><span class="unit">m</span></div></div>
@@ -579,11 +772,11 @@ export class Hud {
           <span class="k" data-hud="draft">${t('draft')}</span><span class="v num" data-k="draft" data-hud="draft">0 %</span>
           <span data-hud="draft"></span><span data-hud="draft"><div style="height:6px;width:110px;background:rgba(255,255,255,.12);border-radius:3px;overflow:hidden;margin-left:auto"><div data-k="draftBar" style="height:100%;width:0%;background:linear-gradient(90deg,#60a5fa,#22c55e)"></div></div></span>
           <span class="hud-note" data-k="draftNote" data-hud="draft"></span>
-          <span class="k" data-hud="wind">${getLang() === 'fr' ? 'Vent' : 'Wind'}</span><span class="v num" data-k="wind" data-hud="wind">–</span>
-          <span class="k" data-hud="alt">${getLang() === 'fr' ? 'Altitude' : 'Altitude'}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
+          <span class="k" data-hud="wind">${S('wind')}</span><span class="v num" data-k="wind" data-hud="wind">–</span>
+          <span class="k" data-hud="alt">${S('altitude')}</span><span class="v num" data-k="alt" data-hud="alt">–</span>
           ${track.route.loop ? `<span class="k" data-hud="lap">${t('lap')}</span><span class="v num" data-k="lap" data-hud="lap">1</span>` : ''}
         </div>
-        ${groupPanel(getLang() === 'fr')}
+        ${groupPanel()}
         <div class="panel riders" data-k="riders" data-hud="riders"></div>
         <div class="chat" data-k="chat"><div class="chat-log" data-k="chatLog"></div><input class="chat-input hidden" data-k="chatInput" maxlength="200" /></div>
       </div>
@@ -665,15 +858,14 @@ export class Hud {
       return;
     }
     box.classList.remove('hidden');
-    const fr = getLang() === 'fr';
-    const rec = c.recordS === null ? (fr ? 'pas de record' : 'no record') : `${fr ? 'record' : 'best'} ${fmtTime(c.recordS)}`;
+    const rec = c.recordS === null ? S('noRecord') : `${S('record')} ${fmtTime(c.recordS)}`;
     const delta =
-      c.deltaS === null ? '' : `<span class="num" style="color:${c.deltaS <= 0 ? '#22c55e' : '#ef4444'}">${c.deltaS <= 0 ? '−' : '+'}${Math.abs(c.deltaS).toFixed(1).replace('.', fr ? ',' : '.')} s</span>`;
+      c.deltaS === null ? '' : `<span class="num" style="color:${c.deltaS <= 0 ? '#22c55e' : '#ef4444'}">${c.deltaS <= 0 ? '−' : '+'}${Math.abs(c.deltaS).toFixed(1).replace('.', dec())} s</span>`;
     const main =
       c.phase === 'runup'
-        ? `${fr ? 'Pied de la côte dans' : 'Climb starts in'} <b class="num">${Math.round(c.toGoM)} m</b>`
+        ? `${S('climbStartsIn')} <b class="num">${Math.round(c.toGoM)} m</b>`
         : `<b class="num">${fmtTime(c.elapsedS)}</b> ${delta} <span class="num" style="color:var(--ar-muted)">· ${Math.round(c.toGoM)} m</span>`;
-    setHtml(box, `<div class="ch-head"><b>${fr ? 'Défi' : 'Challenge'}</b><span>${c.name.replace(/[<>&]/g, '')} · ${rec}</span></div><div class="ch-main">${main}</div><div class="bar"><span style="width:${(c.progress * 100).toFixed(1)}%"></span></div>`);
+    setHtml(box, `<div class="ch-head"><b>${S('challenge')}</b><span>${c.name.replace(/[<>&]/g, '')} · ${rec}</span></div><div class="ch-main">${main}</div><div class="bar"><span style="width:${(c.progress * 100).toFixed(1)}%"></span></div>`);
   }
 
   /** Panneau de séance structurée (null = masqué). */
@@ -704,9 +896,9 @@ export class Hud {
     (this.el.wRemain as HTMLElement).textContent = fmtTime(w.remainingS);
     const delta = w.targetWatts ? w.watts3s - w.targetWatts : 0;
     const tgt = this.el.wTarget as HTMLElement;
-    tgt.textContent = w.targetWatts ? `${Math.round(w.targetWatts)} W` : 'Libre';
+    tgt.textContent = w.targetWatts ? `${Math.round(w.targetWatts)} W` : S('workoutFree');
     tgt.style.color = !w.targetWatts ? '#f5f7fa' : Math.abs(delta) < w.targetWatts * 0.05 ? '#22c55e' : delta > 0 ? '#f97316' : '#60a5fa';
-    (this.el.wStep as HTMLElement).textContent = `Étape ${Math.min(w.stepIndex + 1, w.stepCount)}/${w.stepCount} · ${fmtTime(w.stepRemainingS)}${w.next ? ` · ensuite ${w.next}` : ''}${w.extra ? ` · ${w.extra}` : ''}`;
+    (this.el.wStep as HTMLElement).textContent = `${S('step').replace('{i}', String(Math.min(w.stepIndex + 1, w.stepCount))).replace('{n}', String(w.stepCount))} · ${fmtTime(w.stepRemainingS)}${w.next ? ` · ${S('then')} ${w.next}` : ''}${w.extra ? ` · ${w.extra}` : ''}`;
     const c = this.el.wChart as HTMLCanvasElement;
     const ctx = c.getContext('2d') as CanvasRenderingContext2D;
     ctx.clearRect(0, 0, c.width, c.height);
@@ -774,15 +966,18 @@ export class Hud {
       return;
     }
     chip.classList.remove('hidden');
-    const where = state.phone ? ' du téléphone' : '';
-    chip.textContent = !state.connected ? `🎙 ${state.detail ?? 'voix indisponible'}` : state.micOn ? `🎙 micro${where} ouvert (V)` : `🔇 micro${where} coupé (V)`;
+    chip.textContent = !state.connected
+      ? `🎙 ${state.detail ?? S('voiceUnavailable')}`
+      : state.micOn
+        ? `🎙 ${S(state.phone ? 'phoneMicOn' : 'micOn')}`
+        : `🔇 ${S(state.phone ? 'phoneMicOff' : 'micOff')}`;
     if (!state.connected && state.discordUrl) {
       const a = document.createElement('a');
       a.className = 'discord-link';
       a.href = state.discordUrl;
       a.target = '_blank';
       a.rel = 'noopener noreferrer';
-      a.textContent = 'Rejoindre le salon Discord';
+      a.textContent = S('discord');
       chip.append(' · ', a);
     }
   }
@@ -866,7 +1061,7 @@ export class Hud {
 
   update(s: HudState, massKg: number): void {
     const e = this.el;
-    const nf1 = (v: number) => v.toFixed(1).replace('.', ',');
+    const nf1 = (v: number) => v.toFixed(1).replace('.', dec());
     const cx = this.compact;
     (e.watts as HTMLElement).textContent = String(Math.round(s.watts3s));
     const zc = zoneColorHex(s.watts3s, s.ftp);
@@ -881,9 +1076,9 @@ export class Hud {
     const fr = getLang() === 'fr';
     if (cx) {
       (e.wkg as HTMLElement).textContent = nf1(s.watts3s / massKg);
-      setText(e.zone as HTMLElement, zoneLabel(s.watts3s, s.ftp, fr));
+      setText(e.zone as HTMLElement, zoneLabel(s.watts3s, s.ftp));
       (e.wattsNow as HTMLElement).textContent = `${Math.round(s.watts)} W`;
-    } else (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg · ${zoneLabel(s.watts3s, s.ftp, fr)}`;
+    } else (e.wkg as HTMLElement).textContent = `${nf1(s.watts3s / massKg)} W/kg · ${zoneLabel(s.watts3s, s.ftp)}`;
     (e.hr as HTMLElement).textContent = s.hr ? String(Math.round(s.hr)) : cx ? '--' : 'N/A';
     (e.cad as HTMLElement).textContent = String(Math.round(s.cadence));
     (e.speed as HTMLElement).textContent = nf1(s.speedKmh);
@@ -904,7 +1099,7 @@ export class Hud {
       setText(e.avgHr as HTMLElement, this.hrTime > 3 ? String(Math.round(this.hrSum / this.hrTime)) : '–');
     }
     // Bandeau compact : unités à part, en petit.
-    const km = (s.distM / 1000).toFixed(2).replace('.', ',');
+    const km = (s.distM / 1000).toFixed(2).replace('.', dec());
     (e.dist as HTMLElement).textContent = km;
     (e.gain as HTMLElement).textContent = String(Math.round(s.elevationGainM));
     (e.avg as HTMLElement).textContent = String(Math.round(s.avgWatts));
@@ -921,19 +1116,17 @@ export class Hud {
     }
     if (s.wheelGapM !== undefined) {
       const w = s.wind;
-      const side = w?.shelter ? (fr ? ` · abri à ${w.shelter === 'left' ? 'gauche' : 'droite'} de la roue` : ` · shelter on the ${w.shelter} of the wheel`) : '';
+      const side = w?.shelter ? S(w.shelter === 'left' ? 'shelterLeft' : 'shelterRight') : '';
       (e.draftNote as HTMLElement).textContent =
-        s.wheelGapM === null ? (fr ? 'Personne devant' : 'Nobody ahead') + side : `${fr ? 'Roue devant à' : 'Wheel ahead at'} ${nf1(s.wheelGapM)} m${side}`;
+        s.wheelGapM === null ? S('nobodyAhead') + side : `${S('wheelAheadAt')} ${nf1(s.wheelGapM)} m${side}`;
     }
     if (s.wind) {
-      const from = cx
-        ? fr
-          ? { face: 'de face', dos: 'de dos', gauche: 'côté g.', droite: 'côté d.' }[s.wind.from]
-          : { face: 'head', dos: 'tail', gauche: 'left', droite: 'right' }[s.wind.from]
-        : fr
-          ? { face: 'de face', dos: 'de dos', gauche: 'de gauche', droite: 'de droite' }[s.wind.from]
-          : { face: 'head', dos: 'tail', gauche: 'from left', droite: 'from right' }[s.wind.from];
-      (e.wind as HTMLElement).textContent = s.wind.kmh < 2 ? (fr ? 'calme' : 'calm') : `${Math.round(s.wind.kmh)} km/h ${from}`;
+      const from = S(
+        cx
+          ? ({ face: 'windHeadShort', dos: 'windTailShort', gauche: 'windLeftShort', droite: 'windRightShort' } as const)[s.wind.from]
+          : ({ face: 'windHead', dos: 'windTail', gauche: 'windLeft', droite: 'windRight' } as const)[s.wind.from],
+      );
+      (e.wind as HTMLElement).textContent = s.wind.kmh < 2 ? S('calm') : `${Math.round(s.wind.kmh)} km/h ${from}`;
     }
     if (s.altitudeM !== undefined) (e.alt as HTMLElement).textContent = `${Math.round(s.altitudeM)} m`;
     // pas de compteur de tours sur un itinéraire aller simple
@@ -958,8 +1151,8 @@ export class Hud {
     } else bb.classList.add('hidden');
 
     const segEl = e.segment as HTMLElement;
-    const mmss = (v: number) => `${Math.floor(v / 60)}:${(v % 60).toFixed(1).padStart(4, '0').replace('.', ',')}`;
-    const recordTxt = (r: number | null | undefined) => (r ? `${fr ? 'record' : 'best'} ${mmss(r)}` : fr ? 'premier passage : ton temps deviendra ton fantôme' : 'first attempt: your time becomes your ghost');
+    const mmss = (v: number) => `${Math.floor(v / 60)}:${(v % 60).toFixed(1).padStart(4, '0').replace('.', dec())}`;
+    const recordTxt = (r: number | null | undefined) => (r ? `${S('record')} ${mmss(r)}` : S('firstAttemptGhost'));
     const segLabel = (seg: RouteSegment) => (seg.kind === 'kom' ? `${t('kom')} ${climbCategoryLabel(climbCategory(seg), fr)}` : t('sprint'));
     if (cx && (s.segment || s.nextSegment)) {
       // Façon NCT : bandeau rouge (KOM) ou vert (sprint) ; à l'approche « dans 98 m » et la fiche du segment,
@@ -975,14 +1168,14 @@ export class Hud {
       (e.segCells as HTMLElement).classList.toggle('hidden', !live);
       (e.segBar as HTMLElement).parentElement?.classList.toggle('hidden', !live);
       if (live) {
-        setText(e.segWhen as HTMLElement, fr ? 'en cours' : 'live');
+        setText(e.segWhen as HTMLElement, S('live'));
         const remain = len * (1 - live.progress);
         const eta = live.elapsedS + remain / Math.max(s.speedKmh / 3.6, 1);
         const cells: Array<[string, string]> = [
-          [fmtTime(live.elapsedS), fr ? 'chrono' : 'time'],
-          [remain >= 1000 ? `${(remain / 1000).toFixed(2).replace('.', ',')} km` : `${Math.round(remain)} m`, fr ? 'restant' : 'to go'],
-          seg.kind === 'kom' ? [`${Math.round(Math.max(0, live.gainLeftM ?? 0))} m`, fr ? 'D+ restant' : 'climb left'] : [`${nf1(s.speedKmh)}`, 'km/h'],
-          [fmtTime(eta), fr ? 'estimé' : 'estimate'],
+          [fmtTime(live.elapsedS), S('chrono')],
+          [remain >= 1000 ? `${(remain / 1000).toFixed(2).replace('.', dec())} km` : `${Math.round(remain)} m`, S('toGo')],
+          seg.kind === 'kom' ? [`${Math.round(Math.max(0, live.gainLeftM ?? 0))} m`, S('climbLeft')] : [`${nf1(s.speedKmh)}`, 'km/h'],
+          [fmtTime(eta), S('estimate')],
         ];
         cells.forEach(([v, l], i) => {
           setText(e[`segV${i + 1}`] as HTMLElement, v);
@@ -991,10 +1184,10 @@ export class Hud {
         setText(e.segInfo as HTMLElement, recordTxt(live.recordS));
         (e.segBar as HTMLElement).style.width = `${(live.progress * 100).toFixed(1)}%`;
       } else if (s.nextSegment) {
-        setText(e.segWhen as HTMLElement, `${fr ? 'dans' : 'in'} ${Math.max(0, Math.round(s.nextSegment.inM))} m`);
-        const lenTxt = len >= 1000 ? `${(len / 1000).toFixed(1).replace('.', ',')} km` : `${Math.round(len)} m`;
+        setText(e.segWhen as HTMLElement, `${S('in')} ${Math.max(0, Math.round(s.nextSegment.inM))} m`);
+        const lenTxt = len >= 1000 ? `${(len / 1000).toFixed(1).replace('.', dec())} km` : `${Math.round(len)} m`;
         const grade = seg.kind === 'kom' ? ` · ${nf1(seg.avgGrade)} %` : '';
-        const rec = s.nextSegment.recordS ? recordTxt(s.nextSegment.recordS) : fr ? 'premier passage' : 'first attempt';
+        const rec = s.nextSegment.recordS ? recordTxt(s.nextSegment.recordS) : S('firstAttempt');
         setText(e.segInfo as HTMLElement, `${lenTxt}${grade} · ${rec}`);
       }
     } else if (s.segment) {
@@ -1005,7 +1198,7 @@ export class Hud {
       (e.segInfo as HTMLElement).textContent = `${fmtTime(s.segment.elapsedS)} · ${Math.round(remain)} m`;
       (e.segBar as HTMLElement).style.width = `${(s.segment.progress * 100).toFixed(1)}%`;
     } else segEl.classList.add('hidden');
-    this.updateGroup(s, fr);
+    this.updateGroup(s);
 
     const loc = e.loc as HTMLElement;
     const mapTown = e.mapTown as HTMLElement | undefined;
@@ -1039,7 +1232,7 @@ export class Hud {
     setHtml(e.riders as HTMLElement, cx ? this.nearbyCompactHtml(s) : this.nearbyHtml(s));
     if (cx) {
       this.updateZones(s);
-      this.updateToGo(s, fr);
+      this.updateToGo(s);
       fitCanvas(this.profileCanvas);
     }
 
@@ -1061,7 +1254,7 @@ export class Hud {
    * Panneau « Groupe » : affiché avec un peloton d'équipiers, ou dès qu'un autre coureur (joueur, IA du
    * serveur ; pas les cyclistes croisés) roule à moins de 150 m. Points empilés quand ils se chevauchent.
    */
-  private updateGroup(s: HudState, fr: boolean): void {
+  private updateGroup(s: HudState): void {
     const e = this.el;
     const box = e.group as HTMLElement;
     const me = s.riders.find((r) => r.me);
@@ -1071,7 +1264,7 @@ export class Hud {
     if (!show) return;
     const pace = e.grpPace as HTMLElement;
     pace.classList.toggle('hidden', !s.groupPace);
-    if (s.groupPace) setText(e.grpPaceTxt as HTMLElement, `${s.groupPace.ftpPct !== null ? `${Math.round(s.groupPace.ftpPct * 100)} % FTP` : fr ? 'libre' : 'free'} · ${Math.round(s.groupPace.watts)} W`);
+    if (s.groupPace) setText(e.grpPaceTxt as HTMLElement, `${s.groupPace.ftpPct !== null ? `${Math.round(s.groupPace.ftpPct * 100)} % FTP` : S('paceFree')} · ${Math.round(s.groupPace.watts)} W`);
 
     // Points : position le long de la barre (%), hors de portée collés au bord et estompés ; un point qui
     // chevauche le précédent passe sur la rangée du dessus, puis du dessous.
@@ -1095,8 +1288,8 @@ export class Hud {
     const list = near
       .map(({ r, gap }) => {
         const d = Math.abs(gap);
-        const dist = d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km` : `${Math.round(d)} m`;
-        const where = d < 1 ? (fr ? 'à côté' : 'alongside') : `${dist} ${gap > 0 ? (fr ? 'devant' : 'ahead') : fr ? 'derrière' : 'behind'}`;
+        const dist = d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', dec())} km` : `${Math.round(d)} m`;
+        const where = d < 1 ? S('alongside') : `${dist} ${S(gap > 0 ? 'ahead' : 'behind')}`;
         return `<div class="grp-row"><span class="grp-name">${r.name.replace(/[<>&]/g, '')}</span><span class="num grp-gap">${where}</span></div>`;
       })
       .join('');
@@ -1124,12 +1317,12 @@ export class Hud {
   }
 
   /** HUD compact : distance restante sur le profil (arrivée, ou fin du tour sur une boucle ; rien en monde ouvert). */
-  private updateToGo(s: HudState, fr: boolean): void {
+  private updateToGo(s: HudState): void {
     let txt = '';
     if (!this.openGraph) {
       const left = Math.max(0, this.track.length - s.lapDistM);
-      const d = left < 1000 ? `${Math.round(left / 10) * 10} m` : `${(left / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km`;
-      txt = this.track.route.loop ? `${fr ? 'Fin du tour' : 'Lap ends in'} ${d}` : `${fr ? 'Arrivée' : 'Finish'} ${d}`;
+      const d = left < 1000 ? `${Math.round(left / 10) * 10} m` : `${(left / 1000).toFixed(1).replace('.', dec())} km`;
+      txt = `${S(this.track.route.loop ? 'lapEndsIn' : 'finish')} ${d}`;
     }
     setText(this.el.togo as HTMLElement, txt);
   }
@@ -1273,7 +1466,6 @@ export class Hud {
 
   /** Points cardinaux au bord de la mini-carte ronde (nord en haut, en rouge). */
   private drawCompass(ctx: CanvasRenderingContext2D, w: number, h: number): void {
-    const fr = getLang() === 'fr';
     const r = Math.min(w, h) / 2 - 24;
     const cx = w / 2;
     const cy = h / 2;
@@ -1281,7 +1473,7 @@ export class Hud {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = '800 26px Inter, system-ui, sans-serif';
-    for (const [label, a] of [['N', 0], ['E', 90], ['S', 180], [fr ? 'O' : 'W', 270]] as const) {
+    for (const [label, a] of [['N', 0], ['E', 90], ['S', 180], [S('west'), 270]] as const) {
       const t = (a * Math.PI) / 180;
       const x = cx + Math.sin(t) * r;
       const y = cy - Math.cos(t) * r;
@@ -1398,7 +1590,6 @@ export class Hud {
    * vitesse (et en distance), W/kg. Filtre « réels » : seulement les joueurs en ligne.
    */
   private nearbyHtml(s: HudState): string {
-    const fr = getLang() === 'fr';
     const me = s.riders.find((r) => r.me);
     if (!me) return '';
     const pool = s.riders.filter((r) => r.me || this.riderFilter === 'all' || (!r.isAI && !r.isGuest) || r.online).sort((a, b) => b.distM - a.distM);
@@ -1406,8 +1597,8 @@ export class Hud {
     const shown = pool.slice(Math.max(0, i - 5), i + 6);
     const speed = Math.max(s.speedKmh / 3.6, 2);
     const real = s.riders.filter((r) => !r.me && !r.isAI).length;
-    const head = `<div class="rd-head"><b>${fr ? 'À proximité' : 'Nearby'}</b><button class="rd-filter" data-rfilter title="${fr ? 'Coureurs réels ou tous' : 'Real riders or all'}">${
-      this.riderFilter === 'real' ? (fr ? `Réels (${real})` : `Real (${real})`) : fr ? 'Tous' : 'All'
+    const head = `<div class="rd-head"><b>${S('nearby')}</b><button class="rd-filter" data-rfilter title="${S('realOrAll')}">${
+      this.riderFilter === 'real' ? S('realN').replace('{n}', String(real)) : S('all')
     }</button></div>`;
     const rows = shown
       .map((r) => {
@@ -1418,19 +1609,19 @@ export class Hud {
         const abs = Math.round(Math.abs(sec));
         const time = r.me ? '' : `${sec > 0.5 ? '+' : sec < -0.5 ? '−' : ''}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, '0')}`;
         const lvl = levelBars(r.ambient?.level ?? r.level);
-        const lvlName = r.ambient?.level ?? r.level ?? '';
+        const lvlName = levelName(r.ambient?.level ?? r.level);
         const verdict = r.ambient
           ? r.ambient.follow === 'ok'
-            ? `<em class="rd-badge ok">${fr ? 'À suivre' : 'Can follow'}</em>`
+            ? `<em class="rd-badge ok">${S('canFollow')}</em>`
             : r.ambient.follow === 'hard'
-              ? `<em class="rd-badge hard">${fr ? 'Trop fort' : 'Too strong'}</em>`
-              : `<em class="rd-badge easy">${fr ? 'Plus lent' : 'Slower'}</em>`
+              ? `<em class="rd-badge hard">${S('tooStrong')}</em>`
+              : `<em class="rd-badge easy">${S('slower')}</em>`
           : '';
         const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
-        const num = (v: number, d: number) => v.toFixed(d).replace('.', fr ? ',' : '.');
+        const num = (v: number, d: number) => v.toFixed(d).replace('.', dec());
         const sub = [
           r.wkg !== undefined ? `${num(r.wkg, 1)} W/kg` : r.watts !== undefined ? `${Math.round(r.watts)} W` : '',
-          cadenceLabel(r.cadence, fr),
+          cadenceLabel(r.cadence),
           r.km !== undefined ? `${num(r.km, 1)} km` : '',
         ]
           .filter(Boolean)
@@ -1438,7 +1629,7 @@ export class Hud {
         const flag = flagSvg(r.nationality, 13);
         const name = shortName(r.name).replace(/[<>&]/g, '');
         const title = [r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '', lvlName].filter(Boolean).join(' · ');
-        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${fr ? 'Mon groupe' : 'My group'}"></i>` : ''}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, fr ? 'fr' : 'en')}">${flag}</span>` : ''}</b><small class="nb-sub num">${verdict}${sub}</small></span></div>`;
+        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${S('friend')}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${S('myGroup')}"></i>` : ''}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, getLang())}">${flag}</span>` : ''}</b><small class="nb-sub num">${verdict}${sub}</small></span></div>`;
       })
       .join('');
     return head + rows;
@@ -1449,13 +1640,12 @@ export class Hud {
    * watts, écart en temps). Repliable d'un clic sur l'en-tête (il garde le nombre de coureurs).
    */
   private nearbyCompactHtml(s: HudState): string {
-    const fr = getLang() === 'fr';
     const me = s.riders.find((r) => r.me);
     if (!me) return '';
     const others = s.riders.filter((r) => !r.me && (this.riderFilter === 'all' || (!r.isAI && !r.isGuest) || r.online));
     const real = s.riders.filter((r) => !r.me && !r.isAI).length;
-    const head = `<div class="rd-head" data-rfold title="${fr ? 'Replier / déplier' : 'Fold / unfold'}"><i class="rd-caret">▾</i><b>${fr ? 'À proximité' : 'Nearby'}</b><span class="rd-count num">${others.length}</span><button class="rd-filter" data-rfilter tabindex="-1" title="${fr ? 'Coureurs réels ou tous' : 'Real riders or all'}">${
-      this.riderFilter === 'real' ? (fr ? `Réels (${real})` : `Real (${real})`) : fr ? 'Tous' : 'All'
+    const head = `<div class="rd-head" data-rfold title="${S('fold')}"><i class="rd-caret">▾</i><b>${S('nearby')}</b><span class="rd-count num">${others.length}</span><button class="rd-filter" data-rfilter tabindex="-1" title="${S('realOrAll')}">${
+      this.riderFilter === 'real' ? S('realN').replace('{n}', String(real)) : S('all')
     }</button></div>`;
     if (this.ridersFolded) return head;
     const near = others.sort((a, b) => Math.abs(a.distM - me.distM) - Math.abs(b.distM - me.distM)).slice(0, 3);
@@ -1467,12 +1657,12 @@ export class Hud {
         const time = Math.abs(sec) >= 60 ? `${sec > 0 ? '+' : '−'}${Math.floor(Math.abs(sec) / 60)}:${String(Math.round(Math.abs(sec) % 60)).padStart(2, '0')}` : `${sec > 0 ? '+' : sec < 0 ? '−' : ''}${Math.round(Math.abs(sec))} s`;
         const flag = flagSvg(r.nationality, 11);
         const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" tabindex="-1" title="Ride On">👍</button>` : '';
-        const friend = r.friend ? `<em class="rd-friend" title="${fr ? 'Ami' : 'Friend'}">★</em>` : '';
+        const friend = r.friend ? `<em class="rd-friend" title="${S('friend')}">★</em>` : '';
         // Sous le nom : niveau (cyclistes croisés) ou type, kilomètres parcourus ; à droite W et W/kg, écart.
-        const sub = r.ambient ? r.ambient.level : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : r.friend ? (fr ? 'Ami' : 'Friend') : '';
-        const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', fr ? ',' : '.')} km` : '';
-        const subLine = [sub, r.ambient ? '' : (r.level ?? ''), cadenceLabel(r.cadence, fr), kmTxt].filter(Boolean).join(' · ');
-        const wkg = r.wkg !== undefined ? `${r.wkg.toFixed(1).replace('.', fr ? ',' : '.')} W/kg` : '';
+        const sub = r.ambient ? levelName(r.ambient.level) : r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : r.friend ? S('friend') : '';
+        const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', dec())} km` : '';
+        const subLine = [sub, r.ambient ? '' : levelName(r.level), cadenceLabel(r.cadence), kmTxt].filter(Boolean).join(' · ');
+        const wkg = r.wkg !== undefined ? `${r.wkg.toFixed(1).replace('.', dec())} W/kg` : '';
         return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b>${subLine ? `<small class="rd-sub">${subLine}</small>` : ''}</span><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u>${wkg ? `<small>${wkg}</small>` : ''}</span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
       })
       .join('');
@@ -1485,7 +1675,6 @@ export class Hud {
     const j = s.open?.junction;
     if (!j && s.turn) {
       // Petit panneau : flèche, côté et distance ; seulement aux carrefours où l'itinéraire tourne.
-      const fr = getLang() === 'fr';
       const tw = s.turn;
       const key = `turn|${tw.dir}|${tw.sharp}`;
       const dist = `${Math.max(0, Math.round(tw.inM / 10) * 10)} m`;
@@ -1498,7 +1687,7 @@ export class Hud {
       }
       this.lastJunction = key;
       const arrow = tw.dir === 'left' ? (tw.sharp ? '↲' : '↰') : tw.sharp ? '↳' : '↱';
-      const label = tw.dir === 'left' ? (fr ? 'À gauche' : 'Left') : fr ? 'À droite' : 'Right';
+      const label = S(tw.dir);
       box.innerHTML = `<i class="tn-arrow">${arrow}</i><b>${label}</b><span class="num tn-dist">${dist}</span>`;
       return;
     }
@@ -1509,24 +1698,22 @@ export class Hud {
       return;
     }
     box.classList.remove('hidden');
-    const fr = getLang() === 'fr';
     const arrow = { left: '↰', straight: '↑', right: '↱', back: '↶' } as const;
-    const label = (d: keyof typeof arrow) =>
-      fr ? { left: 'À gauche', straight: 'Tout droit', right: 'À droite', back: 'Demi-tour' }[d] : { left: 'Left', straight: 'Straight on', right: 'Right', back: 'Turn back' }[d];
+    const label = (d: keyof typeof arrow) => S(d);
     const key = `${j.selected}|${j.locked}|${j.choices.map((c) => c.dir + c.name).join(',')}`;
-    const head = `<div class="jn-head"><b>${fr ? 'Bifurcation' : 'Junction'}</b><span class="num">${fr ? 'dans' : 'in'} ${Math.max(0, Math.round(j.inM / 10) * 10)} m</span></div>`;
+    const head = `<div class="jn-head"><b>${S('junction')}</b><span class="num">${S('in')} ${Math.max(0, Math.round(j.inM / 10) * 10)} m</span></div>`;
     if (key === this.lastJunction) {
       const h = box.querySelector('.jn-head span');
-      if (h) h.textContent = `${fr ? 'dans' : 'in'} ${Math.max(0, Math.round(j.inM / 10) * 10)} m`;
+      if (h) h.textContent = `${S('in')} ${Math.max(0, Math.round(j.inM / 10) * 10)} m`;
       return;
     }
     this.lastJunction = key;
     box.innerHTML = `${head}<div class="jn-choices">${j.choices
       .map(
         (c, i) =>
-          `<div class="jn-choice ${i === j.selected ? 'on' : ''} ${j.locked && i !== j.selected ? 'off' : ''}"><i>${arrow[c.dir]}</i><b>${label(c.dir)}</b><span>${c.name ? c.name.replace(/[<>&]/g, '') : ''}${c.unpaved ? ' · 🌾' : ''}</span>${i === j.selected ? `<em>${fr ? 'je continue' : 'my way'}</em>` : ''}</div>`,
+          `<div class="jn-choice ${i === j.selected ? 'on' : ''} ${j.locked && i !== j.selected ? 'off' : ''}"><i>${arrow[c.dir]}</i><b>${label(c.dir)}</b><span>${c.name ? c.name.replace(/[<>&]/g, '') : ''}${c.unpaved ? ' · 🌾' : ''}</span>${i === j.selected ? `<em>${S('myWay')}</em>` : ''}</div>`,
       )
-      .join('')}</div><div class="jn-keys">${j.locked ? (fr ? 'choix retenu' : 'locked in') : fr ? '← → pour choisir · U demi-tour' : '← → to choose · U turn back'}</div>`;
+      .join('')}</div><div class="jn-keys">${S(j.locked ? 'lockedIn' : 'chooseKeys')}</div>`;
   }
 
   /** Profil des 2 km autour du coureur (200 m derrière, 1,8 km devant). */

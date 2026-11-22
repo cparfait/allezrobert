@@ -1,5 +1,10 @@
 import { climbAhead, climbElevation, detectClimbs, drawClimbProfile, gradeColor, type Climb, type ClimbAhead, type RouteTrack } from '@allezrobert/shared';
-import { getLang } from '../i18n/index.ts';
+import { getLang, strings } from '../i18n/index.ts';
+
+const S = strings(
+  { summit: 'Sommet !', climb: 'Montée', left: 'Reste', gainLeft: 'D+ restant', avgLeft: 'Moy. restante', startsIn: 'pied dans', climbing: 'en montée', section: 'Tronçon' },
+  { summit: 'Summit!', climb: 'Climb', left: 'To go', gainLeft: 'Ascent left', avgLeft: 'Avg to go', startsIn: 'starts in', climbing: 'climbing', section: 'Section' },
+);
 
 /** Le panneau apparaît 500 m avant le pied de la montée. */
 const APPROACH_M = 500;
@@ -96,7 +101,7 @@ export class ClimbPanel {
         const dt = elapsedS - this.t0.elapsedS;
         const gain = Math.max(0, prev.climb.topM - climbElevation(prev.climb, Math.max(this.t0.pos, 0)));
         const vam = dt > 0 ? Math.round((gain * 3600) / dt) : 0;
-        this.onSummit?.(`⛰ ${fr ? 'Sommet !' : 'Summit!'} ${fmtTime(dt)} · +${nf(gain)} m · VAM ${nf(vam)} m/h`);
+        this.onSummit?.(`⛰ ${S('summit')} ${fmtTime(dt)} · +${nf(gain)} m · VAM ${nf(vam)} m/h`);
       }
       this.t0 = null;
     }
@@ -119,20 +124,20 @@ export class ClimbPanel {
     if (key !== this.key) {
       this.key = key;
       const n = this.open() ? 1 : this.climbs.length;
-      this.q('title').textContent = `⛰ ${fr ? 'Montée' : 'Climb'}${n > 1 ? ` ${a.index + 1}/${n}` : ''}`;
-      this.q('lLeft').textContent = fr ? 'Reste' : 'To go';
-      this.q('lGain').textContent = fr ? 'D+ restant' : 'Ascent left';
-      this.q('lAvg').textContent = fr ? 'Moy. restante' : 'Avg to go';
+      this.q('title').textContent = `⛰ ${S('climb')}${n > 1 ? ` ${a.index + 1}/${n}` : ''}`;
+      this.q('lLeft').textContent = S('left');
+      this.q('lGain').textContent = S('gainLeft');
+      this.q('lAvg').textContent = S('avgLeft');
       this.q('sum').textContent = `${ge}${nf(c.lengthM / 1000, 1)} km · ${nf(c.avgGrade, 1)} % · max ${nf(c.maxGrade, 1)} % · ${ge}+${nf(c.gainM)} m`;
     }
-    this.q('status').textContent = a.pos < 0 ? `${fr ? 'pied dans' : 'starts in'} ${dist(-a.pos)}` : `${fr ? 'en montée' : 'climbing'} · ${Math.round((p / c.lengthM) * 100)} %`;
+    this.q('status').textContent = a.pos < 0 ? `${S('startsIn')} ${dist(-a.pos)}` : `${S('climbing')} · ${Math.round((p / c.lengthM) * 100)} %`;
     this.q('left').textContent = ge + dist(leftM);
     this.q('gain').textContent = `${ge}${nf(gainLeft)} m`;
     this.q('avg').textContent = leftM > 50 ? `${nf((gainLeft / leftM) * 100, 1)} %` : '–';
     // Tronçon en cours : pente, distance jusqu'au suivant.
     const seg = c.segments.find((s) => p < s.to) ?? (c.segments[c.segments.length - 1] as Climb['segments'][number]);
     this.q('segDot').style.background = gradeColor(seg.grade);
-    this.q('seg').textContent = `${fr ? 'Tronçon' : 'Section'} ${nf(seg.grade, 1)} % · ${dist(seg.to - p)}`;
+    this.q('seg').textContent = `${S('section')} ${nf(seg.grade, 1)} % · ${dist(seg.to - p)}`;
     // Canvas à la taille affichée (netteté sur écran haute densité).
     const cv = this.canvas;
     const w = cv.clientWidth;

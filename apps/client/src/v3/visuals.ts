@@ -10,6 +10,7 @@ import { rootNeutral, sampleV3, sampleV3At, type V3Clip } from './animation.ts';
 import { loadSettings } from '../ui/settings.ts';
 import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, HARD_EFFORT } from '../rider/poseThresholds.ts';
 import { recoverV3Access, v3Resource } from '../engine/v3Access.ts';
+import { strings } from '../i18n/index.ts';
 
 const base = v3Resource('');
 /** Vélo de départ du style Beta. */
@@ -47,15 +48,70 @@ export const V3_DEFAULT_KIT: Readonly<Record<string, V3GearSelection>> = {
   SOCKS: { id: 2037, color: 0 },
 };
 
-export const V3_POSES: Record<string, string> = {
-  cyclistSeatedHoods: 'Assis · cocottes',
-  cyclistSeatedDrops: 'Assis · bas du cintre',
-  cyclistStandingHoods: 'En danseuse · cocottes',
-  cyclistSprint: 'Sprint',
-  cyclistSprint_alt: 'Sprint · variante',
-  cyclistSeatedDrops_TT: 'Aéro · chrono',
-  cyclistSuperAero: 'Super-aéro · roue libre',
+/** Libellés du garage et de la penderie (postures, coupes, poches, couleurs de cheveux), lus à l'affichage. */
+const S = strings(
+  {
+    cyclistSeatedHoods: 'Assis · cocottes',
+    cyclistSeatedDrops: 'Assis · bas du cintre',
+    cyclistStandingHoods: 'En danseuse · cocottes',
+    cyclistSprint: 'Sprint',
+    cyclistSprint_alt: 'Sprint · variante',
+    cyclistSeatedDrops_TT: 'Aéro · chrono',
+    cyclistSuperAero: 'Super-aéro · roue libre',
+    zipShort: 'Courtes',
+    zipLong: 'Longues',
+    pocketsEmpty: 'Vides',
+    pocketsFew: 'Peu',
+    pocketsMedium: 'Moyennes',
+    pocketsFilled: 'Remplies',
+    pocketsFull: 'Pleines',
+    closed: 'Fermé',
+    open: 'Ouvert',
+    hairChestnut: 'Châtain',
+    hairBlond: 'Blond',
+    hairRed: 'Roux',
+    hairDark: 'Brun foncé',
+    hairGrey: 'Gris',
+    hairBlue: 'Bleu',
+  },
+  {
+    cyclistSeatedHoods: 'Seated · hoods',
+    cyclistSeatedDrops: 'Seated · drops',
+    cyclistStandingHoods: 'Standing · hoods',
+    cyclistSprint: 'Sprint',
+    cyclistSprint_alt: 'Sprint · alternate',
+    cyclistSeatedDrops_TT: 'Aero · time trial',
+    cyclistSuperAero: 'Super tuck · coasting',
+    zipShort: 'Short',
+    zipLong: 'Long',
+    pocketsEmpty: 'Empty',
+    pocketsFew: 'Light',
+    pocketsMedium: 'Medium',
+    pocketsFilled: 'Loaded',
+    pocketsFull: 'Full',
+    closed: 'Closed',
+    open: 'Open',
+    hairChestnut: 'Chestnut',
+    hairBlond: 'Blond',
+    hairRed: 'Red',
+    hairDark: 'Dark brown',
+    hairGrey: 'Grey',
+    hairBlue: 'Blue',
+  },
+);
+type V3LabelKey = Parameters<typeof S>[0];
+/** Liste de libellés traduits à la lecture (mêmes index, même forEach qu'un tableau ordinaire). */
+const labelList = (keys: V3LabelKey[]): string[] => {
+  const list: string[] = [];
+  keys.forEach((key, i) => Object.defineProperty(list, i, { get: () => S(key), enumerable: true }));
+  return list;
 };
+
+const POSE_IDS = ['cyclistSeatedHoods', 'cyclistSeatedDrops', 'cyclistStandingHoods', 'cyclistSprint', 'cyclistSprint_alt', 'cyclistSeatedDrops_TT', 'cyclistSuperAero'] as const;
+export const V3_POSES: Record<string, string> = Object.defineProperties(
+  {},
+  Object.fromEntries(POSE_IDS.map((id) => [id, { get: () => S(id), enumerable: true }])),
+) as Record<string, string>;
 
 export type V3Bike = {
   id: string; name: string; brand: string; type: string; preview?: boolean; weightG?: number; cdaBias?: number;
@@ -139,8 +195,8 @@ export type V3Equipment = {
 
 /** Six couleurs des planches de cheveux et de barbe Zwift (2 colonnes × 3 lignes), dans l'ordre des cases. */
 export const V3_HAIR_COLORS: Array<{ name: string; swatch: string }> = [
-  { name: 'Châtain', swatch: '#6b4a2b' }, { name: 'Blond', swatch: '#c9a25a' }, { name: 'Roux', swatch: '#b5562a' },
-  { name: 'Brun foncé', swatch: '#2e2520' }, { name: 'Gris', swatch: '#b8b4ad' }, { name: 'Bleu', swatch: '#2f7f93' },
+  { get name() { return S('hairChestnut'); }, swatch: '#6b4a2b' }, { get name() { return S('hairBlond'); }, swatch: '#c9a25a' }, { get name() { return S('hairRed'); }, swatch: '#b5562a' },
+  { get name() { return S('hairDark'); }, swatch: '#2e2520' }, { get name() { return S('hairGrey'); }, swatch: '#b8b4ad' }, { get name() { return S('hairBlue'); }, swatch: '#2f7f93' },
 ];
 const hairCell = (index = 0): [number, number] => [(index % 2) * 0.5, Math.floor(Math.min(5, Math.max(0, index)) / 2) / 3];
 
@@ -233,10 +289,10 @@ export function itemFits(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>, sex: 'm
 
 /** Coupe du maillot : les deux maillots du corps Zwift, manches courtes et col en V (3) ou manches longues et col rond (40). */
 const ZIP_JERSEYS = [3, 40];
-export const V3_ZIPS = ['Courtes', 'Longues'];
+export const V3_ZIPS = labelList(['zipShort', 'zipLong']);
 /** Contenu des poches arrière (pièces du corps Zwift posées sur le maillot, de plus en plus remplies). */
-export const V3_POCKETS = ['Vides', 'Peu', 'Moyennes', 'Remplies', 'Pleines'];
-export const V3_OPENINGS = ['Fermé', 'Ouvert'];
+export const V3_POCKETS = labelList(['pocketsEmpty', 'pocketsFew', 'pocketsMedium', 'pocketsFilled', 'pocketsFull']);
+export const V3_OPENINGS = labelList(['closed', 'open']);
 const POCKETS_SHORT = [9, 10, 11, 12];
 const POCKETS_LONG = [55, 56, 57, 58];
 

@@ -105,6 +105,22 @@
         if (q === 'lowpoly') document.querySelectorAll('.splash-rb img').forEach((i) => (i.src = i.src.replace('/robert-velo/', '/robert-velo-poly/')));
       } catch {}
     </script>
+    <script>
+      // Écran de chargement en anglais si la langue enregistrée (ar.lang) ou, à défaut, celle du navigateur n'est
+      // pas le français (même règle que src/i18n/index.ts) ; main.ts reprend les textes ensuite.
+      try {
+        let lang = null;
+        try { lang = localStorage.getItem('ar.lang'); } catch {}
+        if (lang !== 'fr' && lang !== 'en') lang = (navigator.language || 'fr').startsWith('fr') ? 'fr' : 'en';
+        if (lang === 'en') {
+          document.documentElement.lang = 'en';
+          const tagline = document.querySelector('#splash p');
+          if (tagline) tagline.textContent = 'Riding together, each from home.';
+          const step = document.getElementById('splash-step');
+          if (step) step.textContent = 'Loading the game…';
+        }
+      } catch {}
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

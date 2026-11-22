@@ -24,7 +24,7 @@ import { renderHardwarePanel } from '../ui/hardware-panel.ts';
 import { loadSettings } from '../ui/settings.ts';
 import type { InputSource, RideInputs } from './inputs.ts';
 import { loadHardwarePrefs, onHardwarePrefs, updateHardwarePrefs, type HardwarePrefs } from './hardware.ts';
-import { getLang, t } from '../i18n/index.ts';
+import { getLang, strings, t } from '../i18n/index.ts';
 
 export interface DeviceLayer {
   panel: DevicePanel;
@@ -63,16 +63,33 @@ export interface HardwareApi {
   onChange(cb: () => void): void;
 }
 
-const TRANSPORT_LABEL: Record<TransportKind, string> = {
-  'web-bluetooth': 'Bluetooth (navigateur)',
-  'native-ble': 'Bluetooth (app Windows)',
-  dircon: 'Wahoo Direct Connect',
-  'ant-usb': 'ANT+ (clé USB)',
-  simulator: 'Simulateur',
-  keyboard: 'Clavier',
-  gamepad: 'Manette',
-  companion: 'Appli compagnon',
-};
+/** Libellés des modes de connexion et états des capteurs. */
+const S = strings(
+  {
+    'web-bluetooth': 'Bluetooth (navigateur)',
+    'native-ble': 'Bluetooth (app Windows)',
+    dircon: 'Wahoo Direct Connect',
+    'ant-usb': 'ANT+ (clé USB)',
+    simulator: 'Simulateur',
+    keyboard: 'Clavier',
+    gamepad: 'Manette',
+    companion: 'Appli compagnon',
+    error: 'erreur',
+  },
+  {
+    'web-bluetooth': 'Bluetooth (browser)',
+    'native-ble': 'Bluetooth (Windows app)',
+    dircon: 'Wahoo Direct Connect',
+    'ant-usb': 'ANT+ (USB stick)',
+    simulator: 'Simulator',
+    keyboard: 'Keyboard',
+    gamepad: 'Gamepad',
+    companion: 'Companion app',
+    error: 'error',
+  },
+);
+
+const TRANSPORT_LABEL = (k: TransportKind): string => S(k);
 
 const ROLE_KIND: Record<Role, DeviceKind> = { trainer: 'trainer', power: 'power', heartRate: 'heartRate', cadence: 'cadence', shifter: 'shifter', fan: 'fan' };
 
@@ -102,7 +119,7 @@ function stateLabel(s: DeviceSummary['state']): string {
     case 'silent':
       return t('silent');
     case 'error':
-      return 'erreur';
+      return S('error');
     default:
       return t('disconnected');
   }
@@ -308,7 +325,7 @@ export function createDeviceLayer(): DeviceLayer {
         ...(d.battery !== undefined ? { detail: `🔋 ${d.battery} %` } : {}),
         ok: d.state === 'connected',
       })),
-    transports: () => available.filter((k) => k !== 'simulator').map((id) => ({ id, label: TRANSPORT_LABEL[id] })),
+    transports: () => available.filter((k) => k !== 'simulator').map((id) => ({ id, label: TRANSPORT_LABEL(id) })),
     live: () => {
       // Source de la puissance (pédales prioritaires, sinon home trainer) et de la cadence (capteur dédié, sinon la même).
       const now = performance.now();
