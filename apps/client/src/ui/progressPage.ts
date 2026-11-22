@@ -87,9 +87,12 @@ const REAL_CATS: Array<[Cat, string, string]> = [
 /** Catégories de la page : celles du style Beta (catalogue V3) ou celles du Réel et du Poly. */
 const CATS: Array<[Cat, string, string]> = V3_STYLE ? V3_REWARD_CATS : REAL_CATS;
 
-/** XP d'une heure de selle à allure d'endurance sur le plat (≈ 28 km/h) : 20 XP/km + 2 XP/min. */
-const XP_PER_KM = 20 + (2 * 60) / 28;
-const XP_PER_HOUR = 28 * 20 + 120;
+/**
+ * XP d'une heure de selle à allure d'endurance sur le plat (≈ 28 km/h, ≈ 170 W) avec la règle au travail produit
+ * (progression.ts : 1,2 XP par kJ + 4 XP par km) : ≈ 850 XP/h, ≈ 30 XP/km.
+ */
+const XP_PER_HOUR = 1.2 * ((170 * 3600) / 1000) + 4 * 28;
+const XP_PER_KM = XP_PER_HOUR / 28;
 const MILESTONE = (l: number) => l % 10 === 0;
 
 /** Textes du module (français, anglais). */
@@ -130,6 +133,7 @@ const S = strings(
     maxLevelReached: 'Niveau maximum atteint',
     bXpBTo: 'Encore <b>{a} XP</b> pour le niveau {b}',
     about: 'soit',
+    withoutPower: 'sans capteur de puissance : 20 XP / km, 1 / m D+, 2 / min',
     onTheFlat: 'à plat',
     earningXp: 'Gagner de l’XP :',
     trophies: 'trophées',
@@ -217,6 +221,7 @@ const S = strings(
     maxLevelReached: 'Max level reached',
     bXpBTo: '<b>{a} XP</b> to level {b}',
     about: 'about',
+    withoutPower: 'without a power meter: 20 XP / km, 1 / m climbing, 2 / min',
     onTheFlat: 'on the flat',
     earningXp: 'Earning XP:',
     trophies: 'trophies',
@@ -572,7 +577,7 @@ export class ProgressPage {
         <h2 class="ab-title">${max ? (S('maxLevelReached')) : `${S('level')} ${level}`}</h2>
         <div class="pg-xpline"><b>${int(xp)} XP</b>${max ? '' : `<span>${fill(S('bXpBTo'), { a: int(left), b: level + 1 })}, ${S('about')} ${kmFor(left).replace('≈ ', '')} ${S('onTheFlat')}</span>`}</div>
         <div class="pg-xpbar"><i style="width:${pct(prog)}"></i><span>${int(cur)}</span><span>${max ? '' : int(next)}</span></div>
-        <div class="pg-rules"><span>${S('earningXp')}</span><em>20 XP / km</em><em>1 XP / m D+</em><em>2 XP / min</em><em>${ICON.trophy} ${S('trophies')} +100 → +600</em><em class="dim">${S('max')} ${int(MAX_XP_PER_RIDE)} XP / ${S('ride')}</em></div>
+        <div class="pg-rules"><span>${S('earningXp')}</span><em>1,2 XP / kJ</em><em>4 XP / km</em><em class="dim">${S('withoutPower')}</em><em>${ICON.trophy} ${S('trophies')} +100 → +600</em><em class="dim">${S('max')} ${int(MAX_XP_PER_RIDE)} XP / ${S('ride')}</em></div>
       </div>
       <div class="pg-tiles">
         ${tile(`${earned.size}<i>/${TROPHIES.length}</i>`, S('trophies2'), ICON.trophy)}
