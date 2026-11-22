@@ -12,7 +12,7 @@
  */
 import './style.css';
 import { Client, type Room } from '@colyseus/sdk';
-import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPlaceItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
+import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_FAN_MODES, PAIR_MSG, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type PairFanMode, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPlaceItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
 import { detectLang, STRINGS, type Lang } from './i18n.ts';
 import { climbsOf } from './climbs.ts';
 import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
@@ -763,7 +763,8 @@ function ctrlHtml(): string {
     </div>
     <div class="cg">
       <h2>${esc(t.ctrlComfort)}</h2>
-      <label class="slider"><span>${esc(t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
+      ${st.fanMode ? `<h3>${esc(t.fan)}</h3><div class="cams" id="c-fanmodes">${PAIR_FAN_MODES.map((m) => `<button class="seg${st.fanMode === m ? ' on' : ''}" data-fanmode="${m}">${esc(t.fanModes[m])}</button>`).join('')}</div>` : ''}
+      <label class="slider" id="c-fanrow"${st.fanMode && st.fanMode !== 'manual' ? ' hidden' : ''}><span>${esc(st.fanMode ? t.fanModes.manual : t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
       ${roadFeelHtml(st)}
     </div>
     ${
@@ -830,6 +831,12 @@ function updateCtrl(st: PairState): void {
   const mu = document.getElementById('c-music');
   if (mu) mu.textContent = st.music?.playing === false ? t.musicResume : t.musicCut;
   document.querySelectorAll<HTMLButtonElement>('[data-cam]').forEach((b) => b.classList.toggle('on', b.dataset.cam === st.camera));
+  // Mode du ventilateur : bouton actif suivant le jeu ; le curseur ne sert qu'en mode fixe.
+  if (st.fanMode) {
+    document.querySelectorAll<HTMLButtonElement>('[data-fanmode]').forEach((b) => b.classList.toggle('on', b.dataset.fanmode === st.fanMode));
+    const row = document.getElementById('c-fanrow');
+    if (row) row.hidden = st.fanMode !== 'manual';
+  }
   const fan = document.getElementById('c-fan') as HTMLInputElement | null;
   if (fan && document.activeElement !== fan && st.fanPercent !== undefined && Date.now() - fanTouched > 1500) {
     fan.value = String(st.fanPercent);
@@ -1157,6 +1164,13 @@ app.addEventListener('click', (e) => {
   } else if (d.music) {
     haptic();
     send({ kind: 'music', action: d.music as 'toggle' | 'next' | 'previous' });
+  } else if (d.fanmode) {
+    haptic();
+    const mode = d.fanmode as PairFanMode;
+    send({ kind: 'fanMode', mode });
+    document.querySelectorAll<HTMLButtonElement>('[data-fanmode]').forEach((b) => b.classList.toggle('on', b === el));
+    const row = document.getElementById('c-fanrow');
+    if (row) row.hidden = mode !== 'manual';
   } else if (d.cam) {
     haptic();
     send({ kind: 'camera', camera: d.cam as CameraMode });

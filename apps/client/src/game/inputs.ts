@@ -1,4 +1,4 @@
-import type { ShiftAction, TrainerCommand } from '@allezrobert/shared';
+import type { PairFanMode, ShiftAction, TrainerCommand } from '@allezrobert/shared';
 import type { TacxRoadSurface } from '@allezrobert/protocols';
 
 /** Ce que la boucle de jeu lit chaque image, quel que soit le matériel. */
@@ -33,6 +33,10 @@ export interface InputSource {
   setRiderWeights?(riderKg: number, bikeKg: number): void;
   /** Ventilateur (HEADWIND) : consigne manuelle 0–100 % (appli compagnon). */
   setFan?(percent: number): void;
+  /** Ventilateur : change le mode (fixe, vitesse, cardio…) ; le jeu calcule la consigne. */
+  setFanMode?(mode: PairFanMode): void;
+  /** Mode du ventilateur réglé, pour l'afficher sur le téléphone. */
+  fanMode?(): PairFanMode;
   /** Ressenti route du home trainer (Tacx NEO) : appelé à chaque image, seuls les changements partent. */
   setRoadFeel?(setting: { surface: TacxRoadSurface; intensityPercent: number }): void;
   /** Le home trainer assigné sait-il reproduire le revêtement ? */

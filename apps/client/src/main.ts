@@ -3087,6 +3087,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       pos: { x: pos.x, z: pos.z, heading: Number.isFinite(prevHeading) ? prevHeading : 0 },
       camera: rig.mode === 'free' ? 'chase' : rig.mode,
       ...(fanPercent !== undefined ? { fanPercent } : {}),
+      ...(input.fanMode ? { fanMode: input.fanMode() } : {}),
       roadFeel: { percent: clampRoadFeel(s.roadFeelPercent), supported: input.roadFeelSupported?.() ?? false, surface: roadFeelNow },
       hudVisible: hud.visible,
       // Fantôme : null quand cette sortie n'en a pas (le téléphone masque alors le bouton).
@@ -3129,6 +3130,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       case 'fan':
         fanPercent = c.percent;
         input.setFan?.(c.percent);
+        break;
+      case 'fanMode':
+        input.setFanMode?.(c.mode);
         break;
       case 'roadFeel': {
         // Réglage depuis le téléphone : enregistré comme dans les réglages ; alerte en jeu au-delà du seuil « fort ».

@@ -18,7 +18,7 @@ import {
   type Transport,
 } from '@allezrobert/devices';
 import { parseAntNetworkKey, type ExperimentalAdapters, type TacxRoadSurface } from '@allezrobert/protocols';
-import { ROAD_FEEL_SURFACE_LABEL, type DeviceKind, type ShiftAction, type TrainerCommand, type TransportKind } from '@allezrobert/shared';
+import { ROAD_FEEL_SURFACE_LABEL, type DeviceKind, type PairFanMode, type ShiftAction, type TrainerCommand, type TransportKind } from '@allezrobert/shared';
 import type { DevicePanel } from '../ui/menu.ts';
 import { renderHardwarePanel } from '../ui/hardware-panel.ts';
 import { loadSettings } from '../ui/settings.ts';
@@ -536,6 +536,17 @@ class ManagerInputSource implements InputSource {
     updateHardwarePrefs((p) => {
       p.fan = { ...p.fan, mode: 'manual', manualPercent: Math.round(percent) };
     });
+  }
+
+  /** Consigne de l'appli compagnon : mode du ventilateur (fixe, vitesse, cardio, pente ou arrêt). */
+  setFanMode(mode: PairFanMode): void {
+    updateHardwarePrefs((p) => {
+      p.fan = { ...p.fan, mode };
+    });
+  }
+
+  fanMode(): PairFanMode {
+    return this.fan.settings.mode;
   }
 
   updateFan(ctx: { speedKmh: number; gradePercent: number; heartRateBpm?: number }): void {

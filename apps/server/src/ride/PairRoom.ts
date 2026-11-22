@@ -10,7 +10,7 @@
  */
 import { CloseCode, Room, ServerError, type Client, type RoomException, type RoomMethodName } from '@colyseus/core';
 import { z } from 'zod';
-import { PAIR_COORD_MAX_M, PAIR_MAX_PHONES, PAIR_MSG, PAIR_PLACE_NAME_MAX, PAIR_TOKEN_RE, PAIR_VOICE_REQ_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
+import { PAIR_COORD_MAX_M, PAIR_FAN_MODES, PAIR_MAX_PHONES, PAIR_MSG, PAIR_PLACE_NAME_MAX, PAIR_TOKEN_RE, PAIR_VOICE_REQ_RE, SPOTIFY_URI_RE, clampRoadFeel, type PairPresence, type PairRole, type PhoneCommand } from '@allezrobert/shared';
 
 const finite = z.number().refine(Number.isFinite, 'nombre fini attendu');
 
@@ -27,6 +27,7 @@ const PhoneCommandSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('resume') }),
   z.object({ kind: z.literal('camera'), camera: z.enum(['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo']) }),
   z.object({ kind: z.literal('fan'), percent: finite.transform((v) => Math.min(Math.max(Math.round(v), 0), 100)) }),
+  z.object({ kind: z.literal('fanMode'), mode: z.enum(PAIR_FAN_MODES) }),
   z.object({ kind: z.literal('roadFeel'), percent: finite.transform(clampRoadFeel) }),
   z.object({ kind: z.literal('rideOn'), to: z.string().min(1).max(40) }),
   z.object({ kind: z.literal('chat'), text: z.string().trim().min(1).max(280) }),

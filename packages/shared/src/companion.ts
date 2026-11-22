@@ -41,6 +41,10 @@ export const PAIR_TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/;
 /** Téléphones simultanés au plus par jeu. */
 export const PAIR_MAX_PHONES = 5;
 
+/** Modes du ventilateur : arrêt, fixe (manuel), lié à la vitesse, au capteur cardio ou à la pente. */
+export const PAIR_FAN_MODES = ['off', 'manual', 'speed', 'heartRate', 'grade'] as const;
+export type PairFanMode = (typeof PAIR_FAN_MODES)[number];
+
 /** Commandes du téléphone vers le jeu. */
 export type PhoneCommand =
   | { kind: 'shift'; action: 'up' | 'down' }
@@ -48,6 +52,8 @@ export type PhoneCommand =
   | { kind: 'resume' }
   | { kind: 'camera'; camera: CameraMode }
   | { kind: 'fan'; percent: number }
+  /** Mode du ventilateur (le jeu calcule ensuite la vitesse). `fan` passe, lui, en fixe. */
+  | { kind: 'fanMode'; mode: PairFanMode }
   /** Ressenti route du home trainer (Tacx NEO) : intensité 0–ROAD_FEEL.maxPercent, 0 = coupé. */
   | { kind: 'roadFeel'; percent: number }
   | { kind: 'rideOn'; to: string }
@@ -151,6 +157,8 @@ export interface PairState {
   pos?: { x: number; z: number; heading: number };
   camera?: CameraMode;
   fanPercent?: number;
+  /** Mode du ventilateur réglé dans le jeu (absent : pas de ventilateur ou source sans réglage). */
+  fanMode?: PairFanMode;
   /** Ressenti route : intensité réglée (%), trainer capable (Tacx NEO), revêtement simulé en ce moment. */
   roadFeel?: { percent: number; supported: boolean; surface: string };
   hudVisible?: boolean;

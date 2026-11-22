@@ -54,6 +54,11 @@ describe('salle pair', () => {
     const fan = next<PhoneCommand>(game, PAIR_MSG.cmd);
     phone.send(PAIR_MSG.cmd, { kind: 'fan', percent: 180 });
     expect(await fan).toEqual({ kind: 'fan', percent: 100 });
+    // Mode du ventilateur : valeurs connues seulement.
+    const fanMode = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'fanMode', mode: 'turbo' });
+    phone.send(PAIR_MSG.cmd, { kind: 'fanMode', mode: 'heartRate' });
+    expect(await fanMode).toEqual({ kind: 'fanMode', mode: 'heartRate' });
     // Ressenti route : intensité plafonnée (protection du moteur du trainer).
     const roadFeel = next<PhoneCommand>(game, PAIR_MSG.cmd);
     phone.send(PAIR_MSG.cmd, { kind: 'roadFeel', percent: 100 });
