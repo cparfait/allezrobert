@@ -37,11 +37,6 @@ const S = strings(
     voiceOffState: 'Coupée',
     voice: 'Voix off',
     voiceDetail: 'Robert lit chaque étape à voix haute.',
-    noAccount: 'Tu roules sans compte : tout reste sur cet appareil. Tu pourras te connecter plus tard (« Se connecter », en haut à droite) pour retrouver tes amis, rouler en groupe et garder ta progression partout.',
-    noAccountState: 'Sans compte',
-    signedIn: 'Compte connecté : ta progression, ton historique et tes sorties sont gardés sur ton compte.',
-    signedInState: 'Connecté',
-    account: 'Compte',
     // Style
     styleTitle: 'Style graphique',
     styleSub: 'Comment veux-tu voir la route ?',
@@ -146,11 +141,6 @@ const S = strings(
     voiceOffState: 'Off',
     voice: 'Voice-over',
     voiceDetail: 'Robert reads each step aloud.',
-    noAccount: 'You are riding without an account: everything stays on this device. You can sign in later (“Sign in”, top right) for friends, group rides and progress on every device.',
-    noAccountState: 'No account',
-    signedIn: 'Signed in: your progress, history and rides are kept on your account.',
-    signedInState: 'Signed in',
-    account: 'Account',
     styleTitle: 'Graphic style',
     styleSub: 'How do you want to see the road?',
     styleReal: 'Realistic',
@@ -264,7 +254,6 @@ const DI2_MODELS: Array<[string, string | null]> = [
 const ico = (path: string): string => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
 const ICON_VOICE_ON = ico('<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>');
 const ICON_VOICE_OFF = ico('<path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>');
-const ICON_USER = ico('<circle cx="12" cy="7.5" r="3.4"/><path d="M5 20c.7-4 3.5-6.2 7-6.2s6.3 2.2 7 6.2"/>');
 const ICON_SENSOR = ico('<circle cx="12" cy="12" r="3"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/>');
 
 /** Aperçu 3D du coureur derrière le tutoriel (étape avatar). */
@@ -392,7 +381,6 @@ export class Onboarding {
     let body = '';
     switch (this.step) {
       case 'welcome': {
-        const solo = !!localStorage.getItem('ar.skipLogin');
         const on = this.voice.enabled;
         title = S('tutorial');
         sub = S('welcomeSub');
@@ -400,9 +388,8 @@ export class Onboarding {
           <div class="ab-grid ab-grid-2 ob-langs">${(['fr', 'en'] as const)
             .map((l) => `<button type="button" class="ab-tile ab-plain ${fr === (l === 'fr') ? 'is-on' : ''}" data-lang="${l}" aria-pressed="${fr === (l === 'fr')}"><span class="ab-name">${l === 'fr' ? 'Français' : 'English'}</span></button>`)
             .join('')}</div>
-          <div class="ab-grid ab-grid-2 ob-infos">
+          <div class="ab-grid ob-infos">
             <button type="button" class="ab-tile ${on ? 'is-ok' : ''}" id="o-voice" title="${on ? S('voiceOn') : S('voiceOff')}" aria-pressed="${on}"><span class="ab-ico sm">${on ? ICON_VOICE_ON : ICON_VOICE_OFF}</span><span class="ab-name">${S('voice')}</span><span class="ab-detail">${S('voiceDetail')}</span><span class="ab-state"><i></i>${on ? S('voiceOnState') : S('voiceOffState')}</span></button>
-            <div class="ab-tile ${solo ? 'is-info' : 'is-ok'}"><span class="ab-ico sm">${ICON_USER}</span><span class="ab-name">${S('account')}</span><span class="ab-detail">${solo ? S('noAccount') : S('signedIn')}</span><span class="ab-state"><i></i>${solo ? S('noAccountState') : S('signedInState')}</span></div>
           </div>`;
         break;
       }
