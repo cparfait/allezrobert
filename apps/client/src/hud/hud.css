@@ -869,3 +869,9 @@ button.ab-tile.pz-quit:hover { border-color: rgba(239, 68, 68, 0.75); }
   .pause-card.pz { padding: 16px 14px; }
   .pz-sound #p-sound .grid3 { grid-template-columns: 1fr; }
 }
+
+/* À proximité : filtre en deux choix (Tous / Joueurs), celui en cours surligné en jaune. */
+.riders .rd-filters { display: inline-flex; gap: 4px; margin-left: auto; }
+.riders .rd-filter.on { background: var(--ar-accent, #ffd23f); border-color: var(--ar-accent, #ffd23f); color: #111; font-weight: 700; }
+.riders .rd-filter .num { opacity: 0.75; }
+.riders .rd-none { margin: 4px 0 6px; font-size: 12px; color: var(--ar-muted, #9aa4b1); }
