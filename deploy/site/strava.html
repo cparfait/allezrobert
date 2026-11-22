@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Strava — Allez Robert !</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#0b0c0f" />
+  <link rel="icon" href="/site/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/site/style.css" />
+  <style>
+    .done { min-height: 100vh; display: grid; place-items: center; padding: 2rem var(--pad); text-align: center; }
+    .done-card { max-width: 34rem; display: grid; gap: 1rem; padding: 2.2rem 2rem; border-radius: 22px; background: var(--bitume-2); border: 1px solid var(--ligne); }
+    .done h1 { font-size: clamp(1.7rem, 4vw, 2.3rem); font-weight: 900; letter-spacing: -.02em; }
+    .done p { color: var(--gris); }
+    .done .ok { color: #86efac; }
+    .done .ko { color: #fca5a5; }
+    .done img { height: 18px; width: auto; margin: .4rem auto 0; opacity: .85; }
+  </style>
+</head>
+<body>
+  <!-- Retour de la liaison Strava lancée depuis l'application de bureau (le navigateur du PC atterrit ici). -->
+  <main class="done">
+    <div class="done-card">
+      <h1 id="t">Strava est relié</h1>
+      <p id="m" class="ok">Tu peux fermer cet onglet et revenir dans l'application : le bloc Strava se met à jour tout seul.</p>
+      <img src="/strava/api_logo_cptblWith_strava_horiz_white.svg" alt="Compatible with Strava" />
+    </div>
+  </main>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search).get('strava');
+      if (q === 'linked') return;
+      var t = document.getElementById('t'), m = document.getElementById('m');
+      t.textContent = 'Liaison non faite';
+      m.className = 'ko';
+      m.textContent = q === 'scope'
+        ? "Il faut laisser cochée l'autorisation d'envoyer tes activités. Relance la liaison depuis l'application."
+        : "Strava n'a pas confirmé la liaison. Relance-la depuis l'application (Réglages › Général › Strava).";
+    })();
+  </script>
+</body>
+</html>

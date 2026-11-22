@@ -251,6 +251,25 @@ describe('API — comptes et profil', () => {
   });
 });
 
+describe('API — liaison Strava depuis l’application de bureau', () => {
+  it('adresse à ticket ouverte sans session (navigateur du PC), ticket faux refusé', async () => {
+    const s = await devLogin('Bureau');
+    const r = await s.json<{ url: string }>('POST', '/api/integrations/strava/link-url', { redirect: '/site/strava.html' });
+    expect(r.status).toBe(200);
+    const url = new URL(r.body.url);
+    expect(url.pathname).toBe('/api/integrations/strava/start');
+    // Navigateur du PC : aucune session du jeu, seulement le ticket.
+    const browser = new Session();
+    const start = await browser.req('GET', `${url.pathname}${url.search}`);
+    expect(start.status).toBe(302);
+    const state = new URL(start.headers.get('location')!).searchParams.get('state')!;
+    const cb = await browser.req('GET', `/api/integrations/strava/callback?state=${state}&code=c&scope=read,activity:write`);
+    expect(cb.headers.get('location')).toMatch(/\/site\/strava\.html\?strava=linked$/);
+    expect((await s.json('GET', '/api/integrations')).body).toMatchObject({ strava: { connected: true } });
+    expect((await new Session().req('GET', '/api/integrations/strava/start?ticket=faux')).status).toBe(401);
+  });
+});
+
 describe('API — sorties, segments, progression', () => {
   it('téléversement FIT : résumé, XP, FC retirée sans consentement, envoi Strava/intervals', async () => {
     const s = await devLogin('Fitter');

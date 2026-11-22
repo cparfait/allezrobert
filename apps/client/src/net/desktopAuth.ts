@@ -45,7 +45,7 @@ if (inDesktopApp) {
 }
 
 /** Ouvre une adresse https dans le navigateur du PC (commande Rust `open_external`). */
-async function openExternal(url: string): Promise<void> {
+export async function openExternal(url: string): Promise<void> {
   const internals = (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
   await internals.invoke('open_external', { url });
 }

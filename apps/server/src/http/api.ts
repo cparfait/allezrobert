@@ -488,13 +488,30 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     });
   });
 
-  api.get('/integrations/strava/start', async (req: AuthedRequest, res) => {
+  /**
+   * Application de bureau : la liaison se fait dans le navigateur du PC, qui n'a pas la session du jeu. Le jeu
+   * demande ici une adresse à usage court (10 min) portant un ticket signé ; le navigateur l'ouvre sans être connecté.
+   */
+  api.post('/integrations/strava/link-url', async (req: AuthedRequest, res) => {
     const u = requireUser(req);
     const c = ctx.config;
     if (!c.STRAVA_CLIENT_ID || !c.STRAVA_CLIENT_SECRET) throw new HttpError(404, 'Strava non configuré', 'not_configured');
+    const body = z.object({ redirect: z.string().max(512).optional() }).parse(req.body ?? {});
+    const ticket = await ctx.tokens.signOAuthState({ provider: 'strava-ticket', state: '-', verifier: '-', redirect: safeRedirect(body.redirect), userId: u.userId });
+    res.json({ url: `${c.apiPublicUrl}/api/integrations/strava/start?ticket=${encodeURIComponent(ticket)}` });
+  });
+
+  api.get('/integrations/strava/start', async (req: AuthedRequest, res) => {
+    const c = ctx.config;
+    if (!c.STRAVA_CLIENT_ID || !c.STRAVA_CLIENT_SECRET) throw new HttpError(404, 'Strava non configuré', 'not_configured');
+    // Ticket de l'application de bureau (voir link-url), sinon la session du jeu dans ce navigateur.
+    const ticket = typeof req.query.ticket === 'string' ? await ctx.tokens.verifyOAuthState(req.query.ticket) : null;
+    if (typeof req.query.ticket === 'string' && (!ticket || ticket.provider !== 'strava-ticket' || !ticket.userId)) throw new HttpError(401, 'Lien de liaison expiré : relance-le depuis le jeu', 'ticket');
+    const userId = ticket?.userId ?? requireUser(req).userId;
+    const redirect = ticket ? ticket.redirect : safeRedirect(req.query.redirect);
     const client = { clientId: c.STRAVA_CLIENT_ID, clientSecret: c.STRAVA_CLIENT_SECRET, redirectUri: `${c.apiPublicUrl}/api/integrations/strava/callback` };
     const pkce = newPkce();
-    const state = await ctx.tokens.signOAuthState({ provider: 'strava', state: pkce.state, verifier: pkce.verifier, redirect: safeRedirect(req.query.redirect), userId: u.userId });
+    const state = await ctx.tokens.signOAuthState({ provider: 'strava', state: pkce.state, verifier: pkce.verifier, redirect, userId });
     res.append('Set-Cookie', serializeCookie(OAUTH_COOKIE, state, { secure: c.cookieSecure, maxAgeS: 600, path: '/api' }));
     res.redirect(302, authorizeUrl('strava', client, pkce));
   });

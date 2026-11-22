@@ -1,3 +1,4 @@
+import { inDesktopApp, openExternal } from '../net/desktopAuth.ts';
 import './blocks.css';
 import { strings } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
@@ -25,6 +26,8 @@ const S = strings(
     connectedAs: 'Relié au compte {name}.',
     connectedNoName: 'Tes sorties enregistrées partent sur Strava.',
     unlink: 'Délier',
+    desktopWait: 'Termine la liaison dans ton navigateur, puis reviens ici : le bloc se met à jour tout seul.',
+    stateWaiting: 'En attente de Strava…',
     stateNotLinked: 'Non relié',
     link: 'Relier mon compte Strava',
     linkHint: 'Tes sorties enregistrées partiront sur Strava (sauf « Ne pas envoyer »).',
@@ -45,6 +48,8 @@ const S = strings(
     connectedAs: 'Linked to the {name} account.',
     connectedNoName: 'Your saved rides are sent to Strava.',
     unlink: 'Unlink',
+    desktopWait: 'Finish linking in your browser, then come back here: this block updates by itself.',
+    stateWaiting: 'Waiting for Strava…',
     stateNotLinked: 'Not linked',
     link: 'Link my Strava account',
     linkHint: 'Your saved rides will be sent to Strava (unless “Don’t upload”).',
@@ -90,8 +95,32 @@ export function stravaCompatibleHtml(): string {
 }
 
 /** Bloc « Strava » au langage des gros blocs : icône, détail, état en toutes lettres, action en pied. */
-function tile(tone: '' | 'is-ok' | 'is-warn' | 'is-bad', detail: string, state: string, action = ''): string {
+function tile(tone: '' | 'is-ok' | 'is-info' | 'is-warn' | 'is-bad', detail: string, state: string, action = ''): string {
   return `<div class="ab-tile ${tone}" style="padding:14px 16px 12px"><span class="ab-ico sm">${UPLOAD_ICON}</span><span class="ab-name">Strava</span><span class="ab-detail">${detail}</span><span class="ab-state"><i></i>${state}</span>${action}</div><div class="strava-compat-row">${stravaCompatibleHtml()}</div>`;
+}
+
+/** Application de bureau : adresse de liaison ouverte dans le navigateur du PC, puis attente de la liaison (5 min). */
+async function linkFromDesktop(el: Element): Promise<void> {
+  el.innerHTML = tile('is-info', S('desktopWait'), S('stateWaiting'));
+  try {
+    const r = await fetch(`${apiBase()}/integrations/strava/link-url`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect: '/site/strava.html' }) });
+    if (!r.ok) throw new Error(String(r.status));
+    await openExternal(((await r.json()) as { url: string }).url);
+  } catch {
+    el.innerHTML = tile('is-bad', S('failed'), S('stateUnreachable'));
+    return;
+  }
+  const until = Date.now() + 5 * 60_000;
+  while (Date.now() < until && el.isConnected) {
+    await new Promise((res) => setTimeout(res, 3000));
+    const st = await fetchStrava();
+    if (st?.connected) {
+      returned = 'linked';
+      renderStravaLink(el, true);
+      return;
+    }
+  }
+  if (el.isConnected) renderStravaLink(el, true);
 }
 
 /**
@@ -126,7 +155,14 @@ export function renderStravaLink(el: Element | null, loggedIn: boolean): void {
       // Bouton officiel « Connect with Strava » (image de Strava, non modifiée) : il mène à la page d'autorisation de Strava.
       el.innerHTML = flash + tile('', S('linkHint'), S('stateNotLinked'), `<button type="button" class="strava-connect" id="strava-link" aria-label="${S('link')}"><img src="${STRAVA_BUTTON}" alt="Connect with Strava" width="237" height="48" /></button>`);
       el.querySelector('#strava-link')?.addEventListener('click', () => {
-        location.href = `${apiBase()}/integrations/strava/start?redirect=${encodeURIComponent(location.pathname)}`;
+        if (!inDesktopApp) {
+          // Navigateur : aller-retour sur Strava, retour sur le jeu (/jouer).
+          location.href = `${apiBase()}/integrations/strava/start?redirect=${encodeURIComponent(location.pathname)}`;
+          return;
+        }
+        // Application de bureau : la liaison se fait dans le navigateur du PC (l'application ne quitte pas son écran),
+        // puis l'application vérifie toutes les 3 s que le compte est relié.
+        void linkFromDesktop(el);
       });
     }
     returned = null;
