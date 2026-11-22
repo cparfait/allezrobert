@@ -7,7 +7,8 @@
 import { wgs84ToL93 } from '@allezrobert/shared';
 import { FRANCE_OUTLINE } from '../world/franceOutline.ts';
 import { BASEMAP_ATTRIBUTION, basemapImage } from './basemap.ts';
-import { getLang } from '../i18n/index.ts';
+import { strings } from '../i18n/index.ts';
+import './blocks.css';
 import './franceMap.css';
 
 export interface MapZone {
@@ -35,7 +36,58 @@ interface View {
   h: number;
 }
 
-const fr = () => getLang() === 'fr';
+const S = strings(
+  {
+    curTip: ' · zone actuelle',
+    soon: 'Bientôt disponible',
+    several: 'Plusieurs zones',
+    nZones: '{n} zones',
+    zoomIn: 'Clique pour zoomer',
+    beyond: 'Hors de France',
+    imaginary: 'Mondes imaginaires, quelque part au large.',
+    cur: 'zone actuelle',
+    whole: 'France entière',
+    avail: 'disponible',
+    soonShort: 'bientôt',
+    searching: 'Recherche…',
+    notFound: 'Ville introuvable. Essaie avec le nom exact.',
+    offline: 'Hors ligne : seules les zones du jeu se trouvent par leur nom.',
+    covered: 'Couverte par le jeu : zone {z}',
+    soonParen: ' (bientôt)',
+    rideHere: 'Rouler dans cette zone',
+    notCovered: 'Pas encore couverte par le jeu.',
+    nearest: 'Zone la plus proche : {z} ({km} km)',
+    openZone: 'Ouvrir cette zone',
+    findPh: 'Chercher une ville…',
+    find: 'Chercher une ville',
+    search: 'Chercher',
+  },
+  {
+    curTip: ' · current area',
+    soon: 'Coming soon',
+    several: 'Several areas',
+    nZones: '{n} areas',
+    zoomIn: 'Click to zoom in',
+    beyond: 'Beyond France',
+    imaginary: 'Imaginary worlds, somewhere offshore.',
+    cur: 'current area',
+    whole: 'Whole France',
+    avail: 'available',
+    soonShort: 'coming soon',
+    searching: 'Searching…',
+    notFound: 'City not found. Try the exact name.',
+    offline: 'Offline: only the game areas can be found by name.',
+    covered: 'Covered by the game: area {z}',
+    soonParen: ' (soon)',
+    rideHere: 'Ride in this area',
+    notCovered: 'Not covered by the game yet.',
+    nearest: 'Nearest area: {z} ({km} km)',
+    openZone: 'Open this area',
+    findPh: 'Find a city…',
+    find: 'Find a city',
+    search: 'Search',
+  },
+);
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] as string);
 /** Repère SVG en km : x vers l'est, y vers le sud (Lambert-93 retourné). */
 const sx = (x: number) => x / 1000;
@@ -161,7 +213,6 @@ export class FranceMap {
   }
 
   html(zones: MapZone[]): string {
-    const L = fr();
     const v = this.view;
     const k = this.k();
     const groups = this.clusters(zones.filter((z) => !z.image));
@@ -170,7 +221,7 @@ export class FranceMap {
       .map((g, gi) => {
         if (g.length === 1) {
           const z = g[0] as MapZone;
-          const tip = `${z.name}${z.current ? (L ? ' · zone actuelle' : ' · current area') : ''}\n${z.available ? z.info : L ? 'Bientôt disponible' : 'Coming soon'}`;
+          const tip = `${z.name}${z.current ? S('curTip') : ''}\n${z.available ? z.info : S('soon')}`;
           return `<g class="fm-pt${z.available ? '' : ' fm-off'}${z.current ? ' fm-cur' : ''}" data-zone="${esc(z.id)}" data-tip="${esc(tip)}" transform="translate(${sx(z.x).toFixed(1)} ${sy(z.y).toFixed(1)}) scale(${k})" tabindex="0" role="button" aria-label="${esc(z.name)}">
             ${z.available ? '<circle class="fm-pulse" r="7"/>' : ''}<circle class="fm-hit" r="16"/><circle class="fm-dot" r="7"/>${shown.has(z.id) ? `<text x="12" y="4.5">${esc(z.name)}</text>` : ''}</g>`;
         }
@@ -178,7 +229,7 @@ export class FranceMap {
         const cy = g.reduce((s, q) => s + sy(q.y), 0) / g.length;
         const regions = [...new Set(g.map((q) => q.region))];
         const n = g.filter((q) => q.available).length;
-        const tip = `${regions.length === 1 ? regions[0] : L ? 'Plusieurs zones' : 'Several areas'} · ${g.length} ${L ? 'zones' : 'areas'}\n${g.map((q) => q.name).join(', ')}\n${L ? 'Clique pour zoomer' : 'Click to zoom in'}`;
+        const tip = `${regions.length === 1 ? regions[0] : S('several')} · ${S('nZones').replace('{n}', String(g.length))}\n${g.map((q) => q.name).join(', ')}\n${S('zoomIn')}`;
         return `<g class="fm-cl${n ? '' : ' fm-off'}${g.some((q) => q.current) ? ' fm-cur' : ''}" data-cluster="${gi}" data-ids="${esc(g.map((q) => q.id).join(','))}" data-tip="${esc(tip)}" transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) scale(${k})" tabindex="0" role="button">
           <circle class="fm-hit" r="20"/><circle class="fm-dot" r="12"/><text y="4.5">${g.length}</text></g>`;
       })
@@ -186,10 +237,10 @@ export class FranceMap {
     // Mondes imaginaires : à côté de la carte, une vignette chacun.
     const extra = zones.filter((z) => z.image);
     const side = extra.length
-      ? `<aside class="fm-side"><h3>${L ? 'Hors de France' : 'Beyond France'}</h3><p>${L ? 'Mondes imaginaires, quelque part au large.' : 'Imaginary worlds, somewhere offshore.'}</p>${extra
+      ? `<aside class="fm-side"><h3 class="ab-section">${S('beyond')}</h3><p>${S('imaginary')}</p>${extra
           .map(
             (z) => `<button class="fm-xcard${z.available ? '' : ' fm-off'}${z.current ? ' fm-cur' : ''}" data-xzone="${esc(z.id)}" ${z.available ? '' : 'disabled'}>
-          <img src="${esc(z.image as string)}" alt="" decoding="async"><b>${esc(z.name)}</b><span>${esc(z.available ? z.info : L ? 'Bientôt disponible' : 'Coming soon')}</span>${z.current ? `<em>${L ? 'zone actuelle' : 'current area'}</em>` : ''}</button>`,
+          <img src="${esc(z.image as string)}" alt="" decoding="async"><b>${esc(z.name)}</b><span>${esc(z.available ? z.info : S('soon'))}</span>${z.current ? `<em>${S('cur')}</em>` : ''}</button>`,
           )
           .join('')}</aside>`
       : '';
@@ -201,9 +252,9 @@ export class FranceMap {
       </svg>
       <div class="fm-tip" hidden></div>
       ${this.searchHtml()}
-      <button class="fm-back" data-fm-back ${this.moved ? '' : 'hidden'}>← ${L ? 'France entière' : 'Whole France'}</button>
+      <button type="button" class="fm-back" data-fm-back ${this.moved ? '' : 'hidden'}>← ${S('whole')}</button>
       <div class="fm-attr">${BASEMAP_ATTRIBUTION}</div>
-      <div class="fm-legend"><span><i class="fm-l-on"></i>${L ? 'disponible' : 'available'}</span><span><i class="fm-l-off"></i>${L ? 'bientôt' : 'coming soon'}</span></div>
+      <div class="fm-legend"><span><i class="fm-l-on"></i>${S('avail')}</span><span><i class="fm-l-off"></i>${S('soonShort')}</span></div>
     </div>${side}</div>`;
   }
 
@@ -218,24 +269,23 @@ export class FranceMap {
   private searchHtml(): string {
     // Sans connexion détectée, pas de recherche de ville (le service de l'IGN est en ligne).
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return '';
-    const L = fr();
     const f = this.found;
     let card = '';
-    if (this.lookup === 'busy') card = `<p>${L ? 'Recherche…' : 'Searching…'}</p>`;
-    else if (this.lookup === 'none') card = `<p>${L ? 'Ville introuvable. Essaie avec le nom exact.' : 'City not found. Try the exact name.'}</p>`;
-    else if (this.lookup === 'offline') card = `<p>${L ? 'Hors ligne : seules les zones du jeu se trouvent par leur nom.' : 'Offline: only the game areas can be found by name.'}</p>`;
+    if (this.lookup === 'busy') card = `<p>${S('searching')}</p>`;
+    else if (this.lookup === 'none') card = `<p>${S('notFound')}</p>`;
+    else if (this.lookup === 'offline') card = `<p>${S('offline')}</p>`;
     else if (f) {
       const z = f.zone;
       if (f.state === 'in' && z)
-        card = `<b>${esc(f.label)}</b><p class="ok">${L ? 'Couverte par le jeu : zone' : 'Covered by the game: area'} ${esc(z.name)}${z.available ? '' : L ? ' (bientôt)' : ' (soon)'}</p>${
-          z.available ? `<button class="fm-go" data-fm-open="${esc(z.id)}">${L ? 'Rouler dans cette zone' : 'Ride in this area'}</button>` : ''
+        card = `<b>${esc(f.label)}</b><p class="ok">${S('covered').replace('{z}', esc(z.name))}${z.available ? '' : S('soonParen')}</p>${
+          z.available ? `<button type="button" class="ab-btn ab-go fm-go" data-fm-open="${esc(z.id)}">${S('rideHere')}</button>` : ''
         }`;
       else if (z)
-        card = `<b>${esc(f.label)}</b><p>${L ? 'Pas encore couverte par le jeu.' : 'Not covered by the game yet.'}<br>${L ? 'Zone la plus proche' : 'Nearest area'} : ${esc(z.name)} (${Math.round(f.km)} km)</p>${
-          z.available ? `<button class="fm-go" data-fm-open="${esc(z.id)}">${L ? 'Ouvrir cette zone' : 'Open this area'}</button>` : ''
+        card = `<b>${esc(f.label)}</b><p>${S('notCovered')}<br>${S('nearest').replace('{z}', esc(z.name)).replace('{km}', String(Math.round(f.km)))}</p>${
+          z.available ? `<button type="button" class="ab-btn ab-go fm-go" data-fm-open="${esc(z.id)}">${S('openZone')}</button>` : ''
         }`;
     }
-    return `<form class="fm-search" autocomplete="off"><input class="fm-q" type="search" value="${esc(this.query)}" placeholder="${L ? 'Chercher une ville…' : 'Find a city…'}" aria-label="${L ? 'Chercher une ville' : 'Find a city'}" /><button type="submit" aria-label="${L ? 'Chercher' : 'Search'}">⌕</button></form>${card ? `<div class="fm-found">${card}</div>` : ''}`;
+    return `<form class="fm-search" autocomplete="off"><input class="fm-q" type="search" value="${esc(this.query)}" placeholder="${S('findPh')}" aria-label="${S('find')}" /><button type="submit" aria-label="${S('search')}">⌕</button></form>${card ? `<div class="fm-found">${card}</div>` : ''}`;
   }
 
   private readonly geoCache = new Map<string, { label: string; x: number; y: number }>();
@@ -379,7 +429,7 @@ export class FranceMap {
         card.className = 'fm-found';
         box.querySelector('.fm-main')?.append(card);
       }
-      card.innerHTML = `<p>${fr() ? 'Recherche…' : 'Searching…'}</p>`;
+      card.innerHTML = `<p>${S('searching')}</p>`;
       void this.locate(q, zones).then((ok) => {
         if (!ok) return redraw();
         const f = this.found;

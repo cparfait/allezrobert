@@ -183,7 +183,18 @@ const en: Record<I18nKey, string> = {
   you: 'you',
 };
 
-let lang: Lang = (localStorage.getItem('ar.lang') as Lang | null) ?? (navigator.language.startsWith('fr') ? 'fr' : 'en');
+/** Langue enregistrée, sinon celle du navigateur ; hors navigateur (tests, outils) : français. */
+function initialLang(): Lang {
+  try {
+    const saved = typeof localStorage === 'undefined' ? null : localStorage.getItem('ar.lang');
+    if (saved === 'fr' || saved === 'en') return saved;
+  } catch {
+    // Stockage interdit : langue du navigateur.
+  }
+  return typeof navigator === 'undefined' || navigator.language.startsWith('fr') ? 'fr' : 'en';
+}
+
+let lang: Lang = initialLang();
 
 export function t(key: I18nKey): string {
   return lang === 'fr' ? fr[key] : en[key];
@@ -195,6 +206,21 @@ export function getLang(): Lang {
 
 export function setLang(l: Lang): void {
   lang = l;
-  localStorage.setItem('ar.lang', l);
+  try {
+    localStorage.setItem('ar.lang', l);
+  } catch {
+    // Stockage plein ou interdit : langue valable pour la session.
+  }
   document.documentElement.lang = l;
+}
+
+/**
+ * Dictionnaire propre à un module (écran, panneau) : les chaînes restent à côté de leur code, l'anglais est
+ * obligatoire pour chaque clé française (vérifié par le typage).
+ *
+ *   const S = strings({ title: 'Réglages' }, { title: 'Settings' });
+ *   el.textContent = S('title');
+ */
+export function strings<const F extends Record<string, string>>(frDict: F, enDict: { readonly [K in keyof F]: string }): (key: keyof F & string) => string {
+  return (key) => (lang === 'fr' ? frDict[key] : enDict[key]) as string;
 }

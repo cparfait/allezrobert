@@ -1,7 +1,9 @@
 import { withLikeness } from '../ui/faceEditorLogic.ts';
 import { enhanceSelects } from '../ui/dropdown.ts';
 import { COUNTRIES, DEFAULT_LOOK, lookSex, withSex, type AvatarLook } from '@allezrobert/shared';
-import { getLang, setLang, t } from '../i18n/index.ts';
+import '../ui/blocks.css';
+import './onboarding.css';
+import { getLang, setLang, strings, t } from '../i18n/index.ts';
 import type { DevicePanel } from '../ui/menu.ts';
 import { saveSettings, type Settings } from '../ui/settings.ts';
 import { VoiceOver } from './voice.ts';
@@ -15,10 +17,227 @@ type Step = (typeof STEPS)[number];
 
 /** Étape où reprendre le tutoriel après le rechargement qu'impose un changement de style graphique. */
 const RESUME_KEY = 'ar.onboarding.resume';
+const S = strings(
+  {
+    tagline: 'Rouler ensemble, chacun chez soi.',
+    step: 'Étape {i} / {n}',
+    skip: 'Passer le tutoriel',
+    back: 'Retour',
+    later: 'Plus tard',
+    startFtp: 'Lancer le test FTP',
+    finish: 'Terminer',
+    next: 'Suivant',
+    // Accueil
+    tutorial: 'Tutoriel',
+    welcomeSub: 'Quelques minutes pour régler ton matériel, ton profil et ton avatar.',
+    language: 'Langue',
+    voiceOn: 'Voix off activée',
+    voiceOff: 'Voix off coupée',
+    voiceOnState: 'Activée',
+    voiceOffState: 'Coupée',
+    voice: 'Voix off',
+    voiceDetail: 'Robert lit chaque étape à voix haute.',
+    noAccount: 'Tu roules sans compte : tout reste sur cet appareil. Tu pourras te connecter plus tard (« Se connecter », en haut à droite) pour retrouver tes amis, rouler en groupe et garder ta progression partout.',
+    noAccountState: 'Sans compte',
+    signedIn: 'Compte connecté : ta progression, ton historique et tes sorties sont gardés sur ton compte.',
+    signedInState: 'Connecté',
+    account: 'Compte',
+    // Style
+    styleTitle: 'Style graphique',
+    styleSub: 'Comment veux-tu voir la route ?',
+    styleReal: 'Réaliste',
+    styleRealDetail: 'Une vue plus réaliste, au plus près des vraies routes : relief, lumière et matières.',
+    styleLowpoly: 'Jeu vidéo',
+    styleLowpolyDetail: 'Un mode plus ludique : formes simples, plus léger, un monde plus animé.',
+    chosen: 'Choisi',
+    styleHint: 'Tu pourras en changer quand tu veux dans Réglages.',
+    // Profil
+    profileSub: 'Poids et taille servent à la physique ; la FTP règle tes zones.',
+    iAm: 'Je suis',
+    man: 'Un homme',
+    woman: 'Une femme',
+    nationality: 'Nationalité',
+    chooseCountry: 'Choisir mon pays',
+    unknownFtp: 'Je ne connais pas ma FTP',
+    ftpPlanned: 'Test FTP prévu à la fin ✓',
+    doFtp: 'Faire le test FTP',
+    // Avatar
+    avatarSub: 'Teint, coiffure et couleurs ; le reste se débloque en roulant.',
+    skin: 'Peau',
+    hair: 'Cheveux',
+    bald: 'Chauve',
+    hairstyle: 'Coiffure',
+    build: 'Morphologie',
+    jersey: 'Maillot',
+    jersey2: 'Seconde couleur du maillot',
+    helmet: 'Casque',
+    shoes: 'Chaussures',
+    bike: 'Vélo',
+    unlockHint: 'Maillots, casques et vélos se débloquent en roulant : retrouve-les au garage.',
+    likeness: 'Ressemblance à partir d’une photo',
+    likenessDetail: 'Visage, teint et cheveux estimés sur ton appareil ; la photo n’est ni envoyée ni conservée, seuls les réglages obtenus sont gardés (modifiables ou effaçables au garage). Uniquement une photo de toi.',
+    consent: 'J’accepte ce traitement local de ma photo',
+    choosePhoto: 'Choisir une photo',
+    hShort: 'Courts',
+    hFade: 'Dégradé',
+    hCurly: 'Bouclés',
+    hQuiff: 'Coiffé',
+    hBob: 'Carré',
+    hLong: 'Longs',
+    hBun: 'Chignon',
+    hPony: 'Queue',
+    hBraids: 'Deux tresses',
+    hBraidPony: 'Queue tressée',
+    // Capteurs
+    devicesSub: 'Réveille ton matériel en pédalant un peu, puis appaire-le.',
+    powerRole: 'Pédales ou capteur de puissance',
+    cadenceRole: 'Capteur de cadence',
+    shifterRole: 'Commandes de vitesses',
+    notPaired: 'Non appairé',
+    paired: 'Appairé',
+    noHardware: 'Pas de matériel sous la main ? Le simulateur prend le relais automatiquement.',
+    // Vitesses
+    gearsSub: 'Vitesses gérées par le jeu, ou ta vraie cassette.',
+    onTrainer: 'Sur le home trainer',
+    virtualGears: 'vitesses virtuelles gérées par le jeu',
+    realCassette: 'Cassette réelle (dérailleur)',
+    controls: 'Commandes',
+    gamepad: 'manette',
+    keyboard: 'clavier ↑ ↓',
+    companionApp: 'appli compagnon',
+    cassetteSpeeds: 'Nombre de vitesses de la cassette',
+    di2Detected: 'Commandes Di2 détectées : ton modèle',
+    choose: 'Choisir…',
+    di2Other: 'Autre / je ne sais pas',
+    // Compagnon
+    companionTitle: 'Appli compagnon',
+    companionSub: 'Ton téléphone devient ta télécommande.',
+    companionHint: 'Tu pourras le retrouver plus tard dans Réglages.',
+    // Fin
+    ftpTitle: 'Le test FTP',
+    ftpSub: 'Une rampe d’une vingtaine de minutes pour mesurer ta FTP.',
+    warmup: 'Échauffement',
+    warmupText: '5 min à 100 W, en mode ERG : le home trainer impose la puissance.',
+    steps: 'Paliers',
+    stepsText: '+20 W chaque minute, cadence régulière entre 70 et 100 tr/min.',
+    toTheEnd: 'Jusqu’au bout',
+    toTheEndText: 'Arrête-toi quand tu ne tiens plus le palier (souvent 15 à 25 min).',
+    result: 'Résultat',
+    resultText: 'FTP = 75 % de ta meilleure minute ; elle règle tes zones et tes séances.',
+    ftpPrep: 'Bien reposé, ventilateur allumé, bidon à portée de main.',
+    allSet: 'Tout est prêt !',
+    allSetSub: 'Amuse-toi bien, seul ou entre amis.',
+  },
+  {
+    tagline: 'Ride together, each from home.',
+    step: 'Step {i} / {n}',
+    skip: 'Skip tutorial',
+    back: 'Back',
+    later: 'Later',
+    startFtp: 'Start the FTP test',
+    finish: 'Finish',
+    next: 'Next',
+    tutorial: 'Tutorial',
+    welcomeSub: 'A few minutes to set up your gear, profile and avatar.',
+    language: 'Language',
+    voiceOn: 'Voice-over on',
+    voiceOff: 'Voice-over off',
+    voiceOnState: 'On',
+    voiceOffState: 'Off',
+    voice: 'Voice-over',
+    voiceDetail: 'Robert reads each step aloud.',
+    noAccount: 'You are riding without an account: everything stays on this device. You can sign in later (“Sign in”, top right) for friends, group rides and progress on every device.',
+    noAccountState: 'No account',
+    signedIn: 'Signed in: your progress, history and rides are kept on your account.',
+    signedInState: 'Signed in',
+    account: 'Account',
+    styleTitle: 'Graphic style',
+    styleSub: 'How do you want to see the road?',
+    styleReal: 'Realistic',
+    styleRealDetail: 'A more realistic view, close to the real roads: terrain, light and materials.',
+    styleLowpoly: 'Video game',
+    styleLowpolyDetail: 'A more playful mode: simple shapes, lighter, a livelier world.',
+    chosen: 'Selected',
+    styleHint: 'You can change it any time in Settings.',
+    profileSub: 'Weight and height drive the physics; FTP sets your zones.',
+    iAm: 'I am',
+    man: 'A man',
+    woman: 'A woman',
+    nationality: 'Nationality',
+    chooseCountry: 'Choose my country',
+    unknownFtp: "I don't know my FTP",
+    ftpPlanned: 'FTP test planned at the end ✓',
+    doFtp: 'Do the FTP test',
+    avatarSub: 'Skin, hair and colours; the rest unlocks as you ride.',
+    skin: 'Skin',
+    hair: 'Hair',
+    bald: 'Bald',
+    hairstyle: 'Hairstyle',
+    build: 'Build',
+    jersey: 'Jersey',
+    jersey2: 'Jersey second colour',
+    helmet: 'Helmet',
+    shoes: 'Shoes',
+    bike: 'Bike',
+    unlockHint: 'Jerseys, helmets and bikes unlock as you ride: find them in the garage.',
+    likeness: 'Likeness from a photo',
+    likenessDetail: 'Face, skin and hair estimated on your device; the photo is never uploaded nor stored, only the resulting settings are kept (editable or erasable in the garage). Only a photo of yourself.',
+    consent: 'I agree to this local processing of my photo',
+    choosePhoto: 'Choose a photo',
+    hShort: 'Short',
+    hFade: 'Fade',
+    hCurly: 'Curly',
+    hQuiff: 'Quiff',
+    hBob: 'Bob',
+    hLong: 'Long',
+    hBun: 'Bun',
+    hPony: 'Ponytail',
+    hBraids: 'Two braids',
+    hBraidPony: 'Braided ponytail',
+    devicesSub: 'Wake your gear by pedalling a little, then pair it.',
+    powerRole: 'Pedals or power meter',
+    cadenceRole: 'Cadence sensor',
+    shifterRole: 'Shifters',
+    notPaired: 'Not paired',
+    paired: 'Paired',
+    noHardware: 'No hardware at hand? The simulator takes over automatically.',
+    gearsSub: 'Gears handled by the game, or your real cassette.',
+    onTrainer: 'On the trainer',
+    virtualGears: 'virtual gears handled by the game',
+    realCassette: 'Real cassette',
+    controls: 'Controls',
+    gamepad: 'gamepad',
+    keyboard: 'keyboard ↑ ↓',
+    companionApp: 'companion app',
+    cassetteSpeeds: 'Cassette speeds',
+    di2Detected: 'Di2 detected: your model',
+    choose: 'Choose…',
+    di2Other: 'Other / not sure',
+    companionTitle: 'Companion app',
+    companionSub: 'Your phone becomes your remote.',
+    companionHint: 'You can find it later in Settings.',
+    ftpTitle: 'The FTP test',
+    ftpSub: 'A ramp of about twenty minutes to measure your FTP.',
+    warmup: 'Warm-up',
+    warmupText: '5 min at 100 W in ERG mode: the trainer sets the power.',
+    steps: 'Steps',
+    stepsText: '+20 W every minute, steady cadence between 70 and 100 rpm.',
+    toTheEnd: 'To the end',
+    toTheEndText: 'Stop when you can no longer hold the step (often 15–25 min).',
+    result: 'Result',
+    resultText: 'FTP = 75% of your best minute; it sets your zones and workouts.',
+    ftpPrep: 'Be rested, fan on, bottle within reach.',
+    allSet: 'All set!',
+    allSetSub: 'Have fun, on your own or with friends.',
+  },
+);
+type Key = Parameters<typeof S>[0];
+const fill = (tpl: string, v: Record<string, string | number>): string => tpl.replace(/\{(\w+)\}/g, (m, k: string) => (k in v ? String(v[k]) : m));
+
 /** Les deux styles, avec une vue du garage dans chacun. */
-const STYLES: Array<[GraphicStyle, string, string, string, string]> = [
-  ['real', 'Réaliste', 'Realistic', 'Une vue plus réaliste, au plus près des vraies routes : relief, lumière et matières.', 'A more realistic view, close to the real roads: terrain, light and materials.'],
-  ['lowpoly', 'Jeu vidéo', 'Video game', 'Un mode plus ludique : formes simples, plus léger, un monde plus animé.', 'A more playful mode: simple shapes, lighter, a livelier world.'],
+const STYLES: Array<[GraphicStyle, Key, Key]> = [
+  ['real', 'styleReal', 'styleRealDetail'],
+  ['lowpoly', 'styleLowpoly', 'styleLowpolyDetail'],
 ];
 
 const SKINS = ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac', '#5c3a21'];
@@ -28,17 +247,25 @@ const JERSEYS = ['#1f6feb', '#d62828', '#ffffff', '#2a9d8f', '#f4a261', '#111111
 const ACCENTS = ['#ffd23f', '#ffffff', '#111111', '#d62828', '#1f6feb', '#2a9d8f'];
 const SHOES = ['#f2f2f2', '#111418', '#1e5bd8', '#c0392b', '#d7f205', '#ff7a1a'];
 /** Coiffures proposées au tutoriel (les autres sont dans l'éditeur de visage du garage). */
-const HAIR_CHOICES: Array<[number, string, string]> = [[0, 'Courts', 'Short'], [4, 'Dégradé', 'Fade'], [5, 'Bouclés', 'Curly'], [8, 'Coiffé', 'Quiff'], [6, 'Carré', 'Bob'], [9, 'Longs', 'Long'], [7, 'Chignon', 'Bun'], [1, 'Queue', 'Ponytail'], [10, 'Deux tresses', 'Two braids'], [11, 'Queue tressée', 'Braided ponytail']];
+const HAIR_CHOICES: Array<[number, Key]> = [[0, 'hShort'], [4, 'hFade'], [5, 'hCurly'], [8, 'hQuiff'], [6, 'hBob'], [9, 'hLong'], [7, 'hBun'], [1, 'hPony'], [10, 'hBraids'], [11, 'hBraidPony']];
 const HELMETS = ['#f4f4f4', '#111111', '#1f6feb', '#d62828', '#ffd23f'];
 const BIKES = ['#c0392b', '#111111', '#e8ecf0', '#1f6feb', '#2e7d32'];
 const CASSETTE_SPEEDS = [8, 9, 10, 11, 12, 13];
-const DI2_MODELS: Array<[string, string, string]> = [
-  ['dura-ace', 'Dura-Ace Di2', 'Dura-Ace Di2'],
-  ['ultegra', 'Ultegra Di2', 'Ultegra Di2'],
-  ['105', '105 Di2', '105 Di2'],
-  ['grx', 'GRX Di2', 'GRX Di2'],
-  ['other', 'Autre / je ne sais pas', 'Other / not sure'],
+/** Modèles Di2 : noms de marque (non traduits), sauf « autre ». */
+const DI2_MODELS: Array<[string, string | null]> = [
+  ['dura-ace', 'Dura-Ace Di2'],
+  ['ultegra', 'Ultegra Di2'],
+  ['105', '105 Di2'],
+  ['grx', 'GRX Di2'],
+  ['other', null],
 ];
+
+/** Icônes au trait des blocs (24 × 24, couleur du texte). */
+const ico = (path: string): string => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+const ICON_VOICE_ON = ico('<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>');
+const ICON_VOICE_OFF = ico('<path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/>');
+const ICON_USER = ico('<circle cx="12" cy="7.5" r="3.4"/><path d="M5 20c.7-4 3.5-6.2 7-6.2s6.3 2.2 7 6.2"/>');
+const ICON_SENSOR = ico('<circle cx="12" cy="12" r="3"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/>');
 
 /** Aperçu 3D du coureur derrière le tutoriel (étape avatar). */
 export interface AvatarPreview {
@@ -158,125 +385,157 @@ export class Onboarding {
   private render(): void {
     const fr = getLang() === 'fr';
     const i = STEPS.indexOf(this.step);
-    const dots = STEPS.map((_, k) => `<span style="display:inline-block;width:${k === i ? 26 : 8}px;height:8px;border-radius:4px;background:${k <= i ? 'var(--ar-accent)' : 'rgba(255,255,255,.2)'};margin-right:6px;transition:width .3s"></span>`).join('');
+    const dots = STEPS.map((_, k) => `<span class="ob-dot${k === i ? ' now' : k < i ? ' done' : ''}"></span>`).join('');
+    const last = i === STEPS.length - 1;
+    let title = '';
+    let sub = '';
     let body = '';
     switch (this.step) {
-      case 'welcome':
-        body = `<h2>${fr ? 'Tutoriel' : 'Tutorial'}</h2>
-          <div class="row"><button class="btn ${fr ? 'primary' : ''}" data-lang="fr">Français</button><button class="btn ${fr ? '' : 'primary'}" data-lang="en">English</button>
-          <button class="btn small" id="o-voice" style="margin-left:auto;padding:8px 10px;display:flex;${this.voice.enabled ? '' : 'opacity:.55'}" title="${this.voice.enabled ? (fr ? 'Voix off activée' : 'Voice-over on') : fr ? 'Voix off coupée' : 'Voice-over off'}" aria-pressed="${this.voice.enabled}">${this.voice.enabled ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>' : '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></svg>'}</button></div>
-          <div class="warning" style="margin-top:16px;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:#bfdbfe">${localStorage.getItem('ar.skipLogin') ? (fr ? 'Tu roules sans compte : tout reste sur cet appareil. Tu pourras te connecter plus tard (« Se connecter », en haut à droite) pour retrouver tes amis, rouler en groupe et garder ta progression partout.' : 'You are riding without an account: everything stays on this device. You can sign in later (“Sign in”, top right) for friends, group rides and progress on every device.') : fr ? 'Compte connecté : ta progression, ton historique et tes sorties sont gardés sur ton compte.' : 'Signed in: your progress, history and rides are kept on your account.'}</div>`;
+      case 'welcome': {
+        const solo = !!localStorage.getItem('ar.skipLogin');
+        const on = this.voice.enabled;
+        title = S('tutorial');
+        sub = S('welcomeSub');
+        body = `<h3 class="ab-section">${S('language')}</h3>
+          <div class="ab-grid ab-grid-2 ob-langs">${(['fr', 'en'] as const)
+            .map((l) => `<button type="button" class="ab-tile ab-plain ${fr === (l === 'fr') ? 'is-on' : ''}" data-lang="${l}" aria-pressed="${fr === (l === 'fr')}"><span class="ab-name">${l === 'fr' ? 'Français' : 'English'}</span></button>`)
+            .join('')}</div>
+          <div class="ab-grid ab-grid-2 ob-infos">
+            <button type="button" class="ab-tile ${on ? 'is-ok' : ''}" id="o-voice" title="${on ? S('voiceOn') : S('voiceOff')}" aria-pressed="${on}"><span class="ab-ico sm">${on ? ICON_VOICE_ON : ICON_VOICE_OFF}</span><span class="ab-name">${S('voice')}</span><span class="ab-detail">${S('voiceDetail')}</span><span class="ab-state"><i></i>${on ? S('voiceOnState') : S('voiceOffState')}</span></button>
+            <div class="ab-tile ${solo ? 'is-info' : 'is-ok'}"><span class="ab-ico sm">${ICON_USER}</span><span class="ab-name">${S('account')}</span><span class="ab-detail">${solo ? S('noAccount') : S('signedIn')}</span><span class="ab-state"><i></i>${solo ? S('noAccountState') : S('signedInState')}</span></div>
+          </div>`;
         break;
+      }
       case 'style':
-        body = `<h2>${fr ? 'Style graphique' : 'Graphic style'}</h2>
-          <div class="ob-styles">${STYLES.map(([v, f, e, df, de]) => `<button class="ob-style ${this.style === v ? 'on' : ''}" data-gstyle="${v}" aria-pressed="${this.style === v}">
-            <img src="/onboarding/style-${v}.jpg" alt=""/><b>${fr ? f : e}</b><span>${fr ? df : de}</span></button>`).join('')}</div>
-          <p style="font-size:13px;color:var(--ar-muted);margin:10px 0 0">${fr ? 'Tu pourras en changer quand tu veux dans Réglages.' : 'You can change it any time in Settings.'}</p>`;
+        title = S('styleTitle');
+        sub = S('styleSub');
+        body = `<div class="ob-styles">${STYLES.map(([v, name, detail]) => `<button type="button" class="ab-tile ab-plain ob-style ${this.style === v ? 'on is-on' : ''}" data-gstyle="${v}" aria-pressed="${this.style === v}">
+            <img src="/onboarding/style-${v}.jpg" alt=""/><span class="ab-name">${S(name)}</span><span class="ab-detail">${S(detail)}</span>${this.style === v ? `<span class="ab-state is-ok"><i></i>${S('chosen')}</span>` : ''}</button>`).join('')}</div>
+          <p class="ob-note">${S('styleHint')}</p>`;
         break;
       case 'profile':
-        body = `<h2>${t('profile')}</h2><div class="grid3">
+        title = t('profile');
+        sub = S('profileSub');
+        body = `<div class="grid3">
           <label class="field">${t('name')}<input id="o-name" value="${this.s.name.replace(/"/g, '&quot;')}"/></label>
-          <label class="field">${fr ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(this.s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (fr ? 'Un homme' : 'A man') : fr ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
-          <label class="field">${fr ? 'Nationalité' : 'Nationality'}<select id="o-nation"><option value="" ${this.s.look.nationality ? '' : 'selected'}>${fr ? 'Choisir mon pays' : 'Choose my country'}</option>${[...COUNTRIES]
+          <label class="field">${S('iAm')}<div class="row">${(['male', 'female'] as const).map((x) => `<button type="button" class="ab-btn ob-pick ${lookSex(this.s.look) === x ? 'is-on' : ''}" data-sex="${x}" aria-pressed="${lookSex(this.s.look) === x}">${x === 'male' ? S('man') : S('woman')}</button>`).join('')}</div></label>
+          <label class="field">${S('nationality')}<select id="o-nation"><option value="" ${this.s.look.nationality ? '' : 'selected'}>${S('chooseCountry')}</option>${[...COUNTRIES]
             .sort((a, b) => a[fr ? 'fr' : 'en'].localeCompare(b[fr ? 'fr' : 'en'], fr ? 'fr' : 'en'))
             .map((c) => `<option value="${c.code}" data-flag="${c.code}" ${this.s.look.nationality === c.code ? 'selected' : ''}>${c[fr ? 'fr' : 'en']}</option>`)
             .join('')}</select></label>
           <label class="field">${t('weight')}<input id="o-mass" type="number" min="30" max="200" step="0.5" value="${this.s.massKg}"/></label>
           <label class="field">${t('height')}<input id="o-height" type="number" min="120" max="220" value="${this.s.heightCm}"/></label>
           <label class="field">${t('ftp')}<input id="o-ftp" type="number" min="50" max="600" value="${this.s.ftpWatts}"/></label>
-          <label class="field">${fr ? 'Je ne connais pas ma FTP' : "I don't know my FTP"}<button class="btn small ${this.wantFtp ? 'primary' : ''}" id="o-ftptest">${this.wantFtp ? (fr ? 'Test FTP prévu à la fin ✓' : 'FTP test planned at the end ✓') : fr ? 'Faire le test FTP' : 'Do the FTP test'}</button></label></div>`;
+          <label class="field">${S('unknownFtp')}<button type="button" class="ab-btn ob-pick ${this.wantFtp ? 'is-on' : ''}" id="o-ftptest" aria-pressed="${this.wantFtp}">${this.wantFtp ? S('ftpPlanned') : S('doFtp')}</button></label></div>`;
         break;
       case 'avatar': {
-        const sw = (attr: string, colors: string[], cur: string) => colors.map((c) => `<button class="ob-sw ${cur.toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-${attr}="${c}" style="--c:${c}" title="${c}" aria-label="${c}" aria-pressed="${cur.toLowerCase() === c.toLowerCase()}"></button>`).join('');
+        const sw = (attr: string, colors: string[], cur: string) => colors.map((c) => `<button type="button" class="ob-sw ${cur.toLowerCase() === c.toLowerCase() ? 'on' : ''}" data-${attr}="${c}" style="--c:${c}" title="${c}" aria-label="${c}" aria-pressed="${cur.toLowerCase() === c.toLowerCase()}"></button>`).join('');
         const look = this.s.look;
         const bald = look.hairStyle === 3;
-        body = `<h2>Avatar</h2><div class="grid3 ob-avatar-grid">
-          <label class="field wide">${fr ? 'Je suis' : 'I am'}<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (fr ? 'Un homme' : 'A man') : fr ? 'Une femme' : 'A woman'}</button>`).join('')}</div></label>
-          <label class="field">${fr ? 'Peau' : 'Skin'}<div class="row">${sw('skin', SKINS, look.skin)}</div></label>
-          <label class="field">${fr ? 'Cheveux' : 'Hair'}<div class="row">${sw('hair', HAIRS, bald ? '' : look.hair)}<button class="btn small ${bald ? 'primary' : ''}" data-bald="1">${fr ? 'Chauve' : 'Bald'}</button></div></label>
-          <label class="field wide">${fr ? 'Coiffure' : 'Hairstyle'}<div class="row">${HAIR_CHOICES.map(([v, f, e]) => `<button class="btn small ${look.hairStyle === v ? 'primary' : ''}" data-hstyle="${v}">${fr ? f : e}</button>`).join('')}</div></label>
-          <label class="field">${fr ? 'Morphologie' : 'Build'}<input id="o-build" type="range" min="0" max="1" step="0.05" value="${look.build}"/></label>
-          <label class="field">${fr ? 'Maillot' : 'Jersey'}<div class="row">${sw('jersey', JERSEYS, look.jersey)}</div></label>
-          <label class="field">${fr ? 'Seconde couleur du maillot' : 'Jersey second colour'}<div class="row">${sw('accent', ACCENTS, look.jerseyAccent)}</div></label>
-          <label class="field">${fr ? 'Casque' : 'Helmet'}<div class="row">${sw('helmet', HELMETS, look.helmet)}</div></label>
-          <label class="field">${fr ? 'Chaussures' : 'Shoes'}<div class="row">${sw('shoes', SHOES, look.shoes ?? '#f2f2f2')}</div></label>
-          <label class="field">${fr ? 'Vélo' : 'Bike'}<div class="row">${sw('bike', BIKES, look.bike)}</div></label></div>
-          <p class="meta" style="font-size:13px;color:var(--ar-muted)">${fr ? 'Maillots, casques et vélos se débloquent en roulant : retrouve-les au garage.' : 'Jerseys, helmets and bikes unlock as you ride: find them in the garage.'}</p>
-          <div class="device ob-likeness"><div><b>${fr ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</b>
-            <div class="meta">${fr ? 'Visage, teint et cheveux estimés sur ton appareil ; la photo n’est ni envoyée ni conservée, seuls les réglages obtenus sont gardés (modifiables ou effaçables au garage). Uniquement une photo de toi.' : 'Face, skin and hair estimated on your device; the photo is never uploaded nor stored, only the resulting settings are kept (editable or erasable in the garage). Only a photo of yourself.'}</div>
-            <label class="row" style="font-size:13px;margin-top:6px"><input type="checkbox" id="o-consent"/> ${fr ? 'J’accepte ce traitement local de ma photo' : 'I agree to this local processing of my photo'}</label></div>
-            <label class="btn small" id="o-photo-label" style="opacity:.5">${fr ? 'Choisir une photo' : 'Choose a photo'}<input id="o-photo" type="file" accept="image/*" hidden disabled/></label></div>`;
+        const pick = (on: boolean) => `ab-btn ob-pick ${on ? 'is-on' : ''}" aria-pressed="${on}`;
+        title = 'Avatar';
+        sub = S('avatarSub');
+        body = `<div class="grid3 ob-avatar-grid">
+          <label class="field wide">${S('iAm')}<div class="row">${(['male', 'female'] as const).map((x) => `<button type="button" class="${pick(lookSex(look) === x)}" data-sex="${x}">${x === 'male' ? S('man') : S('woman')}</button>`).join('')}</div></label>
+          <label class="field">${S('skin')}<div class="row">${sw('skin', SKINS, look.skin)}</div></label>
+          <label class="field">${S('hair')}<div class="row">${sw('hair', HAIRS, bald ? '' : look.hair)}<button type="button" class="${pick(bald)}" data-bald="1">${S('bald')}</button></div></label>
+          <label class="field wide">${S('hairstyle')}<div class="row">${HAIR_CHOICES.map(([v, k]) => `<button type="button" class="${pick(look.hairStyle === v)}" data-hstyle="${v}">${S(k)}</button>`).join('')}</div></label>
+          <label class="field">${S('build')}<input id="o-build" type="range" min="0" max="1" step="0.05" value="${look.build}"/></label>
+          <label class="field">${S('jersey')}<div class="row">${sw('jersey', JERSEYS, look.jersey)}</div></label>
+          <label class="field">${S('jersey2')}<div class="row">${sw('accent', ACCENTS, look.jerseyAccent)}</div></label>
+          <label class="field">${S('helmet')}<div class="row">${sw('helmet', HELMETS, look.helmet)}</div></label>
+          <label class="field">${S('shoes')}<div class="row">${sw('shoes', SHOES, look.shoes ?? '#f2f2f2')}</div></label>
+          <label class="field">${S('bike')}<div class="row">${sw('bike', BIKES, look.bike)}</div></label></div>
+          <p class="ob-note">${S('unlockHint')}</p>
+          <div class="ab-tile ab-plain ob-likeness"><span class="ab-name">${S('likeness')}</span>
+            <p class="ab-detail">${S('likenessDetail')}</p>
+            <div class="ob-likeness-row"><label class="ob-consent"><input type="checkbox" id="o-consent"/> ${S('consent')}</label>
+            <label class="ab-btn" id="o-photo-label" style="opacity:.5">${S('choosePhoto')}<input id="o-photo" type="file" accept="image/*" hidden disabled/></label></div></div>`;
         break;
       }
       case 'devices': {
         const list = this.devices.list();
         const transports = this.devices.transports();
         const roles: Array<[Parameters<DevicePanel['pair']>[0], string]> = [
-          ['trainer', `1. ${t('trainer')}`],
-          ['power', `2. ${fr ? 'Pédales ou capteur de puissance' : 'Pedals or power meter'}`],
-          ['heartRate', `3. ${t('hrm')}`],
-          ['cadence', `4. ${fr ? 'Capteur de cadence' : 'Cadence sensor'}`],
-          ['shifter', `5. ${fr ? 'Commandes de vitesses' : 'Shifters'}`],
+          ['trainer', t('trainer')],
+          ['power', S('powerRole')],
+          ['heartRate', t('hrm')],
+          ['cadence', S('cadenceRole')],
+          ['shifter', S('shifterRole')],
         ];
-        body = `<h2>${t('devices')}</h2>
-          ${transports.length ? '' : `<div class="warning">${t('noWebBluetooth')}</div>`}
-          <div class="device-list">${roles
-            .map(([role, label]) => {
+        title = t('devices');
+        sub = S('devicesSub');
+        body = `${transports.length ? '' : `<div class="warning">${t('noWebBluetooth')}</div>`}
+          <div class="ob-devices">${roles
+            .map(([role, label], k) => {
               const d = list.find((x) => (x.roleIds ?? []).includes(role));
-              return `<div class="device"><div><b>${label}</b><div class="meta">${d ? `${d.name} · ${d.state}` : fr ? 'non appairé' : 'not paired'}</div></div>${transports.length ? `<button class="btn small" data-pair="${role}">${t('pair')}</button>` : ''}</div>`;
+              return `<div class="ab-tile ${d ? 'is-ok' : ''}"><span class="ab-ico sm">${ICON_SENSOR}</span><span class="ab-name">${k + 1}. ${label}</span><span class="ab-detail">${d ? `${d.name} · ${d.state}` : S('notPaired')}</span><span class="ab-state"><i></i>${d ? S('paired') : S('notPaired')}</span>${transports.length ? `<button type="button" class="ab-btn ab-chip" data-pair="${role}">${t('pair')}</button>` : ''}</div>`;
             })
             .join('')}</div>
           ${this.devices
             .warnings()
             .map((w) => `<div class="warning">${w}</div>`)
             .join('')}
-          ${this.hasAssioma() ? `<div class="warning" style="margin-top:10px;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.35);color:#bfdbfe">${t('oneAppAtATime')}<br/>${t('assiomaWarn')}<br/>${t('edgeWarn')}</div>` : ''}
-          <p style="font-size:13px;color:var(--ar-muted)">${fr ? 'Pas de matériel sous la main ? Le simulateur prend le relais automatiquement.' : 'No hardware at hand? The simulator takes over automatically.'}</p>`;
+          ${this.hasAssioma() ? `<div class="warning ob-info">${t('oneAppAtATime')}<br/>${t('assiomaWarn')}<br/>${t('edgeWarn')}</div>` : ''}
+          <p class="ob-note">${S('noHardware')}</p>`;
         break;
       }
       case 'gears': {
         const cassette = this.s.drivetrain === 'cassette';
         const di2 = this.devices.di2Active?.() ?? false;
-        body = `<h2>${t('gear')}</h2>
-          <div class="grid2">
-            <label class="field">${fr ? 'Sur le home trainer' : 'On the trainer'}<select id="o-drive">
-              <option value="cog" ${cassette ? '' : 'selected'}>Zwift Cog — ${fr ? 'vitesses virtuelles gérées par le jeu' : 'virtual gears handled by the game'}</option>
-              <option value="cassette" ${cassette ? 'selected' : ''}>${fr ? 'Cassette réelle (dérailleur)' : 'Real cassette'}</option></select></label>
-            <div class="field">${fr ? 'Commandes' : 'Controls'}<div style="color:var(--ar-fg);font-size:14px;line-height:1.6">Di2 · Zwift Click / Play / Ride · ${fr ? 'manette' : 'gamepad'} · ${fr ? 'clavier ↑ ↓' : 'keyboard ↑ ↓'} · ${fr ? 'appli compagnon' : 'companion app'}</div></div>
-            ${cassette ? `<label class="field">${fr ? 'Nombre de vitesses de la cassette' : 'Cassette speeds'}<select id="o-speeds">${CASSETTE_SPEEDS.map((n) => `<option value="${n}" ${this.s.cassetteSpeeds === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}
-            ${di2 ? `<label class="field">${fr ? 'Commandes Di2 détectées : ton modèle' : 'Di2 detected: your model'}<select id="o-di2"><option value="" ${this.s.di2Model ? '' : 'selected'}>${fr ? 'Choisir…' : 'Choose…'}</option>${DI2_MODELS.map(([v, f, e]) => `<option value="${v}" ${this.s.di2Model === v ? 'selected' : ''}>${fr ? f : e}</option>`).join('')}</select></label>` : ''}
+        title = t('gear');
+        sub = S('gearsSub');
+        body = `<div class="grid2">
+            <label class="field">${S('onTrainer')}<select id="o-drive">
+              <option value="cog" ${cassette ? '' : 'selected'}>Zwift Cog — ${S('virtualGears')}</option>
+              <option value="cassette" ${cassette ? 'selected' : ''}>${S('realCassette')}</option></select></label>
+            <div class="field">${S('controls')}<div class="ob-controls">Di2 · Zwift Click / Play / Ride · ${S('gamepad')} · ${S('keyboard')} · ${S('companionApp')}</div></div>
+            ${cassette ? `<label class="field">${S('cassetteSpeeds')}<select id="o-speeds">${CASSETTE_SPEEDS.map((n) => `<option value="${n}" ${this.s.cassetteSpeeds === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>` : ''}
+            ${di2 ? `<label class="field">${S('di2Detected')}<select id="o-di2"><option value="" ${this.s.di2Model ? '' : 'selected'}>${S('choose')}</option>${DI2_MODELS.map(([v, name]) => `<option value="${v}" ${this.s.di2Model === v ? 'selected' : ''}>${name ?? S('di2Other')}</option>`).join('')}</select></label>` : ''}
           </div>`;
         break;
       }
       case 'companion':
         // Appli compagnon : son QR code (le même que dans les réglages), pour l'appairer tout de suite.
-        body = `<h2>${fr ? 'Appli compagnon' : 'Companion app'}</h2>
-          <div id="o-companion"></div>
-          <p style="font-size:13px;color:var(--ar-muted);margin:10px 0 0">${fr ? 'Tu pourras le retrouver plus tard dans Réglages.' : 'You can find it later in Settings.'}</p>`;
+        title = S('companionTitle');
+        sub = S('companionSub');
+        body = `<div id="o-companion"></div>
+          <p class="ob-note">${S('companionHint')}</p>`;
         break;
       case 'final':
-        body = this.wantFtp
-          ? `<h2>${fr ? 'Le test FTP' : 'The FTP test'}</h2>
-            <ol style="margin:0 0 12px;padding-left:20px;line-height:1.7">
-              <li><b>${fr ? 'Échauffement' : 'Warm-up'}</b> — ${fr ? '5 min à 100 W, en mode ERG : le home trainer impose la puissance.' : '5 min at 100 W in ERG mode: the trainer sets the power.'}</li>
-              <li><b>${fr ? 'Paliers' : 'Steps'}</b> — ${fr ? '+20 W chaque minute, cadence régulière entre 70 et 100 tr/min.' : '+20 W every minute, steady cadence between 70 and 100 rpm.'}</li>
-              <li><b>${fr ? 'Jusqu’au bout' : 'To the end'}</b> — ${fr ? 'arrête-toi quand tu ne tiens plus le palier (souvent 15 à 25 min).' : 'stop when you can no longer hold the step (often 15–25 min).'}</li>
-              <li><b>${fr ? 'Résultat' : 'Result'}</b> — ${fr ? 'FTP = 75 % de ta meilleure minute ; elle règle tes zones et tes séances.' : 'FTP = 75% of your best minute; it sets your zones and workouts.'}</li>
-            </ol>
-            <p style="font-size:13px;color:var(--ar-muted)">${fr ? 'Bien reposé, ventilateur allumé, bidon à portée de main.' : 'Be rested, fan on, bottle within reach.'}</p>`
-          : `<h2>${fr ? 'Tout est prêt !' : 'All set!'}</h2>`;
+        if (this.wantFtp) {
+          title = S('ftpTitle');
+          sub = S('ftpSub');
+          body = `<div class="ab-grid ab-grid-2 ob-ftp">${(
+            [
+              ['warmup', 'warmupText'],
+              ['steps', 'stepsText'],
+              ['toTheEnd', 'toTheEndText'],
+              ['result', 'resultText'],
+            ] as Array<[Key, Key]>
+          )
+            .map(([n, d], k) => `<div class="ab-tile ab-plain"><span class="ab-name">${k + 1}. ${S(n)}</span><p class="ab-detail">${S(d)}</p></div>`)
+            .join('')}</div>
+            <p class="ob-note">${S('ftpPrep')}</p>`;
+        } else {
+          title = S('allSet');
+          sub = S('allSetSub');
+        }
         break;
     }
     const side = this.step === 'avatar' && !!this.preview;
     const keepScroll = this.root.querySelector<HTMLElement>('.card.onboarding')?.scrollTop ?? 0;
+    const nextLabel = last ? (this.wantFtp ? S('startFtp') : `${S('finish')} ✓`) : `${S('next')} →`;
     this.root.innerHTML = `<div class="menu ob-menu ${side ? 'ob-preview' : ''}"><div class="ob-wrap">
-      <div class="ob-hero"><h1>Allez <em>Robert</em> !</h1><p class="tagline">${fr ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+      <div class="ob-hero"><h1>Allez <em>Robert</em> !</h1><p class="tagline">${S('tagline')}</p></div>
       <div class="ob-stage">${side ? '' : '<span class="ob-robert" aria-hidden="true"></span>'}
-      <div class="card panel onboarding ${side ? 'ob-side' : ''}">
-      <div class="ob-progress">${dots}<span>${fr ? 'Étape' : 'Step'} ${i + 1} / ${STEPS.length}</span></div>${body}
-      <div class="row" style="justify-content:space-between;margin-top:22px">
-        ${i === STEPS.length - 1 ? '<span></span>' : `<button class="btn" id="o-skip">${fr ? 'Passer le tutoriel' : 'Skip tutorial'}</button>`}
-        <div class="row">${i > 0 ? `<button class="btn" id="o-back">←</button>` : ''}${i === STEPS.length - 1 && this.wantFtp ? `<button class="btn" id="o-later">${fr ? 'Plus tard' : 'Later'}</button>` : ''}<button class="btn primary" id="o-next">${i === STEPS.length - 1 ? (this.wantFtp ? (fr ? 'Lancer le test FTP' : 'Start the FTP test') : fr ? 'Terminer ✓' : 'Finish ✓') : fr ? 'Suivant →' : 'Next →'}</button></div>
+      <div class="card panel onboarding ob-blocks ${side ? 'ob-side' : ''}">
+      <div class="ob-progress" aria-hidden="true">${dots}<span>${fill(S('step'), { i: i + 1, n: STEPS.length })}</span></div>
+      <header class="ob-head"><h2 class="ab-title">${title}</h2>${sub ? `<p class="ab-sub">${sub}</p>` : ''}</header>
+      ${body}
+      <div class="ab-foot ob-foot">
+        ${last ? '' : `<button type="button" class="ab-btn ob-skip" id="o-skip">${S('skip')}</button>`}
+        <div class="ab-btns">${i > 0 ? `<button type="button" class="ab-btn" id="o-back" aria-label="${S('back')}">← ${S('back')}</button>` : ''}${last && this.wantFtp ? `<button type="button" class="ab-btn" id="o-later">${S('later')}</button>` : ''}<button type="button" class="ab-btn ab-go" id="o-next">${nextLabel}</button></div>
       </div></div></div></div></div>`;
     if (keepScroll) {
       const card = this.root.querySelector<HTMLElement>('.card.onboarding');

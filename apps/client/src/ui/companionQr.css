@@ -1,23 +1,27 @@
-/* QR code de l'appli compagnon : fenêtre centrée (lancement de sortie, touche Q, pause) et bloc des Réglages. */
+/*
+ * QR code de l'appli compagnon : fenêtre centrée (lancement de sortie, touche Q, pause) et bloc des Réglages.
+ * Langage des gros blocs (blocks.css) : grand titre, sous-titre, état écrit avec sa pastille, une seule action
+ * jaune en bas à droite.
+ */
 .cmp-qr { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: rgba(6, 9, 15, 0.45); backdrop-filter: blur(6px); pointer-events: auto; color: var(--ar-fg, #fff); }
 .cmp-qr[hidden] { display: none; }
 .cmp-code svg { display: block; width: 100%; height: 100%; border-radius: 6px; }
-.cmp-state { display: flex; align-items: center; gap: 8px; }
-.cmp-state i { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; }
+.cmp-state { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; }
+.cmp-state i { display: inline-block; flex: none; width: 12px; height: 12px; border-radius: 50%; background: #94a3b8; }
 .cmp-state i.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-.cmp-card .cmp-state:empty { display: none; }
 .cmp-state i.off { background: #ef4444; }
-.cmp-hint { font-size: 11.5px; color: var(--ar-muted, #b8c0cc); }
+.cmp-hint { font-size: 12px; color: var(--ar-muted, #b8c0cc); }
 .cmp-hint kbd { border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 4px; padding: 0 5px; }
 
-.cmp-card { position: relative; width: min(410px, 92vw); padding: 22px 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; background: linear-gradient(180deg, #2b3547 0%, #1f2736 100%); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 22px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.35); animation: cmp-in 0.25s ease-out; }
-.cmp-card b { font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ar-accent, #ffd23f); margin-top: 2px; }
-.cmp-card h2 { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 800; letter-spacing: -0.01em; }
+.cmp-card { position: relative; width: min(480px, 92vw); max-height: 94vh; overflow-y: auto; padding: 22px 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; background: linear-gradient(180deg, rgba(22, 29, 43, 0.98), rgba(12, 16, 25, 0.98)); border: 2px solid rgba(255, 255, 255, 0.12); border-radius: 26px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55); animation: cmp-in 0.25s ease-out; }
+.cmp-head { align-self: stretch; display: flex; align-items: center; gap: 14px; padding-right: 34px; text-align: left; }
+.cmp-head .ab-ico { flex: none; color: var(--ar-accent, #ffd23f); background: rgba(255, 210, 63, 0.14); }
+.cmp-head .ab-title { font-size: clamp(22px, 2.6vw, 30px); }
 .cmp-feats { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
-.cmp-feats li { padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, 0.12); color: #eef2f7; }
-.cmp-card .cmp-how { font-size: 13px; }
-.cmp-card p { margin: 0; font-size: 13.5px; line-height: 1.45; color: #cdd5e0; }
-.cmp-card .cmp-code { position: relative; width: min(220px, 60vw); aspect-ratio: 1; padding: 10px; box-sizing: content-box; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 4px rgba(255, 210, 63, 0.35); margin: 6px 0 2px; }
+.cmp-feats li { padding: 4px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; background: rgba(255, 255, 255, 0.1); color: #eef2f7; }
+.cmp-card p { margin: 0; font-size: 15px; line-height: 1.45; color: #c3cddb; }
+.cmp-card .cmp-how { max-width: 380px; }
+.cmp-card .cmp-code { position: relative; width: min(220px, 60vw); aspect-ratio: 1; padding: 10px; box-sizing: content-box; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 4px rgba(255, 210, 63, 0.35); margin: 4px 0 2px; }
 .cmp-card .cmp-code.done { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 4px #22c55e, 0 0 34px rgba(34, 197, 94, 0.55); transition: box-shadow 0.3s; }
 .cmp-card .cmp-code.done > svg:first-child { opacity: 0.18; transition: opacity 0.3s; }
 .cmp-code .cmp-check { position: absolute; inset: 22%; width: 56%; height: 56%; border-radius: 0; animation: cmp-pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
@@ -26,25 +30,30 @@
 .cmp-card.cmp-still .cmp-check, .cmp-card.cmp-still .cmp-check path { animation-duration: 0s; animation-delay: 0s; }
 @keyframes cmp-pop { from { transform: scale(0.3); opacity: 0; } }
 @keyframes cmp-draw { to { stroke-dashoffset: 0; } }
-.cmp-card .cmp-state { justify-content: center; padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.12); color: var(--ar-fg, #fff); font-size: 13px; font-weight: 600; }
-.cmp-x { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 18px; line-height: 30px; padding: 0; cursor: pointer; }
-.cmp-row { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-.cmp-row .btn.primary { min-width: 200px; }
-.cmp-row .btn.ghost { background: none; box-shadow: none; padding: 2px 8px; min-height: 0; font-size: 12px; font-weight: 500; color: #aab4c2; text-decoration: underline; text-underline-offset: 3px; }
-.cmp-row .btn.ghost:hover { color: #fff; }
+.cmp-card .cmp-status { justify-content: center; padding: 6px 14px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); }
+.cmp-x { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.1); color: #fff; font-size: 20px; line-height: 36px; padding: 0; cursor: pointer; }
+.cmp-x:hover { background: rgba(255, 255, 255, 0.2); }
+.cmp-x:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.cmp-foot { align-self: stretch; margin-top: 4px; }
 @keyframes cmp-in { from { transform: scale(0.96); opacity: 0; } }
 
 /* Onglet Réglages. */
 .cmp-settings { display: flex; gap: 18px; align-items: flex-start; }
-.cmp-settings .cmp-code { flex: none; width: 132px; height: 132px; padding: 0; border: 0; background: none; cursor: zoom-in; }
-.cmp-settings .cmp-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.cmp-settings p { margin: 0; font-size: 13.5px; line-height: 1.45; }
+.cmp-settings .cmp-code { flex: none; width: 132px; height: 132px; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 8px; }
+.cmp-settings .cmp-code:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
+.cmp-settings .cmp-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cmp-settings p { margin: 0; font-size: 15px; line-height: 1.45; }
+.cmp-offer { flex-direction: row !important; align-items: center; gap: 8px; font-size: 15px; }
+.cmp-offer input { width: auto; }
+.cmp-btns { display: flex; gap: 10px; flex-wrap: wrap; }
 
 /* Pastille du téléphone (même style que les cartes de mode du menu). */
 .cmp-badge { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: var(--ar-accent, #ffd23f); background: rgba(255, 210, 63, 0.14); box-shadow: inset 0 0 0 1px rgba(255, 210, 63, 0.4), 0 0 22px -6px rgba(255, 210, 63, 0.6); }
 .cmp-ico { display: inline-block; vertical-align: -4px; }
 .cmp-simple .cmp-code { cursor: default; align-items: center; }
 .cmp-simple { align-items: center; }
-.cmp-muted { margin: 0; font-size: 13px; color: var(--ar-muted, #b8c0cc); }
+.cmp-muted { margin: 0; font-size: 15px; }
 .cmp-card.cmp-still { animation: none; }
-.cmp-card p.cmp-state:empty { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .cmp-card, .cmp-code .cmp-check, .cmp-check path { animation: none; stroke-dashoffset: 0; }
+}

@@ -5,7 +5,44 @@
  * sortie sur place. Molette : zoom, glisser : se déplacer, Échap : fermer.
  */
 import type { RoadGraphData, WorldPlace } from '@allezrobert/shared';
+import { strings } from '../i18n/index.ts';
+import './blocks.css';
 import './worldMap.css';
+
+const S = strings(
+  {
+    map: 'Carte',
+    close: 'Fermer',
+    scrollToZoomDrag: 'Molette : zoom, glisser : se déplacer.',
+    clickARoadTo: 'Clique sur une route pour choisir où aller. Molette : zoom, glisser : se déplacer.',
+    places: 'Lieux',
+    me: 'Moi',
+    all: 'Tout',
+    destination: 'Destination',
+    cancelGuidance: 'Annuler le guidage',
+    freeRideStraightOn: 'Parcours libre : tout droit à chaque carrefour, ← / → pour tourner.',
+    crow: 'à {km} km à vol d’oiseau',
+    decimal: ',',
+    rideThere: 'Y aller à vélo',
+    startANewRide: 'Repartir d’ici (nouvelle sortie)',
+  },
+  {
+    map: 'Map',
+    close: 'Close',
+    scrollToZoomDrag: 'Scroll to zoom, drag to move.',
+    clickARoadTo: 'Click a road to choose where to go. Scroll to zoom, drag to move.',
+    places: 'Places',
+    me: 'Me',
+    all: 'All',
+    destination: 'Destination',
+    cancelGuidance: 'Cancel guidance',
+    freeRideStraightOn: 'Free ride: straight on at each junction, ← / → to turn.',
+    crow: '{km} km as the crow flies',
+    decimal: '.',
+    rideThere: 'Ride there',
+    startANewRide: 'Start a new ride here',
+  },
+);
 
 type Box = { minX: number; minZ: number; maxX: number; maxZ: number };
 
@@ -85,14 +122,14 @@ export class WorldMap {
     root.className = 'wm-overlay';
     const places = [...this.o.places].sort((a, b) => (PLACE_RANK[a.kind] ?? 5) - (PLACE_RANK[b.kind] ?? 5) || a.name.localeCompare(b.name));
     root.innerHTML = `<div class="wm-panel">
-      <header><h2>${L ? 'Carte' : 'Map'}</h2><button class="wm-x" data-wm-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-      <p class="wm-hint">${this.o.viewOnly ? (L ? 'Molette : zoom, glisser : se déplacer.' : 'Scroll to zoom, drag to move.') : L ? 'Clique sur une route pour choisir où aller. Molette : zoom, glisser : se déplacer.' : 'Click a road to choose where to go. Scroll to zoom, drag to move.'}</p>
+      <header><h2 class="ab-title">${S('map')}</h2><button type="button" class="wm-x" data-wm-close aria-label="${S('close')}">×</button></header>
+      <p class="wm-hint">${this.o.viewOnly ? S('scrollToZoomDrag') : S('clickARoadTo')}</p>
       <div class="wm-dest"></div>
-      <h3${this.o.viewOnly ? ' style="display:none"' : ''}>${L ? 'Lieux' : 'Places'}</h3>
+      <h3 class="ab-section"${this.o.viewOnly ? ' style="display:none"' : ''}>${S('places')}</h3>
       <div class="wm-places"${this.o.viewOnly ? ' style="display:none"' : ''}>${places.map((p, i) => `<button data-wm-place="${i}"><b>${esc(p.name)}</b><span>${esc(kindLabel(p.kind, L))}</span></button>`).join('')}</div>
     </div>
     <div class="wm-stage"><canvas></canvas><div class="wm-card" hidden></div>
-      <div class="wm-tools"><button data-wm-zoom="1" aria-label="+">+</button><button data-wm-zoom="-1" aria-label="−">−</button><button data-wm-me>${L ? 'Moi' : 'Me'}</button><button data-wm-all>${L ? 'Tout' : 'All'}</button></div>
+      <div class="wm-tools"><button data-wm-zoom="1" aria-label="+">+</button><button data-wm-zoom="-1" aria-label="−">−</button><button data-wm-me>${S('me')}</button><button data-wm-all>${S('all')}</button></div>
     </div>`;
     host.appendChild(root);
     this.root = root;
@@ -256,8 +293,7 @@ export class WorldMap {
       el.style.display = 'none';
       return;
     }
-    const L = this.o.fr;
-    el.innerHTML = d ? `<span>${L ? 'Destination' : 'Destination'}</span><b>${esc(d.name)}</b><button data-wm-clear>${L ? 'Annuler le guidage' : 'Cancel guidance'}</button>` : `<span>${L ? 'Parcours libre : tout droit à chaque carrefour, ← / → pour tourner.' : 'Free ride: straight on at each junction, ← / → to turn.'}</span>`;
+    el.innerHTML = d ? `<span>${S('destination')}</span><b>${esc(d.name)}</b><button type="button" class="ab-btn" data-wm-clear>${S('cancelGuidance')}</button>` : `<span>${S('freeRideStraightOn')}</span>`;
     el.querySelector('[data-wm-clear]')?.addEventListener('click', () => {
       this.o.onClear();
       if (this.state) this.state = { ...this.state, destination: null };
@@ -425,15 +461,14 @@ export class WorldMap {
       card.hidden = true;
       return;
     }
-    const L = this.o.fr;
     const me = this.state?.me;
     const km = me ? Math.hypot(p.x - me.x, p.z - me.z) / 1000 : 0;
     const key = `${p.x},${p.z}`;
     if (card.dataset.key !== key) {
       card.dataset.key = key;
-      card.innerHTML = `<b>${esc(p.name)}</b><span>${L ? 'à' : ''} ${km.toFixed(1).replace('.', L ? ',' : '.')} km ${L ? "à vol d'oiseau" : 'as the crow flies'}</span>
-        <button class="wm-go" data-wm-go>${L ? 'Y aller à vélo' : 'Ride there'}</button>
-        <button data-wm-restart>${L ? 'Repartir d’ici (nouvelle sortie)' : 'Start a new ride here'}</button>`;
+      card.innerHTML = `<b>${esc(p.name)}</b><span>${S('crow').replace('{km}', km.toFixed(1).replace('.', S('decimal')))}</span>
+        <button type="button" class="ab-btn ab-go wm-go" data-wm-go>${S('rideThere')}</button>
+        <button type="button" class="ab-btn" data-wm-restart>${S('startANewRide')}</button>`;
       card.querySelector('[data-wm-go]')?.addEventListener('click', () => {
         this.o.onGo(p);
         this.close();

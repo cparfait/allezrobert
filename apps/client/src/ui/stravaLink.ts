@@ -1,4 +1,5 @@
-import { getLang } from '../i18n/index.ts';
+import './blocks.css';
+import { strings } from '../i18n/index.ts';
 import { apiBase } from './account.ts';
 
 interface StravaState {
@@ -6,6 +7,54 @@ interface StravaState {
   connected: boolean;
   athleteName: string | null;
 }
+
+const S = strings(
+  {
+    detail: 'Envoi automatique des sorties enregistrées.',
+    signIn: 'Connecte-toi avec Discord ou Google (en haut à droite) pour relier ton compte Strava.',
+    stateSignedOut: 'Sans compte',
+    checking: 'Vérification…',
+    linked: 'Compte Strava relié.',
+    scope: 'Il faut autoriser l’envoi d’activités pour relier Strava.',
+    failed: 'La liaison avec Strava a échoué, réessaie.',
+    unreachable: 'Serveur injoignable : impossible de lire l’état de Strava.',
+    stateUnreachable: 'Injoignable',
+    notConfigured: 'Strava n’est pas configuré sur le serveur (STRAVA_CLIENT_ID et STRAVA_CLIENT_SECRET dans apps/server/.env).',
+    stateNotConfigured: 'Indisponible',
+    stateLinked: 'Relié',
+    connectedAs: 'Relié au compte {name}.',
+    connectedNoName: 'Tes sorties enregistrées partent sur Strava.',
+    unlink: 'Délier',
+    stateNotLinked: 'Non relié',
+    link: 'Relier mon compte Strava',
+    linkHint: 'Tes sorties enregistrées partiront sur Strava (sauf « Ne pas envoyer »).',
+  },
+  {
+    detail: 'Saved rides are uploaded automatically.',
+    signIn: 'Sign in with Discord or Google (top right) to link your Strava account.',
+    stateSignedOut: 'No account',
+    checking: 'Checking…',
+    linked: 'Strava account linked.',
+    scope: 'You must allow activity uploads to link Strava.',
+    failed: 'Linking with Strava failed, try again.',
+    unreachable: 'Server unreachable: cannot read the Strava status.',
+    stateUnreachable: 'Unreachable',
+    notConfigured: 'Strava is not configured on the server (STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in apps/server/.env).',
+    stateNotConfigured: 'Unavailable',
+    stateLinked: 'Linked',
+    connectedAs: 'Linked to the {name} account.',
+    connectedNoName: 'Your saved rides are sent to Strava.',
+    unlink: 'Unlink',
+    stateNotLinked: 'Not linked',
+    link: 'Link my Strava account',
+    linkHint: 'Your saved rides will be sent to Strava (unless “Don’t upload”).',
+  },
+);
+
+const esc = (t: string): string => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** Flèche d'envoi (trait fin, comme les autres icônes des blocs). */
+const UPLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M5 14v4.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V14"/></svg>';
 
 async function fetchStrava(): Promise<StravaState | null> {
   try {
@@ -29,44 +78,41 @@ function takeReturnCode(): string | null {
 
 let returned: string | null | undefined;
 
+/** Bloc « Strava » au langage des gros blocs : icône, détail, état en toutes lettres, action en pied. */
+function tile(tone: '' | 'is-ok' | 'is-warn' | 'is-bad', detail: string, state: string, action = ''): string {
+  return `<div class="ab-tile ${tone}" style="padding:14px 16px 12px"><span class="ab-ico sm">${UPLOAD_ICON}</span><span class="ab-name">Strava</span><span class="ab-detail">${detail}</span><span class="ab-state"><i></i>${state}</span>${action}</div>`;
+}
+
 /**
  * Liaison du compte Strava (Réglages → envoi des sorties) : visible une fois connecté avec Discord, Google ou
  * un lien magique. La sortie part ensuite vers Strava à l'enregistrement, sauf option « Ne pas envoyer ».
  */
 export function renderStravaLink(el: Element | null, loggedIn: boolean): void {
   if (!el) return;
-  const fr = getLang() === 'fr';
   returned ??= takeReturnCode();
-  const note = (t: string) => `<p class="meta" style="color:var(--ar-muted);font-size:13px;margin:6px 0 0">${t}</p>`;
   if (!loggedIn) {
-    el.innerHTML = note(fr ? 'Connecte-toi avec Discord ou Google (en haut à droite) pour relier ton compte Strava.' : 'Sign in with Discord or Google (top right) to link your Strava account.');
+    el.innerHTML = tile('', S('signIn'), S('stateSignedOut'));
     return;
   }
-  el.innerHTML = note(fr ? 'Strava : vérification…' : 'Strava: checking…');
+  el.innerHTML = tile('', S('detail'), S('checking'));
   void fetchStrava().then((st) => {
     if (!el.isConnected) return;
-    const msg =
-      returned === 'linked'
-        ? fr ? 'Compte Strava relié.' : 'Strava account linked.'
-        : returned === 'scope'
-          ? fr ? 'Il faut autoriser l’envoi d’activités pour relier Strava.' : 'You must allow activity uploads to link Strava.'
-          : returned === 'failed'
-            ? fr ? 'La liaison avec Strava a échoué, réessaie.' : 'Linking with Strava failed, try again.'
-            : '';
-    const flash = msg ? `<p class="meta" style="color:#ffd23f;font-size:13px;margin:0 0 6px">${msg}</p>` : '';
+    const msg = returned === 'linked' ? S('linked') : returned === 'scope' ? S('scope') : returned === 'failed' ? S('failed') : '';
+    const flash = msg ? `<p class="ab-sub" style="color:#ffe37a;font-size:14px;margin:0 0 8px" role="status">${msg}</p>` : '';
     if (!st) {
-      el.innerHTML = note(fr ? 'Serveur injoignable : impossible de lire l’état de Strava.' : 'Server unreachable: cannot read the Strava status.');
+      el.innerHTML = tile('is-bad', S('unreachable'), S('stateUnreachable'));
     } else if (!st.available) {
-      el.innerHTML = flash + note(fr ? 'Strava n’est pas configuré sur le serveur (STRAVA_CLIENT_ID et STRAVA_CLIENT_SECRET dans apps/server/.env).' : 'Strava is not configured on the server (STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in apps/server/.env).');
+      el.innerHTML = flash + tile('is-warn', S('notConfigured'), S('stateNotConfigured'));
     } else if (st.connected) {
-      el.innerHTML = `${flash}<div class="row" style="align-items:center;gap:10px"><span class="mm-chip ok">Strava${st.athleteName ? ` · ${st.athleteName}` : ''}</span><button class="btn small" id="strava-unlink">${fr ? 'Délier' : 'Unlink'}</button></div>`;
+      const detail = st.athleteName ? S('connectedAs').replace('{name}', esc(st.athleteName)) : S('connectedNoName');
+      el.innerHTML = flash + tile('is-ok', detail, S('stateLinked'), `<button type="button" class="ab-btn ab-chip" id="strava-unlink">${S('unlink')}</button>`);
       el.querySelector('#strava-unlink')?.addEventListener('click', async () => {
         await fetch(`${apiBase()}/integrations/strava`, { method: 'DELETE', credentials: 'include' }).catch(() => undefined);
         returned = null;
         renderStravaLink(el, true);
       });
     } else {
-      el.innerHTML = `${flash}<div class="row" style="align-items:center;gap:10px"><button class="btn small primary" id="strava-link">${fr ? 'Relier mon compte Strava' : 'Link my Strava account'}</button></div>${note(fr ? 'Tes sorties enregistrées partiront sur Strava (sauf « Ne pas envoyer »).' : 'Your saved rides will be sent to Strava (unless “Don’t upload”).')}`;
+      el.innerHTML = flash + tile('', S('linkHint'), S('stateNotLinked'), `<button type="button" class="ab-btn ab-chip" id="strava-link">${S('link')}</button>`);
       el.querySelector('#strava-link')?.addEventListener('click', () => {
         location.href = `${apiBase()}/integrations/strava/start?redirect=${encodeURIComponent(location.pathname)}`;
       });

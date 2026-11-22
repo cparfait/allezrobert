@@ -19,11 +19,107 @@ import {
   type TuneSlot,
 } from '@allezrobert/shared';
 import { TUNE_BONUS_CAP, bikeStats, tuneGains, tunedBikeSetup, type BikeStats } from '@allezrobert/physics';
-import { getLang } from '../i18n/index.ts';
+import { getLang, strings } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { applyServerPurchase, buyLocal, equipKit, equipTune, equippedTune, loadProgress, resetTune, unequipTune } from './garage.ts';
 import { buyOnServer } from './account.ts';
 import { SLOT_PARTS, type AtelierState } from './atelier.ts';
+import './blocks.css';
+import './atelierPanel.css';
+
+/** Textes du panneau ; `{n}`, `{name}`, `{e}` : valeurs remplacées à l'appel (voir `fill`). */
+const S = strings(
+  {
+    hint: 'Survole une pièce pour l’essayer sur le vélo. Les crédits se gagnent en roulant.',
+    bikeOnly: 'Vélo seul',
+    withRider: 'Avec le coureur',
+    resetTitle: 'Démonter toutes les pièces de l’atelier',
+    reset: 'Réinitialiser',
+    bikeDiagram: 'Schéma du vélo',
+    equipped: 'Équipé',
+    owned: 'Possédé',
+    levelN: 'Niveau {n}',
+    levelLower: 'niveau {n}',
+    locked: 'Verrouillé',
+    creditsN: '{n} crédits',
+    setName: 'Ensemble {name}',
+    missing: 'Il manque',
+    buy: 'Acheter',
+    partsCount: '{n} pièces',
+    titleName: 'Titre « {name} »',
+    equipSet: 'Équiper l’ensemble',
+    remove: 'Démonter',
+    equip: 'Équiper',
+    buyEquip: 'Acheter et équiper',
+    stopTrying: 'Annuler l’essai',
+    bikeWeight: 'Poids du vélo',
+    drivetrain: 'Rendement transmission',
+    flatFtp: 'Plat à la FTP',
+    flat75: 'Plat à 75 % FTP',
+    climb: 'Montée 5 km à 7 %',
+    onBike: 'Sur le vélo',
+    workshopBonus: 'Bonus atelier :',
+    flat: 'plat',
+    climbShort: 'côte',
+    cappedAt: 'plafonné à',
+    raceNote: 'Courses : « Équipement égalisé » met tout le monde sur le même vélo.',
+    fitted: '{name} monté.',
+    kitFittedOne: '{n} pièce de l’ensemble {name} montée.',
+    kitFittedMany: '{n} pièces de l’ensemble {name} montées.',
+    stockBike: 'Vélo d’origine : toutes les pièces de l’atelier sont démontées.',
+    refused: 'Achat refusé par le serveur ({e}).',
+    error: 'erreur',
+    cannotBuy: 'Achat impossible.',
+    missingCredits: 'Il manque {n} crédits : roule encore un peu !',
+    bought: '{name} : acheté et monté.',
+  },
+  {
+    hint: 'Hover a part to try it on the bike. Credits are earned by riding.',
+    bikeOnly: 'Bike only',
+    withRider: 'With rider',
+    resetTitle: 'Remove every workshop part',
+    reset: 'Reset',
+    bikeDiagram: 'Bike diagram',
+    equipped: 'Equipped',
+    owned: 'Owned',
+    levelN: 'Level {n}',
+    levelLower: 'level {n}',
+    locked: 'Locked',
+    creditsN: '{n} credits',
+    setName: 'Set {name}',
+    missing: 'Missing',
+    buy: 'Buy',
+    partsCount: '{n} parts',
+    titleName: 'Title “{name}”',
+    equipSet: 'Equip the set',
+    remove: 'Remove',
+    equip: 'Equip',
+    buyEquip: 'Buy and equip',
+    stopTrying: 'Stop trying',
+    bikeWeight: 'Bike weight',
+    drivetrain: 'Drivetrain efficiency',
+    flatFtp: 'Flat at FTP',
+    flat75: 'Flat at 75% FTP',
+    climb: 'Climb 5 km at 7%',
+    onBike: 'On the bike',
+    workshopBonus: 'Workshop bonus:',
+    flat: 'flat',
+    climbShort: 'climb',
+    cappedAt: 'capped at',
+    raceNote: 'Races: “Equal equipment” puts everyone on the same bike.',
+    fitted: '{name} fitted.',
+    kitFittedOne: '{n} part of the {name} set fitted.',
+    kitFittedMany: '{n} parts of the {name} set fitted.',
+    stockBike: 'Stock bike: every workshop part removed.',
+    refused: 'Purchase refused by the server ({e}).',
+    error: 'error',
+    cannotBuy: 'Cannot buy this.',
+    missingCredits: '{n} credits missing: ride a bit more!',
+    bought: '{name}: bought and fitted.',
+  },
+);
+/** Gabarit du dictionnaire avec ses valeurs (`{n}` → 12). */
+const fill = (text: string, values: Record<string, string | number>): string => text.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
 
 /**
  * Panneau de l'atelier (onglet Garage) : familles, emplacements, pièces (survol = essai immédiat
@@ -310,10 +406,10 @@ export class AtelierPanel {
         </div>
         <div class="gr-body">${list}${this.msg ? `<p class="at-msg">${esc(this.msg)}</p>` : ''}</div>
         <div class="gr-foot at-bottom">
-          ${this.detailHtml(p, level) || `<p class="at-hint">${L ? 'Survole une pièce pour l’essayer sur le vélo. Les crédits se gagnent en roulant.' : 'Hover a part to try it on the bike. Credits are earned by riding.'}</p>`}
-          <div class="at-foot">
-            <div class="mm-seg at-rider" data-value="${this.rider ? '1' : '0'}"><button type="button" class="${this.rider ? '' : 'on'}" data-atrider="0">${L ? 'Vélo seul' : 'Bike only'}</button><button type="button" class="${this.rider ? 'on' : ''}" data-atrider="1">${L ? 'Avec le coureur' : 'With rider'}</button></div>
-            <button class="at-reset" id="at-reset" title="${L ? 'Démonter toutes les pièces de l’atelier' : 'Remove every workshop part'}">${L ? 'Réinitialiser' : 'Reset'}</button>
+          ${this.detailHtml(p, level) || `<p class="at-hint">${S('hint')}</p>`}
+          <div class="at-foot ab-foot">
+            <div class="mm-seg at-rider" data-value="${this.rider ? '1' : '0'}"><button type="button" class="${this.rider ? '' : 'on'}" data-atrider="0" aria-pressed="${!this.rider}">${S('bikeOnly')}</button><button type="button" class="${this.rider ? 'on' : ''}" data-atrider="1" aria-pressed="${this.rider}">${S('withRider')}</button></div>
+            <button type="button" class="at-reset ab-btn" id="at-reset" title="${S('resetTitle')}">${S('reset')}</button>
           </div>
         </div>
       </section>
@@ -327,16 +423,16 @@ export class AtelierPanel {
     const hot = (z: Zone, cx: number, cy: number, r: number, tx: number | null, ty = 0, anchor = 'middle') =>
       `<g class="at-hot ${zone?.id === z.id ? 'on' : ''}" data-atzone="${z.id}" role="button" tabindex="0" aria-label="${L2(z.label)}"><title>${L2(z.label)}</title><circle cx="${cx}" cy="${cy}" r="${r}"/>${tx === null ? '' : `<text x="${tx}" y="${ty}" text-anchor="${anchor}">${L2(z.label)}</text>`}</g>`;
     const [wheels, tyres, cockpit, saddle, drive, frame] = ZONES as [Zone, Zone, Zone, Zone, Zone, Zone];
-    const svg = `<svg class="at-bike" viewBox="0 0 330 168" role="group" aria-label="${L ? 'Schéma du vélo' : 'Bike diagram'}">
+    const svg = `<svg class="at-bike" viewBox="0 0 330 168" role="group" aria-label="${S('bikeDiagram')}">
       <g class="at-line"><circle cx="75" cy="112" r="42"/><circle cx="255" cy="112" r="42"/><path d="M75 112 L135 112 L180 52 L112 52 Z M135 112 L180 52 M180 52 L245 52 L255 112 M112 52 L104 34 M245 52 L236 32 L258 32"/></g>
       ${hot(wheels, 75, 112, 13, 75, 168)}${hot(wheels, 255, 112, 13, null)}${hot(tyres, 33, 112, 7, null)}${hot(tyres, 297, 112, 7, 297, 134)}
       ${hot(cockpit, 247, 24, 9, 247, 10)}${hot(saddle, 104, 24, 9, 104, 10)}${hot(drive, 135, 112, 10, 170, 154)}${hot(frame, 180, 52, 9, 196, 42, 'start')}
     </svg>`;
-    const extra = `<div class="at-extra"><button class="gr-vchip ${this.family === 'kit' ? 'on' : ''}" data-atzone="kit">${L2(FAMILY_LABEL.kit)}</button><button class="gr-vchip ${this.family === 'event' ? 'on' : ''}" data-atzone="event">${L2(FAMILY_LABEL.event)}</button></div>`;
+    const extra = `<div class="at-extra"><button type="button" class="gr-vchip ${this.family === 'kit' ? 'on' : ''}" data-atzone="kit" aria-pressed="${this.family === 'kit'}">${L2(FAMILY_LABEL.kit)}</button><button type="button" class="gr-vchip ${this.family === 'event' ? 'on' : ''}" data-atzone="event" aria-pressed="${this.family === 'event'}">${L2(FAMILY_LABEL.event)}</button></div>`;
     const types =
       zone && zone.slots.length > 1
         ? `<div class="gr-vopt at-types"><small>${L2(zone.label)}</small><div>${zone.slots
-            .map((sl) => `<button class="gr-vchip ${sl === this.slot ? 'on' : ''}" data-atslot="${sl}" aria-pressed="${sl === this.slot}">${L2(TUNE_SLOT_LABEL[sl])}${p.equipped[sl] ? '<u class="at-dot"></u>' : ''}</button>`)
+            .map((sl) => `<button type="button" class="gr-vchip ${sl === this.slot ? 'on' : ''}" data-atslot="${sl}" aria-pressed="${sl === this.slot}">${L2(TUNE_SLOT_LABEL[sl])}${p.equipped[sl] ? '<u class="at-dot"></u>' : ''}</button>`)
             .join('')}</div></div>`
         : '';
     return `<div class="at-zones">${svg}${extra}</div>${types}`;
@@ -351,19 +447,19 @@ export class AtelierPanel {
     const locked = !owned && av !== 'buyable';
     const bg = swatch(t);
     const rar = RARITY_LABEL[t.rarity];
-    const state = on ? (L ? 'Équipé' : 'Equipped') : owned ? (L ? 'Possédé' : 'Owned') : locked ? (av === 'level' && 'level' in t.unlock ? `${L ? 'Niveau' : 'Level'} ${t.unlock.level}` : L ? 'Verrouillé' : 'Locked') : `${credits(t.price)} ${L ? 'crédits' : 'credits'}`;
+    const state = on ? S('equipped') : owned ? S('owned') : locked ? (av === 'level' && 'level' in t.unlock ? fill(S('levelN'), { n: t.unlock.level }) : S('locked')) : fill(S('creditsN'), { n: credits(t.price) });
     const badge = on ? '<u class="ok">✓</u>' : locked ? `<u>${pic('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>').replace('width="26" height="26"', 'width="10" height="10"')}</u>` : owned ? '' : `<u class="coin">${COIN}</u>`;
-    return `<button class="at-item at-chip ${on ? 'on' : ''} ${owned ? 'owned' : ''} ${locked ? 'locked' : ''} ${this.selected === t.id ? 'sel' : ''}" data-tune="${t.id}" data-cap-name="${esc(t.name[L ? 'fr' : 'en'])}" data-cap-effect="${esc(t.effect[L ? 'fr' : 'en'])}" data-cap-state="${esc(state)}" style="--rar:${rar.color};background:${bg};color:${inkOn(bg)}" aria-label="${esc(t.name[L ? 'fr' : 'en'])} — ${esc(state)}">${badge}</button>`;
+    return `<button type="button" class="at-item at-chip ${on ? 'on' : ''} ${owned ? 'owned' : ''} ${locked ? 'locked' : ''} ${this.selected === t.id ? 'sel' : ''}" data-tune="${t.id}" data-cap-name="${esc(t.name[L ? 'fr' : 'en'])}" data-cap-effect="${esc(t.effect[L ? 'fr' : 'en'])}" data-cap-state="${esc(state)}" style="--rar:${rar.color};background:${bg};color:${inkOn(bg)}" aria-label="${esc(t.name[L ? 'fr' : 'en'])} — ${esc(state)}">${badge}</button>`;
   }
 
   private stateLabel(t: TuneItem, owned: boolean, on: boolean, level: number, creditsNow: number): string {
     const L = fr();
-    if (on) return `<span class="at-st on">${L ? 'Équipé' : 'Equipped'}</span>`;
-    if (owned) return `<span class="at-st own">${L ? 'Possédé' : 'Owned'}</span>`;
+    if (on) return `<span class="at-st on">${S('equipped')}</span>`;
+    if (owned) return `<span class="at-st own">${S('owned')}</span>`;
     const av = tuneAvailability(t, level, []);
     if (av === 'event' && 'event' in t.unlock) return `<span class="at-st ev">🏆 ${esc(TUNE_EVENT_LABEL[t.unlock.event][L ? 'fr' : 'en'])}</span>`;
-    if (av === 'kit' && 'kit' in t.unlock) return `<span class="at-st kit">${L ? 'Ensemble' : 'Set'} ${esc(tuneItem(t.unlock.kit)?.name[L ? 'fr' : 'en'] ?? '')}</span>`;
-    if (av === 'level' && 'level' in t.unlock) return `<span class="at-st lock">🔒 ${L ? 'niveau' : 'level'} ${t.unlock.level}</span>`;
+    if (av === 'kit' && 'kit' in t.unlock) return `<span class="at-st kit">${esc(fill(S('setName'), { name: tuneItem(t.unlock.kit)?.name[L ? 'fr' : 'en'] ?? '' }))}</span>`;
+    if (av === 'level' && 'level' in t.unlock) return `<span class="at-st lock">🔒 ${fill(S('levelLower'), { n: t.unlock.level })}</span>`;
     return `<span class="at-st price ${creditsNow < t.price ? 'short' : ''}">${COIN} ${credits(t.price)}</span>`;
   }
 
@@ -373,12 +469,13 @@ export class AtelierPanel {
     const on = !!t.slot && p.equipped[t.slot] === t.id;
     const rar = RARITY_LABEL[t.rarity];
     const sel = this.selected === t.id;
-    return `<button class="at-item ${on ? 'on' : ''} ${owned ? 'owned' : ''} ${sel ? 'sel' : ''}" data-tune="${t.id}" style="--rar:${rar.color}" title="${esc(t.desc[L ? 'fr' : 'en'])}">
+    return `<button type="button" class="at-item ${on ? 'on' : ''} ${owned ? 'owned' : ''} ${sel ? 'sel' : ''}" data-tune="${t.id}" style="--rar:${rar.color}" title="${esc(t.desc[L ? 'fr' : 'en'])}">
       <i class="at-sw" style="background:${swatch(t)}"></i>
       <span class="at-body"><b>${esc(t.name[L ? 'fr' : 'en'])}</b><small><em class="at-rar">${rar[L ? 'fr' : 'en']}</em>${this.family === 'event' && t.slot ? ` · ${L2(TUNE_SLOT_LABEL[t.slot])}` : ''}</small><span class="at-eff ${t.effect.fr === 'Style uniquement' ? 'style' : ''}">${esc(t.effect[L ? 'fr' : 'en'])}</span></span>
       ${this.stateLabel(t, owned, on, level, p.credits)}</button>`;
   }
 
+  /** Carte d'un ensemble (bloc d'information) : ses boutons restent neutres, l'action jaune est celle de la pièce choisie. */
   private kitCard(k: TuneItem, owned: string[], creditsNow: number, level: number): string {
     const L = fr();
     const prog = kitProgress(k, owned);
@@ -391,22 +488,23 @@ export class AtelierPanel {
     const action = !buyable
       ? ''
       : level < lvl
-        ? `<span class="at-st lock">🔒 ${L ? 'niveau' : 'level'} ${lvl}</span>`
+        ? `<span class="at-st lock">🔒 ${fill(S('levelLower'), { n: lvl })}</span>`
         : creditsNow < price
-          ? `<button class="at-btn ghost" disabled>${L ? 'Il manque' : 'Missing'} ${COIN} ${credits(price - creditsNow)}</button>`
-          : `<button class="at-btn" data-atbuy="${k.id}">${L ? 'Acheter' : 'Buy'} · ${COIN} ${credits(price)}</button>`;
+          ? `<button type="button" class="at-btn ab-btn ghost" disabled>${S('missing')} ${COIN} ${credits(price - creditsNow)}</button>`
+          : `<button type="button" class="at-btn ab-btn" data-atbuy="${k.id}">${S('buy')} · ${COIN} ${credits(price)}</button>`;
+    const title = esc(k.title?.[L ? 'fr' : 'en'] ?? '');
     return `<article class="at-kit ${prog.complete ? 'done' : ''} ${this.selected === k.id ? 'sel' : ''}" data-tune="${k.id}" style="--rar:${rar.color};--badge:${k.badge ?? rar.color}">
-      <div class="at-kit-top">${bikeThumb(build, k.id)}<span class="at-badge" title="${esc(k.title?.[L ? 'fr' : 'en'] ?? '')}">${prog.complete ? '★' : ''}</span></div>
+      <div class="at-kit-top">${bikeThumb(build, k.id)}<span class="at-badge" title="${title}">${prog.complete ? '★' : ''}</span></div>
       <div class="at-kit-body"><b>${esc(k.name[L ? 'fr' : 'en'])}</b><small><em class="at-rar">${rar[L ? 'fr' : 'en']}</em></small>
         <p>${esc(k.desc[L ? 'fr' : 'en'])}</p>
         <div class="at-prog"><i style="width:${((prog.have / Math.max(1, prog.total)) * 100).toFixed(0)}%"></i></div>
-        <span class="at-count">${prog.have}/${prog.total} ${L ? 'pièces' : 'parts'}${prog.complete ? ` · ${L ? 'Titre' : 'Title'} « ${esc(k.title?.[L ? 'fr' : 'en'] ?? '')} »` : ''}</span>
+        <span class="at-count">${prog.have}/${fill(S('partsCount'), { n: prog.total })}${prog.complete ? ` · ${fill(S('titleName'), { name: title })}` : ''}</span>
         <ul class="at-pieces">${pieces.map((t) => `<li class="${owned.includes(t.id) ? 'have' : ''}">${esc(t.name[L ? 'fr' : 'en'])}</li>`).join('')}</ul>
-        <div class="at-kit-act"><button class="at-btn ${prog.have ? '' : 'ghost'}" data-atkit="${k.id}" ${prog.have ? '' : 'disabled'}>${L ? 'Équiper l’ensemble' : 'Equip the set'}</button>${action}</div>
+        <div class="at-kit-act"><button type="button" class="at-btn ab-btn ${prog.have ? '' : 'ghost'}" data-atkit="${k.id}" ${prog.have ? '' : 'disabled'}>${S('equipSet')}</button>${action}</div>
       </div></article>`;
   }
 
-  /** Détail et actions de la pièce sélectionnée. */
+  /** Détail et actions de la pièce sélectionnée : l'action principale (équiper, acheter) est l'unique bouton jaune. */
   private detailHtml(p: ReturnType<typeof loadProgress>, level: number): string {
     const t = tuneItem(this.selected ?? undefined);
     if (!t || t.family === 'kit') return '';
@@ -415,22 +513,21 @@ export class AtelierPanel {
     const on = !!t.slot && p.equipped[t.slot] === t.id;
     const av = tuneAvailability(t, level, p.owned);
     let act = '';
-    if (on) act = `<button class="at-btn ghost" data-atoff="${t.slot}">${L ? 'Démonter' : 'Remove'}</button>`;
-    else if (owned) act = `<button class="at-btn" data-atequip="${t.id}">${L ? 'Équiper' : 'Equip'}</button>`;
+    if (on) act = `<button type="button" class="at-btn ab-btn ghost" data-atoff="${t.slot}">${S('remove')}</button>`;
+    else if (owned) act = `<button type="button" class="at-btn ab-btn ab-go" data-atequip="${t.id}">${S('equip')}</button>`;
     else if (av === 'buyable')
       act =
         p.credits >= t.price
-          ? `<button class="at-btn" data-atbuy="${t.id}">${L ? 'Acheter et équiper' : 'Buy and equip'} · ${COIN} ${credits(t.price)}</button>`
-          : `<button class="at-btn ghost" disabled>${L ? 'Il manque' : 'Missing'} ${COIN} ${credits(t.price - p.credits)}</button>`;
+          ? `<button type="button" class="at-btn ab-btn ab-go" data-atbuy="${t.id}">${S('buyEquip')} · ${COIN} ${credits(t.price)}</button>`
+          : `<button type="button" class="at-btn ab-btn ghost" disabled>${S('missing')} ${COIN} ${credits(t.price - p.credits)}</button>`;
     else act = this.stateLabel(t, false, false, level, p.credits);
     return `<div class="at-detail" style="--rar:${RARITY_LABEL[t.rarity].color}">
       <div><b>${esc(t.name[L ? 'fr' : 'en'])}</b>${t.brand ? ` <small>${esc(t.brand)}</small>` : ''}<p>${esc(t.desc[L ? 'fr' : 'en'])}</p><span class="at-eff">${esc(t.effect[L ? 'fr' : 'en'])}</span></div>
-      <div class="at-detail-act">${act}<button class="at-btn ghost" data-atclose>${L ? 'Annuler l’essai' : 'Stop trying'}</button></div></div>`;
+      <div class="at-detail-act">${act}<button type="button" class="at-btn ab-btn ghost" data-atclose>${S('stopTrying')}</button></div></div>`;
   }
 
   /** Chiffres du vélo monté → avec la pièce essayée (vraie physique). */
   private statsHtml(): string {
-    const L = fr();
     const p = loadProgress();
     const base = bikeSetupFor(p.equipped);
     const cur = tunedBikeSetup(base, equippedTune(p));
@@ -439,19 +536,19 @@ export class AtelierPanel {
     const b = bikeStats(next.bike, this.s.massKg, this.s.ftpWatts);
     const time = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`;
     const rows: Array<[string, (s: BikeStats) => string, (s: BikeStats) => number, number]> = [
-      [L ? 'Poids du vélo' : 'Bike weight', (s) => `${n(s.massKg, 2)} kg`, (s) => s.massKg, -1],
+      [S('bikeWeight'), (s) => `${n(s.massKg, 2)} kg`, (s) => s.massKg, -1],
       ['CdA', (s) => `${n(s.cda, 3)} m²`, (s) => s.cda, -1],
       ['Crr', (s) => n(s.crr, 4), (s) => s.crr, -1],
-      [L ? 'Rendement transmission' : 'Drivetrain efficiency', (s) => `${n(s.drivetrainEfficiency * 100, 1)} %`, (s) => s.drivetrainEfficiency, 1],
-      [L ? 'Plat à la FTP' : 'Flat at FTP', (s) => `${n(s.flatFtpKmh, 1)} km/h`, (s) => s.flatFtpKmh, 1],
-      [L ? 'Plat à 75 % FTP' : 'Flat at 75% FTP', (s) => `${n(s.flat75Kmh, 1)} km/h`, (s) => s.flat75Kmh, 1],
-      [L ? 'Montée 5 km à 7 %' : 'Climb 5 km at 7%', (s) => time(s.climbS), (s) => s.climbS, -1],
+      [S('drivetrain'), (s) => `${n(s.drivetrainEfficiency * 100, 1)} %`, (s) => s.drivetrainEfficiency, 1],
+      [S('flatFtp'), (s) => `${n(s.flatFtpKmh, 1)} km/h`, (s) => s.flatFtpKmh, 1],
+      [S('flat75'), (s) => `${n(s.flat75Kmh, 1)} km/h`, (s) => s.flat75Kmh, 1],
+      [S('climb'), (s) => time(s.climbS), (s) => s.climbS, -1],
     ];
     const g = tuneGains(base, next.bike);
     const pct = (v: number) => `${v >= 0 ? '+' : '−'}${n(Math.abs(v * 100), 1)} %`;
     const diff = JSON.stringify(cur.bike) !== JSON.stringify(next.bike);
     return `<aside class="mm-panel at-stats">
-      <h3>${L ? 'Sur le vélo' : 'On the bike'} <small>${Math.round(this.s.massKg)} kg · ${Math.round(this.s.ftpWatts)} W FTP</small></h3>
+      <h3 class="ab-section">${S('onBike')} <small>${Math.round(this.s.massKg)} kg · ${Math.round(this.s.ftpWatts)} W FTP</small></h3>
       <table>${rows
         .map(([label, f, v, better]) => {
           const d = v(b) - v(a);
@@ -459,8 +556,8 @@ export class AtelierPanel {
           return `<tr><th>${label}</th><td>${f(a)}</td>${diff ? `<td class="at-arrow">→</td><td class="${cls}">${f(b)}</td>` : ''}</tr>`;
         })
         .join('')}</table>
-      <p class="at-gain">${L ? 'Bonus atelier' : 'Workshop bonus'} : ${L ? 'plat' : 'flat'} <b>${pct(g.flat)}</b> · ${L ? 'côte' : 'climb'} <b>${pct(g.climb)}</b>${next.scale < 1 ? ` <em>${L ? 'plafonné à' : 'capped at'} ${Math.round(TUNE_BONUS_CAP * 100)} %</em>` : ''}</p>
-      <p class="at-note">${L ? 'Courses : « Équipement égalisé » met tout le monde sur le même vélo.' : 'Races: “Equal equipment” puts everyone on the same bike.'}</p>
+      <p class="at-gain">${S('workshopBonus')} ${S('flat')} <b>${pct(g.flat)}</b> · ${S('climbShort')} <b>${pct(g.climb)}</b>${next.scale < 1 ? ` <em>${S('cappedAt')} ${Math.round(TUNE_BONUS_CAP * 100)} %</em>` : ''}</p>
+      <p class="at-note">${S('raceNote')}</p>
     </aside>`;
   }
 
@@ -541,7 +638,7 @@ export class AtelierPanel {
         const t = tuneItem(id);
         const p = loadProgress();
         if (t && t.family !== 'kit' && t.slot && p.owned.includes(id) && p.equipped[t.slot] !== id && equipTune(t, this.s)) {
-          this.done(t, fr() ? `${t.name.fr} monté.` : `${t.name.en} fitted.`);
+          this.done(t, fill(S('fitted'), { name: t.name[fr() ? 'fr' : 'en'] }));
           return;
         }
         this.selected = this.selected === id ? null : id;
@@ -560,7 +657,7 @@ export class AtelierPanel {
     q('[data-atequip]').forEach((el) =>
       el.addEventListener('click', () => {
         const t = tuneItem(el.dataset.atequip);
-        if (t && equipTune(t, this.s)) this.done(t, fr() ? `${t.name.fr} monté.` : `${t.name.en} fitted.`);
+        if (t && equipTune(t, this.s)) this.done(t, fill(S('fitted'), { name: t.name[fr() ? 'fr' : 'en'] }));
       }),
     );
     q('[data-atoff]').forEach((el) =>
@@ -579,7 +676,7 @@ export class AtelierPanel {
         const k = tuneItem(el.dataset.atkit);
         if (!k) return;
         const count = equipKit(k, this.s);
-        this.done(k, fr() ? `${count} pièce${count > 1 ? 's' : ''} de l’ensemble ${k.name.fr} montée${count > 1 ? 's' : ''}.` : `${count} part${count > 1 ? 's' : ''} of the ${k.name.en} set fitted.`);
+        this.done(k, fill(S(count > 1 ? 'kitFittedMany' : 'kitFittedOne'), { n: count, name: k.name[fr() ? 'fr' : 'en'] }));
       }),
     );
     q('[data-atrider]').forEach((el) =>
@@ -592,7 +689,7 @@ export class AtelierPanel {
     root.querySelector('#at-reset')?.addEventListener('click', () => {
       resetTune(this.s);
       this.selected = null;
-      this.msg = fr() ? 'Vélo d’origine : toutes les pièces de l’atelier sont démontées.' : 'Stock bike: every workshop part removed.';
+      this.msg = S('stockBike');
       this.host.changed();
       this.emit(['frame', 'rim_decal', 'tire_wall', 'bar_tape']);
       this.host.rerender();
@@ -621,18 +718,18 @@ export class AtelierPanel {
       if (r.ok && r.owned && r.credits !== undefined) applyServerPurchase(r.credits, r.owned);
       ok = r.ok;
       missing = r.missing ?? 0;
-      if (!ok && !missing) this.msg = L ? `Achat refusé par le serveur (${r.error ?? 'erreur'}).` : `Purchase refused by the server (${r.error ?? 'error'}).`;
+      if (!ok && !missing) this.msg = fill(S('refused'), { e: r.error ?? S('error') });
     } else {
       const r = buyLocal(id);
       ok = r.ok;
       missing = r.missing ?? 0;
-      if (!ok && !missing) this.msg = L ? 'Achat impossible.' : 'Cannot buy this.';
+      if (!ok && !missing) this.msg = S('cannotBuy');
     }
-    if (missing) this.msg = L ? `Il manque ${credits(missing)} crédits : roule encore un peu !` : `${credits(missing)} credits missing: ride a bit more!`;
+    if (missing) this.msg = fill(S('missingCredits'), { n: credits(missing) });
     if (!ok) return this.host.rerender();
     if (t.family === 'kit') equipKit(t, this.s);
     else equipTune(t, this.s);
-    this.done(t, L ? `${t.name.fr} : acheté et monté.` : `${t.name.en}: bought and fitted.`);
+    this.done(t, fill(S('bought'), { name: t.name[L ? 'fr' : 'en'] }));
   }
 
   /** Chiffres seulement (survol), sans refaire tout le panneau. */

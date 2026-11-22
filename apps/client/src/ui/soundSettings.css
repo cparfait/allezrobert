@@ -1,0 +1,14 @@
+/* Réglages du son (menu Réglages et menu pause) : un petit bloc par curseur, aux couleurs des gros blocs (blocks.css). */
+.snd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.snd-slider { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 16px; border: 2px solid rgba(255, 255, 255, 0.08); background: rgba(255, 255, 255, 0.04); font-size: 15px; }
+.snd-slider .snd-l { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.snd-slider .snd-l b { font-size: 16px; font-weight: 800; color: var(--ar-fg, #f5f7fa); }
+.snd-slider .snd-l span { font-weight: 700; color: var(--ar-accent, #ffd23f); font-variant-numeric: tabular-nums; }
+.snd-slider small { font-size: 13px; color: #aeb7c3; line-height: 1.3; }
+.snd-slider input[type='range'] { width: 100%; margin-top: 4px; }
+.snd-check { flex-direction: row !important; align-items: center; gap: 10px; margin-top: 12px; font-size: 15px; }
+.snd-free { margin-top: 12px; font-size: 15px; }
+.snd-music-row { flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.snd-devices .field { font-size: 15px; }
+.snd-devices .mm-hint { font-size: 14px; }
+.snd-slider input:focus-visible, .snd-check input:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }

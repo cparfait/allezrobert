@@ -1,11 +1,70 @@
 import { BASE_PROFILES, FACE_SLIDERS, HAIR_STYLE_COUNT, decodeFace, lookSex, type AvatarLook, type FaceShape, type FaceSlider } from '@allezrobert/shared';
-import { getLang } from '../i18n/index.ts';
+import { getLang, strings } from '../i18n/index.ts';
+import './blocks.css';
+import './faceEditor.css';
 
 /**
  * Éditeur de visage du garage (docs/AVATARS.md § 9) : profil de départ, curseurs groupés,
  * peau et cheveux, aléatoire contrôlé, annulation. Ne manipule que la tenue (`AvatarLook`) : la
  * forme tient dans `look.face` (42 octets), rien d'autre n'est conservé.
  */
+
+const S = strings(
+  {
+    skinTone: 'Teint',
+    hair: 'Cheveux',
+    hairBeard: 'Cheveux, barbe',
+    hairstyleHelmet: 'Coiffure (tête nue ; sous le casque, courte ou attachée)',
+    beard: 'Barbe',
+    freckles: 'Taches de rousseur',
+    moustache: 'Moustache',
+    withMoustache: 'Avec moustache',
+    silhouette: 'Silhouette',
+    man: 'Homme',
+    woman: 'Femme',
+    baseProfile: 'Partir d’un profil de base',
+    face: 'Visage',
+    photoTitle: 'Ressemblance à partir d’une photo',
+    photoText:
+      'Une photo de <b>toi</b>, de face. Elle est analysée <b>sur cet appareil</b> : elle n’est ni envoyée ni conservée ; seuls les réglages obtenus (curseurs, teint, cheveux) sont enregistrés, et tu peux les retoucher ou les effacer (« Tête de base ») à tout moment.',
+    photoConsent: 'J’accepte ce traitement local de ma photo',
+    photoChoose: 'Choisir une photo',
+    bareHead: 'Sans casque ni lunettes',
+    random: 'Aléatoire',
+    undo: 'Annuler',
+    baseHead: 'Tête de base',
+    colour: 'Couleur',
+    hairstyle: 'Coiffure',
+    hairNote: 'Tête nue ; sous le casque, les cheveux sont courts ou attachés.',
+  },
+  {
+    skinTone: 'Skin tone',
+    hair: 'Hair',
+    hairBeard: 'Hair, beard',
+    hairstyleHelmet: 'Hairstyle (bare head; under the helmet, short or tied)',
+    beard: 'Beard',
+    freckles: 'Freckles',
+    moustache: 'Moustache',
+    withMoustache: 'With moustache',
+    silhouette: 'Build',
+    man: 'Man',
+    woman: 'Woman',
+    baseProfile: 'Start from a base profile',
+    face: 'Face',
+    photoTitle: 'Likeness from a photo',
+    photoText:
+      'A photo of <b>yourself</b>, facing the camera. It is analysed <b>on this device</b>: it is never uploaded nor stored; only the resulting settings (sliders, skin tone, hair) are saved, and you can adjust or erase them (“Base head”) at any time.',
+    photoConsent: 'I agree to this local processing of my photo',
+    photoChoose: 'Choose a photo',
+    bareHead: 'No helmet or glasses',
+    random: 'Random',
+    undo: 'Undo',
+    baseHead: 'Base head',
+    colour: 'Colour',
+    hairstyle: 'Hairstyle',
+    hairNote: 'Bare head; under a helmet, hair is short or tied.',
+  },
+);
 
 export type FaceTab = 'head' | 'eyes' | 'nose' | 'mouth' | 'body' | 'skin';
 
@@ -90,41 +149,44 @@ export function faceEditorHtml(look: AvatarLook, tab: FaceTab, bareHead: boolean
   const shape = decodeFace(look.face);
   // Barbe et moustache : seulement pour les hommes.
   const male = lookSex(look) === 'male';
+  const sex = male ? 'male' : 'female';
   const sliders =
     tab === 'skin'
       ? `<div class="fe-grid">
-          <label class="field">${L ? 'Teint' : 'Skin tone'}<input id="fe-skin" type="color" value="${look.skin}" /></label>
-          <label class="field">${L ? (male ? 'Cheveux, barbe' : 'Cheveux') : male ? 'Hair, beard' : 'Hair'}<input id="fe-hair" type="color" value="${look.hair}" /></label>
+          <label class="field">${S('skinTone')}<input id="fe-skin" type="color" value="${look.skin}" /></label>
+          <label class="field">${S(male ? 'hairBeard' : 'hair')}<input id="fe-hair" type="color" value="${look.hair}" /></label>
         </div>
-        <div class="field">${L ? 'Coiffure (tête nue ; sous le casque, courte ou attachée)' : 'Hairstyle (bare head; under the helmet, short or tied)'}<div class="fe-seg" id="fe-hairstyle">${HAIR_STYLES.map(
-          ([v, fr, en]) => `<button data-v="${v}" class="${(((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT) === v ? 'on' : ''}">${L ? fr : en}</button>`,
+        <div class="field">${S('hairstyleHelmet')}<div class="fe-seg" id="fe-hairstyle">${HAIR_STYLES.map(
+          ([v, fr, en]) => `<button type="button" data-v="${v}" class="${(((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT) === v ? 'on' : ''}">${L ? fr : en}</button>`,
         ).join('')}</div></div>
-        ${male ? rangeHtml('fe-beard', L ? 'Barbe' : 'Beard', look.beard ?? 0, 0, 1) : ''}
-        ${rangeHtml('fe-freckles', L ? 'Taches de rousseur' : 'Freckles', look.freckles ?? 0, 0, 1)}
-        ${male ? `<label class="fe-check"><input id="fe-moustache" type="checkbox" ${look.moustache ? 'checked' : ''} /> ${L ? 'Moustache' : 'Moustache'}</label>` : ''}`
+        ${male ? rangeHtml('fe-beard', S('beard'), look.beard ?? 0, 0, 1) : ''}
+        ${rangeHtml('fe-freckles', S('freckles'), look.freckles ?? 0, 0, 1)}
+        ${male ? `<label class="fe-check"><input id="fe-moustache" type="checkbox" ${look.moustache ? 'checked' : ''} /> ${S('moustache')}</label>` : ''}`
       : FACE_SLIDERS.filter((s) => s.group === tab)
           .map((s) => rangeHtml(`fe-s-${s.id}`, LABELS[s.id][L ? 0 : 1], sliderValue(s.id, shape), ONE_SIDED.has(s.id) ? 0 : -1, 1, s.id))
           .join('');
+  // Sections à titres « gros blocs » (casse normale) ; actions en pied, boutons ab-btn (l'action principale de l'écran
+  // reste celle du garage).
   return `<div class="fe">
-    <div class="fe-seg fe-sex" role="radiogroup">${(['male', 'female'] as const).map((x) => `<button data-fesex="${x}" role="radio" aria-checked="${(male ? 'male' : 'female') === x}" class="${(male ? 'male' : 'female') === x ? 'on' : ''}">${x === 'male' ? (L ? 'Homme' : 'Man') : L ? 'Femme' : 'Woman'}</button>`).join('')}</div>
-    <div class="fe-profiles" title="${L ? 'Partir d’un profil de base' : 'Start from a base profile'}">${BASE_PROFILES.filter((p) => (p.shape.sex ?? 0) < -0.5 !== male).map((p) => `<button data-feprofile="${p.id}" title="${esc(p.desc[L ? 'fr' : 'en'])}">${esc(p.name)}</button>`).join('')}</div>
-    <div class="fe-tabs">${TABS.filter(([id]) => id !== 'skin').map(([id, fr, en]) => `<button data-fetab="${id}" class="${id === tab ? 'on' : ''}">${L ? fr : en}</button>`).join('')}</div>
+    <h3 class="ab-section fe-title">${S('silhouette')}</h3>
+    <div class="fe-seg fe-sex" role="radiogroup" aria-label="${S('silhouette')}">${(['male', 'female'] as const).map((x) => `<button type="button" data-fesex="${x}" role="radio" aria-checked="${sex === x}" class="${sex === x ? 'on' : ''}">${S(x === 'male' ? 'man' : 'woman')}</button>`).join('')}</div>
+    <div class="fe-profiles" title="${S('baseProfile')}">${BASE_PROFILES.filter((p) => (p.shape.sex ?? 0) < -0.5 !== male).map((p) => `<button type="button" data-feprofile="${p.id}" title="${esc(p.desc[L ? 'fr' : 'en'])}">${esc(p.name)}</button>`).join('')}</div>
+    <h3 class="ab-section fe-title">${S('face')}</h3>
+    <div class="fe-tabs">${TABS.filter(([id]) => id !== 'skin').map(([id, fr, en]) => `<button type="button" data-fetab="${id}" class="${id === tab ? 'on' : ''}" aria-pressed="${id === tab}">${L ? fr : en}</button>`).join('')}</div>
     <div class="fe-sliders">${sliders}</div>
-    <details class="fe-photo"${photoOpen ? ' open' : ''}><summary>${L ? 'Ressemblance à partir d’une photo' : 'Likeness from a photo'}</summary>
-      <p>${
-        L
-          ? 'Une photo de <b>toi</b>, de face. Elle est analysée <b>sur cet appareil</b> : elle n’est ni envoyée ni conservée ; seuls les réglages obtenus (curseurs, teint, cheveux) sont enregistrés, et tu peux les retoucher ou les effacer (« Tête de base ») à tout moment.'
-          : 'A photo of <b>yourself</b>, facing the camera. It is analysed <b>on this device</b>: it is never uploaded nor stored; only the resulting settings (sliders, skin tone, hair) are saved, and you can adjust or erase them (“Base head”) at any time.'
-      }</p>
-      <label class="fe-check"><input id="fe-consent" type="checkbox" /> ${L ? 'J’accepte ce traitement local de ma photo' : 'I agree to this local processing of my photo'}</label>
-      <label class="fe-photo-btn" id="fe-photo-label" aria-disabled="true">${L ? 'Choisir une photo' : 'Choose a photo'}<input id="fe-photo" type="file" accept="image/*" hidden disabled /></label>
+    <details class="fe-photo"${photoOpen ? ' open' : ''}><summary>${S('photoTitle')}</summary>
+      <p>${S('photoText')}</p>
+      <label class="fe-check"><input id="fe-consent" type="checkbox" /> ${S('photoConsent')}</label>
+      <label class="fe-photo-btn" id="fe-photo-label" aria-disabled="true">${S('photoChoose')}<input id="fe-photo" type="file" accept="image/*" hidden disabled /></label>
       <span id="fe-photo-msg"></span>
     </details>
-    <div class="fe-actions">
-      <label class="fe-check"><input id="fe-bare" type="checkbox" ${bareHead ? 'checked' : ''} /> ${L ? 'Sans casque ni lunettes' : 'No helmet or glasses'}</label>
-      <button id="fe-random">${L ? 'Aléatoire' : 'Random'}</button>
-      <button id="fe-undo" ${canUndo ? '' : 'disabled'}>${L ? 'Annuler' : 'Undo'}</button>
-      <button id="fe-reset">${L ? 'Tête de base' : 'Base head'}</button>
+    <div class="fe-actions ab-foot">
+      <label class="fe-check"><input id="fe-bare" type="checkbox" ${bareHead ? 'checked' : ''} /> ${S('bareHead')}</label>
+      <div class="ab-btns">
+        <button type="button" class="ab-btn" id="fe-random">${S('random')}</button>
+        <button type="button" class="ab-btn" id="fe-undo" ${canUndo ? '' : 'disabled'}>${S('undo')}</button>
+        <button type="button" class="ab-btn" id="fe-reset">${S('baseHead')}</button>
+      </div>
     </div>
   </div>`;
 }
@@ -140,12 +202,12 @@ export { withBaseHead, withLikeness, withProfile, withRandomFace, withSlider } f
 export const HAIR_STYLE_CHOICES = HAIR_STYLES;
 export function characterTypeHtml(kind: 'skin' | 'hair' | 'beard', look: AvatarLook, colorRow: (label: string, key: 'skin' | 'hair', current: string) => string): string {
   const L = getLang() === 'fr';
-  if (kind === 'skin') return `${colorRow(L ? 'Teint' : 'Skin tone', 'skin', look.skin)}<div class="fe-sliders">${rangeHtml('fe-freckles', L ? 'Taches de rousseur' : 'Freckles', look.freckles ?? 0, 0, 1)}</div>`;
+  if (kind === 'skin') return `${colorRow(S('skinTone'), 'skin', look.skin)}<div class="fe-sliders">${rangeHtml('fe-freckles', S('freckles'), look.freckles ?? 0, 0, 1)}</div>`;
   if (kind === 'hair') {
     const cur = ((look.hairStyle % HAIR_STYLE_COUNT) + HAIR_STYLE_COUNT) % HAIR_STYLE_COUNT;
-    return `${colorRow(L ? 'Couleur' : 'Colour', 'hair', look.hair)}<div class="gr-vopt"><small>${L ? 'Coiffure' : 'Hairstyle'}</small><div id="fe-hairstyle">${HAIR_STYLES.map(
-      ([v, fr, en]) => `<button data-v="${v}" class="gr-vchip ${cur === v ? 'on' : ''}">${L ? fr : en}</button>`,
-    ).join('')}</div></div><p class="gr-note">${L ? 'Tête nue ; sous le casque, les cheveux sont courts ou attachés.' : 'Bare head; under a helmet, hair is short or tied.'}</p>`;
+    return `${colorRow(S('colour'), 'hair', look.hair)}<div class="gr-vopt"><small>${S('hairstyle')}</small><div id="fe-hairstyle">${HAIR_STYLES.map(
+      ([v, fr, en]) => `<button type="button" data-v="${v}" class="gr-vchip ${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${L ? fr : en}</button>`,
+    ).join('')}</div></div><p class="gr-note">${S('hairNote')}</p>`;
   }
-  return `<div class="fe-sliders">${rangeHtml('fe-beard', L ? 'Barbe' : 'Beard', look.beard ?? 0, 0, 1)}</div><div class="gr-vopt"><small>${L ? 'Moustache' : 'Moustache'}</small><div><label class="fe-check"><input id="fe-moustache" type="checkbox" ${look.moustache ? 'checked' : ''} /> ${L ? 'Avec moustache' : 'With moustache'}</label></div></div>`;
+  return `<div class="fe-sliders">${rangeHtml('fe-beard', S('beard'), look.beard ?? 0, 0, 1)}</div><div class="gr-vopt"><small>${S('moustache')}</small><div><label class="fe-check"><input id="fe-moustache" type="checkbox" ${look.moustache ? 'checked' : ''} /> ${S('withMoustache')}</label></div></div>`;
 }

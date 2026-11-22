@@ -6,6 +6,101 @@ import { v3Shown } from './catalogAdmin.ts';
 import { css, shiftHue, type Rgb } from './swatch.ts';
 import { needsPhoto } from './thumbnails.ts';
 import { v3Resource } from '../engine/v3Access.ts';
+import { strings } from '../i18n/index.ts';
+
+/** Textes du vestiaire Beta ; `{n}`, `{slot}`… : valeurs remplacées à l'appel (voir `fill`). */
+const S = strings(
+  {
+    famOriginals: 'Originaux',
+    famPro: 'Équipes pro',
+    famEvents: 'Événements',
+    famClubs: 'Clubs',
+    famCompanies: 'Marques',
+    famCharities: 'Associations',
+    famSpecials: 'Spéciaux',
+    famPacks: 'Packs',
+    others: 'Zwift et autres',
+    teams: 'Équipes',
+    otherJerseys: 'Autres',
+    tint: 'Teinte',
+    colourway: 'Coloris',
+    colourwayN: 'Coloris {n}',
+    search: 'Rechercher',
+    searchAria: 'Rechercher un équipement',
+    stock: 'D’origine',
+    stockTitle: 'Rétablir la pièce d’origine',
+    remove: 'Retirer',
+    removeTitle: 'Retirer la pièce ({slot})',
+    sockAria: 'Hauteur des chaussettes',
+    sockLow: 'Basses',
+    sockMid: 'Mi-hautes',
+    sockHigh: 'Hautes',
+    height: 'Hauteur',
+    sleevesAria: 'Manches du maillot',
+    sleeves: 'Manches',
+    pocketsAria: 'Poches du maillot',
+    pockets: 'Poches',
+    zipAria: 'Fermeture du maillot',
+    zip: 'Fermeture',
+    otherColour: 'Autre couleur',
+    hairColour: 'Couleur des cheveux',
+    beardColour: 'Couleur de la barbe',
+    removed: 'Retiré',
+    characterStock: 'Pièce d’origine du personnage',
+    equipped: 'Équipé',
+    clickToEquip: 'Cliquer pour équiper',
+    lockState: 'Niveau {need} · dans {n} niv.',
+    preview: 'Aperçu · {lock}',
+    noMatch: 'Aucun équipement ne correspond.',
+    loading: 'Chargement des équipements…',
+  },
+  {
+    famOriginals: 'Originals',
+    famPro: 'Pro teams',
+    famEvents: 'Events',
+    famClubs: 'Clubs',
+    famCompanies: 'Brands',
+    famCharities: 'Charities',
+    famSpecials: 'Specials',
+    famPacks: 'Packs',
+    others: 'Zwift and others',
+    teams: 'Teams',
+    otherJerseys: 'Others',
+    tint: 'Tint',
+    colourway: 'Colourway',
+    colourwayN: 'Colourway {n}',
+    search: 'Search',
+    searchAria: 'Search gear',
+    stock: 'Stock',
+    stockTitle: 'Restore the stock item',
+    remove: 'Remove',
+    removeTitle: 'Remove the item ({slot})',
+    sockAria: 'Sock height',
+    sockLow: 'Low',
+    sockMid: 'Mid',
+    sockHigh: 'High',
+    height: 'Height',
+    sleevesAria: 'Jersey sleeves',
+    sleeves: 'Sleeves',
+    pocketsAria: 'Jersey pockets',
+    pockets: 'Pockets',
+    zipAria: 'Jersey zip',
+    zip: 'Zip',
+    otherColour: 'Other colour',
+    hairColour: 'Hair colour',
+    beardColour: 'Beard colour',
+    removed: 'Removed',
+    characterStock: 'Character’s stock item',
+    equipped: 'Equipped',
+    clickToEquip: 'Click to equip',
+    lockState: 'Level {need} · in {n} lv.',
+    preview: 'Preview · {lock}',
+    noMatch: 'No gear matches.',
+    loading: 'Loading gear…',
+  },
+);
+/** Gabarit du dictionnaire avec ses valeurs (`{n}` → 12). */
+const fill = (text: string, values: Record<string, string | number>): string => text.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
 
 type Actions = {
   equipment(equipment: V3Equipment): void;
@@ -49,15 +144,15 @@ export function whenVisible(element: Element, shoot: () => void): void {
 }
 
 /** Familles de maillots (préfixe du nom de variante), dans l'ordre d'affichage. */
-const JERSEY_FAMILIES: Array<[string, string]> = [
-  ['Originals', 'Originaux'],
-  ['Pro', 'Équipes pro'],
-  ['Events', 'Événements'],
-  ['Clubs', 'Clubs'],
-  ['Companies', 'Marques'],
-  ['Charities', 'Associations'],
-  ['Specials', 'Spéciaux'],
-  ['Pack', 'Packs'],
+const JERSEY_FAMILIES: Array<[string, Parameters<typeof S>[0]]> = [
+  ['Originals', 'famOriginals'],
+  ['Pro', 'famPro'],
+  ['Events', 'famEvents'],
+  ['Clubs', 'famClubs'],
+  ['Companies', 'famCompanies'],
+  ['Charities', 'famCharities'],
+  ['Specials', 'famSpecials'],
+  ['Pack', 'famPacks'],
 ];
 
 /** Marques repérées dans le nom ou la variante des accessoires (la marque n'est pas toujours le premier mot). */
@@ -70,26 +165,28 @@ const BRANDS: Array<[RegExp, string]> = [
 ];
 const TEAMS = /ineos|movistar|jumbovisma|fdj|canyonsram|bikeexchange|alpecin|hep2022|cylcingcaphep/;
 const BRAND_TYPES = new Set(['HEAD_GEAR', 'GLASSES', 'GLOVES', 'CYCLING_SHOES', 'SOCKS']);
-const OTHERS = 'Zwift et autres';
-const TEAM_GROUP = 'Équipes';
+// Noms de groupe affichés (et clés des familles ouvertes) dans la langue du moment.
+const OTHERS = () => S('others');
+const TEAM_GROUP = () => S('teams');
 
 function familyOf(item: V3Gear): string {
   if (BRAND_TYPES.has(item.type)) {
     const text = (item.name + ' ' + item.variant).toLowerCase().replace(/^(cycling )?(headgear|headhear|glasses|cycling shoes|socks) /, '').replace(/\s+/g, '');
     const brand = BRANDS.find(([pattern]) => pattern.test(text))?.[1];
-    return brand ?? (TEAMS.test(text) ? TEAM_GROUP : OTHERS);
+    return brand ?? (TEAMS.test(text) ? TEAM_GROUP() : OTHERS());
   }
   if (item.type !== 'CYCLING_JERSEY') return '';
   const prefix = item.variant.split('_')[0] ?? '';
-  return JERSEY_FAMILIES.find(([id]) => prefix.startsWith(id))?.[1] ?? 'Autres';
+  const key = JERSEY_FAMILIES.find(([id]) => prefix.startsWith(id))?.[1];
+  return key ? S(key) : S('otherJerseys');
 }
 
 /** Ordre des familles : maillots dans l'ordre fixé, marques par ordre alphabétique, puis équipes et le reste. */
 function familyRank(name: string): [number, string] {
-  const jersey = JERSEY_FAMILIES.findIndex(([, label]) => label === name);
+  const jersey = JERSEY_FAMILIES.findIndex(([, key]) => S(key) === name);
   if (jersey >= 0) return [jersey, ''];
-  if (name === TEAM_GROUP) return [101, ''];
-  if (name === OTHERS || name === 'Autres') return [102, ''];
+  if (name === TEAM_GROUP()) return [101, ''];
+  if (name === OTHERS() || name === S('otherJerseys')) return [102, ''];
   return [100, name];
 }
 
@@ -98,7 +195,7 @@ function familyRank(name: string): [number, string] {
  * gris et le blanc ne changent pas). Avec la couleur dominante du coloris (`paint`), la piste montre les couleurs
  * obtenues et une pastille la couleur choisie.
  */
-export function createHueControl(onChange: (hue: number) => void, label = 'Teinte', hint?: string) {
+export function createHueControl(onChange: (hue: number) => void, label = S('tint'), hint?: string) {
   const field = document.createElement('label');
   field.className = 'field v3-hue';
   const head = document.createElement('span');
@@ -178,7 +275,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const colorLabel = document.createElement('label');
   colorLabel.className = 'field';
   const color = document.createElement('select');
-  colorLabel.append('Coloris', color);
+  colorLabel.append(S('colourway'), color);
   v3Select(color);
   const hue = createHueControl(value => {
     const item = current();
@@ -188,19 +285,19 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   tools.className = 'v3-tools';
   const search = document.createElement('input');
   search.type = 'search';
-  search.placeholder = 'Rechercher';
-  search.setAttribute('aria-label', 'Rechercher un équipement');
+  search.placeholder = S('search');
+  search.setAttribute('aria-label', S('searchAria'));
   const reset = document.createElement('button');
   reset.type = 'button';
   reset.className = 'gr-sub';
-  reset.textContent = 'D’origine';
-  reset.title = 'Rétablir la pièce d’origine';
+  reset.textContent = S('stock');
+  reset.title = S('stockTitle');
   reset.disabled = true;
   // Retirer la pièce (gants, casque, lunettes, chaussettes) : article « None » de Zwift, mains ou tête nues.
   const remove = document.createElement('button');
   remove.type = 'button';
   remove.className = 'gr-sub';
-  remove.textContent = 'Retirer';
+  remove.textContent = S('remove');
   remove.hidden = true;
   tools.append(search, remove, reset);
   const grid = document.createElement('div');
@@ -228,8 +325,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const sockSeg = document.createElement('div');
   sockSeg.className = 'mm-seg';
   sockSeg.setAttribute('role', 'radiogroup');
-  sockSeg.setAttribute('aria-label', 'Hauteur des chaussettes');
-  const sockHeights: Array<[V3SockHeight, string]> = [['low', 'Basses'], ['mid', 'Mi-hautes'], ['high', 'Hautes']];
+  sockSeg.setAttribute('aria-label', S('sockAria'));
+  const sockHeights: Array<[V3SockHeight, string]> = [['low', S('sockLow')], ['mid', S('sockMid')], ['high', S('sockHigh')]];
   function showSockHeight() {
     const current = settings().sockHeight ?? 'low';
     for (const button of sockSeg.querySelectorAll<HTMLButtonElement>('button')) {
@@ -250,7 +347,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     };
     sockSeg.append(button);
   }
-  sockField.append('Hauteur', sockSeg);
+  sockField.append(S('height'), sockSeg);
   sockField.hidden = true;
   // Manches du maillot (pièces du corps Zwift) : courtes d'origine, longues avec col rond (coureur seulement).
   const zipField = document.createElement('div');
@@ -258,7 +355,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const zipSeg = document.createElement('div');
   zipSeg.className = 'mm-seg';
   zipSeg.setAttribute('role', 'radiogroup');
-  zipSeg.setAttribute('aria-label', 'Manches du maillot');
+  zipSeg.setAttribute('aria-label', S('sleevesAria'));
   function showZipChoice() {
     const current = settings().zip ?? 0;
     zipSeg.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
@@ -278,7 +375,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     };
     zipSeg.append(button);
   });
-  zipField.append('Manches', zipSeg);
+  zipField.append(S('sleeves'), zipSeg);
   zipField.hidden = true;
   // Poches arrière du maillot, de vides (d'origine) à pleines, comme dans Zwift.
   const pocketField = document.createElement('div');
@@ -286,7 +383,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const pocketSeg = document.createElement('div');
   pocketSeg.className = 'mm-seg';
   pocketSeg.setAttribute('role', 'radiogroup');
-  pocketSeg.setAttribute('aria-label', 'Poches du maillot');
+  pocketSeg.setAttribute('aria-label', S('pocketsAria'));
   function showPocketChoice() {
     const current = settings().pockets ?? 0;
     pocketSeg.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
@@ -306,7 +403,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     };
     pocketSeg.append(button);
   });
-  pocketField.append('Poches', pocketSeg);
+  pocketField.append(S('pockets'), pocketSeg);
   pocketField.hidden = true;
   // Fermeture éclair : maillot fermé (d'origine) ou ouvert sur la poitrine, pour les manches courtes comme longues.
   const openField = document.createElement('div');
@@ -314,7 +411,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   const openSeg = document.createElement('div');
   openSeg.className = 'mm-seg';
   openSeg.setAttribute('role', 'radiogroup');
-  openSeg.setAttribute('aria-label', 'Fermeture du maillot');
+  openSeg.setAttribute('aria-label', S('zipAria'));
   function showOpenChoice() {
     const current = settings().open ? 1 : 0;
     openSeg.querySelectorAll<HTMLButtonElement>('button').forEach((button, i) => {
@@ -334,7 +431,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     };
     openSeg.append(button);
   });
-  openField.append('Fermeture', openSeg);
+  openField.append(S('zip'), openSeg);
   openField.hidden = true;
   // Couleur des cheveux et de la barbe : six cases des planches Zwift, en pastilles comme le garage Réel.
   function hairColorRow(text: string, key: 'hairColor' | 'beardColor', tintKey: 'hairTint' | 'beardTint') {
@@ -346,10 +443,10 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     // Autre couleur : palette libre (comme le garage Réel), appliquée sur la case grise de la planche Zwift.
     const custom = document.createElement('label');
     custom.className = 'gr-sw gr-custom';
-    custom.title = 'Autre couleur';
+    custom.title = S('otherColour');
     const picker = document.createElement('input');
     picker.type = 'color';
-    picker.setAttribute('aria-label', 'Autre couleur');
+    picker.setAttribute('aria-label', S('otherColour'));
     custom.append(picker);
     picker.oninput = () => {
       actions.equipment({ ...settings(), [tintKey]: picker.value });
@@ -384,8 +481,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     row.hidden = true;
     return { row, sync };
   }
-  const hairColor = hairColorRow('Couleur des cheveux', 'hairColor', 'hairTint');
-  const beardColor = hairColorRow('Couleur de la barbe', 'beardColor', 'beardTint');
+  const hairColor = hairColorRow(S('hairColour'), 'hairColor', 'hairTint');
+  const beardColor = hairColorRow(S('beardColour'), 'beardColor', 'beardTint');
   // Personnage (tête, cheveux, barbe) : pas de carte « Équipé », l'article choisi est coché dans la grille.
   caption.hidden = character;
   panel.append(caption, sockField, zipField, openField, pocketField, hairColor.row, beardColor.row, colorLabel, hue.field, tools, status, grid);
@@ -404,9 +501,9 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     const shown = item ?? current();
     const bare = !!shown && isBare(shown);
     caption.classList.toggle('empty', !shown || bare);
-    capName.textContent = bare ? 'Retiré' : shown ? label(shown) : 'Pièce d’origine du personnage';
-    capState.textContent = !shown || bare ? '' : shown.id === current()?.id ? 'Équipé'
-      : !earned(shown) ? lockText(shown) : 'Cliquer pour équiper';
+    capName.textContent = bare ? S('removed') : shown ? label(shown) : S('characterStock');
+    capState.textContent = !shown || bare ? '' : shown.id === current()?.id ? S('equipped')
+      : !earned(shown) ? lockText(shown) : S('clickToEquip');
     // Vignette de l'article (pastille non cliquable), refaite seulement quand l'article change.
     if (shown !== capShown) {
       capShown = shown;
@@ -422,7 +519,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   /** « Niveau 12 · dans 11 niv. » : article pas encore gagné. */
   function lockText(item: V3Gear): string {
     const level = gearLevel(item, items);
-    return 'Niveau ' + level + ' · dans ' + Math.max(1, level - playerLevel()) + ' niv.';
+    return fill(S('lockState'), { need: level, n: Math.max(1, level - playerLevel()) });
   }
   function equip(item: V3Gear, index: number, value?: number) {
     const equipment = settings();
@@ -450,7 +547,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   function showColor() {
     const item = current();
     const chosen = settings().kit?.[category];
-    color.replaceChildren(...(item?.colors ?? []).map((option, index) => new Option(option.name || 'Coloris ' + (index + 1), String(index))));
+    color.replaceChildren(...(item?.colors ?? []).map((option, index) => new Option(option.name || fill(S('colourwayN'), { n: index + 1 }), String(index))));
     if (chosen) color.value = String(chosen.color);
     colorLabel.hidden = !item || color.options.length <= 1;
     const origin = V3_DEFAULT_KIT[category];
@@ -458,7 +555,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     const none = bareItem();
     remove.hidden = !none;
     remove.disabled = !!none && chosen?.id === none.id;
-    remove.title = 'Retirer la pièce (' + (V3_SLOTS[category]?.label ?? category).toLowerCase() + ')';
+    remove.title = fill(S('removeTitle'), { slot: (V3_SLOTS[category]?.label ?? category).toLowerCase() });
     hue.set(item?.colors[Number(color.value)], chosen?.hue);
     showCaption();
   }
@@ -511,7 +608,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       if (locked) {
         actions.tryOn?.(item);
         showCaption(item);
-        capState.textContent = 'Aperçu · ' + lockText(item);
+        capState.textContent = fill(S('preview'), { lock: lockText(item) });
         return;
       }
       equip(item, 0);
@@ -576,7 +673,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
       blocks.push(row);
       return blocks;
     }));
-    status.textContent = matches.length ? '' : 'Aucun équipement ne correspond.';
+    status.textContent = matches.length ? '' : S('noMatch');
     markEquipped();
     showColor();
   }
@@ -646,7 +743,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     if (items.length) { choose(category); return; }
     if (loading) return;
     loading = true;
-    status.textContent = 'Chargement des équipements…';
+    status.textContent = S('loading');
     pending = getV3Gear().then(result => {
       items = result.filter(item => ['HEAD_TYPE', 'HAIR', 'FACIAL_HAIR'].includes(item.type) === character);
       const present = new Set(items.map(item => item.type));
@@ -690,7 +787,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     openFamilies.add(item.type + '|' + familyOf(item));
     filter();
     showCaption(item);
-    if (!earned(item)) capState.textContent = 'Aperçu · ' + lockText(item);
+    if (!earned(item)) capState.textContent = fill(S('preview'), { lock: lockText(item) });
     return grid.querySelector<HTMLElement>(`[data-v3-item="${item.id}"]`) ?? caption;
   }
   /**

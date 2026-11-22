@@ -1,0 +1,66 @@
+/*
+ * Tutoriel (onboarding.ts) au langage des gros blocs (ui/blocks.css) : grand titre et sous-titre par étape,
+ * choix en blocs, état écrit avec sa pastille, une seule action jaune (« Suivant ») en bas à droite.
+ * La bulle de Robert et la mise en page de la carte restent dans hud/hud.css ; ici, seulement ce qui change,
+ * avec des sélecteurs préfixés `.onboarding.ob-blocks` pour passer devant les anciens styles.
+ */
+.onboarding.ob-blocks { display: flex; flex-direction: column; gap: 16px; }
+.onboarding.ob-blocks .ob-progress { display: flex; align-items: center; gap: 6px; margin: 0; }
+.onboarding.ob-blocks .ob-dot { display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.2); transition: width 0.3s; }
+.onboarding.ob-blocks .ob-dot.done { background: var(--ar-accent, #ffd23f); }
+.onboarding.ob-blocks .ob-dot.now { width: 26px; background: var(--ar-accent, #ffd23f); }
+.onboarding.ob-blocks .ob-progress span:last-child { margin-left: auto; font-size: 14px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ar-accent, #ffd23f); }
+.onboarding.ob-blocks .ob-head h2.ab-title { display: block; margin: 0; padding: 0; border: 0; font-size: clamp(24px, 3vw, 34px); }
+.ob-preview .onboarding.ob-blocks.ob-side .ob-head h2.ab-title { margin: 0; padding: 0; border: 0; font-size: 24px; }
+.onboarding.ob-blocks .ab-section { margin: 0 0 -6px; }
+.onboarding.ob-blocks .ob-note { margin: 0; font-size: 14px; line-height: 1.4; color: #c3cddb; }
+.onboarding.ob-blocks .field { font-size: 14px; }
+.onboarding.ob-blocks .ob-foot { margin-top: 4px; }
+.onboarding.ob-blocks .warning { font-size: 14px; }
+.onboarding.ob-blocks .warning.ob-info { background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.35); color: #bfdbfe; }
+
+/* Accueil : langue, voix off, compte. */
+.ob-langs .ab-tile { padding: 14px 18px; text-align: center; }
+.ob-infos .ab-tile { padding: 14px 16px 12px; }
+.ob-infos .ab-detail { font-size: 14px; }
+
+/* Style graphique : image en tête du bloc. */
+.onboarding.ob-blocks .ob-style { display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 14px; border-radius: 22px; }
+.onboarding.ob-blocks .ob-style img { margin-bottom: 8px; border-radius: 14px; }
+.onboarding.ob-blocks .ob-style .ab-name { padding: 0 6px; font-size: clamp(18px, 1.8vw, 22px); color: var(--ar-fg, #f5f7fa); line-height: 1.15; }
+.onboarding.ob-blocks .ob-style .ab-detail { padding: 0 6px; font-size: 14.5px; color: #c3cddb; }
+.onboarding.ob-blocks .ob-style .ab-state { padding: 4px 6px 0; font-size: 15px; }
+.onboarding.ob-blocks .ob-style .ab-state i { width: 12px; height: 12px; padding: 0; }
+
+/* Boutons de choix (sexe, coiffure, chauve, test FTP) : neutres, contour jaune une fois choisis. */
+.onboarding.ob-blocks .ab-btn.ob-pick { padding: 8px 14px; font-size: 14px; border-radius: 12px; }
+.onboarding.ob-blocks .ab-btn.ob-pick.is-on { box-shadow: inset 0 0 0 2px var(--ar-accent, #ffd23f); background: rgba(255, 210, 63, 0.14); }
+
+/* Avatar : libellés en casse normale, à 14 px (plus de petites capitales espacées). */
+.onboarding.ob-blocks .ob-avatar-grid > .field { font-size: 14px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ar-fg, #f5f7fa); }
+.onboarding.ob-blocks .ob-avatar-grid .ab-btn.ob-pick { padding: 5px 11px; }
+.onboarding.ob-blocks .ob-sw { width: 24px; height: 24px; }
+.onboarding.ob-blocks .ob-sw:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.onboarding.ob-blocks .ob-likeness { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 14px 16px; font-size: 14px; }
+.onboarding.ob-blocks .ob-likeness .ab-name { font-size: 18px; }
+.onboarding.ob-blocks .ob-likeness .ab-detail { margin: 0; font-size: 14px; }
+.ob-likeness-row { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.ob-consent { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.ob-preview .onboarding.ob-blocks.ob-side .ob-note { font-size: 14px; }
+
+/* Capteurs : un bloc par rôle, état écrit, bouton « Appairer » en pied. */
+.ob-devices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ob-devices .ab-tile { padding: 12px 14px 10px; gap: 2px 12px; }
+.ob-devices .ab-name { font-size: 17px; }
+.ob-devices .ab-detail { font-size: 14px; }
+.ob-devices .ab-state { font-size: 14px; }
+
+/* Vitesses et test FTP. */
+.ob-controls { color: var(--ar-fg, #f5f7fa); font-size: 15px; line-height: 1.6; }
+.ob-ftp .ab-tile { padding: 14px 16px; }
+.ob-ftp .ab-name { font-size: 18px; }
+.ob-ftp .ab-detail { margin: 4px 0 0; font-size: 14.5px; }
+
+@media (max-width: 560px) {
+  .ob-devices { grid-template-columns: 1fr; }
+}

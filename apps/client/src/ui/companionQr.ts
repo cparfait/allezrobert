@@ -5,10 +5,72 @@
  * onglet Réglages.
  * Le téléphone qui le lit est appairé sans compte (voir game/companionLink.ts).
  */
+import './blocks.css';
 import './companionQr.css';
 import { encode } from 'uqr';
-import { getLang } from '../i18n/index.ts';
+import { strings } from '../i18n/index.ts';
 import { companion, type CompanionLink } from '../game/companionLink.ts';
+
+const S = strings(
+  {
+    phonesOne: '1 téléphone connecté',
+    phonesMany: '{n} téléphones connectés',
+    noPhone: 'Aucun téléphone connecté',
+    waiting: 'En attente du téléphone',
+    app: 'Appli compagnon',
+    beforeYouGo: 'Avant de partir',
+    close: 'Fermer',
+    headline: 'Pilote ta sortie depuis ton téléphone',
+    f1: 'Compteur',
+    f2: 'Vitesses',
+    f3: 'Carrefours',
+    f4: 'Musique',
+    f5: 'Chat',
+    how: 'Ouvre l’appareil photo de ton téléphone et vise ce code. Aucun compte à créer.',
+    start: 'Lancer la sortie',
+    never: 'Ne plus proposer',
+    later: 'Plus tard',
+    newCode: 'Nouveau code',
+    offlineState: 'Injoignable',
+    offlineTitle: 'Serveur injoignable',
+    offlineText: 'Le téléphone ne peut pas se connecter tant que le jeu n’atteint pas le serveur. Vérifie ta connexion à Internet ; le code s’affichera ici dès que le serveur répondra.',
+    unavailable: 'L’appli compagnon n’est pas disponible pour le moment : le serveur est injoignable.',
+    scanSimple: 'Scanne ce code avec l’appareil photo de ton téléphone. Pas de compte à créer.',
+    showLarge: 'Afficher en grand',
+    settingsText: 'Pilote la sortie depuis ton téléphone (compteur, vitesses, carrefours, musique, chat), en solo comme à plusieurs. Scanne le code avec l’appareil photo : pas de compte à créer.',
+    offerLabel: 'Proposer le QR code au lancement d’une sortie',
+    newCodeHint: '« Nouveau code » déconnecte les téléphones déjà appairés.',
+  },
+  {
+    phonesOne: '1 phone connected',
+    phonesMany: '{n} phones connected',
+    noPhone: 'No phone connected',
+    waiting: 'Waiting for the phone',
+    app: 'Companion app',
+    beforeYouGo: 'Before you go',
+    close: 'Close',
+    headline: 'Control your ride from your phone',
+    f1: 'Computer',
+    f2: 'Gears',
+    f3: 'Junctions',
+    f4: 'Music',
+    f5: 'Chat',
+    how: 'Open your phone camera and point it at this code. No account needed.',
+    start: 'Start the ride',
+    never: 'Don’t offer again',
+    later: 'Later',
+    newCode: 'New code',
+    offlineState: 'Unreachable',
+    offlineTitle: 'Server unreachable',
+    offlineText: 'Your phone cannot connect while the game cannot reach the server. Check your Internet connection; the code will appear here as soon as the server answers.',
+    unavailable: 'The companion app is not available right now: the server cannot be reached.',
+    scanSimple: 'Scan this code with your phone camera. No account needed.',
+    showLarge: 'Show large',
+    settingsText: 'Control the ride from your phone (bike computer, gears, turns, music, chat), solo or with friends. Scan the code with the camera: no account needed.',
+    offerLabel: 'Offer the QR code when a ride starts',
+    newCodeHint: '“New code” disconnects phones already paired.',
+  },
+);
 
 /** « Proposer le QR code au lancement d'une sortie » (activé par défaut). */
 const OFFER_KEY = 'ar.pair.offer';
@@ -37,11 +99,13 @@ export function offerEnabled(): boolean {
   return localStorage.getItem(OFFER_KEY) !== 'off';
 }
 
-function statusHtml(link: CompanionLink, withNone = true): string {
-  const fr = getLang() === 'fr';
+function phonesText(phones: number): string {
+  return phones > 1 ? S('phonesMany').replace('{n}', String(phones)) : S('phonesOne');
+}
+
+function statusHtml(link: CompanionLink): string {
   const { phones } = link.presence;
-  if (phones) return `<i class="ok"></i>${fr ? `${phones} téléphone${phones > 1 ? 's' : ''} connecté${phones > 1 ? 's' : ''}` : `${phones} phone${phones > 1 ? 's' : ''} connected`}`;
-  return withNone ? `<i></i>${fr ? 'Aucun téléphone connecté' : 'No phone connected'}` : '';
+  return phones ? `<i class="ok"></i>${phonesText(phones)}` : `<i></i>${S('noPhone')}`;
 }
 
 export class CompanionQr {
@@ -104,8 +168,8 @@ export class CompanionQr {
   }
 
   show(offered = false, prestart = false): void {
-    // Serveur injoignable : un téléphone ne pourrait pas se connecter, on n'affiche pas de code.
-    if (!this.link.connected) return;
+    // Serveur injoignable : un téléphone ne pourrait pas se connecter. Le code n'est pas montré, mais la fenêtre
+    // l'explique (touche Q, pause) au lieu de ne rien afficher ; elle passe au code dès que le serveur répond.
     this.open = true;
     this.shown = false;
     this.connectedShown = false;
@@ -174,26 +238,33 @@ export class CompanionQr {
   }
 
   private render(): void {
-    const fr = getLang() === 'fr';
-    const done = this.offered && this.link.presence.phones > 0;
-    this.el.innerHTML = `<div class="cmp-card panel${this.shown ? ' cmp-still' : ''}" role="dialog" aria-label="${fr ? 'Appli compagnon' : 'Companion app'}">
-      <button class="cmp-x" data-act="close" aria-label="${fr ? 'Fermer' : 'Close'}">×</button>
-      <span class="cmp-badge">${phoneIcon(26)}</span>
-      <b>${this.prestart ? (fr ? 'Avant de partir' : 'Before you go') : fr ? 'Appli compagnon' : 'Companion app'}</b>
-      <h2>${fr ? 'Pilote ta sortie depuis ton téléphone' : 'Control your ride from your phone'}</h2>
-      <ul class="cmp-feats">${(fr ? ['Compteur', 'Vitesses', 'Carrefours', 'Musique', 'Chat'] : ['Computer', 'Gears', 'Junctions', 'Music', 'Chat']).map((f) => `<li>${f}</li>`).join('')}</ul>
+    const close = `<button type="button" class="cmp-x" data-act="close" aria-label="${S('close')}">×</button>`;
+    if (!this.link.connected) {
+      this.el.innerHTML = `<div class="cmp-card panel${this.shown ? ' cmp-still' : ''}" role="dialog" aria-modal="true" aria-labelledby="cmp-title">
+        ${close}
+        <header class="cmp-head"><span class="ab-ico sm">${phoneIcon(34)}</span><div><h2 class="ab-title" id="cmp-title">${S('offlineTitle')}</h2><p class="ab-sub">${S('app')}</p></div></header>
+        <p class="ab-state is-bad cmp-status" role="status"><i></i>${S('offlineState')}</p>
+        <p class="cmp-how">${S('offlineText')}</p>
+        <div class="ab-foot cmp-foot"><div class="ab-btns"><button type="button" class="ab-btn ab-go" data-act="close">${this.prestart ? S('start') : S('close')}</button></div></div>
+      </div>`;
+      this.shown = true;
+      return;
+    }
+    const phones = this.link.presence.phones;
+    const done = this.offered && phones > 0;
+    const actions = this.prestart
+      ? `<button type="button" class="ab-btn" data-act="never">${S('never')}</button><div class="ab-btns"><button type="button" class="ab-btn ab-go" data-act="close">${S('start')}</button></div>`
+      : this.offered
+        ? `<button type="button" class="ab-btn" data-act="never">${S('never')}</button><div class="ab-btns"><button type="button" class="ab-btn ab-go" data-act="close">${S('later')}</button></div>`
+        : `<button type="button" class="ab-btn" data-act="new">${S('newCode')}</button><div class="ab-btns"><button type="button" class="ab-btn ab-go" data-act="close">${S('close')}</button></div>`;
+    this.el.innerHTML = `<div class="cmp-card panel${this.shown ? ' cmp-still' : ''}" role="dialog" aria-modal="true" aria-labelledby="cmp-title">
+      ${close}
+      <header class="cmp-head"><span class="ab-ico sm">${phoneIcon(34)}</span><div><h2 class="ab-title" id="cmp-title">${this.prestart ? S('beforeYouGo') : S('app')}</h2><p class="ab-sub">${S('headline')}</p></div></header>
+      <ul class="cmp-feats">${[S('f1'), S('f2'), S('f3'), S('f4'), S('f5')].map((f) => `<li>${f}</li>`).join('')}</ul>
       <div class="cmp-code ${done ? 'done' : ''}">${this.svg}${done ? '<svg class="cmp-check" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="23" /><path d="M15 27 l8 8 l15 -17" /></svg>' : ''}</div>
-      <p class="cmp-how">${fr ? 'Ouvre l’appareil photo de ton téléphone et vise ce code.<br>Aucun compte à créer.' : 'Open your phone camera and point it at this code.<br>No account needed.'}</p>
-      <p class="cmp-state">${statusHtml(this.link, false)}</p>
-      <div class="cmp-row">
-        ${
-          this.prestart
-            ? `<button class="btn primary" data-act="close">${fr ? 'Lancer la sortie' : 'Start the ride'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>`
-            : this.offered
-              ? `<button class="btn primary" data-act="close">${fr ? 'Plus tard' : 'Later'}</button><button class="btn ghost" data-act="never">${fr ? 'Ne plus proposer' : 'Don’t offer again'}</button>`
-              : `<button class="btn" data-act="new">${fr ? 'Nouveau code' : 'New code'}</button>`
-        }
-      </div>
+      <p class="cmp-how">${S('how')}</p>
+      <p class="ab-state cmp-status ${phones ? 'is-ok' : ''}" role="status"><i></i>${phones ? phonesText(phones) : S('waiting')}</p>
+      <div class="ab-foot cmp-foot">${actions}</div>
     </div>`;
     this.shown = true;
   }
@@ -215,25 +286,24 @@ export function renderCompanionSettings(el: Element | null, simple = false): voi
   if (!el) return;
   const qr = companionQr();
   const link = companion;
-  const fr = getLang() === 'fr';
   const draw = () => {
     if (!link.connected) {
-      el.innerHTML = `<p class="cmp-muted">${fr ? 'L’appli compagnon n’est pas disponible pour le moment.' : 'The companion app is not available right now.'}</p>`;
+      el.innerHTML = `<p class="ab-state is-bad cmp-muted" role="status"><i></i>${S('unavailable')}</p>`;
       return;
     }
     // Version tutoriel : le code et l'état de la connexion, sans boutons ni options.
     if (simple) {
-      el.innerHTML = `<div class="cmp-settings cmp-simple"><div class="cmp-code">${qr.svg}</div><div class="cmp-side"><p>${fr ? 'Scanne ce code avec l’appareil photo de ton téléphone. Pas de compte à créer.' : 'Scan this code with your phone camera. No account needed.'}</p><p class="cmp-state">${statusHtml(link)}</p></div></div>`;
+      el.innerHTML = `<div class="cmp-settings cmp-simple"><div class="cmp-code">${qr.svg}</div><div class="cmp-side"><p>${S('scanSimple')}</p><p class="cmp-state" role="status">${statusHtml(link)}</p></div></div>`;
       return;
     }
     el.innerHTML = `<div class="cmp-settings">
-      <button class="cmp-code" data-act="big" title="${fr ? 'Afficher en grand' : 'Show large'}">${qr.svg}</button>
+      <button type="button" class="cmp-code" data-act="big" title="${S('showLarge')}" aria-label="${S('showLarge')}">${qr.svg}</button>
       <div class="cmp-side">
-        <p>${fr ? 'Pilote la sortie depuis ton téléphone (compteur, vitesses, carrefours, musique, chat), en solo comme à plusieurs. Scanne le code avec l’appareil photo : pas de compte à créer.' : 'Control the ride from your phone (bike computer, gears, turns, music, chat), solo or with friends. Scan the code with the camera: no account needed.'}</p>
-        <p class="cmp-state">${statusHtml(link)}</p>
-        <label class="field" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" data-act="offer" ${offerEnabled() ? 'checked' : ''} style="width:auto" />${fr ? 'Proposer le QR code au lancement d’une sortie' : 'Offer the QR code when a ride starts'}</label>
-        <div class="row"><button class="btn" data-act="big">${fr ? 'Afficher en grand' : 'Show large'}</button><button class="btn" data-act="new">${fr ? 'Nouveau code' : 'New code'}</button></div>
-        <small class="cmp-hint">${fr ? '« Nouveau code » déconnecte les téléphones déjà appairés.' : '“New code” disconnects phones already paired.'}</small>
+        <p>${S('settingsText')}</p>
+        <p class="cmp-state" role="status">${statusHtml(link)}</p>
+        <label class="field cmp-offer"><input type="checkbox" data-act="offer" ${offerEnabled() ? 'checked' : ''} />${S('offerLabel')}</label>
+        <div class="cmp-btns"><button type="button" class="ab-btn" data-act="big">${S('showLarge')}</button><button type="button" class="ab-btn" data-act="new">${S('newCode')}</button></div>
+        <small class="cmp-hint">${S('newCodeHint')}</small>
       </div>
     </div>`;
   };

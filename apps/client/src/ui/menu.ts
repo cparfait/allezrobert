@@ -19,7 +19,7 @@ import { formatBytes, inTauri, installPack, installedPacks, loadCatalogue, packS
 import { fillStoragePanel, storagePanelHtml } from './desktopUi.ts';
 import { inDesktop, quitApp } from '../platform/desktop.ts';
 import { compositeId, neighbourZones, PARIS_CITY_ZONES } from '../world/composite.ts';
-import { t, setLang, getLang, type I18nKey } from '../i18n/index.ts';
+import { t, setLang, getLang, strings, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { nowHour, saveSettings } from './settings.ts';
 import { music } from '../audio/music.ts';
@@ -57,6 +57,839 @@ import { ZONE_SPOTS } from '../world/zoneMap.ts';
 // Vignettes des mondes imaginaires (à côté de la carte de France) : chargées dès le menu, prêtes à l'ouverture.
 if (typeof Image !== 'undefined') for (const z of ZONE_SPOTS) if (z.image) new Image().src = z.image;
 import { getAspectCap, getResolutionCap, getUiAspectCap, setAspectCap, setResolutionCap, setUiAspectCap, type AspectCap, type ResolutionCap } from '../engine/display.ts';
+import { activateFocus, inEditable, moveFocus, type NavDir } from './focusNav.ts';
+
+/** Touches fléchées du menu et direction de navigation du focus. */
+const ARROW_DIRS: Record<string, NavDir | undefined> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+
+const S = strings(
+  {
+    off: 'Coupé',
+    selected: 'Choisie',
+    customSky: 'ciel réglé',
+    startAt: 'Départ à',
+    todaySWeather: 'météo du moment',
+    timeAndWeather: 'Heure et météo',
+    real: 'Réelles',
+    custom: 'Personnalisées',
+    conditions: 'Conditions',
+    todayReal: 'Du jour (réelles)',
+    custom2: 'Réglées',
+    realSkyRainFog: 'Ciel, pluie, brouillard et vent réels autour du départ, à l’heure choisie (prévision du jour <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color:inherit">Open-Meteo</a>). Sans réseau : conditions réglées.',
+    sky: 'Ciel',
+    sunny: '☀ Soleil',
+    cloudy: '☁ Nuageux',
+    rain: '🌧 Pluie',
+    fog: '🌫 Brouillard',
+    wind: 'Vent',
+    calm: 'Calme',
+    light: 'Léger',
+    moderate: 'Moyen',
+    strong: 'Fort',
+    weather: 'Météo',
+    fixed: 'Fixe',
+    changing: 'Qui évolue',
+    startTime: 'Heure de départ',
+    currentTime: 'Heure actuelle',
+    custom3: 'Réglée',
+    progress: 'Progression',
+    friends: 'Amis',
+    loadingTheGarage: 'Chargement du garage…',
+    rideTogetherEachFrom: 'Rouler ensemble, chacun chez soi.',
+    pairYourTrainerAnd: 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.',
+    myProfile: 'Mon profil',
+    level: 'Niveau',
+    creditsOpenTheGarage: 'Crédits : ouvrir l’atelier du garage pour les dépenser',
+    signOut: 'Déconnexion',
+    signIn: 'Se connecter',
+    quitAllezRobert: 'Quitter Allez Robert !',
+    quit: 'Quitter',
+    whatDoYouWant: 'Que veux-tu faire ?',
+    freeRideToPick: 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.',
+    joinARide: 'Rejoindre une sortie',
+    gotACodeFrom: 'Un ami t’a donné un code ? Saisis-le : tu roules avec ses réglages.',
+    inviteCode: 'Code d’invitation',
+    orCreateYourRace: 'Ou créer ta course',
+    orCreateYourRide: 'Ou créer ta sortie',
+    theseSettingsYourTime: 'Ces réglages, ton heure et ta météo valent pour tout le groupe.',
+    laps: 'Tours',
+    theRaceEndsAfter: 'La course s’arrête après ce nombre de tours.',
+    aiRiders: 'Coureurs IA',
+    eachHasItsOwn: 'Chacun a sa tactique et sa forme du jour.',
+    aiLevel: 'Niveau des IA',
+    theirPowerAsA: 'Leur puissance, en part de ta FTP.',
+    targetAverageSpeed: 'Vitesse moyenne visée',
+    aiRidersPaceThemselves: 'Les IA règlent leur effort pour la tenir ; l’organisateur peut l’augmenter en route.',
+    free: 'Libre',
+    bikes: 'Vélos',
+    theSameBikeFor: 'Le même vélo pour tous, ou chacun le sien avec ses pièces de l’atelier.',
+    sameBikeForAll: 'Même vélo pour tous',
+    eachTheirOwn: 'Chacun son vélo',
+    whereToRide: 'Où rouler ?',
+    chooseMyCountry: 'Choisir mon pays',
+    none: 'Aucune',
+    myWorkout: 'Ma séance',
+    changeWorkout: 'Changer de séance',
+    chooseYourWorkout: 'Choisis ta séance',
+    close: 'Fermer',
+    orImportAWorkout: 'Ou importer une séance',
+    t8MinFrom50: '8 min de 50 à 80 W',
+    t1530Min: '15 à 30 min',
+    t5MinAt100: '5 min à 100 W',
+    t1020Min: '10 à 20 min',
+    ramp: 'Rampe',
+    gentleRamp: 'Rampe douce',
+    t20MinTest: 'Test 20 min',
+    protocol: 'Protocole',
+    coachVoice: 'Voix du coach',
+    announcesTheStepsAnd: 'Annonce les paliers et la FTP estimée en direct.',
+    on: 'Oui',
+    off2: 'Non',
+    howTheTestWorks: 'Comment se passe le test',
+    freeRide: 'Parcours libre',
+    drawnRoute: 'Parcours dessiné',
+    loop: ' · boucle',
+    changeRide: 'Changer de sortie',
+    chooseMyRide: 'Choisir ma sortie',
+    changeRoute: 'Changer de parcours',
+    areaChoices: 'Choix de la zone',
+    loadingTheOthers: 'chargement des autres…',
+    areaOrder: 'Ordre de la zone',
+    byDistance: 'Par distance',
+    byClimbing: 'Par dénivelé',
+    loop2: 'Boucle',
+    oneWay: 'Aller simple',
+    selected2: 'choisi',
+    reversed: ', sens inverse',
+    movedStart: ', départ déplacé',
+    selectedRoute: 'Parcours choisi',
+    details: 'Fiche',
+    someRoutesCouldNot: 'Certains parcours n’ont pas pu être chargés. Ferme puis rouvre cette fenêtre pour réessayer.',
+    exploreTheMap: 'Explorer la carte',
+    freeCameraNoRiding: 'Caméra libre, sans rouler · Échap pour revenir',
+    routes: 'Parcours',
+    oneClickSelectsThe: 'Un clic choisit le parcours ; sa fiche montre les montées et les records.',
+    normal: 'Sens normal',
+    reversed2: 'Sens inverse',
+    selectWithoutRiding: 'Choisir sans partir',
+    noTimedClimbIn: 'Pas de montée chronométrée dans cette zone.',
+    seeAllClimbs: 'Voir toutes les montées',
+    noRecordYet: 'pas encore de record',
+    changeClimb: 'Changer de montée',
+    best: 'Record',
+    allAreas: 'Toutes les zones',
+    myBest: 'mon record',
+    bestOn: 'Record du',
+    notRiddenYet: 'À découvrir',
+    challenge: 'Défier',
+    noTimedClimbKnown: 'Aucune montée chronométrée connue pour le moment.',
+    komChallenge: 'Défi KOM',
+    flyingStartGhostOf: 'Départ lancé, fantôme de ton meilleur temps et écart en direct.',
+    searchAClimbA: 'Chercher une montée, un parcours ou une zone…',
+    searchAClimb: 'Chercher une montée',
+    filterByArea: 'Filtrer par zone',
+    aZoneSClimbs: 'Les montées d’une zone apparaissent après sa première visite.',
+    noTimedClimbIn2: 'Pas de montée chronométrée dans cette zone : choisis-en une autre.',
+    best2: 'record',
+    openWorld: 'monde ouvert',
+    retry: 'Réessayer',
+    downloaded: 'Téléchargée',
+    update: 'Mettre à jour',
+    downloading: 'Téléchargement',
+    updateAvailable: 'Mise à jour disponible',
+    toDownload: 'À télécharger',
+    loadedWhileRiding: 'Chargée pendant la sortie',
+    comingSoon: 'Bientôt',
+    currentArea: 'Zone en cours',
+    whereDoYouWant: 'Où veux-tu rouler ?',
+    loading: 'Chargement de',
+    pickAnAreaOn: 'Choisis une zone sur la carte, ou cherche une ville pour voir la zone qui la couvre.',
+    onlyInOpenAreas: 'Seulement dans les zones ouvertes (toutes les routes roulables).',
+    notInARace: 'Pas en course : le parcours est fixe (tu peux le dessiner).',
+    allOfParis: 'Tout Paris',
+    allOfParisLoaded: 'Paris entier chargé',
+    loadAllOfParis: 'Charger tout Paris',
+    neighbouringAreas: 'Zones voisines',
+    loading2: 'Chargement…',
+    addThemToRide: 'Ajoute-les pour rouler ou dessiner d’une zone à l’autre (parcours libre et à dessiner).',
+    youPickYourRoad: 'Tu choisis ta route à chaque carrefour.',
+    drawARoute: 'Parcours à dessiner',
+    startWaypointsAndFinish: 'Départ, points de passage et arrivée sur la carte.',
+    pickTheClimbTo: 'Choisis la côte à battre',
+    mapOfFrance: 'Carte de France',
+    offlineMaps: 'Cartes hors ligne',
+    zoneCatalogueUnavailableOffline: 'Catalogue des zones indisponible (hors ligne ?).',
+    queued: 'En attente',
+    downloadFailed: 'Échec du téléchargement',
+    remove: 'Supprimer',
+    notDownloaded: 'Non téléchargée',
+    download: 'Télécharger',
+    currentArea2: 'zone affichée',
+    spaceUsed: 'Espace utilisé',
+    noAreaDownloaded: 'Aucune zone téléchargée',
+    downloadAll: 'Tout télécharger',
+    mapsAreKeptIn: 'Les cartes sont dans le dossier des données ci-dessous.',
+    mapsAreStoredOn: 'Les cartes sont stockées sur cet appareil.',
+    aDownloadedAreaLoads: 'Une zone téléchargée se charge tout de suite et fonctionne sans connexion ; sinon elle se charge pendant la sortie.',
+    searchAnArea: 'Chercher une zone…',
+    noAreaWithThat: 'Aucune zone à ce nom.',
+    removeAll: 'Tout supprimer',
+    removeEveryDownloadedArea: 'Supprimer toutes les zones téléchargées de cet appareil ?',
+    side: 'Profil',
+    front: 'Face',
+    back: 'Dos',
+    bike: 'Vélo',
+    dragToRotate: 'Glisser pour tourner',
+    backToProgress: 'Retour à la progression',
+    bodyMeasurementsAndFtp: 'Mensurations et FTP',
+    v3StyleLocalZwift: 'Style V3 : ressources de l’installation Zwift locale, pour l’étude seulement (jamais distribuées).',
+    jersey: 'Maillot',
+    jerseyStripe: 'Bande du maillot',
+    helmet: 'Casque',
+    unbrandedBike: 'Vélo sans marque',
+    skin: 'Peau',
+    hair: 'Cheveux',
+    socks: 'Chaussettes',
+    kitPresets: 'Tenues préréglées',
+    gearUnlocksAsYou: 'Les équipements se débloquent en roulant. Clique un équipement verrouillé pour l’essayer.',
+    workshopCredits: 'Crédits de l’atelier',
+    collapseTheMenu: 'Réduire le menu',
+    collapseTheMenuFor: 'Réduire le menu pour voir plus large',
+    closeEsc: 'Fermer (Échap)',
+    outfit: 'Tenue',
+    shorts: 'Cuissard',
+    gloves: 'Gants',
+    shoes: 'Chaussures',
+    pickMyBike: 'Choisir mon vélo',
+    partsWorkshop: 'Atelier de pièces',
+    homeTrainer: 'Home trainer',
+    character: 'Personnage',
+    face: 'Visage',
+    beard: 'Barbe',
+    colours: 'Couleurs',
+    default: 'Par défaut',
+    randomCharacterFaceSkin: 'Personnage au hasard (visage, peau, cheveux, barbe)',
+    randomCharacter: 'Personnage au hasard',
+    garageSections: 'Rubriques du garage',
+    preview: 'Aperçu',
+    lvl: 'niv.',
+    equipped: 'Équipé',
+    unlocked: 'Débloqué',
+    clickToTryIt: 'Cliquer pour l’essayer',
+    short: 'Courts',
+    long: 'Longs',
+    shoeLogo: 'Marquage des chaussures',
+    none2: 'Aucun',
+    shoeAccent: 'Accent des chaussures',
+    gloveColour: 'Couleur des gants',
+    none3: 'Sans',
+    mitts: 'Mitaines',
+    full: 'Complets',
+    sockHeight: 'Hauteur des chaussettes',
+    low: 'Basses',
+    high: 'Hautes',
+    sleeves: 'Manches',
+    short2: 'Courtes',
+    long2: 'Longues',
+    riding: 'En selle',
+    drag: 'traînée',
+    gravelTyres: 'pneus gravel',
+    mtbTyres: 'pneus VTT',
+    roadTyres: 'pneus route',
+    all: 'Tous',
+    timeTrial: 'Chrono',
+    cap: 'Casquette',
+    kind: 'Genre',
+    stripe: 'Bande',
+    accent: 'Accent',
+    length: 'Longueur',
+    longShortsSuitCooler: 'Le cuissard long est utile par temps frais.',
+    type: 'Type',
+    hoverAChipFor: 'Survole une pastille pour lire son nom et son effet ; clique pour l’essayer ou l’équiper.',
+    filter: 'Filtrer',
+    all2: 'Tout',
+    unlocked2: 'Débloqués',
+    locked: 'Verrouillés',
+    available: 'Disponibles',
+    unlockByRiding: 'À débloquer en roulant',
+    bottles: 'Bidons',
+    thisFrameCarriesNo: 'Ce cadre ne porte pas de bidon.',
+    bottleColour: 'Couleur des bidons',
+    black: 'Noir',
+    white: 'Blanc',
+    pickItsColourIn: 'Couleur au choix dans l’onglet Couleurs',
+    yourColourColoursTab: 'Couleur au choix (onglet Couleurs)',
+    yourBike: 'Ton vélo',
+    pickItsColourIn2: 'Sa couleur se choisit dans l’onglet Couleurs. Les vélos des équipes se débloquent en roulant.',
+    backToMyBike: '← Revenir à mon vélo',
+    history: 'Historique',
+    kmRidden: 'km roulés',
+    kilometresRiddenInThe: 'Kilomètres roulés dans le jeu, toutes sorties confondues',
+    iAm: 'Je suis',
+    aMan: 'Un homme',
+    aWoman: 'Une femme',
+    nationality: 'Nationalité',
+    yourFlagNextTo: 'Ton drapeau à côté de ton nom.',
+    countsOnTheClimbs: 'Compte dans les montées.',
+    countsForYourDrag: 'Compte dans la prise au vent.',
+    setsWorkoutsAndZones: 'Règle les séances et les zones.',
+    previous: 'Précédent',
+    playPauseB: 'Lecture / pause (B)',
+    nextN: 'Suivant (N)',
+    myPlaylists: 'Mes playlists',
+    switchToTheGame: 'Passer à la musique du jeu (arrête Spotify)',
+    playSpotifyInThe: 'Faire jouer Spotify par le jeu',
+    playHere: 'Écouter ici',
+    reconnectOnceToAllow: 'Une reconnexion autorise la lecture dans le jeu',
+    playHere2: 'Jouer ici',
+    musicOff: 'Musique coupée',
+    musicOnOffB: 'Musique marche / arrêt (B)',
+    nextTrackN: 'Morceau suivant (N)',
+    switchToSpotify: 'Passer à Spotify',
+    connectYourSpotifyAccount: 'Connecter ton compte Spotify',
+    gameMusic: 'Musique du jeu',
+    yieldsToSpotify: 'laisse la place à Spotify',
+    on2: 'activée',
+    off3: 'coupée',
+    sourceGameMusic: 'Source : musique du jeu',
+    sourceSpotify: 'Source : Spotify',
+    disconnectSpotify: 'Déconnecter Spotify',
+    connectSpotify: 'Connecter Spotify',
+    noPlaylists: 'Aucune playlist.',
+    clickPlayHereReconnect: 'Clique « Jouer ici » (reconnexion) pour voir tes playlists.',
+    oneTimeOnlySpotify: 'Une seule fois : Spotify demande que le jeu soit déclaré comme « application » sur ton compte développeur (gratuit, 2 minutes).',
+    open: 'Ouvre',
+    andClickCreateApp: 'et clique « Create app ».',
+    nameAllezRobertApi: 'Nom : « Allez Robert » ; API : coche « Web API ».',
+    redirectUriCopyExactly: 'Redirect URI, à copier exactement (avec le « / » final) :',
+    copy: 'Copier',
+    saveThenPasteThe: 'Enregistre, puis colle ici le « Client ID » :',
+    spotifyRejectsLocalhostOn: 'Spotify refuse « localhost » : à la connexion, le jeu passe tout seul à l’adresse 127.0.0.1 (garde-la ensuite).',
+    musicPlaysFromYour: 'La musique sort de ton appli Spotify (ordinateur ou téléphone) ; lecture / pause et morceau suivant demandent un compte Premium.',
+    cancel: 'Annuler',
+    signInToSpotify: 'Se connecter à Spotify',
+    controlledResistanceFtmsFe: 'Résistance pilotée (FTMS, FE-C)',
+    pedalsOrCrankAssioma: 'Pédales ou manivelle (Assioma…)',
+    cadenceSensorWahooRpm: 'Capteur de cadence (Wahoo RPM…)',
+    strapOrWatchTrackr: 'Ceinture ou montre (TRACKR, TICKR…)',
+    controllersClickAxsD: 'Manettes (Click, AXS, D-Fly)',
+    smartFan: 'Ventilateur connecté',
+    viaTheTrainer: 'via le home trainer',
+    viaThePedals: 'via les pédales',
+    testRoadFeel: 'Tester le ressenti route',
+    reconnect: 'reconnecter',
+    forget: 'oublier',
+    pairedPedalsBecomeThe: 'Des pédales associées deviennent la puissance de référence.',
+    aPairedCadenceSensor: 'Un capteur de cadence associé passe avant le home trainer.',
+    change: 'Changer',
+    pair: 'Associer',
+    bluetoothAdapter: 'Adaptateur Bluetooth',
+    thisAreaIsNot: 'Cette zone n’est pas encore publiée sur ce serveur.',
+    theDownloadWasInterrupted: 'Le téléchargement s’est interrompu. Vérifie ta connexion, puis réessaie.',
+    areaUnavailable: 'Zone indisponible',
+    downloading2: 'Téléchargement de',
+    analysingOnYourDevice: 'Analyse sur ton appareil…',
+    cancelledPhotoDiscarded: 'Annulé ; photo oubliée.',
+    faceSkinAndHair: 'Visage, teint et cheveux appliqués ; photo oubliée.',
+    noFaceFoundSkin: 'Aucun visage trouvé : teint et cheveux seulement.',
+    analysisFailedOnThis: 'Analyse impossible sur cet appareil.',
+    gearPositionUnavailableVia: 'Rapport indisponible via D-Fly',
+    waitingForGearPosition: 'En attente du rapport engagé',
+    rpm: 'tr/min',
+    simulatorNoHardware: 'Simulateur (sans matériel)',
+    noSensor: 'Aucun capteur',
+    est: 'env.',
+    height: 'Hauteur',
+    otherColour: 'Autre couleur',
+    spotifyNothingPlaying: 'Spotify : rien en lecture',
+    inGame: '♪ Dans le jeu',
+    cannotPlayInThe: 'Lecture impossible dans le jeu.',
+    noClimbMatches: 'Aucune montée ne correspond.',
+    allOfParis2: 'Paris entier',
+    txt: ' : ',
+  },
+  {
+    off: 'Off',
+    selected: 'Selected',
+    customSky: 'custom sky',
+    startAt: 'Start at',
+    todaySWeather: 'today’s weather',
+    timeAndWeather: 'Time and weather',
+    real: 'Real',
+    custom: 'Custom',
+    conditions: 'Conditions',
+    todayReal: 'Today (real)',
+    custom2: 'Custom',
+    realSkyRainFog: 'Real sky, rain, fog and wind around the start, at the chosen time (today’s <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color:inherit">Open-Meteo</a> forecast). Offline: custom conditions.',
+    sky: 'Sky',
+    sunny: '☀ Sunny',
+    cloudy: '☁ Cloudy',
+    rain: '🌧 Rain',
+    fog: '🌫 Fog',
+    wind: 'Wind',
+    calm: 'Calm',
+    light: 'Light',
+    moderate: 'Moderate',
+    strong: 'Strong',
+    weather: 'Weather',
+    fixed: 'Fixed',
+    changing: 'Changing',
+    startTime: 'Start time',
+    currentTime: 'Current time',
+    custom3: 'Custom',
+    progress: 'Progress',
+    friends: 'Friends',
+    loadingTheGarage: 'Loading the garage…',
+    rideTogetherEachFrom: 'Ride together, each from home.',
+    pairYourTrainerAnd: 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.',
+    myProfile: 'My profile',
+    level: 'Level',
+    creditsOpenTheGarage: 'Credits: open the garage workshop to spend them',
+    signOut: 'Sign out',
+    signIn: 'Sign in',
+    quitAllezRobert: 'Quit Allez Robert!',
+    quit: 'Quit',
+    whatDoYouWant: 'What do you want to do?',
+    freeRideToPick: 'Free ride: ← / → to pick your way at each junction, U to turn around.',
+    joinARide: 'Join a ride',
+    gotACodeFrom: 'Got a code from a friend? Enter it: you ride with their settings.',
+    inviteCode: 'Invite code',
+    orCreateYourRace: 'Or create your race',
+    orCreateYourRide: 'Or create your ride',
+    theseSettingsYourTime: 'These settings, your time and your weather apply to the whole group.',
+    laps: 'Laps',
+    theRaceEndsAfter: 'The race ends after this many laps.',
+    aiRiders: 'AI riders',
+    eachHasItsOwn: 'Each has its own tactic and form of the day.',
+    aiLevel: 'AI level',
+    theirPowerAsA: 'Their power, as a share of your FTP.',
+    targetAverageSpeed: 'Target average speed',
+    aiRidersPaceThemselves: 'AI riders pace themselves to hold it; the host can raise it on the road.',
+    free: 'Free',
+    bikes: 'Bikes',
+    theSameBikeFor: 'The same bike for all, or each rider’s own with its workshop parts.',
+    sameBikeForAll: 'Same bike for all',
+    eachTheirOwn: 'Each their own',
+    whereToRide: 'Where to ride?',
+    chooseMyCountry: 'Choose my country',
+    none: 'None',
+    myWorkout: 'My workout',
+    changeWorkout: 'Change workout',
+    chooseYourWorkout: 'Choose your workout',
+    close: 'Close',
+    orImportAWorkout: 'Or import a workout',
+    t8MinFrom50: '8 min from 50 to 80 W',
+    t1530Min: '15–30 min',
+    t5MinAt100: '5 min at 100 W',
+    t1020Min: '10–20 min',
+    ramp: 'Ramp',
+    gentleRamp: 'Gentle ramp',
+    t20MinTest: '20-min test',
+    protocol: 'Protocol',
+    coachVoice: 'Coach voice',
+    announcesTheStepsAnd: 'Announces the steps and the live FTP estimate.',
+    on: 'On',
+    off2: 'Off',
+    howTheTestWorks: 'How the test works',
+    freeRide: 'Free ride',
+    drawnRoute: 'Drawn route',
+    loop: ' · loop',
+    changeRide: 'Change ride',
+    chooseMyRide: 'Choose my ride',
+    changeRoute: 'Change route',
+    areaChoices: 'Area choices',
+    loadingTheOthers: 'loading the others…',
+    areaOrder: 'Area order',
+    byDistance: 'By distance',
+    byClimbing: 'By climbing',
+    loop2: 'Loop',
+    oneWay: 'One way',
+    selected2: 'selected',
+    reversed: ', reversed',
+    movedStart: ', moved start',
+    selectedRoute: 'Selected route',
+    details: 'Details',
+    someRoutesCouldNot: 'Some routes could not be loaded. Close and reopen this window to try again.',
+    exploreTheMap: 'Explore the map',
+    freeCameraNoRiding: 'Free camera, no riding · Esc to come back',
+    routes: 'Routes',
+    oneClickSelectsThe: 'One click selects the route; its details show climbs and records.',
+    normal: 'Normal',
+    reversed2: 'Reversed',
+    selectWithoutRiding: 'Select without riding',
+    noTimedClimbIn: 'No timed climb in this area.',
+    seeAllClimbs: 'See all climbs',
+    noRecordYet: 'no record yet',
+    changeClimb: 'Change climb',
+    best: 'Best',
+    allAreas: 'All areas',
+    myBest: 'my best',
+    bestOn: 'Best on',
+    notRiddenYet: 'Not ridden yet',
+    challenge: 'Challenge',
+    noTimedClimbKnown: 'No timed climb known yet.',
+    komChallenge: 'KOM challenge',
+    flyingStartGhostOf: 'Flying start, ghost of your best time and live gap.',
+    searchAClimbA: 'Search a climb, a route or an area…',
+    searchAClimb: 'Search a climb',
+    filterByArea: 'Filter by area',
+    aZoneSClimbs: 'A zone’s climbs appear after you first visit it.',
+    noTimedClimbIn2: 'No timed climb in this area: pick another one.',
+    best2: 'best',
+    openWorld: 'open world',
+    retry: 'Retry',
+    downloaded: 'Downloaded',
+    update: 'Update',
+    downloading: 'Downloading',
+    updateAvailable: 'Update available',
+    toDownload: 'To download',
+    loadedWhileRiding: 'Loaded while riding',
+    comingSoon: 'Coming soon',
+    currentArea: 'Current area',
+    whereDoYouWant: 'Where do you want to ride?',
+    loading: 'Loading',
+    pickAnAreaOn: 'Pick an area on the map, or search a town to see which area covers it.',
+    onlyInOpenAreas: 'Only in open areas (every road rideable).',
+    notInARace: 'Not in a race: the course is fixed (you can draw it).',
+    allOfParis: 'All of Paris',
+    allOfParisLoaded: 'All of Paris loaded',
+    loadAllOfParis: 'Load all of Paris',
+    neighbouringAreas: 'Neighbouring areas',
+    loading2: 'Loading…',
+    addThemToRide: 'Add them to ride or draw from one area to the next (free ride and drawn routes).',
+    youPickYourRoad: 'You pick your road at each junction.',
+    drawARoute: 'Draw a route',
+    startWaypointsAndFinish: 'Start, waypoints and finish on the map.',
+    pickTheClimbTo: 'Pick the climb to beat',
+    mapOfFrance: 'Map of France',
+    offlineMaps: 'Offline maps',
+    zoneCatalogueUnavailableOffline: 'Zone catalogue unavailable (offline?).',
+    queued: 'Queued',
+    downloadFailed: 'Download failed',
+    remove: 'Remove',
+    notDownloaded: 'Not downloaded',
+    download: 'Download',
+    currentArea2: 'current area',
+    spaceUsed: 'Space used',
+    noAreaDownloaded: 'No area downloaded',
+    downloadAll: 'Download all',
+    mapsAreKeptIn: 'Maps are kept in the data folder below.',
+    mapsAreStoredOn: 'Maps are stored on this device.',
+    aDownloadedAreaLoads: 'A downloaded area loads instantly and works offline; otherwise it streams in during the ride.',
+    searchAnArea: 'Search an area…',
+    noAreaWithThat: 'No area with that name.',
+    removeAll: 'Remove all',
+    removeEveryDownloadedArea: 'Remove every downloaded area from this device?',
+    side: 'Side',
+    front: 'Front',
+    back: 'Back',
+    bike: 'Bike',
+    dragToRotate: 'Drag to rotate',
+    backToProgress: 'Back to progress',
+    bodyMeasurementsAndFtp: 'Body measurements and FTP',
+    v3StyleLocalZwift: 'V3 style: local Zwift install assets, for study only (never distributed).',
+    jersey: 'Jersey',
+    jerseyStripe: 'Jersey stripe',
+    helmet: 'Helmet',
+    unbrandedBike: 'Unbranded bike',
+    skin: 'Skin',
+    hair: 'Hair',
+    socks: 'Socks',
+    kitPresets: 'Kit presets',
+    gearUnlocksAsYou: 'Gear unlocks as you ride. Click locked gear to try it on.',
+    workshopCredits: 'Workshop credits',
+    collapseTheMenu: 'Collapse the menu',
+    collapseTheMenuFor: 'Collapse the menu for a wider view',
+    closeEsc: 'Close (Esc)',
+    outfit: 'Outfit',
+    shorts: 'Shorts',
+    gloves: 'Gloves',
+    shoes: 'Shoes',
+    pickMyBike: 'Pick my bike',
+    partsWorkshop: 'Parts workshop',
+    homeTrainer: 'Home trainer',
+    character: 'Character',
+    face: 'Face',
+    beard: 'Beard',
+    colours: 'Colours',
+    default: 'Default',
+    randomCharacterFaceSkin: 'Random character (face, skin, hair, beard)',
+    randomCharacter: 'Random character',
+    garageSections: 'Garage sections',
+    preview: 'Preview',
+    lvl: 'lvl',
+    equipped: 'Equipped',
+    unlocked: 'Unlocked',
+    clickToTryIt: 'Click to try it on',
+    short: 'Short',
+    long: 'Long',
+    shoeLogo: 'Shoe logo',
+    none2: 'None',
+    shoeAccent: 'Shoe accent',
+    gloveColour: 'Glove colour',
+    none3: 'None',
+    mitts: 'Mitts',
+    full: 'Full',
+    sockHeight: 'Sock height',
+    low: 'Low',
+    high: 'High',
+    sleeves: 'Sleeves',
+    short2: 'Short',
+    long2: 'Long',
+    riding: 'Riding',
+    drag: 'drag',
+    gravelTyres: 'gravel tyres',
+    mtbTyres: 'MTB tyres',
+    roadTyres: 'road tyres',
+    all: 'All',
+    timeTrial: 'Time trial',
+    cap: 'Cap',
+    kind: 'Kind',
+    stripe: 'Stripe',
+    accent: 'Accent',
+    length: 'Length',
+    longShortsSuitCooler: 'Long shorts suit cooler weather.',
+    type: 'Type',
+    hoverAChipFor: 'Hover a chip for its name and effect; click to try it on or equip it.',
+    filter: 'Filter',
+    all2: 'All',
+    unlocked2: 'Unlocked',
+    locked: 'Locked',
+    available: 'Available',
+    unlockByRiding: 'Unlock by riding',
+    bottles: 'Bottles',
+    thisFrameCarriesNo: 'This frame carries no bottle.',
+    bottleColour: 'Bottle colour',
+    black: 'Black',
+    white: 'White',
+    pickItsColourIn: 'Pick its colour in the Colours tab',
+    yourColourColoursTab: 'Your colour (Colours tab)',
+    yourBike: 'Your bike',
+    pickItsColourIn2: 'Pick its colour in the Colours tab. Team bikes unlock as you ride.',
+    backToMyBike: '← Back to my bike',
+    history: 'History',
+    kmRidden: 'km ridden',
+    kilometresRiddenInThe: 'Kilometres ridden in the game, all rides',
+    iAm: 'I am',
+    aMan: 'A man',
+    aWoman: 'A woman',
+    nationality: 'Nationality',
+    yourFlagNextTo: 'Your flag next to your name.',
+    countsOnTheClimbs: 'Counts on the climbs.',
+    countsForYourDrag: 'Counts for your drag.',
+    setsWorkoutsAndZones: 'Sets workouts and zones.',
+    previous: 'Previous',
+    playPauseB: 'Play / pause (B)',
+    nextN: 'Next (N)',
+    myPlaylists: 'My playlists',
+    switchToTheGame: 'Switch to the game music (stops Spotify)',
+    playSpotifyInThe: 'Play Spotify in the game',
+    playHere: 'Play here',
+    reconnectOnceToAllow: 'Reconnect once to allow in-game playback',
+    playHere2: 'Play here',
+    musicOff: 'Music off',
+    musicOnOffB: 'Music on / off (B)',
+    nextTrackN: 'Next track (N)',
+    switchToSpotify: 'Switch to Spotify',
+    connectYourSpotifyAccount: 'Connect your Spotify account',
+    gameMusic: 'Game music',
+    yieldsToSpotify: 'yields to Spotify',
+    on2: 'on',
+    off3: 'off',
+    sourceGameMusic: 'Source: game music',
+    sourceSpotify: 'Source: Spotify',
+    disconnectSpotify: 'Disconnect Spotify',
+    connectSpotify: 'Connect Spotify',
+    noPlaylists: 'No playlists.',
+    clickPlayHereReconnect: 'Click “Play here” (reconnect) to see your playlists.',
+    oneTimeOnlySpotify: 'One time only: Spotify needs the game declared as an “app” on your developer account (free, 2 minutes).',
+    open: 'Open',
+    andClickCreateApp: 'and click “Create app”.',
+    nameAllezRobertApi: 'Name: “Allez Robert”; API: tick “Web API”.',
+    redirectUriCopyExactly: 'Redirect URI, copy exactly (with the trailing “/”):',
+    copy: 'Copy',
+    saveThenPasteThe: 'Save, then paste the “Client ID” here:',
+    spotifyRejectsLocalhostOn: 'Spotify rejects “localhost”: on sign-in the game switches to 127.0.0.1 by itself (keep using it afterwards).',
+    musicPlaysFromYour: 'Music plays from your Spotify app (computer or phone); play / pause and next need Premium.',
+    cancel: 'Cancel',
+    signInToSpotify: 'Sign in to Spotify',
+    controlledResistanceFtmsFe: 'Controlled resistance (FTMS, FE-C)',
+    pedalsOrCrankAssioma: 'Pedals or crank (Assioma…)',
+    cadenceSensorWahooRpm: 'Cadence sensor (Wahoo RPM…)',
+    strapOrWatchTrackr: 'Strap or watch (TRACKR, TICKR…)',
+    controllersClickAxsD: 'Controllers (Click, AXS, D-Fly)',
+    smartFan: 'Smart fan',
+    viaTheTrainer: 'via the trainer',
+    viaThePedals: 'via the pedals',
+    testRoadFeel: 'Test road feel',
+    reconnect: 'reconnect',
+    forget: 'forget',
+    pairedPedalsBecomeThe: 'Paired pedals become the reference power.',
+    aPairedCadenceSensor: 'A paired cadence sensor takes over from the trainer.',
+    change: 'Change',
+    pair: 'Pair',
+    bluetoothAdapter: 'Bluetooth adapter',
+    thisAreaIsNot: 'This area is not published on this server yet.',
+    theDownloadWasInterrupted: 'The download was interrupted. Check your connection and try again.',
+    areaUnavailable: 'Area unavailable',
+    downloading2: 'Downloading',
+    analysingOnYourDevice: 'Analysing on your device…',
+    cancelledPhotoDiscarded: 'Cancelled; photo discarded.',
+    faceSkinAndHair: 'Face, skin and hair applied; photo discarded.',
+    noFaceFoundSkin: 'No face found: skin and hair only.',
+    analysisFailedOnThis: 'Analysis failed on this device.',
+    gearPositionUnavailableVia: 'Gear position unavailable via D-Fly',
+    waitingForGearPosition: 'Waiting for gear position',
+    rpm: 'rpm',
+    simulatorNoHardware: 'Simulator (no hardware)',
+    noSensor: 'No sensor',
+    est: 'est.',
+    height: 'Height',
+    otherColour: 'Other colour',
+    spotifyNothingPlaying: 'Spotify: nothing playing',
+    inGame: '♪ In game',
+    cannotPlayInThe: 'Cannot play in the game.',
+    noClimbMatches: 'No climb matches.',
+    allOfParis2: 'All of Paris',
+    txt: ': ',
+  },
+);
+
+/** Textes de l'onglet Réglages. */
+const SET = strings(
+  {
+    advanced: 'Avancé',
+    sub: 'Chaque choix s’applique tout de suite, sauf mention contraire.',
+    qualityHelp: 'Plus haut : plus beau, plus exigeant pour la carte graphique.',
+    style: 'Style graphique',
+    styleGame: 'Jeu vidéo',
+    styleReal: 'Réaliste',
+    fpsCap: 'Images par seconde max.',
+    fpsHelp: 'Moins d’images : carte graphique plus calme et plus froide. Pris en compte à la prochaine sortie.',
+    fpsScreen: 'Écran',
+    aspect: 'Format de l’image',
+    aspectHelp: 'Bandes noires sur un écran plus large que le format choisi.',
+    aspectFull: 'Plein écran',
+    maxRes: 'Résolution max.',
+    hudMine: 'Mes données',
+    hudRoute: 'Parcours et environnement',
+    hudOthers: 'Autres coureurs',
+    hudMap: 'Carte et profil',
+    layout: 'Disposition de l’interface',
+    nextRide: 'Prend effet à la prochaine sortie.',
+    shown: 'Éléments affichés en sortie',
+    shownHelp: 'Décoche ce que ton matériel ne mesure pas ou ce que tu ne veux pas voir.',
+    uiArea: 'Zone de l’interface',
+    uiAreaHelp: 'Sur un écran très large, garde les compteurs au centre.',
+    uiFull: 'Toute la largeur',
+    startTime: 'Heure de départ',
+    nowTime: 'Heure actuelle',
+    customTime: 'Réglée',
+    clouds: 'Nuages',
+    rain: 'Pluie',
+    rainHelp: 'La chaussée mouillée roule moins bien.',
+    fog: 'Brouillard',
+    evolve: 'Météo pendant la sortie',
+    fixed: 'Fixe',
+    changing: 'Qui évolue',
+    diffHelp: 'Part de la pente que le home trainer te fait sentir.',
+    drive: 'Transmission',
+    driveHelp: 'Vitesses virtuelles : le jeu change de rapport, ta chaîne ne bouge pas.',
+    virtual: 'Vitesses virtuelles',
+    cassette: 'Cassette réelle',
+    inertia: 'Inertie',
+    inertiaHelp: '100 % : masse et roues réelles. Plus bas, la vitesse suit plus vite les relances.',
+    smooth: 'Lissage de la puissance',
+    smoothHelp: 'Affiche la moyenne sur 3 secondes.',
+    off: 'Non',
+    stand: 'Danseuse au-delà de',
+    standHelp: 'Auto : le coureur se lève en sprint, en côte et en force.',
+    music: 'Musique',
+    gameSounds: 'Sons du jeu',
+    gameSoundsHelp: 'Volume général, puis un curseur par famille de sons, voix comprises.',
+    tutorial: 'Tutoriel',
+    tutorialHelp: 'La présentation du premier lancement.',
+    tutorialAgain: 'Revoir le tutoriel',
+    stravaHelp: 'Envoi de tes sorties à la fin de chacune.',
+    stravaSkip: 'Ne pas envoyer',
+    stravaSend: 'Envoyer',
+    catImage: 'Image',
+    catInterface: 'Interface',
+    catRide: 'Sortie',
+    catTrainer: 'Home trainer',
+    catSound: 'Son et musique',
+    catCompanion: 'Compagnon',
+    catZones: 'Zones hors ligne',
+    catGeneral: 'Général',
+    renderNow: 'Rendu actuel',
+  },
+  {
+    advanced: 'Advanced',
+    sub: 'Every choice applies right away unless stated otherwise.',
+    qualityHelp: 'Higher: prettier, harder on the graphics card.',
+    style: 'Graphic style',
+    styleGame: 'Video game',
+    styleReal: 'Realistic',
+    fpsCap: 'Max frames per second',
+    fpsHelp: 'Fewer frames: a quieter, cooler graphics card. Applies from the next ride.',
+    fpsScreen: 'Screen',
+    aspect: 'Picture format',
+    aspectHelp: 'Black bars on a screen wider than the chosen format.',
+    aspectFull: 'Full',
+    maxRes: 'Max resolution',
+    hudMine: 'My data',
+    hudRoute: 'Route and conditions',
+    hudOthers: 'Other riders',
+    hudMap: 'Map and profile',
+    layout: 'Interface layout',
+    nextRide: 'Applies from the next ride.',
+    shown: 'Shown during the ride',
+    shownHelp: 'Untick what your hardware does not measure or what you do not want to see.',
+    uiArea: 'Interface area',
+    uiAreaHelp: 'On a very wide screen, keeps the gauges in the centre.',
+    uiFull: 'Full width',
+    startTime: 'Start time',
+    nowTime: 'Current time',
+    customTime: 'Custom',
+    clouds: 'Clouds',
+    rain: 'Rain',
+    rainHelp: 'A wet road rolls slower.',
+    fog: 'Fog',
+    evolve: 'Weather during the ride',
+    fixed: 'Fixed',
+    changing: 'Changing',
+    diffHelp: 'Share of the gradient the trainer makes you feel.',
+    drive: 'Drivetrain',
+    driveHelp: 'Virtual shifting: the game changes gear, your chain stays put.',
+    virtual: 'Virtual shifting',
+    cassette: 'Real cassette',
+    inertia: 'Inertia',
+    inertiaHelp: '100%: real mass and wheels. Lower: speed follows accelerations faster.',
+    smooth: 'Power smoothing',
+    smoothHelp: 'Shows the 3-second average.',
+    off: 'Off',
+    stand: 'Stand up above',
+    standHelp: 'Auto: the rider stands in sprints, climbs and low-cadence efforts.',
+    music: 'Music',
+    gameSounds: 'Game sounds',
+    gameSoundsHelp: 'Master volume, then one slider per sound family, voices included.',
+    tutorial: 'Tutorial',
+    tutorialHelp: 'The first-launch walkthrough.',
+    tutorialAgain: 'Watch the tutorial again',
+    stravaHelp: 'Uploads your rides when each one ends.',
+    stravaSkip: 'Don’t upload',
+    stravaSend: 'Upload',
+    catImage: 'Picture',
+    catInterface: 'Interface',
+    catRide: 'Ride',
+    catTrainer: 'Smart trainer',
+    catSound: 'Sound and music',
+    catCompanion: 'Companion',
+    catZones: 'Offline areas',
+    catGeneral: 'General',
+    renderNow: 'Current render',
+  },
+);
 import './blocks.css';
 import './menu.css';
 
@@ -104,7 +937,7 @@ const fr = () => getLang() === 'fr';
 
 /** Ressenti route : valeur affichée à côté du curseur. */
 function roadFeelValue(percent: number, L: boolean): string {
-  return percent > 0 ? `${percent} %` : L ? 'Coupé' : 'Off';
+  return percent > 0 ? `${percent} %` : S('off');
 }
 
 /** Ressenti route : message sous le curseur, en alerte à partir du seuil « fort » (id m-roadfeelmsg). */
@@ -296,7 +1129,7 @@ function workoutCard(w: (typeof WORKOUT_LIBRARY)[number], on: boolean, opens?: s
       : `<span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${w.id}" role="button" tabindex="0" aria-pressed="${fav}" title="${L ? (fav ? 'Retirer des favoris' : 'Ajouter aux favoris') : fav ? 'Remove from favourites' : 'Add to favourites'}">${fav ? '★' : '☆'}</span>`;
   return `<button class="mm-wk${on ? ' on' : ''}" ${opens ? `data-picker="${opens}"` : `data-preset="${w.id}"`} style="--wk:${TYPE_COLORS[w.type]}">
     <span class="mm-wk-head"><b>${esc(w.name[lang])}</b><em>${dur}</em>${favHtml}</span>
-    <span class="mm-wk-meta"><span class="mm-wk-type">${WORKOUT_TYPE_LABELS[w.type][lang]}</span><span class="mm-wk-stat"><small>TSS</small>${tss}</span><span class="mm-wk-stat"><small>IF</small>${ifv.toFixed(2).replace('.', L ? ',' : '.')}</span>${on && !opens ? `<span class="mm-wk-chosen">✓ ${L ? 'Choisie' : 'Selected'}</span>` : ''}</span>
+    <span class="mm-wk-meta"><span class="mm-wk-type">${WORKOUT_TYPE_LABELS[w.type][lang]}</span><span class="mm-wk-stat"><small>TSS</small>${tss}</span><span class="mm-wk-stat"><small>IF</small>${ifv.toFixed(2).replace('.', L ? ',' : '.')}</span>${on && !opens ? `<span class="mm-wk-chosen">✓ ${S('selected')}</span>` : ''}</span>
     <span class="mm-wk-desc">${esc(w.description[lang])}</span>
     <span class="mm-wk-graph" aria-hidden="true"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${shapes}</svg><i class="mm-wk-ftp" style="bottom:${ftpPct.toFixed(1)}%"><span>FTP</span></i></span>
   </button>`;
@@ -510,10 +1343,10 @@ function liveText(kind: LiveKind, live: DeviceLive | undefined): string {
   const v = live?.[kind];
   if (kind === 'gear') {
     if (live?.gear) return live.gear;
-    if (live?.di2ButtonsOnly) return fr() ? 'Rapport indisponible via D-Fly' : 'Gear position unavailable via D-Fly';
-    return fr() ? 'En attente du rapport engagé' : 'Waiting for gear position';
+    if (live?.di2ButtonsOnly) return S('gearPositionUnavailableVia');
+    return S('waitingForGearPosition');
   }
-  const unit = kind === 'watts' ? 'W' : kind === 'hr' ? 'bpm' : fr() ? 'tr/min' : 'rpm';
+  const unit = kind === 'watts' ? 'W' : kind === 'hr' ? 'bpm' : S('rpm');
   return `${v === undefined ? '—' : v} ${unit}`;
 }
 
@@ -694,12 +1527,45 @@ export class MainMenu {
       this.closePicker();
       return;
     }
-    if (!this.root.querySelector('.mm') || this.root.querySelector('.mm-modal')) return;
+    if (!this.root.querySelector('.mm')) return;
+    // Flèches : le focus passe au bouton ou bloc le plus proche dans cette direction (fenêtre ouverte comprise),
+    // sauf dans un champ de saisie, une liste ou un curseur, où elles gardent leur rôle. Entrée : natif sur <button>.
+    const dir = ARROW_DIRS[e.key];
+    if (dir) {
+      if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || inEditable(e.target as Element | null)) return;
+      if (moveFocus(dir)) e.preventDefault();
+      return;
+    }
+    if (this.root.querySelector('.mm-modal')) return;
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT') return;
     // Échap : d'un onglet vers Rouler, de Rouler vers l'accueil.
     if (e.key === 'Escape' && this.tab !== 'home') this.go(this.tab === 'ride' ? 'home' : 'ride');
   };
+
+  /**
+   * Navigation sans souris (manette, boutons du cintre) : `up`/`down`/`left`/`right` déplacent le focus comme les
+   * flèches, `confirm` active l'élément qui a le focus (ou l'action principale jaune), `back` fait comme Échap.
+   * Renvoie vrai si le menu a réagi.
+   */
+  navigate(dir: 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back'): boolean {
+    if (!this.root.querySelector('.mm')) return false;
+    if (dir === 'confirm') return activateFocus();
+    if (dir !== 'back') return moveFocus(dir);
+    if (this.picker) {
+      this.closePicker();
+      return true;
+    }
+    const modal = [...this.root.querySelectorAll<HTMLElement>('.mm-modal')].at(-1);
+    if (modal) {
+      const close = modal.querySelector<HTMLElement>('.mm-x, [data-close], [data-picker-close]:not(.mm-modal)');
+      close?.click();
+      return !!close;
+    }
+    if (this.tab === 'home') return false;
+    this.go(this.tab === 'ride' ? 'home' : 'ride');
+    return true;
+  }
   onSettingsChange?: (s: Settings) => void;
   /** Relance le tutoriel (onboarding) depuis le menu. */
   onTutorial?: () => void;
@@ -1094,7 +1960,7 @@ export class MainMenu {
 
   /** Croix de fermeture d'un panneau (retour à l'onglet Rouler, comme Échap). */
   private closeBtn(): string {
-    return `<button class="mm-close" data-tab="ride" aria-label="${fr() ? 'Fermer' : 'Close'}" title="${fr() ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>`;
+    return `<button class="mm-close" data-tab="ride" aria-label="${S('close')}" title="${S('closeEsc')}">×</button>`;
   }
 
   /** Champ numérique avec − et + aux couleurs de l'appli (remplace les flèches du navigateur). */
@@ -1136,41 +2002,41 @@ export class MainMenu {
     // le détail (heure, ciel, vent) n'apparaît qu'en personnalisé.
     const allReal = s.realTime && s.realWeather;
     const skyName: Record<string, [string, string]> = { sun: ['soleil', 'sunny'], cloudy: ['nuageux', 'cloudy'], rain: ['pluie', 'rain'], fog: ['brouillard', 'fog'] };
-    const skyLabel = sky && skyName[sky] ? (skyName[sky] as [string, string])[L ? 0 : 1] : L ? 'ciel réglé' : 'custom sky';
+    const skyLabel = sky && skyName[sky] ? (skyName[sky] as [string, string])[L ? 0 : 1] : S('customSky');
     const summary = allReal
       ? L
         ? `Heure actuelle (${this.hourLabel(nowHour())}) et météo du moment autour du départ.`
         : `Current time (${this.hourLabel(nowHour())}) and today’s weather around the start.`
-      : `${L ? 'Départ à' : 'Start at'} ${this.hourLabel(s.realTime ? nowHour() : s.hour)} · ${s.realWeather ? (L ? 'météo du moment' : 'today’s weather') : skyLabel}`;
+      : `${S('startAt')} ${this.hourLabel(s.realTime ? nowHour() : s.hour)} · ${s.realWeather ? (S('todaySWeather')) : skyLabel}`;
     return `<div class="mm-card mm-wxcard">
-      <div class="mm-opt mm-opt-first"><div class="mm-opt-l"><b>${L ? 'Heure et météo' : 'Time and weather'}</b><small>${esc(summary)}</small></div>${this.seg('m-realall', allReal ? '1' : '0', [
-        ['1', L ? 'Réelles' : 'Real'],
-        ['0', L ? 'Personnalisées' : 'Custom'],
+      <div class="mm-opt mm-opt-first"><div class="mm-opt-l"><b>${S('timeAndWeather')}</b><small>${esc(summary)}</small></div>${this.seg('m-realall', allReal ? '1' : '0', [
+        ['1', S('real')],
+        ['0', S('custom')],
       ])}</div>
       ${allReal ? '' : `<div class="mm-weather">
       ${this.hourFields()}
-      <div class="field">${L ? 'Conditions' : 'Conditions'}${this.seg('m-realwx', s.realWeather ? '1' : '0', [
-        ['1', L ? 'Du jour (réelles)' : 'Today (real)'],
-        ['0', L ? 'Réglées' : 'Custom'],
+      <div class="field">${S('conditions')}${this.seg('m-realwx', s.realWeather ? '1' : '0', [
+        ['1', S('todayReal')],
+        ['0', S('custom2')],
       ])}</div>
       ${
         s.realWeather
-          ? `<p class="hw-hint">${L ? 'Ciel, pluie, brouillard et vent réels autour du départ, à l’heure choisie (prévision du jour <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color:inherit">Open-Meteo</a>). Sans réseau : conditions réglées.' : 'Real sky, rain, fog and wind around the start, at the chosen time (today’s <a href="https://open-meteo.com" target="_blank" rel="noopener" style="color:inherit">Open-Meteo</a> forecast). Offline: custom conditions.'}</p>`
-          : `<div class="field">${L ? 'Ciel' : 'Sky'}${this.seg('m-wx', sky, [
-        ['sun', L ? '☀ Soleil' : '☀ Sunny'],
-        ['cloudy', L ? '☁ Nuageux' : '☁ Cloudy'],
-        ['rain', L ? '🌧 Pluie' : '🌧 Rain'],
-        ['fog', L ? '🌫 Brouillard' : '🌫 Fog'],
+          ? `<p class="hw-hint">${S('realSkyRainFog')}</p>`
+          : `<div class="field">${S('sky')}${this.seg('m-wx', sky, [
+        ['sun', S('sunny')],
+        ['cloudy', S('cloudy')],
+        ['rain', S('rain')],
+        ['fog', S('fog')],
       ])}</div>
-      <div class="field">${L ? 'Vent' : 'Wind'}${this.seg('m-wind', wind, [
-        ['0', L ? 'Calme' : 'Calm'],
-        ['3', L ? 'Léger' : 'Light'],
-        ['6', L ? 'Moyen' : 'Moderate'],
-        ['10', L ? 'Fort' : 'Strong'],
+      <div class="field">${S('wind')}${this.seg('m-wind', wind, [
+        ['0', S('calm')],
+        ['3', S('light')],
+        ['6', S('moderate')],
+        ['10', S('strong')],
       ])}</div>
-      <div class="field">${L ? 'Météo' : 'Weather'}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
-        ['0', L ? 'Fixe' : 'Fixed'],
-        ['1', L ? 'Qui évolue' : 'Changing'],
+      <div class="field">${S('weather')}${this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [
+        ['0', S('fixed')],
+        ['1', S('changing')],
       ])}</div>`
       }
     </div>`}
@@ -1265,10 +2131,9 @@ export class MainMenu {
   /** Heure de départ : l'heure actuelle (choisie par défaut) ou une heure réglée à la main avec le curseur. */
   private hourFields(): string {
     const s = this.s;
-    const L = fr();
-    return `<div class="field">${L ? 'Heure de départ' : 'Start time'}${this.seg('m-realtime', s.realTime ? '1' : '0', [
-      ['1', `${L ? 'Heure actuelle' : 'Current time'} · ${this.hourLabel(nowHour())}`],
-      ['0', L ? 'Réglée' : 'Custom'],
+    return `<div class="field">${S('startTime')}${this.seg('m-realtime', s.realTime ? '1' : '0', [
+      ['1', `${S('currentTime')} · ${this.hourLabel(nowHour())}`],
+      ['0', S('custom3')],
     ])}</div>${
       s.realTime
         ? ''
@@ -1321,9 +2186,9 @@ export class MainMenu {
     const tabs: Array<[Tab, string]> = [
       ['ride', t('ride')],
       ['garage', 'Garage'],
-      ['progress', L ? 'Progression' : 'Progress'],
+      ['progress', S('progress')],
       ['profile', t('profile')],
-      ['friends', L ? 'Amis' : 'Friends'],
+      ['friends', S('friends')],
       ['devices', t('devices')],
       ['settings', t('settings')],
     ];
@@ -1349,9 +2214,9 @@ export class MainMenu {
     // Accueil : rien que la vidéo, le titre et le bouton Rouler, qui ouvre le menu. Le bouton n'apparaît qu'une fois le
     // garage chargé en mémoire (barre d'attente à sa place) : le garage et le tutoriel s'ouvrent alors sans attente.
     if (this.tab === 'home') {
-      const wait = `<div class="mm-home-wait" role="status"><div class="world-wait-bar"><i></i></div><span>${L ? 'Chargement du garage…' : 'Loading the garage…'} <b class="mm-home-wait-pct">${this.garageProgress > 0 ? `${Math.round(this.garageProgress * 100)} %` : ''}</b></span></div>`;
+      const wait = `<div class="mm-home-wait" role="status"><div class="world-wait-bar"><i></i></div><span>${S('loadingTheGarage')} <b class="mm-home-wait-pct">${this.garageProgress > 0 ? `${Math.round(this.garageProgress * 100)} %` : ''}</b></span></div>`;
       this.root.innerHTML = `<div class="mm mm-tab-home">
-        <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+        <div class="mm-hero mm-hero-home"><h1>Allez <em>Robert</em> !</h1><p>${S('rideTogetherEachFrom')}</p></div>
         ${this.garageReady ? `<button class="mm-go mm-home-go" data-tab="ride">${t('ride')}</button>` : wait}
       </div>`;
       this.bind();
@@ -1363,7 +2228,7 @@ export class MainMenu {
       friends: () => this.friends.html(),
       garage: () => this.garageHtml(),
       devices: () =>
-        `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}<header class="mm-head"><h2>${t('devices')}</h2><p>${L ? 'Associe ton home trainer et tes capteurs. Une seule appli à la fois par capteur Bluetooth.' : 'Pair your trainer and sensors. One app at a time per Bluetooth sensor.'}</p></header><div id="m-devices"></div></section>`,
+        `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}<header class="mm-head"><h2 class="ab-title">${t('devices')}</h2><p class="ab-sub">${S('pairYourTrainerAnd')}</p></header><div id="m-devices"></div></section>`,
       progress: () => this.progress.html(this.closeBtn()),
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
@@ -1385,12 +2250,12 @@ export class MainMenu {
         <div class="mm-right">
           ${this.musicInHero() ? '' : '<div class="mm-music" id="m-music"></div>'}
           <div class="mm-account">
-            <div class="mm-avatar mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
-            <div class="mm-who mm-me" data-tab="profile" role="button" title="${L ? 'Mon profil' : 'My profile'}"><b>${esc(name)}</b>
-              <span>${L ? 'Niveau' : 'Level'} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${L ? 'Crédits : ouvrir l’atelier du garage pour les dépenser' : 'Credits: open the garage workshop to spend them'}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
-            ${this.account ? `<button class="mm-link" id="m-logout">${L ? 'Déconnexion' : 'Sign out'}</button>` : `<button class="mm-link" id="m-login">${L ? 'Se connecter' : 'Sign in'}</button>`}
+            <div class="mm-avatar mm-me" data-tab="profile" role="button" title="${S('myProfile')}" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
+            <div class="mm-who mm-me" data-tab="profile" role="button" title="${S('myProfile')}"><b>${esc(name)}</b>
+              <span>${S('level')} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${S('creditsOpenTheGarage')}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</em></span></div>
+            ${this.account ? `<button class="mm-link" id="m-logout">${S('signOut')}</button>` : `<button class="mm-link" id="m-login">${S('signIn')}</button>`}
           </div>
-          ${inDesktop ? `<button class="mm-quit" id="m-quit" title="${L ? 'Quitter Allez Robert !' : 'Quit Allez Robert!'}" aria-label="${L ? 'Quitter' : 'Quit'}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>` : ''}
+          ${inDesktop ? `<button class="mm-quit" id="m-quit" title="${S('quitAllezRobert')}" aria-label="${S('quit')}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>` : ''}
         </div>
       </header>
       ${body[this.tab]()}
@@ -1469,8 +2334,8 @@ export class MainMenu {
     const chips = real.length
       ? real.map((d) => `<span class="mm-chip ok">${esc(d.name)}</span>`).join('')
       : sim
-        ? `<span class="mm-chip sim">${fr() ? 'Simulateur (sans matériel)' : 'Simulator (no hardware)'}</span>`
-        : `<span class="mm-chip warn">${fr() ? 'Aucun capteur' : 'No sensor'}</span>`;
+        ? `<span class="mm-chip sim">${S('simulatorNoHardware')}</span>`
+        : `<span class="mm-chip warn">${S('noSensor')}</span>`;
     box.innerHTML = `<button class="mm-chips" title="${t('devices')}">${chips}</button>`;
     box.querySelector('.mm-chips')?.addEventListener('click', () => this.go('devices'));
   }
@@ -1486,45 +2351,45 @@ export class MainMenu {
     const shown = s.mode === 'open' ? 'free' : s.mode;
     const line = MODE_LINES[L ? 'fr' : 'en'];
     return `<section class="mm-panel mm-left">
-      <header class="mm-head"><h2>${L ? 'Que veux-tu faire ?' : 'What do you want to do?'}</h2></header>
+      <header class="mm-head"><h2 class="ab-title">${S('whatDoYouWant')}</h2></header>
       <div class="mm-modes">${this.modes()
         .map(
           ([v, k]) =>
             `<button class="mm-mode ${v === shown ? 'on' : ''}" data-mode="${v}" aria-pressed="${v === shown}" style="--c:${MODE_COLORS[v] ?? '#ffd23f'}"><span class="mm-mode-ico">${ICON[v]}</span><b>${esc(t(k))}</b></button>`,
         )
         .join('')}</div>
-      <p class="mm-hint">${s.mode === 'open' ? (L ? 'Parcours libre : ← / → pour choisir ta direction à chaque carrefour, U pour faire demi-tour.' : 'Free ride: ← / → to pick your way at each junction, U to turn around.') : esc(line[shown as Settings['mode']] ?? '')}</p>
+      <p class="mm-hint">${s.mode === 'open' ? (S('freeRideToPick')) : esc(line[shown as Settings['mode']] ?? '')}</p>
       <div id="m-openworld" class="ow" hidden></div>
       <hr class="mm-sep" />
       ${this.weatherHtml()}
       ${
         s.mode === 'group' || s.mode === 'race'
           ? `<div class="mm-card">
-              <h3 class="mm-card-t">${L ? 'Rejoindre une sortie' : 'Join a ride'}</h3>
-              <p class="mm-card-d">${L ? 'Un ami t’a donné un code ? Saisis-le : tu roules avec ses réglages.' : 'Got a code from a friend? Enter it: you ride with their settings.'}</p>
-              <input id="m-invite" class="mm-input" placeholder="${L ? 'Code d’invitation' : 'Invite code'}" />
+              <h3 class="mm-card-t">${S('joinARide')}</h3>
+              <p class="mm-card-d">${S('gotACodeFrom')}</p>
+              <input id="m-invite" class="mm-input" placeholder="${S('inviteCode')}" />
             </div>
             <div class="mm-card mm-groupopts">
-              <h3 class="mm-card-t">${s.mode === 'race' ? (L ? 'Ou créer ta course' : 'Or create your race') : L ? 'Ou créer ta sortie' : 'Or create your ride'}</h3>
-              <p class="mm-card-d">${L ? 'Ces réglages, ton heure et ta météo valent pour tout le groupe.' : 'These settings, your time and your weather apply to the whole group.'}</p>
+              <h3 class="mm-card-t">${s.mode === 'race' ? (S('orCreateYourRace')) : S('orCreateYourRide')}</h3>
+              <p class="mm-card-d">${S('theseSettingsYourTime')}</p>
               ${
                 // Course sur une boucle : nombre de tours (créateur de la course).
                 s.mode === 'race' && r?.loop
-                  ? `<div class="mm-opt"><div class="mm-opt-l"><b>${L ? 'Tours' : 'Laps'}</b><small>${L ? 'La course s’arrête après ce nombre de tours.' : 'The race ends after this many laps.'}</small></div>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div>`
+                  ? `<div class="mm-opt"><div class="mm-opt-l"><b>${S('laps')}</b><small>${S('theRaceEndsAfter')}</small></div>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div>`
                   : ''
               }
-              <div class="mm-opt"><div class="mm-opt-l"><b>${L ? 'Coureurs IA' : 'AI riders'}</b><small>${L ? 'Chacun a sa tactique et sa forme du jour.' : 'Each has its own tactic and form of the day.'}</small></div>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
+              <div class="mm-opt"><div class="mm-opt-l"><b>${S('aiRiders')}</b><small>${S('eachHasItsOwn')}</small></div>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
               ${
                 s.mode === 'race'
-                  ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Niveau des IA' : 'AI level'}</b><small>${L ? 'Leur puissance, en part de ta FTP.' : 'Their power, as a share of your FTP.'}</small></div>${this.aiLevelSeg()}</div>`
-                  : `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Vitesse moyenne visée' : 'Target average speed'}</b><small>${L ? 'Les IA règlent leur effort pour la tenir ; l’organisateur peut l’augmenter en route.' : 'AI riders pace themselves to hold it; the host can raise it on the road.'}</small></div>${this.seg('m-target', String(s.groupTargetKmh), [
-                      ['0', L ? 'Libre' : 'Free'],
+                  ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('aiLevel')}</b><small>${S('theirPowerAsA')}</small></div>${this.aiLevelSeg()}</div>`
+                  : `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('targetAverageSpeed')}</b><small>${S('aiRidersPaceThemselves')}</small></div>${this.seg('m-target', String(s.groupTargetKmh), [
+                      ['0', S('free')],
                       ...[22, 25, 28, 30, 32, 35].map((v): [string, string] => [String(v), `${v} km/h`]),
                     ])}</div>`
               }
-              <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Vélos' : 'Bikes'}</b><small>${L ? 'Le même vélo pour tous, ou chacun le sien avec ses pièces de l’atelier.' : 'The same bike for all, or each rider’s own with its workshop parts.'}</small></div>${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
-                ['1', L ? 'Même vélo pour tous' : 'Same bike for all'],
-                ['0', L ? 'Chacun son vélo' : 'Each their own'],
+              <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('bikes')}</b><small>${S('theSameBikeFor')}</small></div>${this.seg('m-equal', (s.equalEquipment ?? s.mode === 'race') ? '1' : '0', [
+                ['1', S('sameBikeForAll')],
+                ['0', S('eachTheirOwn')],
               ])}</div>
             </div>`
           : s.mode === 'challenge'
@@ -1538,10 +2403,10 @@ export class MainMenu {
           ? this.ftpTestHtml()
           : s.mode === 'challenge'
             ? ''
-            : `<h3 class="ab-section mm-where">${L ? 'Où rouler ?' : 'Where to ride?'}</h3>${this.pickersHtml(r)}`
+            : `<h3 class="ab-section mm-where">${S('whereToRide')}</h3>${this.pickersHtml(r)}`
       }
     </section>
-    <div class="mm-hero">${this.musicInHero() ? '<div class="mm-music mm-hero-music" id="m-music"></div>' : ''}<h1>Allez <em>Robert</em> !</h1><p>${L ? 'Rouler ensemble, chacun chez soi.' : 'Ride together, each from home.'}</p></div>
+    <div class="mm-hero">${this.musicInHero() ? '<div class="mm-music mm-hero-music" id="m-music"></div>' : ''}<h1>Allez <em>Robert</em> !</h1><p>${S('rideTogetherEachFrom')}</p></div>
     ${this.pickerHtml()}`;
   }
 
@@ -1550,7 +2415,7 @@ export class MainMenu {
     const L = fr();
     const cur = COUNTRIES.find((c) => c.code === this.s.look.nationality);
     const item = (code: string, label: string) => `<button type="button" role="option" class="mm-dd-opt${code === (cur?.code ?? '') ? ' on' : ''}" data-nation="${code}">${code ? flagSvg(code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(label)}</span></button>`;
-    return `<div class="mm-dd" id="m-nation"><button type="button" class="mm-dd-btn" aria-haspopup="listbox">${cur ? flagSvg(cur.code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(cur ? cur[L ? 'fr' : 'en'] : L ? 'Choisir mon pays' : 'Choose my country')}</span><em>▾</em></button><div class="mm-dd-list" role="listbox" hidden>${item('', L ? 'Aucune' : 'None')}${COUNTRIES.map((c) => item(c.code, c[L ? 'fr' : 'en'])).join('')}</div></div>`;
+    return `<div class="mm-dd" id="m-nation"><button type="button" class="mm-dd-btn" aria-haspopup="listbox">${cur ? flagSvg(cur.code, 15) : '<i class="mm-dd-none"></i>'}<span>${esc(cur ? cur[L ? 'fr' : 'en'] : S('chooseMyCountry'))}</span><em>▾</em></button><div class="mm-dd-list" role="listbox" hidden>${item('', S('none'))}${COUNTRIES.map((c) => item(c.code, c[L ? 'fr' : 'en'])).join('')}</div></div>`;
   }
 
   /** Lecteur au-dessus du titre (onglet Rouler, écran large) ; sinon dans la barre du haut (petits écrans, autres onglets). */
@@ -1561,15 +2426,14 @@ export class MainMenu {
 
   /** Séance choisie (carte seule, un clic rouvre la liste au milieu de l'écran) ou fichier importé. */
   private workoutChoiceHtml(): string {
-    const L = fr();
     const w = WORKOUT_LIBRARY.find((x) => x.id === this.s.workoutPreset) ?? WORKOUT_LIBRARY[0];
     const current = this.workoutFile
-      ? `<button class="mm-wk on" data-picker="workouts" style="--wk:#9aa5b1"><span class="mm-wk-head"><b>${esc(this.workoutFile.name.replace(/\.json$/i, ''))}</b></span><span class="mm-wk-desc">${L ? 'Ma séance' : 'My workout'}</span></button>`
+      ? `<button class="mm-wk on" data-picker="workouts" style="--wk:#9aa5b1"><span class="mm-wk-head"><b>${esc(this.workoutFile.name.replace(/\.json$/i, ''))}</b></span><span class="mm-wk-desc">${S('myWorkout')}</span></button>`
       : w
         ? workoutCard(w, true, 'workouts')
         : '';
     return `<div class="mm-wks">${current}</div>
-      <button class="ab-btn mm-change" data-picker="workouts">${L ? 'Changer de séance' : 'Change workout'}</button>`;
+      <button class="ab-btn mm-change" data-picker="workouts">${S('changeWorkout')}</button>`;
   }
 
   /** Fenêtre « Séances » au milieu de l'écran, comme la carte de France : séances intégrées et import de fichier. */
@@ -1577,7 +2441,7 @@ export class MainMenu {
     const L = fr();
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker wk-dialog ws" role="dialog" aria-modal="true">
-        <header><h2 class="ab-title">${L ? 'Choisis ta séance' : 'Choose your workout'}</h2><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><h2 class="ab-title">${S('chooseYourWorkout')}</h2><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         ${workoutStudioHtml({
           fr: L,
           filter: this.wkFilter,
@@ -1596,7 +2460,7 @@ export class MainMenu {
           sort: this.wkSort,
           intensity: clampWorkoutIntensity(this.s.workoutIntensity),
         })}
-        <label class="mm-file">${L ? 'Ou importer une séance' : 'Or import a workout'} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
+        <label class="mm-file">${S('orImportAWorkout')} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
       </div></div>`;
   }
 
@@ -1634,12 +2498,12 @@ export class MainMenu {
               ['Result', 'FTP = 95% of your 20-minute average. At the end you choose whether to keep it.'],
             ]
         : p === 'rampLite'
-          ? ramp(L ? '8 min de 50 à 80 W' : '8 min from 50 to 80 W', 50, 10, L ? '15 à 30 min' : '15–30 min')
-          : ramp(L ? '5 min à 100 W' : '5 min at 100 W', 100, 20, L ? '10 à 20 min' : '10–20 min');
+          ? ramp(S('t8MinFrom50'), 50, 10, S('t1530Min'))
+          : ramp(S('t5MinAt100'), 100, 20, S('t1020Min'));
     const opts: Array<[string, string]> = [
-      ['ramp', L ? 'Rampe' : 'Ramp'],
-      ['rampLite', L ? 'Rampe douce' : 'Gentle ramp'],
-      ['ftp20', L ? 'Test 20 min' : '20-min test'],
+      ['ramp', S('ramp')],
+      ['rampLite', S('gentleRamp')],
+      ['ftp20', S('t20MinTest')],
     ];
     const who =
       p === 'ftp20'
@@ -1654,13 +2518,13 @@ export class MainMenu {
             ? 'Court et sans calcul d’allure : le plus simple pour la plupart des coureurs.'
             : 'Short and no pacing needed: the simplest for most riders.';
     return `<div class="mm-card mm-ftptest">
-      <div class="mm-opt mm-opt-col mm-opt-first"><div class="mm-opt-l"><b>${L ? 'Protocole' : 'Protocol'}</b><small>${who}</small></div>${this.seg('m-ftpproto', p, opts)}</div>
+      <div class="mm-opt mm-opt-col mm-opt-first"><div class="mm-opt-l"><b>${S('protocol')}</b><small>${who}</small></div>${this.seg('m-ftpproto', p, opts)}</div>
       ${ftpTestChartHtml(p, this.s.ftpWatts, L)}
-      <div class="mm-opt"><div class="mm-opt-l"><b>${L ? 'Voix du coach' : 'Coach voice'}</b><small>${L ? 'Annonce les paliers et la FTP estimée en direct.' : 'Announces the steps and the live FTP estimate.'}</small></div>${this.seg('m-ftpvoice', this.s.ftpCoachVoice === false ? '0' : '1', [
-        ['1', L ? 'Oui' : 'On'],
-        ['0', L ? 'Non' : 'Off'],
+      <div class="mm-opt"><div class="mm-opt-l"><b>${S('coachVoice')}</b><small>${S('announcesTheStepsAnd')}</small></div>${this.seg('m-ftpvoice', this.s.ftpCoachVoice === false ? '0' : '1', [
+        ['1', S('on')],
+        ['0', S('off2')],
       ])}</div>
-      <details class="mm-more"><summary>${L ? 'Comment se passe le test' : 'How the test works'}</summary>
+      <details class="mm-more"><summary>${S('howTheTestWorks')}</summary>
         <ol>${steps.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ol>
       </details>
       <p class="mm-hint">${L ? `FTP actuelle : ${Math.round(this.s.ftpWatts)} W. Bien reposé, ventilateur allumé, bidon à portée de main.` : `Current FTP: ${Math.round(this.s.ftpWatts)} W. Be rested, fan on, bottle within reach.`}</p>
@@ -1684,9 +2548,9 @@ export class MainMenu {
     const free = this.s.mode === 'open';
     const drawn = this.drawnChoice;
     const route = free ? null : (drawn ?? r ?? null);
-    const what = free ? (L ? 'Parcours libre' : 'Free ride') : drawn ? (L ? 'Parcours dessiné' : 'Drawn route') : route ? this.routeName(route) : '';
+    const what = free ? (S('freeRide')) : drawn ? (S('drawnRoute')) : route ? this.routeName(route) : '';
     const stats = route
-      ? `${this.km(route.lengthM)} km · ${Math.round(route.elevationGainM)} m D+${route.loop ? (L ? ' · boucle' : ' · loop') : ''}`
+      ? `${this.km(route.lengthM)} km · ${Math.round(route.elevationGainM)} m D+${route.loop ? (S('loop')) : ''}`
       : free
         ? L
           ? 'Choisis ta route à chaque carrefour'
@@ -1696,11 +2560,11 @@ export class MainMenu {
     const map = this.openWorld && this.selMap && this.s.mode !== 'workout' ? this.planner.preview(route, free ? this.freeStart : null) : '';
     const body = map ? `<div class="mm-selmap">${map}</div>` : route ? this.routeCard(route) : '';
     const pickers = `<div class="mm-pickers mm-pickers-one">
-      <button class="mm-pick mm-pick-big ab-btn" data-picker="zones"><b>${what ? (L ? 'Changer de sortie' : 'Change ride') : L ? 'Choisir ma sortie' : 'Choose my ride'}</b></button>
+      <button class="mm-pick mm-pick-big ab-btn" data-picker="zones"><b>${what ? (S('changeRide')) : S('chooseMyRide')}</b></button>
     </div>`;
     // Sans carte de la zone, la fiche du parcours porte déjà son nom et ses chiffres.
     const head = map || !route ? `<b>${esc(what)}</b><span>${esc(stats)}</span>` : '';
-    return `${what ? `<button class="mm-sel" data-picker="zone" title="${L ? 'Changer de parcours' : 'Change route'}"><span class="mm-sel-head"><small>${esc(zone)}</small>${head}</span>${body}</button>` : ''}
+    return `${what ? `<button class="mm-sel" data-picker="zone" title="${S('changeRoute')}"><span class="mm-sel-head"><small>${esc(zone)}</small>${head}</span>${body}</button>` : ''}
     ${pickers}`;
   }
 
@@ -1713,7 +2577,7 @@ export class MainMenu {
       const w = WORLD_LIST.find((x) => x.id === this.worldId);
       return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker" role="dialog" aria-modal="true">
-        <header><h2>${esc(w ? w.name[getLang()] : this.worldId)}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${L ? 'Choix de la zone' : 'Area choices'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><h2>${esc(w ? w.name[getLang()] : this.worldId)}</h2><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${S('areaChoices')}</button></span><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         ${this.planner.html((r) => this.routeCard(r))}
       </div></div>`;
     }
@@ -1730,49 +2594,48 @@ export class MainMenu {
     else if (this.routeSort === 'climb') sorted.sort((x, y) => x.elevationGainM - y.elevationGainM);
     const waiting = !this.routeStore.complete && !this.routesFailed;
     const ghosts = waiting ? Array.from({ length: Math.max(0, Math.min(3, this.routeIds.length - sorted.length)) }, () => `<div class="rpk rpk-ghost" aria-hidden="true"></div>`).join('') : '';
-    const list = `<div class="rpk-bar"><span class="rpk-count">${sorted.length} ${L ? 'parcours' : sorted.length > 1 ? 'routes' : 'route'}${waiting ? ` · ${L ? 'chargement des autres…' : 'loading the others…'}` : ''}</span>${this.seg('m-routesort', this.routeSort, [
-      ['default', L ? 'Ordre de la zone' : 'Area order'],
-      ['dist', L ? 'Par distance' : 'By distance'],
-      ['climb', L ? 'Par dénivelé' : 'By climbing'],
+    const list = `<div class="rpk-bar"><span class="rpk-count">${sorted.length} ${L ? 'parcours' : sorted.length > 1 ? 'routes' : 'route'}${waiting ? ` · ${S('loadingTheOthers')}` : ''}</span>${this.seg('m-routesort', this.routeSort, [
+      ['default', S('areaOrder')],
+      ['dist', S('byDistance')],
+      ['climb', S('byClimbing')],
     ])}</div>
       <div class="mm-cardgrid">${sorted
         .map((x) => {
           const on = x.id === this.s.routeId;
-          const tag = `${x.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}${on ? ` · ${L ? 'choisi' : 'selected'}${this.s.reverse ? (L ? ', sens inverse' : ', reversed') : ''}${this.s.startM > 0 ? (L ? ', départ déplacé' : ', moved start') : ''}` : ''}`;
+          const tag = `${x.loop ? (S('loop2')) : S('oneWay')}${on ? ` · ${S('selected2')}${this.s.reverse ? (S('reversed')) : ''}${this.s.startM > 0 ? (S('movedStart')) : ''}` : ''}`;
           return `<div class="mm-routepick rpk ${on ? 'on' : ''}" role="button" tabindex="0" data-routepick="${esc(x.id)}" aria-pressed="${on}">
             ${this.routeCard(x)}
             <span class="mm-routetag">${tag}</span>
-            <span class="rpk-foot">${on ? `<span class="ab-state is-ok"><i></i>${L ? 'Parcours choisi' : 'Selected route'}</span>` : '<span></span>'}<button type="button" class="ab-btn ab-chip rpk-open" data-route="${esc(x.id)}">${L ? 'Fiche' : 'Details'}</button></span></div>`;
+            <span class="rpk-foot">${on ? `<span class="ab-state is-ok"><i></i>${S('selectedRoute')}</span>` : '<span></span>'}<button type="button" class="ab-btn ab-chip rpk-open" data-route="${esc(x.id)}">${S('details')}</button></span></div>`;
         })
         .join('')}${ghosts}</div>${
         this.routesFailed && !this.routeStore.complete
-          ? `<p class="mm-hint rpk-fail">${L ? 'Certains parcours n’ont pas pu être chargés. Ferme puis rouvre cette fenêtre pour réessayer.' : 'Some routes could not be loaded. Close and reopen this window to try again.'}</p>`
+          ? `<p class="mm-hint rpk-fail">${S('someRoutesCouldNot')}</p>`
           : ''
       }
-        ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${L ? 'Explorer la carte' : 'Explore the map'}</b><small>${L ? 'Caméra libre, sans rouler · Échap pour revenir' : 'Free camera, no riding · Esc to come back'}</small></span></button>` : ''}`;
+        ${this.onExplore ? `<button id="m-explore" class="mm-explore">${ICON.explore}<span><b>${S('exploreTheMap')}</b><small>${S('freeCameraNoRiding')}</small></span></button>` : ''}`;
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker pk" role="dialog" aria-modal="true">
-        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Parcours' : 'Routes'}${w ? ` · ${esc(w.name[getLang()])}` : ''}</h2><p class="ab-sub">${L ? 'Un clic choisit le parcours ; sa fiche montre les montées et les records.' : 'One click selects the route; its details show climbs and records.'}</p></div><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${L ? 'Choix de la zone' : 'Area choices'}</button></span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><div class="pk-head"><h2 class="ab-title">${S('routes')}${w ? ` · ${esc(w.name[getLang()])}` : ''}</h2><p class="ab-sub">${S('oneClickSelectsThe')}</p></div><span class="rp-head-links"><button class="mm-link" data-picker="zone">← ${S('areaChoices')}</button></span><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         ${list}
       </div></div>`;
   }
 
   /** Fiche d'un parcours : carte, profil, montées, records (les temps du serveur arrivent ensuite). */
   private routeDetailWindow(): string {
-    const L = fr();
     const base = this.routes.find((x) => x.id === this.detailId);
     if (!base) return '';
     const r = this.detailRoute(base);
     const chosen = base.id === this.s.routeId && this.s.reverse === this.detailReverse && (this.s.startM || 0) === this.detailStartM;
     const dir = canReverse(base)
       ? this.seg('rd-dir', this.detailReverse ? '1' : '0', [
-          ['0', L ? 'Sens normal' : 'Normal'],
-          ['1', L ? 'Sens inverse' : 'Reversed'],
+          ['0', S('normal')],
+          ['1', S('reversed2')],
         ])
       : '';
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker rd-dialog" role="dialog" aria-modal="true">
-        <header><h2>${esc(this.routeName(base))}</h2><span class="rd-head-tag">${r.loop ? (L ? 'Boucle' : 'Loop') : L ? 'Aller simple' : 'One way'}</span>${dir}<span class="rp-head-links"><button class="mm-link" data-picker="routes">← ${L ? 'Parcours' : 'Routes'}</button>${chosen ? '' : `<button class="mm-link" data-rd="pick">${L ? 'Choisir sans partir' : 'Select without riding'}</button>`}</span><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><h2>${esc(this.routeName(base))}</h2><span class="rd-head-tag">${r.loop ? (S('loop2')) : S('oneWay')}</span>${dir}<span class="rp-head-links"><button class="mm-link" data-picker="routes">← ${S('routes')}</button>${chosen ? '' : `<button class="mm-link" data-rd="pick">${S('selectWithoutRiding')}</button>`}</span><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         ${routeDetailHtml(r, this.routeName(r), { loggedIn: !!this.account, start: { movable: canMoveStart(this.detailDir(base)), startM: this.detailStartM } })}
       </div></div>`;
   }
@@ -1839,14 +2702,14 @@ export class MainMenu {
   private challengeChoiceHtml(r: RouteData | undefined): string {
     const L = fr();
     const koms = this.zoneClimbs(r);
-    if (!koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée dans cette zone.' : 'No timed climb in this area.'}</p><button class="ab-btn mm-change" data-picker="koms">${L ? 'Voir toutes les montées' : 'See all climbs'}</button>`;
+    if (!koms.length) return `<p class="mm-hint">${S('noTimedClimbIn')}</p><button class="ab-btn mm-change" data-picker="koms">${S('seeAllClimbs')}</button>`;
     const cur = koms.find((c) => c.k.id === this.s.challengeSeg && c.route.id === this.s.routeId) ?? (koms[0] as (typeof koms)[number]);
     this.s.challengeSeg = cur.k.id;
     const rec = readKomRecord(cur.route.id, cur.k.id);
-    const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : L ? 'pas encore de record' : 'no record yet';
-    return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${L ? 'Changer de montée' : 'Change climb'}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(cur.k.name)}</b><span class="ab-detail">${L ? 'Record' : 'Best'} : ${t}</span>
+    const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
+    return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${S('changeClimb')}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(cur.k.name)}</b><span class="ab-detail">${S('best')} : ${t}</span>
         <span class="mm-kom-vals"><span class="ab-val"><b>${this.km(cur.k.endM - cur.k.startM)}</b><small>km</small></span><span class="ab-val"><b>${cur.k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')}</b><small>%</small></span></span></button>
-      <button class="ab-btn mm-change" data-picker="koms">${L ? 'Changer de montée' : 'Change climb'}</button>`;
+      <button class="ab-btn mm-change" data-picker="koms">${S('changeClimb')}</button>`;
   }
 
   /** Fenêtre centrale « Défi KOM » : tableau des montées et de tes records, filtre par zone. */
@@ -1862,7 +2725,7 @@ export class MainMenu {
       .filter((z) => !filter || z === filter)
       .flatMap((z) => (index[z] ?? []).map((c) => ({ zone: z, ...c, rec: readKomRecord(c.routeId, c.segId) })));
     const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
-    const chips = [['', L ? 'Toutes les zones' : 'All areas'] as const, ...zoneIds.map((z) => [z, this.zoneLabel(z)] as const)]
+    const chips = [['', S('allAreas')] as const, ...zoneIds.map((z) => [z, this.zoneLabel(z)] as const)]
       .map(([z, label]) => `<button class="kom-chip${z === filter ? ' on' : ''}" data-komzone="${esc(z)}">${esc(label)}</button>`)
       .join('');
     const body = rows.length
@@ -1875,21 +2738,21 @@ export class MainMenu {
               <span class="ab-ico sm">${ICON.challenge}</span>
               <span class="ab-name">${esc(c.name)}</span>
               <span class="ab-detail">${esc(c.routeName)} · ${esc(this.zoneLabel(c.zone))}</span>
-              <span class="ab-val kom-vals"><span><b>${this.km(c.lengthM)}</b><small>km</small></span><span><b>${c.grade.toFixed(1).replace('.', L ? ',' : '.')}</b><small>%</small></span><span class="kom-best">${c.rec ? `<b>${fmt(c.rec.timeS)}</b><small>${L ? 'mon record' : 'my best'}</small>` : `<small>${L ? 'pas encore de record' : 'no record yet'}</small>`}</span></span>
-              <span class="ab-state${on ? ' is-ok' : ''}"><i></i>${on ? (L ? 'Choisie' : 'Selected') : date ? `${L ? 'Record du' : 'Best on'} ${date}` : L ? 'À découvrir' : 'Not ridden yet'}</span>
-              <span class="ab-act${on ? ' quiet' : ''}">${on ? (L ? 'Choisie' : 'Selected') : L ? 'Défier' : 'Challenge'}</span>
+              <span class="ab-val kom-vals"><span><b>${this.km(c.lengthM)}</b><small>km</small></span><span><b>${c.grade.toFixed(1).replace('.', L ? ',' : '.')}</b><small>%</small></span><span class="kom-best">${c.rec ? `<b>${fmt(c.rec.timeS)}</b><small>${S('myBest')}</small>` : `<small>${S('noRecordYet')}</small>`}</span></span>
+              <span class="ab-state${on ? ' is-ok' : ''}"><i></i>${on ? (S('selected')) : date ? `${S('bestOn')} ${date}` : S('notRiddenYet')}</span>
+              <span class="ab-act${on ? ' quiet' : ''}">${on ? (S('selected')) : S('challenge')}</span>
             </button>`;
           })
           .join('')
-      : `<p class="kom-empty">${L ? 'Aucune montée chronométrée connue pour le moment.' : 'No timed climb known yet.'}</p>`;
+      : `<p class="kom-empty">${S('noTimedClimbKnown')}</p>`;
     const records = rows.filter((c) => c.rec).length;
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker kom-dialog pk" role="dialog" aria-modal="true">
-        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Défi KOM' : 'KOM challenge'}</h2><p class="ab-sub">${L ? 'Départ lancé, fantôme de ton meilleur temps et écart en direct.' : 'Flying start, ghost of your best time and live gap.'}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
-        <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${L ? 'Chercher une montée, un parcours ou une zone…' : 'Search a climb, a route or an area…'}" aria-label="${L ? 'Chercher une montée' : 'Search a climb'}" />
-        <div class="kom-filter" role="group" aria-label="${L ? 'Filtrer par zone' : 'Filter by area'}">${chips}</div>
+        <header><div class="pk-head"><h2 class="ab-title">${S('komChallenge')}</h2><p class="ab-sub">${S('flyingStartGhostOf')}</p></div><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
+        <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${S('searchAClimbA')}" aria-label="${S('searchAClimb')}" />
+        <div class="kom-filter" role="group" aria-label="${S('filterByArea')}">${chips}</div>
         <div class="kom-wrap"><div class="ab-grid kom-grid">${body}</div></div>
-        <div class="kom-foot"><span>${rows.length} ${L ? (rows.length > 1 ? 'montées' : 'montée') : rows.length > 1 ? 'climbs' : 'climb'} · ${records} ${L ? (records > 1 ? 'records' : 'record') : records > 1 ? 'records' : 'record'}</span><span>${L ? 'Les montées d’une zone apparaissent après sa première visite.' : 'A zone’s climbs appear after you first visit it.'}</span></div>
+        <div class="kom-foot"><span>${rows.length} ${L ? (rows.length > 1 ? 'montées' : 'montée') : rows.length > 1 ? 'climbs' : 'climb'} · ${records} ${L ? (records > 1 ? 'records' : 'record') : records > 1 ? 'records' : 'record'}</span><span>${S('aZoneSClimbs')}</span></div>
       </div></div>`;
   }
 
@@ -1908,7 +2771,7 @@ export class MainMenu {
           seen.add(k.name);
           koms.push({ route, k });
         }
-    if (!koms.length) return `<p class="mm-hint">${L ? 'Pas de montée chronométrée dans cette zone : choisis-en une autre.' : 'No timed climb in this area: pick another one.'}</p>`;
+    if (!koms.length) return `<p class="mm-hint">${S('noTimedClimbIn2')}</p>`;
     const cur = r?.id;
     if (!koms.some((c) => c.route.id === cur && c.k.id === this.s.challengeSeg)) this.s.challengeSeg = (koms[0] as (typeof koms)[number]).k.id;
     // panneau de gauche : la côte choisie seulement (la liste complète est dans la fenêtre de la zone)
@@ -1916,9 +2779,9 @@ export class MainMenu {
     return `<div class="mm-routes mm-presets">${shown
       .map(({ route, k }) => {
         const rec = readKomRecord(route.id, k.id);
-        const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : L ? 'pas encore de record' : 'no record yet';
+        const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
         const on = route.id === cur && k.id === this.s.challengeSeg;
-        return `<button class="mm-route ab-tile ab-plain ${on ? 'on is-on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b class="ab-name">${esc(k.name)}</b><span class="ab-detail">${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${L ? 'record' : 'best'} ${t}</span></button>`;
+        return `<button class="mm-route ab-tile ab-plain ${on ? 'on is-on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b class="ab-name">${esc(k.name)}</b><span class="ab-detail">${this.km(k.endM - k.startM)} km · ${k.avgGrade.toFixed(1).replace('.', L ? ',' : '.')} % · ${S('best2')} ${t}</span></button>`;
       })
       .join('')}</div>`;
   }
@@ -1935,7 +2798,7 @@ export class MainMenu {
       const z = this.zones.find((c) => c.id === spot.id);
       const available = this.zones.length ? !!z : !!w;
       const n = z ? routesForBike(z.routes, bikeSetupFor(loadProgress().equipped).tyre).length : 0;
-      const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (L ? 'monde ouvert' : 'open world') : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
+      const info = [n ? `${n} ${L ? 'parcours' : n > 1 ? 'routes' : 'route'}` : '', spot.open ? (S('openWorld')) : '', w ? w.hint[lang] : ''].filter(Boolean).join(' · ');
             return { id: spot.id, name: w ? w.name[lang] : spot.name[lang], region: spot.region[lang], x: spot.x, y: spot.y, available, current: spot.id === this.worldId, info, ...(z?.l93 ? { rect: z.l93 } : {}), ...(spot.image ? { image: spot.image } : {}) };
     });
   }
@@ -1954,9 +2817,9 @@ export class MainMenu {
       const pct = Math.floor((dl.done / Math.max(dl.total, 1)) * 100);
       return `<span class="mm-pack busy"><i class="mm-pack-bar"><i style="width:${pct}%"></i></i>${pct} %</span>`;
     }
-    if (dl?.error) return `<button class="mm-pack err" data-pack="${esc(id)}" title="${esc(dl.error)}">${L ? 'Réessayer' : 'Retry'}</button>`;
-    if (st.kind === 'installed' && st.upToDate) return `<span class="mm-pack ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span>`;
-    if (st.kind === 'installed') return `<button class="mm-pack" data-pack="${esc(id)}">${L ? 'Mettre à jour' : 'Update'}${z?.pack ? ` · ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}` : ''}</button>`;
+    if (dl?.error) return `<button class="mm-pack err" data-pack="${esc(id)}" title="${esc(dl.error)}">${S('retry')}</button>`;
+    if (st.kind === 'installed' && st.upToDate) return `<span class="mm-pack ok">${S('downloaded')} ✓</span>`;
+    if (st.kind === 'installed') return `<button class="mm-pack" data-pack="${esc(id)}">${S('update')}${z?.pack ? ` · ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}` : ''}</button>`;
     if (st.kind === 'absent' && z?.pack) return `<button class="mm-pack" data-pack="${esc(id)}">↓ ${formatBytes(z.pack.gzBytes ?? z.pack.bytes, L)}</button>`;
     return '';
   }
@@ -1968,20 +2831,19 @@ export class MainMenu {
     const st = packState(id, z?.pack?.version);
     const dl = this.downloads.get(id);
     const size = z?.pack ? formatBytes(z.pack.gzBytes ?? z.pack.bytes, L) : '';
-    if (dl && !dl.error) return { cls: 'is-warn', text: `${L ? 'Téléchargement' : 'Downloading'} ${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %`, rank: 0 };
-    if (st.kind === 'installed' && st.upToDate) return { cls: 'is-ok', text: L ? 'Téléchargée' : 'Downloaded', rank: 1 };
-    if (st.kind === 'installed') return { cls: 'is-warn', text: L ? 'Mise à jour disponible' : 'Update available', rank: 1 };
-    if (z?.pack) return { cls: '', text: `${L ? 'À télécharger' : 'To download'}${size ? ` · ${size}` : ''}`, rank: 2 };
-    return { cls: 'is-info', text: L ? 'Chargée pendant la sortie' : 'Loaded while riding', rank: 2 };
+    if (dl && !dl.error) return { cls: 'is-warn', text: `${S('downloading')} ${Math.floor((dl.done / Math.max(dl.total, 1)) * 100)} %`, rank: 0 };
+    if (st.kind === 'installed' && st.upToDate) return { cls: 'is-ok', text: S('downloaded'), rank: 1 };
+    if (st.kind === 'installed') return { cls: 'is-warn', text: S('updateAvailable'), rank: 1 };
+    if (z?.pack) return { cls: '', text: `${S('toDownload')}${size ? ` · ${size}` : ''}`, rank: 2 };
+    return { cls: 'is-info', text: S('loadedWhileRiding'), rank: 2 };
   }
 
   /** Fenêtre « Zones » : carte de France à gauche, les zones en gros blocs à droite (recherche par nom). */
   private franceHtml(): string {
-    const L = fr();
     const lang = getLang();
     const fold = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     const zones = this.mapZones()
-      .map((z) => ({ z, st: z.available ? this.zonePackState(z.id) : { cls: '', text: L ? 'Bientôt' : 'Coming soon', rank: 9 } }))
+      .map((z) => ({ z, st: z.available ? this.zonePackState(z.id) : { cls: '', text: S('comingSoon'), rank: 9 } }))
       // Zone en cours d'abord, puis celles qui se téléchargent ou sont déjà sur l'appareil, puis les autres par nom.
       .sort((a, b) => Number(b.z.current) - Number(a.z.current) || a.st.rank - b.st.rank || a.z.name.localeCompare(b.z.name, lang));
     const blocks = zones
@@ -1993,13 +2855,13 @@ export class MainMenu {
           <span class="ab-name">${esc(z.name)}</span>
           <span class="ab-detail">${esc(detail)}</span>
           <span class="ab-state"><i></i>${esc(st.text)}</span>
-          ${z.current ? `<span class="ab-act quiet">${L ? 'Zone en cours' : 'Current area'}</span>` : ''}
+          ${z.current ? `<span class="ab-act quiet">${S('currentArea')}</span>` : ''}
         </button>`;
       })
       .join('');
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker fm-dialog pk" role="dialog" aria-modal="true">
-        <header><div class="pk-head"><h2 class="ab-title">${L ? 'Où veux-tu rouler ?' : 'Where do you want to ride?'}</h2><p class="ab-sub mm-hint">${this.loadingZone ? `${L ? 'Chargement de' : 'Loading'} ${esc(this.loadingZone)}…` : L ? 'Choisis une zone sur la carte, ou cherche une ville pour voir la zone qui la couvre.' : 'Pick an area on the map, or search a town to see which area covers it.'}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header><div class="pk-head"><h2 class="ab-title">${S('whereDoYouWant')}</h2><p class="ab-sub mm-hint">${this.loadingZone ? `${S('loading')} ${esc(this.loadingZone)}…` : S('pickAnAreaOn')}</p></div><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         <div class="zp-layout">
           <div class="zp-map">${this.franceMap.html(this.mapZones())}</div>
         </div>
@@ -2013,8 +2875,8 @@ export class MainMenu {
     const w = WORLD_LIST.find((x) => x.id === this.worldId);
     const spot = ZONE_SPOTS.find((x) => x.id === this.worldId);
     const n = this.routeIds.length;
-    const openOnly = L ? 'Seulement dans les zones ouvertes (toutes les routes roulables).' : 'Only in open areas (every road rideable).';
-    const fixedOnly = L ? 'Pas en course : le parcours est fixe (tu peux le dessiner).' : 'Not in a race: the course is fixed (you can draw it).';
+    const openOnly = S('onlyInOpenAreas');
+    const fixedOnly = S('notInARace');
     const tileBody = (icon: string, title: string, text: string) => `<span class="ab-ico">${icon}</span><span class="ab-name">${title}</span><span class="ab-detail">${text}</span>`;
     const card = (id: string, icon: string, title: string, text: string) =>
       id === 'free' && this.s.mode === 'race'
@@ -2035,17 +2897,17 @@ export class MainMenu {
           ...this.loadedZones.filter((id) => id !== this.worldId)])]
       : [];
     const parisHtml = showParis
-      ? `<div class="zc-near"><div><b>${L ? 'Tout Paris' : 'All of Paris'}</b><span>${L
+      ? `<div class="zc-near"><div><b>${S('allOfParis')}</b><span>${L
           ? 'Les 20 arrondissements et les bois de Boulogne et de Vincennes. Pour le parcours libre et le tracé sur la carte.'
           : 'All 20 arrondissements plus the Bois de Boulogne and Bois de Vincennes. For free rides and drawn routes.'}</span></div>
           <button class="zc-near-chip${parisLoaded ? ' on' : ''}" id="m-all-paris"${parisLoaded || this.loadingZone ? ' disabled' : ''}>${parisLoaded
-            ? (L ? 'Paris entier chargé' : 'All of Paris loaded')
-            : (L ? 'Charger tout Paris' : 'Load all of Paris')}</button></div>`
+            ? (S('allOfParisLoaded'))
+            : (S('loadAllOfParis'))}</button></div>`
       : '';
     const zoneName = (id: string) => WORLD_LIST.find((x) => x.id === id)?.name[lang] ?? ZONE_SPOTS.find((x) => x.id === id)?.name[lang] ?? id;
     const nearHtml = near.length
-      ? `<div class="zc-near"><div><b>${L ? 'Zones voisines' : 'Neighbouring areas'}</b><span>${
-          this.loadingZone ? `${L ? 'Chargement…' : 'Loading…'}` : L ? 'Ajoute-les pour rouler ou dessiner d’une zone à l’autre (parcours libre et à dessiner).' : 'Add them to ride or draw from one area to the next (free ride and drawn routes).'
+      ? `<div class="zc-near"><div><b>${S('neighbouringAreas')}</b><span>${
+          this.loadingZone ? `${S('loading2')}` : S('addThemToRide')
         }</span></div><div class="zc-near-list">${near
           .map((id) => {
             const on = this.loadedZones.includes(id);
@@ -2055,19 +2917,19 @@ export class MainMenu {
       : '';
     const kom = this.s.mode === 'challenge';
     const choices = `<div class="zc-choices">
-          ${n ? card('routes', ZONE_ICONS.routes, L ? 'Parcours' : 'Routes', L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} dans la zone.` : `${n} ready-made route${n > 1 ? 's' : ''} in the area.`) : ''}
-          ${card('free', ZONE_ICONS.free, L ? 'Parcours libre' : 'Free ride', L ? 'Tu choisis ta route à chaque carrefour.' : 'You pick your road at each junction.')}
-          ${card('draw', ZONE_ICONS.draw, L ? 'Parcours à dessiner' : 'Draw a route', L ? 'Départ, points de passage et arrivée sur la carte.' : 'Start, waypoints and finish on the map.')}
+          ${n ? card('routes', ZONE_ICONS.routes, S('routes'), L ? `${n} parcours déjà tracé${n > 1 ? 's' : ''} dans la zone.` : `${n} ready-made route${n > 1 ? 's' : ''} in the area.`) : ''}
+          ${card('free', ZONE_ICONS.free, S('freeRide'), S('youPickYourRoad'))}
+          ${card('draw', ZONE_ICONS.draw, S('drawARoute'), S('startWaypointsAndFinish'))}
         </div>`;
     // Défi KOM : les côtes de la zone tout de suite (en choisir une prend son parcours)
-    const koms = kom ? `<h3 class="ab-section">${L ? 'Choisis la côte à battre' : 'Pick the climb to beat'}</h3>${this.challengeHtml(this.routes.find((x) => x.id === this.s.routeId))}` : '';
+    const koms = kom ? `<h3 class="ab-section">${S('pickTheClimbTo')}</h3>${this.challengeHtml(this.routes.find((x) => x.id === this.s.routeId))}` : '';
     const packSt = this.zonePackState(this.worldId);
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker pk" role="dialog" aria-modal="true">
-        <header class="zc-head"><div class="pk-head"><h2 class="ab-title">${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><p class="ab-sub">${esc(zoneSub)}</p></div><button class="mm-x" data-picker-close aria-label="${L ? 'Fermer' : 'Close'}">×</button></header>
+        <header class="zc-head"><div class="pk-head"><h2 class="ab-title">${esc(w ? w.name[lang] : (spot?.name[lang] ?? this.worldId))}</h2><p class="ab-sub">${esc(zoneSub)}</p></div><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         ${kom ? koms : choices}
         ${kom ? '' : parisHtml + nearHtml}
-        <div class="zc-pack ab-foot"><button class="mm-link zc-back" data-picker="zones">← ${L ? 'Carte de France' : 'Map of France'}</button><span class="ab-state ${packSt.cls}"><i></i>${L ? 'Cartes hors ligne' : 'Offline maps'} : ${esc(packSt.text)}</span>${pack && !/mm-pack ok/.test(pack) ? pack : ''}</div>
+        <div class="zc-pack ab-foot"><button class="mm-link zc-back" data-picker="zones">← ${S('mapOfFrance')}</button><span class="ab-state ${packSt.cls}"><i></i>${S('offlineMaps')} : ${esc(packSt.text)}</span>${pack && !/mm-pack ok/.test(pack) ? pack : ''}</div>
       </div></div>`;
   }
 
@@ -2124,7 +2986,7 @@ export class MainMenu {
     const lang = getLang();
     const zones = this.zones.filter((z) => z.pack);
     if (!zones.length) {
-      box.innerHTML = `<p class="mm-hint">${L ? 'Catalogue des zones indisponible (hors ligne ?).' : 'Zone catalogue unavailable (offline?).'}</p>`;
+      box.innerHTML = `<p class="mm-hint">${S('zoneCatalogueUnavailableOffline')}</p>`;
       return;
     }
     const nameOf = (id: string) => WORLD_LIST.find((x) => x.id === id)?.name[lang] ?? ZONE_SPOTS.find((x) => x.id === id)?.name[lang] ?? id;
@@ -2138,29 +3000,29 @@ export class MainMenu {
         let actions = '';
         if (dl && !dl.error) {
           const pct = Math.floor((dl.done / Math.max(dl.total, 1)) * 100);
-          state = `<span class="zs-state busy">${L ? 'Téléchargement' : 'Downloading'} ${pct} %</span><i class="zs-bar"><i style="width:${pct}%"></i></i>`;
+          state = `<span class="zs-state busy">${S('downloading')} ${pct} %</span><i class="zs-bar"><i style="width:${pct}%"></i></i>`;
         } else if (this.queued.has(z.id)) {
-          state = `<span class="zs-state busy">${L ? 'En attente' : 'Queued'}</span>`;
+          state = `<span class="zs-state busy">${S('queued')}</span>`;
         } else if (dl?.error) {
-          state = `<span class="zs-state err" title="${esc(dl.error)}">${L ? 'Échec du téléchargement' : 'Download failed'}</span>`;
-          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Réessayer' : 'Retry'}</button>`;
+          state = `<span class="zs-state err" title="${esc(dl.error)}">${S('downloadFailed')}</span>`;
+          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${S('retry')}</button>`;
         } else if (st.kind === 'installed' && st.upToDate) {
-          state = `<span class="zs-state ok">${L ? 'Téléchargée' : 'Downloaded'} ✓</span>`;
-          actions = `<button class="btn small" data-zunpack="${esc(z.id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
+          state = `<span class="zs-state ok">${S('downloaded')} ✓</span>`;
+          actions = `<button class="btn small" data-zunpack="${esc(z.id)}">${S('remove')}</button>`;
         } else if (st.kind === 'installed') {
-          state = `<span class="zs-state warn">${L ? 'Mise à jour disponible' : 'Update available'}</span>`;
-          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Mettre à jour' : 'Update'}</button><button class="btn small" data-zunpack="${esc(z.id)}">${L ? 'Supprimer' : 'Remove'}</button>`;
+          state = `<span class="zs-state warn">${S('updateAvailable')}</span>`;
+          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${S('update')}</button><button class="btn small" data-zunpack="${esc(z.id)}">${S('remove')}</button>`;
         } else {
-          state = `<span class="zs-state">${L ? 'Non téléchargée' : 'Not downloaded'}</span>`;
-          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${L ? 'Télécharger' : 'Download'}</button>`;
+          state = `<span class="zs-state">${S('notDownloaded')}</span>`;
+          actions = `<button class="btn small primary" data-zpack="${esc(z.id)}">${S('download')}</button>`;
         }
-        return { have, html: `<div class="zs-row${z.id === this.worldId ? ' cur' : ''}" data-zname="${esc(foldName(nameOf(z.id)))}"><div class="zs-name"><b>${esc(nameOf(z.id))}</b><small>${sizeOf(z)}${z.id === this.worldId ? ` · ${L ? 'zone affichée' : 'current area'}` : ''}</small></div><div class="zs-mid">${state}</div><div class="zs-act">${actions}</div></div>` };
+        return { have, html: `<div class="zs-row${z.id === this.worldId ? ' cur' : ''}" data-zname="${esc(foldName(nameOf(z.id)))}"><div class="zs-name"><b>${esc(nameOf(z.id))}</b><small>${sizeOf(z)}${z.id === this.worldId ? ` · ${S('currentArea2')}` : ''}</small></div><div class="zs-mid">${state}</div><div class="zs-act">${actions}</div></div>` };
       })
       .sort((a, b) => Number(b.have) - Number(a.have));
     const mine = installedPacks();
     // Application Windows : place réelle sur le disque (fichiers décompressés) ; navigateur : fichiers gardés compressés.
     const total = mine.reduce((sum, p) => sum + (inTauri ? p.bytes : (zones.find((z) => z.id === p.id)?.pack?.gzBytes ?? p.bytes)), 0);
-    const used = mine.length ? `${L ? 'Espace utilisé' : 'Space used'} : <b>${formatBytes(total, L)}</b> · ${mine.length} ${L ? (mine.length > 1 ? 'zones' : 'zone') : mine.length > 1 ? 'areas' : 'area'}` : L ? 'Aucune zone téléchargée' : 'No area downloaded';
+    const used = mine.length ? `${S('spaceUsed')} : <b>${formatBytes(total, L)}</b> · ${mine.length} ${L ? (mine.length > 1 ? 'zones' : 'zone') : mine.length > 1 ? 'areas' : 'area'}` : S('noAreaDownloaded');
     // Zones à télécharger ou à mettre à jour, hors celles en cours ou déjà en file.
     const missing = zones.filter((z) => {
       const st = packState(z.id, z.pack?.version);
@@ -2171,14 +3033,14 @@ export class MainMenu {
     const allBtn = this.queued.size
       ? `<button class="btn small" data-zqueue-stop>${L ? `Arrêter (${this.queued.size} en attente)` : `Stop (${this.queued.size} queued)`}</button>`
       : '';
-    const getAll = missing.length ? `<button class="btn small primary" data-zpack-all>${L ? 'Tout télécharger' : 'Download all'} · ${formatBytes(missingBytes, L)}</button>` : '';
-    const where = inTauri ? (L ? 'Les cartes sont dans le dossier des données ci-dessous.' : 'Maps are kept in the data folder below.') : L ? 'Les cartes sont stockées sur cet appareil.' : 'Maps are stored on this device.';
-    box.innerHTML = `<p class="mm-hint">${L ? 'Une zone téléchargée se charge tout de suite et fonctionne sans connexion ; sinon elle se charge pendant la sortie.' : 'A downloaded area loads instantly and works offline; otherwise it streams in during the ride.'} ${where}</p>
+    const getAll = missing.length ? `<button class="btn small primary" data-zpack-all>${S('downloadAll')} · ${formatBytes(missingBytes, L)}</button>` : '';
+    const where = inTauri ? (S('mapsAreKeptIn')) : S('mapsAreStoredOn');
+    box.innerHTML = `<p class="mm-hint">${S('aDownloadedAreaLoads')} ${where}</p>
       ${storagePanelHtml()}
-      <input id="m-zone-q" class="mm-input zs-search" type="search" autocomplete="off" placeholder="${L ? 'Chercher une zone…' : 'Search an area…'}" value="${esc(this.zoneQuery)}" />
+      <input id="m-zone-q" class="mm-input zs-search" type="search" autocomplete="off" placeholder="${S('searchAnArea')}" value="${esc(this.zoneQuery)}" />
       <div class="zs-list">${rows.map((r) => r.html).join('')}</div>
-      <p class="mm-hint zs-none" hidden>${L ? 'Aucune zone à ce nom.' : 'No area with that name.'}</p>
-      <div class="zs-foot"><span>${used}</span>${getAll}${allBtn}${mine.length ? `<button class="btn small" data-zunpack-all>${L ? 'Tout supprimer' : 'Remove all'}</button>` : ''}</div>`;
+      <p class="mm-hint zs-none" hidden>${S('noAreaWithThat')}</p>
+      <div class="zs-foot"><span>${used}</span>${getAll}${allBtn}${mine.length ? `<button class="btn small" data-zunpack-all>${S('removeAll')}</button>` : ''}</div>`;
     void fillStoragePanel(box, () => this.renderZonesSettings());
     // Recherche : filtre les lignes sans redessiner la liste (l'état des téléchargements la redessine déjà).
     const q = box.querySelector<HTMLInputElement>('#m-zone-q');
@@ -2221,7 +3083,7 @@ export class MainMenu {
       }),
     );
     box.querySelector('[data-zunpack-all]')?.addEventListener('click', () => {
-      if (!confirm(L ? 'Supprimer toutes les zones téléchargées de cet appareil ?' : 'Remove every downloaded area from this device?')) return;
+      if (!confirm(S('removeEveryDownloadedArea'))) return;
       void Promise.all(installedPacks().map((p) => removePack(p.id))).then(() => this.renderZonesSettings());
     });
   }
@@ -2275,7 +3137,7 @@ export class MainMenu {
         <div class="ab-val"><b>${this.km(r.lengthM)}</b><small>km</small></div>
         <div class="ab-val"><b>${Math.round(r.elevationGainM)}</b><small>m D+</small></div>
         <div class="ab-val"><b>${r.maxGradePct !== undefined ? Math.round(r.maxGradePct) : '—'}</b><small>% max</small></div>
-        <div class="ab-val"><b>${this.eta(r)}</b><small>${fr() ? 'env.' : 'est.'}</small></div>
+        <div class="ab-val"><b>${this.eta(r)}</b><small>${S('est')}</small></div>
       </div>
       <svg class="mm-profile" viewBox="0 0 ${PW} ${PH}" preserveAspectRatio="none" aria-hidden="true">
         <defs><linearGradient id="mm-prof" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd23f" stop-opacity=".55"/><stop offset="1" stop-color="#ffd23f" stop-opacity=".04"/></linearGradient></defs>
@@ -2292,35 +3154,34 @@ export class MainMenu {
       const xp = loadProgress().xp;
       return this.atelier.html(this.garageHeader(levelProgress(xp), xp), this.garageNav());
     }
-    const L = fr();
     const lang = getLang();
     const p = loadProgress();
     const lp = levelProgress(p.xp);
     const slots = [...new Set(COSMETICS.map((c) => c.slot))];
     const views: Array<[GarageView, string]> = [
       ['3q', '3/4'],
-      ['side', L ? 'Profil' : 'Side'],
-      ['front', L ? 'Face' : 'Front'],
-      ['back', L ? 'Dos' : 'Back'],
-      ['bike', L ? 'Vélo' : 'Bike'],
+      ['side', S('side')],
+      ['front', S('front')],
+      ['back', S('back')],
+      ['bike', S('bike')],
       ['cockpit', 'Cockpit'],
     ];
     const camera = `<div class="mm-dragzone" id="m-dragzone"></div>
       <div class="mm-views">${views.map(([v, label]) => `<button class="mm-view ${v === this.view ? 'on' : ''}" data-view="${v}">${label}</button>`).join('')}
-        <span class="mm-drag">${ICON.rotate} ${L ? 'Glisser pour tourner' : 'Drag to rotate'}</span></div>`;
+        <span class="mm-drag">${ICON.rotate} ${S('dragToRotate')}</span></div>`;
     const reopen = `<button class="gr-reopen" data-gr="open" ${this.grFolded ? '' : 'hidden'}>‹ Menu</button>`;
     // Venu d'une fiche de la page Progression : retour direct à la frise, au même endroit.
-    const back = this.fromProgress ? `<button class="gr-back" data-grback>‹ ${L ? 'Retour à la progression' : 'Back to progress'}</button>` : '';
+    const back = this.fromProgress ? `<button class="gr-back" data-grback>‹ ${S('backToProgress')}</button>` : '';
     if (V3_STYLE) return `${camera}${back}${reopen}
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}<div data-v3-top></div></div>
         <div class="gr-body" data-v3-garage></div>
         <div class="gr-foot">
           <details class="set-sec">
-            <summary>${L ? 'Mensurations et FTP' : 'Body measurements and FTP'}</summary>
+            <summary>${S('bodyMeasurementsAndFtp')}</summary>
             <div class="set-body grid2b">${this.bodyMeasurementFields()}<div class="field"><label for="m-ftp">${t('ftp')}</label>${this.stepper('m-ftp', 50, 600, this.s.ftpWatts)}</div></div>
           </details>
-          <p>${L ? 'Style V3 : ressources de l’installation Zwift locale, pour l’étude seulement (jamais distribuées).' : 'V3 style: local Zwift install assets, for study only (never distributed).'}</p></div>
+          <p>${S('v3StyleLocalZwift')}</p></div>
       </section>`;
     const items =
       this.garageSlot === 'skin' || this.garageSlot === 'hair' || this.garageSlot === 'beard'
@@ -2329,20 +3190,20 @@ export class MainMenu {
         ? faceEditorHtml(this.s.look, this.faceTab, this.bareHead, this.faceUndo.length > 0, this.photoOpen)
         : this.garageSlot === 'colors'
         ? `<div class="mm-colors">
-            <label class="field">${L ? 'Maillot' : 'Jersey'}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
-            <label class="field">${L ? 'Bande du maillot' : 'Jersey stripe'}<input id="m-accent" type="color" value="${this.s.look.jerseyAccent}" /></label>
-            <label class="field">${L ? 'Casque' : 'Helmet'}<input id="m-helmet" type="color" value="${this.s.look.helmet}" /></label>
-            <label class="field">${L ? 'Vélo sans marque' : 'Unbranded bike'}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
-            <label class="field">${L ? 'Peau' : 'Skin'}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
-            <label class="field">${L ? 'Cheveux' : 'Hair'}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
+            <label class="field">${S('jersey')}<input id="m-jersey" type="color" value="${this.s.look.jersey}" /></label>
+            <label class="field">${S('jerseyStripe')}<input id="m-accent" type="color" value="${this.s.look.jerseyAccent}" /></label>
+            <label class="field">${S('helmet')}<input id="m-helmet" type="color" value="${this.s.look.helmet}" /></label>
+            <label class="field">${S('unbrandedBike')}<input id="m-bike" type="color" value="${this.s.look.bike}" /></label>
+            <label class="field">${S('skin')}<input id="m-skin" type="color" value="${this.s.look.skin}" /></label>
+            <label class="field">${S('hair')}<input id="m-hair" type="color" value="${this.s.look.hair}" /></label>
             ${this.shoeFields()}
-            <label class="field">${L ? 'Chaussettes' : 'Socks'}<input id="m-socks" type="color" value="${this.s.look.socks ?? '#f2f2f2'}" /></label>
+            <label class="field">${S('socks')}<input id="m-socks" type="color" value="${this.s.look.socks ?? '#f2f2f2'}" /></label>
             ${this.sockHeightToggle()}
             ${this.legsToggle()}
             ${this.glovesToggle()}
             ${this.gloveColorField()}
           </div>
-          <h3 class="mm-presets-title">${L ? 'Tenues préréglées' : 'Kit presets'}</h3>
+          <h3 class="mm-presets-title">${S('kitPresets')}</h3>
           <div class="mm-items mm-kits">${OUTFITS.map(
             (o) =>
               `<button class="mm-item" data-outfit="${o.id}"><i style="background:linear-gradient(90deg, ${o.look.jersey} 0 50%, ${o.look.jerseyAccent} 50% 100%)"></i><b>${esc(o.name[lang])}</b><span>${esc(o.hint[lang])}</span></button>`,
@@ -2353,8 +3214,8 @@ export class MainMenu {
         : this.garageSlot === 'bike'
         ? this.bikeListHtml(lp.level, p.equipped.bike)
         : this.garageSlot === 'jersey'
-        ? `${this.colorRows()}${this.optRow(fr() ? 'Manches' : 'Sleeves', 'sleeves', this.s.look.sleeves ?? 'short', [['short', fr() ? 'Courtes' : 'Short'], ['long', fr() ? 'Longues' : 'Long']])}${this.captionHtml()}${this.filterBar(lp.level)}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
-        : `${this.colorRows()}${this.garageSlot === 'helmet' ? this.helmetTypeRow() : ''}${this.garageSlot === 'socks' ? this.optRow(fr() ? 'Hauteur' : 'Height', 'sockHeight', this.s.look.sockHeight ?? 'low', [['low', fr() ? 'Basses' : 'Low'], ['high', fr() ? 'Hautes' : 'High']]) : ''}${SLOT_PICTO[this.garageSlot] ? this.captionHtml() : ''}${this.filterBar(lp.level)}<div class="mm-items">${this.garageItems(lp.level)
+        ? `${this.colorRows()}${this.optRow(S('sleeves'), 'sleeves', this.s.look.sleeves ?? 'short', [['short', S('short2')], ['long', S('long2')]])}${this.captionHtml()}${this.filterBar(lp.level)}${this.jerseyPacksHtml(lp.level, p.equipped.jersey)}`
+        : `${this.colorRows()}${this.garageSlot === 'helmet' ? this.helmetTypeRow() : ''}${this.garageSlot === 'socks' ? this.optRow(S('height'), 'sockHeight', this.s.look.sockHeight ?? 'low', [['low', S('low')], ['high', S('high')]]) : ''}${SLOT_PICTO[this.garageSlot] ? this.captionHtml() : ''}${this.filterBar(lp.level)}<div class="mm-items">${this.garageItems(lp.level)
             .map((c) => this.itemHtml(c, lp.level, c.slot === 'trainer' ? trainerOf(p.equipped) : p.equipped[c.slot]))
             .join('')}</div>`;
     return `${camera}
@@ -2363,7 +3224,7 @@ export class MainMenu {
       <section class="mm-panel mm-side gr-panel${this.grFolded ? ' gr-folded' : ''}">
         <div class="gr-top">${this.garageHeader(lp, p.xp)}${this.garageNav()}</div>
         <div class="gr-body">${items}</div>
-        <div class="gr-foot">${this.bikeSummary()}<p>${L ? 'Les équipements se débloquent en roulant. Clique un équipement verrouillé pour l’essayer.' : 'Gear unlocks as you ride. Click locked gear to try it on.'}</p></div>
+        <div class="gr-foot">${this.bikeSummary()}<p>${S('gearUnlocksAsYou')}</p></div>
       </section>`;
   }
 
@@ -2371,23 +3232,22 @@ export class MainMenu {
   private garageHeader(lp: ReturnType<typeof levelProgress>, xp: number): string {
     const L = fr();
     return `<div class="gr-head">
-        <div class="gr-lvl"><b>${L ? 'Niveau' : 'Level'} ${lp.level}</b><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i><span>${xp}${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''} XP</span></div>
-        <span class="gr-coins" title="${L ? 'Crédits de l’atelier' : 'Workshop credits'}">${COIN} <b>${(this.account?.credits ?? loadProgress().credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b></span>
-        <button class="gr-fold" data-gr="fold" aria-label="${L ? 'Réduire le menu' : 'Collapse the menu'}" title="${L ? 'Réduire le menu pour voir plus large' : 'Collapse the menu for a wider view'}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 10.5 8 5.5l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-        <button class="gr-x" data-tab="ride" aria-label="${L ? 'Fermer' : 'Close'}" title="${L ? 'Fermer (Échap)' : 'Close (Esc)'}">×</button>
+        <div class="gr-lvl"><b>${S('level')} ${lp.level}</b><i class="mm-xp big"><i style="width:${(lp.progress * 100).toFixed(1)}%"></i></i><span>${xp}${lp.nextLevelXp ? ` / ${lp.nextLevelXp}` : ''} XP</span></div>
+        <span class="gr-coins" title="${S('workshopCredits')}">${COIN} <b>${(this.account?.credits ?? loadProgress().credits).toLocaleString(L ? 'fr-FR' : 'en-GB')}</b></span>
+        <button class="gr-fold" data-gr="fold" aria-label="${S('collapseTheMenu')}" title="${S('collapseTheMenuFor')}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 10.5 8 5.5l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button class="gr-x" data-tab="ride" aria-label="${S('close')}" title="${S('closeEsc')}">×</button>
       </div>`;
   }
 
   /** Navigation du garage à deux niveaux : trois rubriques (Tenue, Vélo, Personnage), puis leurs catégories. */
   private garageNav(): string {
-    const L = fr();
     const lang = getLang();
     const cur = this.garageSlot;
     const slotLabel = (sl: CosmeticSlot) => SLOT_LABEL[sl][lang];
     const groups: Array<{ label: string; icon: string; first: GarageSlot; subs: Array<[GarageSlot, string]> }> = [
-      { label: L ? 'Tenue' : 'Outfit', icon: ICON.gTenue, first: 'jersey', subs: [['jersey', slotLabel('jersey')], ['shorts', L ? 'Cuissard' : 'Shorts'], ['helmet', slotLabel('helmet')], ['glasses', slotLabel('glasses')], ['gloves', L ? 'Gants' : 'Gloves'], ['socks', slotLabel('socks')], ['shoes', L ? 'Chaussures' : 'Shoes']] },
-      { label: L ? 'Vélo' : 'Bike', icon: ICON.gBike, first: 'bike', subs: [['bike', L ? 'Choisir mon vélo' : 'Pick my bike'], ['atelier', `${ICON.gWrench} ${L ? 'Atelier de pièces' : 'Parts workshop'}`], ['trainer', L ? 'Home trainer' : 'Home trainer']] },
-      { label: L ? 'Personnage' : 'Character', icon: ICON.gFace, first: 'face', subs: [['face', L ? 'Visage' : 'Face'], ['skin', L ? 'Peau' : 'Skin'], ['hair', L ? 'Cheveux' : 'Hair'], ...(lookSex(this.s.look) === 'male' ? ([['beard', L ? 'Barbe' : 'Beard']] as Array<[GarageSlot, string]>) : []), ['colors', L ? 'Couleurs' : 'Colours']] },
+      { label: S('outfit'), icon: ICON.gTenue, first: 'jersey', subs: [['jersey', slotLabel('jersey')], ['shorts', S('shorts')], ['helmet', slotLabel('helmet')], ['glasses', slotLabel('glasses')], ['gloves', S('gloves')], ['socks', slotLabel('socks')], ['shoes', S('shoes')]] },
+      { label: S('bike'), icon: ICON.gBike, first: 'bike', subs: [['bike', S('pickMyBike')], ['atelier', `${ICON.gWrench} ${S('partsWorkshop')}`], ['trainer', S('homeTrainer')]] },
+      { label: S('character'), icon: ICON.gFace, first: 'face', subs: [['face', S('face')], ['skin', S('skin')], ['hair', S('hair')], ...(lookSex(this.s.look) === 'male' ? ([['beard', S('beard')]] as Array<[GarageSlot, string]>) : []), ['colors', S('colours')]] },
     ];
     const active = groups.find((g) => g.subs.some(([id]) => id === cur)) ?? groups[0]!;
     // Tenue : une tuile par emplacement, avec l'équipement porté (coup d'œil sur ce qu'on porte, un clic ouvre son catalogue).
@@ -2397,12 +3257,12 @@ export class MainMenu {
       // Rien d'équipé au catalogue : la couleur portée (réglages du coureur) et « Par défaut ».
       const look = this.s.look;
       const base: Partial<Record<GarageSlot, string>> = { jersey: look.jersey, helmet: look.helmet, socks: look.socks ?? '#f2f2f2', glasses: '#1a1d24' };
-      return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}" title="${esc(item ? item.name[lang] : L ? 'Par défaut' : 'Default')}"><i>${SLOT_PICTO[id] ?? ''}</i><small>${label}</small></button>`;
+      return `<button class="gr-slot ${id === cur ? 'on' : ''}" data-slot="${id}" aria-pressed="${id === cur}" title="${esc(item ? item.name[lang] : S('default'))}"><i>${SLOT_PICTO[id] ?? ''}</i><small>${label}</small></button>`;
     };
-    const subs = active.label === (L ? 'Tenue' : 'Outfit') || active.label === (L ? 'Personnage' : 'Character')
-      ? `<div class="gr-slots" style="--n:${active.subs.length}">${active.subs.map(tile).join('')}</div><div class="gr-typename">${esc(active.subs.find(([id]) => id === cur)?.[1] ?? '')}${active.label === (L ? 'Personnage' : 'Character') ? `<button class="gr-dice" id="gr-dice" title="${L ? 'Personnage au hasard (visage, peau, cheveux, barbe)' : 'Random character (face, skin, hair, beard)'}" aria-label="${L ? 'Personnage au hasard' : 'Random character'}">${ICON.dice}</button>` : ''}</div>`
+    const subs = active.label === (S('outfit')) || active.label === (S('character'))
+      ? `<div class="gr-slots" style="--n:${active.subs.length}">${active.subs.map(tile).join('')}</div><div class="gr-typename">${esc(active.subs.find(([id]) => id === cur)?.[1] ?? '')}${active.label === (S('character')) ? `<button class="gr-dice" id="gr-dice" title="${S('randomCharacterFaceSkin')}" aria-label="${S('randomCharacter')}">${ICON.dice}</button>` : ''}</div>`
       : `<div class="gr-subs">${active.subs.map(([id, label]) => `<button class="gr-sub ${id === cur ? 'on' : ''}" data-slot="${id}">${label}</button>`).join('')}</div>`;
-    return `<nav class="gr-groups" aria-label="${L ? 'Rubriques du garage' : 'Garage sections'}">${groups
+    return `<nav class="gr-groups" aria-label="${S('garageSections')}">${groups
       .map((g) => `<button class="gr-group ${g === active ? 'on' : ''}" data-slot="${g === active ? cur : g.first}" aria-pressed="${g === active}">${g.icon}<span>${g.label}</span></button>`)
       .join('')}</nav>
       ${subs}`;
@@ -2417,63 +3277,57 @@ export class MainMenu {
     const prev = [...this.previews.values()].includes(c.id);
     if (SLOT_PICTO[c.slot as GarageSlot]) {
       const bg = swatch(c);
-      const stateTxt = prev ? `${L ? 'Aperçu' : 'Preview'} · ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `${L ? 'Niveau' : 'Level'} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Débloqué' : 'Unlocked';
+      const stateTxt = prev ? `${S('preview')} · ${S('lvl')} ${c.level}` : locked ? `${S('level')} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (S('equipped')) : S('unlocked');
       return `<button class="gr-chip ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" data-cap-name="${esc(c.name[lang])}" data-cap-effect="${esc(c.effect?.[lang] ?? '')}" data-cap-state="${esc(stateTxt)}" aria-label="${esc(c.name[lang])} — ${esc(stateTxt)}" style="background:${bg};color:${pictoInk(bg)}">${locked ? `<u>${ICON.pLock}</u>` : on ? '<u class="ok">✓</u>' : ''}</button>`;
     }
-    return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''}">
+    return `<button class="mm-item ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${locked ? (S('clickToTryIt')) : ''}">
                 <i style="background:${swatch(c)}"></i>
                 <span class="mm-it-txt"><b>${esc(c.name[lang])}</b>${c.effect ? `<em class="mm-effect">${esc(c.effect[lang])}</em>` : ''}
-                <span class="mm-it-state st-${prev ? 'preview' : locked ? 'locked' : on ? 'on' : 'free'}">${prev ? `${L ? 'Aperçu' : 'Preview'} · ${L ? 'niv.' : 'lvl'} ${c.level}` : locked ? `${L ? 'Niveau' : 'Level'} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (L ? 'Équipé' : 'Equipped') : L ? 'Débloqué' : 'Unlocked'}</span></span></button>`;
+                <span class="mm-it-state st-${prev ? 'preview' : locked ? 'locked' : on ? 'on' : 'free'}">${prev ? `${S('preview')} · ${S('lvl')} ${c.level}` : locked ? `${S('level')} ${c.level} · ${L ? `dans ${c.level - level} niv.` : `${c.level - level} to go`}` : on ? (S('equipped')) : S('unlocked')}</span></span></button>`;
   }
 
   /** Cuissard court ou long (look.legs) ; aperçu immédiat. */
   private legsToggle(): string {
-    const L = fr();
-    return `<div class="field mm-sleeves">${L ? 'Cuissard' : 'Shorts'}${this.seg('m-legs', this.s.look.legs ?? 'short', [
-      ['short', L ? 'Courts' : 'Short'],
-      ['long', L ? 'Longs' : 'Long'],
+    return `<div class="field mm-sleeves">${S('shorts')}${this.seg('m-legs', this.s.look.legs ?? 'short', [
+      ['short', S('short')],
+      ['long', S('long')],
     ])}</div>`;
   }
 
   /** Couleur, marquage et accent des chaussures (onglets Couleurs et Chaussettes). */
   private shoeFields(): string {
-    const L = fr();
-    return `<label class="field">${L ? 'Chaussures' : 'Shoes'}<input id="m-shoes" type="color" value="${this.s.look.shoes ?? '#f2f2f2'}" /></label>
-            <label class="field">${L ? 'Marquage des chaussures' : 'Shoe logo'}<select id="m-shoe-mark"><option value="">${L ? 'Aucun' : 'None'}</option>${SHOE_MARKS.map((m) => `<option value="${m.id}" ${this.s.look.shoeMark === m.id ? 'selected' : ''}>${m.text}</option>`).join('')}</select></label>
-            <label class="field">${L ? 'Accent des chaussures' : 'Shoe accent'}<input id="m-shoe-accent" type="color" value="${this.s.look.shoeAccent ?? shoeAccentOf(this.s.look)}" /></label>`;
+    return `<label class="field">${S('shoes')}<input id="m-shoes" type="color" value="${this.s.look.shoes ?? '#f2f2f2'}" /></label>
+            <label class="field">${S('shoeLogo')}<select id="m-shoe-mark"><option value="">${S('none2')}</option>${SHOE_MARKS.map((m) => `<option value="${m.id}" ${this.s.look.shoeMark === m.id ? 'selected' : ''}>${m.text}</option>`).join('')}</select></label>
+            <label class="field">${S('shoeAccent')}<input id="m-shoe-accent" type="color" value="${this.s.look.shoeAccent ?? shoeAccentOf(this.s.look)}" /></label>`;
   }
 
   /** Couleur des gants (mitaines ou gants longs), à côté du choix des gants. */
   private gloveColorField(): string {
-    const L = fr();
-    return `<label class="field">${L ? 'Couleur des gants' : 'Glove colour'}<input id="m-glove-color" type="color" value="${this.s.look.gloveColor ?? '#16161a'}" /></label>`;
+    return `<label class="field">${S('gloveColour')}<input id="m-glove-color" type="color" value="${this.s.look.gloveColor ?? '#16161a'}" /></label>`;
   }
 
   /** Gants : aucun, mitaines (doigts nus) ou gants complets (look.gloves) ; aperçu immédiat. */
   private glovesToggle(): string {
-    const L = fr();
-    return `<div class="field mm-sleeves">${L ? 'Gants' : 'Gloves'}${this.seg('m-gloves', this.s.look.gloves ?? 'none', [
-      ['none', L ? 'Sans' : 'None'],
-      ['mitts', L ? 'Mitaines' : 'Mitts'],
-      ['full', L ? 'Complets' : 'Full'],
+    return `<div class="field mm-sleeves">${S('gloves')}${this.seg('m-gloves', this.s.look.gloves ?? 'none', [
+      ['none', S('none3')],
+      ['mitts', S('mitts')],
+      ['full', S('full')],
     ])}</div>`;
   }
 
   /** Chaussettes basses ou hautes (look.sockHeight) ; aperçu immédiat. */
   private sockHeightToggle(): string {
-    const L = fr();
-    return `<div class="field mm-sleeves">${L ? 'Hauteur des chaussettes' : 'Sock height'}${this.seg('m-sock-height', this.s.look.sockHeight ?? 'low', [
-      ['low', L ? 'Basses' : 'Low'],
-      ['high', L ? 'Hautes' : 'High'],
+    return `<div class="field mm-sleeves">${S('sockHeight')}${this.seg('m-sock-height', this.s.look.sockHeight ?? 'low', [
+      ['low', S('low')],
+      ['high', S('high')],
     ])}</div>`;
   }
 
   /** Manches courtes ou longues, pour tous les maillots (look.sleeves) ; aperçu immédiat. */
   private sleevesToggle(): string {
-    const L = fr();
-    return `<div class="field mm-sleeves">${L ? 'Manches' : 'Sleeves'}${this.seg('m-sleeves', this.s.look.sleeves ?? 'short', [
-      ['short', L ? 'Courtes' : 'Short'],
-      ['long', L ? 'Longues' : 'Long'],
+    return `<div class="field mm-sleeves">${S('sleeves')}${this.seg('m-sleeves', this.s.look.sleeves ?? 'short', [
+      ['short', S('short2')],
+      ['long', S('long2')],
     ])}</div>`;
   }
 
@@ -2511,8 +3365,8 @@ export class MainMenu {
     const b = bikeSetupFor(loadProgress().equipped);
     const drag = Math.round((b.cda / DEFAULT_BIKE.cda - 1) * 1000) / 10;
     const num = (v: number, d = 1) => v.toFixed(d).replace('.', L ? ',' : '.');
-    return `<p class="mm-hint mm-bikephys">${L ? 'En selle' : 'Riding'} : <b>${num(b.massKg)} kg</b> · ${L ? 'traînée' : 'drag'} <b>${drag > 0 ? '+' : ''}${num(drag)} %</b> · ${
-      b.tyre === 'gravel' ? (L ? 'pneus gravel' : 'gravel tyres') : b.tyre === 'mtb' ? (L ? 'pneus VTT' : 'MTB tyres') : L ? 'pneus route' : 'road tyres'
+    return `<p class="mm-hint mm-bikephys">${S('riding')} : <b>${num(b.massKg)} kg</b> · ${S('drag')} <b>${drag > 0 ? '+' : ''}${num(drag)} %</b> · ${
+      b.tyre === 'gravel' ? (S('gravelTyres')) : b.tyre === 'mtb' ? (S('mtbTyres')) : S('roadTyres')
     }</p>`;
   }
 
@@ -2525,17 +3379,16 @@ export class MainMenu {
 
   /** Type de coiffe : choix du genre (casque, chrono, casquette, sans) avec les effectifs. */
   private helmetTypeRow(): string {
-    const L = fr();
     const all = COSMETICS.filter((c) => c.slot === 'helmet');
     const count = (k: string) => all.filter((c) => helmetKind(c) === k).length;
     const opts: Array<['all' | 'road' | 'tt' | 'cap' | 'none', string, number]> = [
-      ['all', L ? 'Tous' : 'All', all.length],
-      ['road', L ? 'Casque' : 'Helmet', count('road')],
-      ['tt', L ? 'Chrono' : 'Time trial', count('tt')],
-      ['cap', L ? 'Casquette' : 'Cap', count('cap')],
-      ['none', L ? 'Sans' : 'None', count('none')],
+      ['all', S('all'), all.length],
+      ['road', S('helmet'), count('road')],
+      ['tt', S('timeTrial'), count('tt')],
+      ['cap', S('cap'), count('cap')],
+      ['none', S('none3'), count('none')],
     ].filter(([k, , n]) => k === 'all' || (n as number) > 0) as Array<['all' | 'road' | 'tt' | 'cap' | 'none', string, number]>;
-    return `<div class="gr-vopt"><small>${L ? 'Genre' : 'Kind'}</small><div>${opts
+    return `<div class="gr-vopt"><small>${S('kind')}</small><div>${opts
       .map(([k, l, n]) => `<button class="gr-vchip ${this.helmetType === k ? 'on' : ''}" data-htype="${k}" aria-pressed="${this.helmetType === k}">${l} <i>${n}</i></button>`)
       .join('')}</div></div>`;
   }
@@ -2545,24 +3398,23 @@ export class MainMenu {
     const cur = current.toLowerCase();
     return `<div class="gr-colors"><small>${label}</small><div>${(QUICK_COLORS[key] ?? [])
       .map((h) => `<button class="gr-sw ${h.toLowerCase() === cur ? 'on' : ''}" data-setcolor="${key}:${h}" style="background:${h}" aria-label="${h}" aria-pressed="${h.toLowerCase() === cur}"></button>`)
-      .join('')}<label class="gr-sw gr-custom" title="${fr() ? 'Autre couleur' : 'Other colour'}"><input type="color" data-colorkey="${key}" value="${current.length === 7 ? current : '#888888'}" /></label></div></div>`;
+      .join('')}<label class="gr-sw gr-custom" title="${S('otherColour')}"><input type="color" data-colorkey="${key}" value="${current.length === 7 ? current : '#888888'}" /></label></div></div>`;
   }
 
   /** Lignes de couleur de l'emplacement affiché. */
   private colorRows(): string {
-    const L = fr();
     const look = this.s.look;
     switch (this.garageSlot) {
       case 'jersey':
-        return this.colorRow(L ? 'Maillot' : 'Jersey', 'jersey', look.jersey) + this.colorRow(L ? 'Bande' : 'Stripe', 'jerseyAccent', look.jerseyAccent);
+        return this.colorRow(S('jersey'), 'jersey', look.jersey) + this.colorRow(S('stripe'), 'jerseyAccent', look.jerseyAccent);
       case 'helmet':
-        return this.colorRow(L ? 'Casque' : 'Helmet', 'helmet', look.helmet);
+        return this.colorRow(S('helmet'), 'helmet', look.helmet);
       case 'socks':
-        return this.colorRow(L ? 'Chaussettes' : 'Socks', 'socks', look.socks ?? '#f2f2f2');
+        return this.colorRow(S('socks'), 'socks', look.socks ?? '#f2f2f2');
       case 'gloves':
-        return this.colorRow(L ? 'Gants' : 'Gloves', 'gloveColor', look.gloveColor ?? '#16161a');
+        return this.colorRow(S('gloves'), 'gloveColor', look.gloveColor ?? '#16161a');
       case 'shoes':
-        return this.colorRow(L ? 'Chaussures' : 'Shoes', 'shoes', look.shoes ?? '#f2f2f2') + this.colorRow(L ? 'Accent' : 'Accent', 'shoeAccent', look.shoeAccent ?? shoeAccentOf(look));
+        return this.colorRow(S('shoes'), 'shoes', look.shoes ?? '#f2f2f2') + this.colorRow(S('accent'), 'shoeAccent', look.shoeAccent ?? shoeAccentOf(look));
       default:
         return '';
     }
@@ -2577,30 +3429,27 @@ export class MainMenu {
 
   /** Contenu des types sans catalogue (cuissard, gants, chaussures) : leurs choix, sans liste d'objets. */
   private typeHtml(): string {
-    const L = fr();
     const look = this.s.look;
     const intro = (t: string) => `<p class="gr-note">${t}</p>`;
     if (this.garageSlot === 'shorts')
-      return this.optRow(L ? 'Longueur' : 'Length', 'legs', look.legs ?? 'short', [['short', L ? 'Courts' : 'Short'], ['long', L ? 'Longs' : 'Long']]) + intro(L ? 'Le cuissard long est utile par temps frais.' : 'Long shorts suit cooler weather.');
+      return this.optRow(S('length'), 'legs', look.legs ?? 'short', [['short', S('short')], ['long', S('long')]]) + intro(S('longShortsSuitCooler'));
     if (this.garageSlot === 'gloves')
-      return this.optRow(L ? 'Type' : 'Type', 'gloves', look.gloves ?? 'none', [['none', L ? 'Sans' : 'None'], ['mitts', L ? 'Mitaines' : 'Mitts'], ['full', L ? 'Complets' : 'Full']]) + this.colorRows();
+      return this.optRow(S('type'), 'gloves', look.gloves ?? 'none', [['none', S('none3')], ['mitts', S('mitts')], ['full', S('full')]]) + this.colorRows();
     return this.colorRows() + `<div class="mm-colors gr-shoefields">${this.shoeFields()}</div>`;
   }
 
   /** Légende de l'équipement survolé (ou équipé / essayé) sous la grille de pastilles. */
   private captionHtml(): string {
-    const L = fr();
-    return `<div class="gr-cap" id="gr-cap" aria-live="polite"><b></b><span></span><em></em></div><p class="gr-cap-hint">${L ? 'Survole une pastille pour lire son nom et son effet ; clique pour l’essayer ou l’équiper.' : 'Hover a chip for its name and effect; click to try it on or equip it.'}</p>`;
+    return `<div class="gr-cap" id="gr-cap" aria-live="polite"><b></b><span></span><em></em></div><p class="gr-cap-hint">${S('hoverAChipFor')}</p>`;
   }
 
   /** Barre de filtre du catalogue : Tout / Débloqués / Verrouillés, avec les effectifs. */
   private filterBar(level: number): string {
-    const L = fr();
     const all = COSMETICS.filter((c) => c.slot === this.garageSlot);
     const open = all.filter((c) => c.level <= level).length;
     const seg = (id: 'all' | 'unlocked' | 'locked', label: string, n: number) =>
       `<button class="gr-f ${this.itemFilter === id ? 'on' : ''}" data-gfilter="${id}" aria-pressed="${this.itemFilter === id}">${label} <i>${n}</i></button>`;
-    return `<div class="gr-filter" role="group" aria-label="${L ? 'Filtrer' : 'Filter'}">${seg('all', L ? 'Tout' : 'All', all.length)}${seg('unlocked', L ? 'Débloqués' : 'Unlocked', open)}${seg('locked', L ? 'Verrouillés' : 'Locked', all.length - open)}</div>`;
+    return `<div class="gr-filter" role="group" aria-label="${S('filter')}">${seg('all', S('all2'), all.length)}${seg('unlocked', S('unlocked2'), open)}${seg('locked', S('locked'), all.length - open)}</div>`;
   }
 
   /** Vélos de la collection choisie (ou débloqués), par marque, puis par niveau et par groupe. */
@@ -2648,26 +3497,25 @@ export class MainMenu {
       <div class="mm-bikefilter" role="radiogroup">${BIKE_FILTERS.map(
         ([id, fr_, en]) => `<button class="${id === this.bikeFilter ? 'on' : ''}" data-bikefilter="${id}" role="radio" aria-checked="${id === this.bikeFilter}">${L ? fr_ : en}</button>`,
       ).join('')}</div>
-      ${types.length > 1 ? `<div class="mm-biketypes" role="radiogroup">${chip('all', L ? 'Tous' : 'All', all.length)}${types.map((ty) => chip(ty, BIKE_TYPE[ty][L ? 0 : 1], all.filter((c) => bikeById(c.id)?.type === ty).length)).join('')}</div>` : ''}
+      ${types.length > 1 ? `<div class="mm-biketypes" role="radiogroup">${chip('all', S('all'), all.length)}${types.map((ty) => chip(ty, BIKE_TYPE[ty][L ? 0 : 1], all.filter((c) => bikeById(c.id)?.type === ty).length)).join('')}</div>` : ''}
       <div class="mm-bikelist">
-        ${open.length || plain ? `<h4 class="mm-bl-head">${L ? 'Disponibles' : 'Available'}<span>${open.length + (plain ? 1 : 0)}</span></h4>${plain ? this.plainBikeHtml() : ''}${this.bikeRowsByBrand(open, row)}` : ''}
-        ${locked.length ? `<h4 class="mm-bl-head">${L ? 'À débloquer en roulant' : 'Unlock by riding'}<span>${locked.length}</span></h4>${this.bikeRowsByBrand(locked, row)}` : ''}
+        ${open.length || plain ? `<h4 class="mm-bl-head">${S('available')}<span>${open.length + (plain ? 1 : 0)}</span></h4>${plain ? this.plainBikeHtml() : ''}${this.bikeRowsByBrand(open, row)}` : ''}
+        ${locked.length ? `<h4 class="mm-bl-head">${S('unlockByRiding')}<span>${locked.length}</span></h4>${this.bikeRowsByBrand(locked, row)}` : ''}
       </div>`;
   }
 
   /** Bidons : aucun, 1 ou 2 selon ce que le cadre équipé peut porter (look.bottles) ; aperçu immédiat. */
   private bottlesToggle(equippedId: string | undefined): string {
-    const L = fr();
     const cap = bottleCapacity(equippedId);
-    if (cap === 0) return `<div class="field mm-bottles">${L ? 'Bidons' : 'Bottles'}<span class="mm-hint">${L ? 'Ce cadre ne porte pas de bidon.' : 'This frame carries no bottle.'}</span></div>`;
+    if (cap === 0) return `<div class="field mm-bottles">${S('bottles')}<span class="mm-hint">${S('thisFrameCarriesNo')}</span></div>`;
     const cur = Math.min(this.s.look.bottles ?? 1, cap);
-    const opts: Array<[string, string]> = [['0', L ? 'Aucun' : 'None'], ['1', '1'], ['2', '2']];
+    const opts: Array<[string, string]> = [['0', S('none2')], ['1', '1'], ['2', '2']];
     const color = this.s.look.bottleColor ?? 'auto';
-    return `<div class="field mm-bottles">${L ? 'Bidons' : 'Bottles'}${this.seg('m-bottles', String(cur), opts.slice(0, cap + 1))}</div>
-      <div class="field mm-bottles">${L ? 'Couleur des bidons' : 'Bottle colour'}${this.seg('m-bottlecolor', color, [
+    return `<div class="field mm-bottles">${S('bottles')}${this.seg('m-bottles', String(cur), opts.slice(0, cap + 1))}</div>
+      <div class="field mm-bottles">${S('bottleColour')}${this.seg('m-bottlecolor', color, [
         ['auto', 'Auto'],
-        ['black', L ? 'Noir' : 'Black'],
-        ['white', L ? 'Blanc' : 'White'],
+        ['black', S('black')],
+        ['white', S('white')],
       ])}</div>`;
   }
 
@@ -2681,8 +3529,8 @@ export class MainMenu {
     const prev = [...this.previews.values()].includes(c.id);
     const from = bike ? bikeFrom(bike.group, lang) : undefined;
     const sub = bike ? `${BIKE_TYPE[bike.type][L ? 0 : 1]}${from ? ` · ${from}` : ''}` : '';
-    const state = prev ? `👁 ${L ? 'Aperçu' : 'Preview'}` : locked ? `🔒 ${L ? 'niv.' : 'lvl'} ${c.level}` : on ? `✓ ${L ? 'Équipé' : 'Equipped'}` : '';
-    return `<button class="mm-bike ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${esc([bike?.desc[lang] ?? '', locked ? (L ? 'Cliquer pour l’essayer' : 'Click to try it on') : ''].filter(Boolean).join(' — '))}">
+    const state = prev ? `👁 ${S('preview')}` : locked ? `🔒 ${S('lvl')} ${c.level}` : on ? `✓ ${S('equipped')}` : '';
+    return `<button class="mm-bike ${on ? 'on' : ''} ${locked ? 'locked' : ''} ${prev ? 'preview' : ''}" data-item="${c.id}" title="${esc([bike?.desc[lang] ?? '', locked ? (S('clickToTryIt')) : ''].filter(Boolean).join(' — '))}">
       ${bikeThumbHtml(c.id, 'mm-bikeicon', c.colors?.length ? c.colors : [c.color ?? '#7a8594'])}
       <span class="mm-bike-txt"><b>${esc(c.name[lang])}</b><small>${esc(sub)}</small></span>
       <span class="mm-bike-side">${c.effect ? `<em>${esc(c.effect[lang])}</em>` : ''}${state ? `<span class="mm-bike-state">${state}</span>` : ''}</span>
@@ -2691,12 +3539,11 @@ export class MainMenu {
 
   /** Vélo de départ sans marque, à la couleur choisie dans « Couleurs ». */
   private plainBikeHtml(): string {
-    const L = fr();
     const on = !this.s.look.bikeModel;
-    return `<button class="mm-bike ${on ? 'on' : ''}" data-plainbike title="${L ? 'Couleur au choix dans l’onglet Couleurs' : 'Pick its colour in the Colours tab'}">
+    return `<button class="mm-bike ${on ? 'on' : ''}" data-plainbike title="${S('pickItsColourIn')}">
       ${plainThumbHtml(this.s.look.bike, 'mm-bikeicon')}
-      <span class="mm-bike-txt"><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b><small>${L ? 'Couleur au choix (onglet Couleurs)' : 'Your colour (Colours tab)'}</small></span>
-      <span class="mm-bike-side">${on ? `<span class="mm-bike-state">✓ ${L ? 'Équipé' : 'Equipped'}</span>` : ''}</span></button>`;
+      <span class="mm-bike-txt"><b>${S('unbrandedBike')}</b><small>${S('yourColourColoursTab')}</small></span>
+      <span class="mm-bike-side">${on ? `<span class="mm-bike-state">✓ ${S('equipped')}</span>` : ''}</span></button>`;
   }
 
   /** Fiche du vélo regardé : aperçu d'un vélo verrouillé, sinon le vélo équipé. */
@@ -2706,19 +3553,19 @@ export class MainMenu {
     const previewed = this.previews.has('bike') ? COSMETICS.find((c) => c.id === this.previews.get('bike')) : undefined;
     const c = previewed ?? (equippedId ? COSMETICS.find((x) => x.id === equippedId) : undefined);
     if (!c) {
-      return `<div class="mm-bikefocus">${plainThumbHtml(this.s.look.bike, 'mm-bikeicon big')}<div class="mm-bf-txt"><small>${L ? 'Ton vélo' : 'Your bike'}</small><b>${L ? 'Vélo sans marque' : 'Unbranded bike'}</b>
-        <p>${L ? 'Sa couleur se choisit dans l’onglet Couleurs. Les vélos des équipes se débloquent en roulant.' : 'Pick its colour in the Colours tab. Team bikes unlock as you ride.'}</p></div></div>`;
+      return `<div class="mm-bikefocus">${plainThumbHtml(this.s.look.bike, 'mm-bikeicon big')}<div class="mm-bf-txt"><small>${S('yourBike')}</small><b>${S('unbrandedBike')}</b>
+        <p>${S('pickItsColourIn2')}</p></div></div>`;
     }
     const bike = bikeById(c.id);
     const from = bike ? bikeFrom(bike.group, lang) : undefined;
     const tags = [bike ? BIKE_TYPE[bike.type][L ? 0 : 1] : '', from ?? '', bike?.year ? String(bike.year) : ''].filter(Boolean);
     return `<div class="mm-bikefocus ${previewed ? 'preview' : ''}">${bikeThumbHtml(c.id, 'mm-bikeicon big', c.colors?.length ? c.colors : [c.color ?? '#7a8594'])}
       <div class="mm-bf-txt">
-        <small>${previewed ? (L ? `Aperçu · se débloque au niveau ${c.level}` : `Preview · unlocks at level ${c.level}`) : L ? 'Ton vélo' : 'Your bike'}</small>
+        <small>${previewed ? (L ? `Aperçu · se débloque au niveau ${c.level}` : `Preview · unlocks at level ${c.level}`) : S('yourBike')}</small>
         <b>${esc(c.name[lang])}</b>
         <span class="mm-bf-tags">${tags.map((x) => `<em>${esc(x)}</em>`).join('')}${c.effect ? `<em class="fx">${esc(c.effect[lang])}</em>` : ''}</span>
         ${bike ? `<p>${esc(bike.desc[lang])}</p>` : ''}
-        ${previewed ? `<button class="mm-link" data-unpreview>${L ? '← Revenir à mon vélo' : '← Back to my bike'}</button>` : ''}
+        ${previewed ? `<button class="mm-link" data-unpreview>${S('backToMyBike')}</button>` : ''}
       </div></div>`;
   }
 
@@ -2730,8 +3577,8 @@ export class MainMenu {
     const wkg = s.ftpWatts / s.massKg;
     const sub = `<nav class="hp-tabs mm-subtabs" role="tablist">${(
       [
-        ['profile', L ? 'Mon profil' : 'My profile'],
-        ['history', L ? 'Historique' : 'History'],
+        ['profile', S('myProfile')],
+        ['history', S('history')],
       ] as const
     )
       .map(([v, label]) => `<button role="tab" class="hp-tab${v === this.profileView ? ' on' : ''}" aria-selected="${v === this.profileView}" data-pview="${v}">${label}</button>`)
@@ -2739,25 +3586,25 @@ export class MainMenu {
     // Historique : toutes les sorties, la forme, les records et les FTP (fenêtre large).
     if (this.profileView === 'history') {
       return `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}
-      <header class="mm-head"><h2>${t('profile')}</h2></header>${sub}<div id="m-history"></div></section>`;
+      <header class="mm-head"><h2 class="ab-title">${t('profile')}</h2></header>${sub}<div id="m-history"></div></section>`;
     }
     const stat = (value: string, unit: string, title = ''): string => `<div class="ab-tile ab-plain"${title ? ` title="${title}"` : ''}><div class="ab-val"><b>${value}</b><small>${unit}</small></div></div>`;
     const row = (label: string, help: string, control: string, forId = ''): string =>
       `<div class="mm-opt"><div class="mm-opt-l"><b>${forId ? `<label for="${forId}">${label}</label>` : label}</b>${help ? `<small>${help}</small>` : ''}</div>${control}</div>`;
     return `<section class="mm-panel mm-center">${this.closeBtn()}
-      <header class="mm-head"><h2>${t('profile')}</h2></header>${sub}
+      <header class="mm-head"><h2 class="ab-title">${t('profile')}</h2></header>${sub}
       <div class="mm-bigstats ab-grid ab-grid-4">${stat(wkg.toFixed(1).replace('.', L ? ',' : '.'), 'W/kg')}${stat(String(Math.round(s.ftpWatts)), 'W FTP')}${stat(String(s.massKg), 'kg')}${stat(
         Math.round((rideHistory.summary?.totals.distanceM ?? 0) / 1000).toLocaleString(L ? 'fr-FR' : 'en-GB'),
-        L ? 'km roulés' : 'km ridden',
-        L ? 'Kilomètres roulés dans le jeu, toutes sorties confondues' : 'Kilometres ridden in the game, all rides',
+        S('kmRidden'),
+        S('kilometresRiddenInThe'),
       )}</div>
       <div class="mm-card mm-profile-form">
         ${row(t('name'), '', `<input id="m-name" class="mm-input" value="${esc(s.name)}" />`, 'm-name').replace('class="mm-opt"', 'class="mm-opt mm-opt-first"')}
-        ${row(L ? 'Je suis' : 'I am', '', `<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (L ? 'Un homme' : 'A man') : L ? 'Une femme' : 'A woman'}</button>`).join('')}</div>`)}
-        ${row(L ? 'Nationalité' : 'Nationality', L ? 'Ton drapeau à côté de ton nom.' : 'Your flag next to your name.', this.nationHtml())}
-        ${row(t('weight'), L ? 'Compte dans les montées.' : 'Counts on the climbs.', this.stepper('m-mass', 30, 200, s.massKg, 0.5), 'm-mass')}
-        ${row(t('height'), L ? 'Compte dans la prise au vent.' : 'Counts for your drag.', this.stepper('m-height', 120, 220, s.heightCm), 'm-height')}
-        ${row(t('ftp'), L ? 'Règle les séances et les zones.' : 'Sets workouts and zones.', this.stepper('m-ftp', 50, 600, s.ftpWatts), 'm-ftp')}
+        ${row(S('iAm'), '', `<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (S('aMan')) : S('aWoman')}</button>`).join('')}</div>`)}
+        ${row(S('nationality'), S('yourFlagNextTo'), this.nationHtml())}
+        ${row(t('weight'), S('countsOnTheClimbs'), this.stepper('m-mass', 30, 200, s.massKg, 0.5), 'm-mass')}
+        ${row(t('height'), S('countsForYourDrag'), this.stepper('m-height', 120, 220, s.heightCm), 'm-height')}
+        ${row(t('ftp'), S('setsWorkoutsAndZones'), this.stepper('m-ftp', 50, 600, s.ftpWatts), 'm-ftp')}
       </div>
     </section>`;
   }
@@ -2801,7 +3648,22 @@ export class MainMenu {
 
   /** Réglages rares ou techniques d'une catégorie : un seul repli, fermé par défaut, état mémorisé. */
   private setAdvanced(id: string, body: string): string {
-    return `<details class="set-adv" data-sec="adv-${id}" ${this.settingsOpen.has(`adv-${id}`) ? 'open' : ''}><summary>${fr() ? 'Avancé' : 'Advanced'}</summary>${body}</details>`;
+    return `<details class="set-adv" data-sec="adv-${id}" ${this.settingsOpen.has(`adv-${id}`) ? 'open' : ''}><summary>${SET('advanced')}</summary>${body}</details>`;
+  }
+
+  /** Limite d'images par seconde enregistrée (`ar.fpsCap`, '0' = celle de l'écran), lue par engine/display.ts au chargement. */
+  private fpsCapSeg(): string {
+    let cur = '0';
+    try {
+      const n = Number(localStorage.getItem('ar.fpsCap') ?? '0');
+      cur = Number.isFinite(n) && n >= 20 ? String(Math.round(n)) : '0';
+    } catch {
+      /* stockage indisponible : écran */
+    }
+    const opts: Array<[string, string]> = [['0', SET('fpsScreen')], ['30', '30'], ['60', '60'], ['120', '120']];
+    // Valeur posée à la main (144…) : proposée telle quelle pour ne pas l'effacer sans le vouloir.
+    if (!opts.some(([v]) => v === cur)) opts.push([cur, cur]);
+    return this.seg('m-fpscap', cur, opts);
   }
 
   private settingsHtml(): string {
@@ -2812,21 +3674,22 @@ export class MainMenu {
     const val = (id: string, text: string) => ` <span class="set-val" id="${id}">${text}</span>`;
 
     const image = `
-      ${opt(t('quality'), L ? 'Plus haut : plus beau, plus exigeant pour la carte graphique.' : 'Higher: prettier, harder on the graphics card.', this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)])), true)}
-      ${opt(L ? 'Style graphique' : 'Graphic style', '', this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', L ? 'Jeu vidéo' : 'Video game'], ['real', L ? 'Réaliste' : 'Realistic'], ...(V3_AVAILABLE ? [['v3', 'Beta'] as [string, string]] : [])]), true)}
+      ${opt(t('quality'), SET('qualityHelp'), this.seg('m-quality', s.quality, (['low', 'medium', 'high', 'ultra'] as const).map((q) => [q, t(q)])), true)}
+      ${opt(SET('style'), '', this.seg('m-style', GRAPHIC_STYLE, [['lowpoly', SET('styleGame')], ['real', SET('styleReal')], ...(V3_AVAILABLE ? [['v3', 'Beta'] as [string, string]] : [])]), true)}
+      ${opt(SET('fpsCap'), SET('fpsHelp'), this.fpsCapSeg(), true)}
       ${this.setAdvanced(
         'image',
-        `${opt(L ? 'Format de l’image' : 'Picture format', L ? 'Bandes noires sur un écran plus large que le format choisi.' : 'Black bars on a screen wider than the chosen format.', this.seg('m-aspect', getAspectCap(), [['full', L ? 'Plein écran' : 'Full'], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']]), true)}
-        ${opt(L ? 'Résolution max' : 'Max resolution', '<span id="m-res-now"></span>', this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']]), true)}`,
+        `${opt(SET('aspect'), SET('aspectHelp'), this.seg('m-aspect', getAspectCap(), [['full', SET('aspectFull')], ['16:9', '16:9'], ['21:9', '21:9'], ['32:9', '32:9']]), true)}
+        ${opt(SET('maxRes'), '<span id="m-res-now"></span>', this.seg('m-maxres', getResolutionCap(), [['auto', 'Auto'], ['1080p', '1080p'], ['1440p', '1440p'], ['4k', '4K']]), true)}`,
       )}`;
 
     // Blocs du HUD : décocher ce que son matériel ne mesure pas (cardio, cadence…), rangés par famille.
     const hidden = new Set(s.hudHidden);
     const groups: Array<[string, string[]]> = [
-      [L ? 'Mes données' : 'My data', ['hr', 'power', 'cadence', 'speed', 'avg', 'np', 'gear', 'balance', 'zones']],
-      [L ? 'Parcours et environnement' : 'Route and conditions', ['grade', 'time', 'dist', 'gain', 'wind', 'alt', 'lap']],
-      [L ? 'Autres coureurs' : 'Other riders', ['draft', 'group', 'riders']],
-      [L ? 'Carte et profil' : 'Map and profile', ['map', 'profile']],
+      [SET('hudMine'), ['hr', 'power', 'cadence', 'speed', 'avg', 'np', 'gear', 'balance', 'zones']],
+      [SET('hudRoute'), ['grade', 'time', 'dist', 'gain', 'wind', 'alt', 'lap']],
+      [SET('hudOthers'), ['draft', 'group', 'riders']],
+      [SET('hudMap'), ['map', 'profile']],
     ];
     const grouped = new Set(groups.flatMap(([, ids]) => ids));
     // Un bloc ajouté plus tard au HUD et pas encore rangé reste proposé, dans la première famille.
@@ -2837,62 +3700,63 @@ export class MainMenu {
       return b ? `<label class="mm-check"><input type="checkbox" data-hudblock="${b.id}" ${hidden.has(b.id) ? '' : 'checked'}/> ${L ? b.fr : b.en}</label>` : '';
     };
     const interfaceCat = `
-      ${opt(L ? 'Disposition de l’interface' : 'Interface layout', L ? 'Prend effet à la prochaine sortie.' : 'Applies from the next ride.', hudPickerHtml(), true)}
-      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Éléments affichés en sortie' : 'Shown during the ride'}</b><small>${L ? 'Décoche ce que ton matériel ne mesure pas ou ce que tu ne veux pas voir.' : 'Untick what your hardware does not measure or what you do not want to see.'}</small></div>
+      ${opt(SET('layout'), SET('nextRide'), hudPickerHtml(), true)}
+      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${SET('shown')}</b><small>${SET('shownHelp')}</small></div>
         <div class="set-groups">${groups.map(([title, ids]) => `<div class="set-group"><h4>${title}</h4>${ids.map(check).join('')}</div>`).join('')}</div></div>
-      ${this.setAdvanced('interface', opt(L ? 'Zone de l’interface' : 'Interface area', L ? 'Sur un écran très large, garde les compteurs au centre.' : 'On a very wide screen, keeps the gauges in the centre.', this.seg('m-uiaspect', getUiAspectCap(), [['full', L ? 'Toute la largeur' : 'Full width'], ['16:9', '16:9'], ['21:9', '21:9']]), true))}`;
+      ${this.setAdvanced('interface', opt(SET('uiArea'), SET('uiAreaHelp'), this.seg('m-uiaspect', getUiAspectCap(), [['full', SET('uiFull')], ['16:9', '16:9'], ['21:9', '21:9']]), true))}`;
 
     const ride = `
       ${opt(t('season'), '', this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)])), true)}
-      ${opt(L ? 'Heure de départ' : 'Start time', '', this.seg('m-realtime', s.realTime ? '1' : '0', [['1', `${L ? 'Heure actuelle' : 'Current time'} · ${this.hourLabel(nowHour())}`], ['0', L ? 'Réglée' : 'Custom']]), true)}
+      ${opt(SET('startTime'), '', this.seg('m-realtime', s.realTime ? '1' : '0', [['1', `${SET('nowTime')} · ${this.hourLabel(nowHour())}`], ['0', SET('customTime')]]), true)}
       ${s.realTime ? '' : opt(`${t('hour')}${val('m-hourv', this.hourLabel(s.hour))}`, '', range('m-hour', 5, 22, 0.25, s.hour))}
-      ${opt(L ? 'Nuages' : 'Clouds', '', range('m-clouds', 0, 1, 0.05, s.clouds))}
-      ${opt(L ? 'Pluie' : 'Rain', L ? 'La chaussée mouillée roule moins bien.' : 'A wet road rolls slower.', range('m-rain', 0, 1, 0.05, s.rain))}
-      ${opt(L ? 'Brouillard' : 'Fog', '', range('m-fog', 0, 1, 0.05, s.fog))}
-      ${opt(L ? 'Météo pendant la sortie' : 'Weather during the ride', '', this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [['0', L ? 'Fixe' : 'Fixed'], ['1', L ? 'Qui évolue' : 'Changing']]), true)}`;
+      ${opt(SET('clouds'), '', range('m-clouds', 0, 1, 0.05, s.clouds))}
+      ${opt(SET('rain'), SET('rainHelp'), range('m-rain', 0, 1, 0.05, s.rain))}
+      ${opt(SET('fog'), '', range('m-fog', 0, 1, 0.05, s.fog))}
+      ${opt(SET('evolve'), '', this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [['0', SET('fixed')], ['1', SET('changing')]]), true)}`;
 
     const RF = ROAD_FEEL_TEXT[L ? 'fr' : 'en'];
     const trainer = `
-      ${opt(`${t('difficulty')}${val('m-diffv', `${Math.round(s.trainerDifficulty * 100)} %`)}`, L ? 'Part de la pente que le home trainer te fait sentir.' : 'Share of the gradient the trainer makes you feel.', range('m-diff', 0, 1, 0.05, s.trainerDifficulty))}
-      ${opt('Transmission', L ? 'Vitesses virtuelles : le jeu change de rapport, ta chaîne ne bouge pas.' : 'Virtual shifting: the game changes gear, your chain stays put.', this.seg('m-drive', s.drivetrain, [['cog', L ? 'Vitesses virtuelles' : 'Virtual shifting'], ['cassette', L ? 'Cassette réelle' : 'Real cassette']]), true)}
+      ${opt(`${t('difficulty')}${val('m-diffv', `${Math.round(s.trainerDifficulty * 100)} %`)}`, SET('diffHelp'), range('m-diff', 0, 1, 0.05, s.trainerDifficulty))}
+      ${opt(SET('drive'), SET('driveHelp'), this.seg('m-drive', s.drivetrain, [['cog', SET('virtual')], ['cassette', SET('cassette')]]), true)}
       ${opt(`${RF.title}${val('m-roadfeelv', roadFeelValue(s.roadFeelPercent, L))}`, '', range('m-roadfeel', 0, ROAD_FEEL.maxPercent, 5, s.roadFeelPercent))}
       ${roadFeelMessage(s.roadFeelPercent, L)}
       ${this.setAdvanced(
         'trainer',
-        `${opt(`${L ? 'Inertie' : 'Inertia'}${val('m-inertiav', `${Math.round(s.inertia * 100)} %`)}`, L ? '100 % : masse et roues réelles. Plus bas, la vitesse suit plus vite les relances.' : '100%: real mass and wheels. Lower: speed follows accelerations faster.', range('m-inertia', 0.6, 1, 0.05, s.inertia))}
-        ${opt(L ? 'Lissage de la puissance' : 'Power smoothing', L ? 'Affiche la moyenne sur 3 secondes.' : 'Shows the 3-second average.', this.seg('m-smooth', s.smoothing3s ? '1' : '0', [['0', L ? 'Non' : 'Off'], ['1', '3 s']]))}
-        ${opt(`${L ? 'Danseuse au-delà de' : 'Stand up above'}${val('m-standv', s.standWatts ? `${s.standWatts} W` : 'Auto')}`, L ? 'Auto : le coureur se lève en sprint, en côte et en force.' : 'Auto: the rider stands in sprints, climbs and low-cadence efforts.', range('m-stand', 0, 1200, 25, s.standWatts))}`,
+        `${opt(`${SET('inertia')}${val('m-inertiav', `${Math.round(s.inertia * 100)} %`)}`, SET('inertiaHelp'), range('m-inertia', 0.6, 1, 0.05, s.inertia))}
+        ${opt(SET('smooth'), SET('smoothHelp'), this.seg('m-smooth', s.smoothing3s ? '1' : '0', [['0', SET('off')], ['1', '3 s']]))}
+        ${opt(`${SET('stand')}${val('m-standv', s.standWatts ? `${s.standWatts} W` : 'Auto')}`, SET('standHelp'), range('m-stand', 0, 1200, 25, s.standWatts))}`,
       )}`;
 
     const sound = `
-      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Musique' : 'Music'}</b></div><div id="m-music-settings" class="mm-musicset"></div></div>
-      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${L ? 'Sons du jeu' : 'Game sounds'}</b></div><div id="m-sound-settings"></div></div>`;
+      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${SET('music')}</b></div><div id="m-music-settings" class="mm-musicset"></div></div>
+      <div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${SET('gameSounds')}</b><small>${SET('gameSoundsHelp')}</small></div><div id="m-sound-settings"></div></div>`;
 
     const general = `
       ${opt(t('language'), '', this.seg('m-lang', s.lang, [['fr', 'Français'], ['en', 'English']]))}
-      ${opt(L ? 'Tutoriel' : 'Tutorial', L ? 'La présentation du premier lancement.' : 'The first-launch walkthrough.', `<button type="button" class="btn small" id="m-tuto">${L ? 'Revoir le tutoriel' : 'Watch the tutorial again'}</button>`)}
-      ${opt('Strava', L ? 'Envoi de tes sorties à la fin de chacune.' : 'Uploads your rides when each one ends.', this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [['skip', L ? 'Ne pas envoyer' : 'Don’t upload'], ['send', L ? 'Envoyer' : 'Upload']]))}
+      ${opt(SET('tutorial'), SET('tutorialHelp'), `<button type="button" class="ab-btn" id="m-tuto">${SET('tutorialAgain')}</button>`)}
+      ${opt('Strava', SET('stravaHelp'), this.seg('m-strava', s.skipStrava ? 'skip' : 'send', [['skip', SET('stravaSkip')], ['send', SET('stravaSend')]]))}
       <div id="m-strava-link"></div>`;
 
-    const ico = (d: string): string => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+    const ico = (d: string): string => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
     const cats: Array<[id: string, name: string, icon: string, body: string]> = [
-      ['image', L ? 'Image' : 'Picture', ico('<rect x="3" y="5" width="18" height="13" rx="2"/><path d="M8 21h8"/>'), image],
-      ['interface', L ? 'Interface' : 'Interface', ico('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'), interfaceCat],
-      ['ride', L ? 'Sortie' : 'Ride', ico('<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>'), ride],
-      ['trainer', L ? 'Home trainer' : 'Smart trainer', ico('<circle cx="7" cy="16" r="4"/><circle cx="17" cy="16" r="4"/><path d="M7 16l4-8h4l2 8M9 8h4"/>'), trainer],
-      ['sound', L ? 'Son et musique' : 'Sound and music', ico('<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/>'), sound],
-      ['companion', L ? 'Compagnon' : 'Companion', ico('<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>'), '<div id="m-companion-settings"></div>'],
-      ['zones', L ? 'Zones hors ligne' : 'Offline areas', ico('<path d="M12 4v10M8 10l4 4 4-4M5 19h14"/>'), '<div id="m-zones-settings"></div>'],
-      ['general', L ? 'Général' : 'General', ico('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'), general],
+      ['image', SET('catImage'), ico('<rect x="3" y="5" width="18" height="13" rx="2"/><path d="M8 21h8"/>'), image],
+      ['interface', SET('catInterface'), ico('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'), interfaceCat],
+      ['ride', SET('catRide'), ico('<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>'), ride],
+      ['trainer', SET('catTrainer'), ico('<circle cx="7" cy="16" r="4"/><circle cx="17" cy="16" r="4"/><path d="M7 16l4-8h4l2 8M9 8h4"/>'), trainer],
+      ['sound', SET('catSound'), ico('<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/>'), sound],
+      ['companion', SET('catCompanion'), ico('<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>'), '<div id="m-companion-settings"></div>'],
+      ['zones', SET('catZones'), ico('<path d="M12 4v10M8 10l4 4 4-4M5 19h14"/>'), '<div id="m-zones-settings"></div>'],
+      ['general', SET('catGeneral'), ico('<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>'), general],
       ['expert', 'Expert', ico('<path d="M4 20l5-1 10-10-4-4L5 15l-1 5z"/><path d="M13 7l4 4"/>'), '<div id="m-expert-settings"></div>'],
     ];
     const cur = cats.some(([id]) => id === this.settingsCat) ? this.settingsCat : 'image';
     // Toutes les catégories restent dans la page (le branchement des réglages les trouve) ; une seule est visible.
-    return `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}
-      <header class="mm-head"><h2>${t('settings')}</h2></header>
+    // Gros blocs : catégories en blocs à gauche, la catégorie choisie dans un bloc à droite (blocks.css).
+    return `<section class="mm-panel mm-center mm-wide mm-xl mm-settings">${this.closeBtn()}
+      <header class="mm-head"><h2 class="ab-title">${t('settings')}</h2><p class="ab-sub">${SET('sub')}</p></header>
       <div class="set-layout">
-        <nav class="set-nav" aria-label="${t('settings')}">${cats.map(([id, name, icon]) => `<button type="button" data-setcat="${id}" class="${id === cur ? 'on' : ''}" aria-current="${id === cur ? 'true' : 'false'}">${icon}<span>${name}</span></button>`).join('')}</nav>
-        <div class="set-panes">${cats.map(([id, name, , body]) => `<div class="set-pane" data-setpane="${id}" ${id === cur ? '' : 'hidden'}><h3 class="set-title">${name}</h3>${body}</div>`).join('')}</div>
+        <nav class="set-nav" aria-label="${t('settings')}">${cats.map(([id, name, icon]) => `<button type="button" data-setcat="${id}" class="set-cat${id === cur ? ' on' : ''}" aria-current="${id === cur ? 'true' : 'false'}"><span class="set-cat-ico">${icon}</span><span>${name}</span></button>`).join('')}</nav>
+        <div class="set-panes">${cats.map(([id, name, , body]) => `<div class="set-pane" data-setpane="${id}" ${id === cur ? '' : 'hidden'}><h3 class="ab-section set-title">${name}</h3><div class="ab-tile ab-plain set-card">${body}</div></div>`).join('')}</div>
       </div>
     </section>`;
   }
@@ -2901,21 +3765,20 @@ export class MainMenu {
 
   /** Lecteur compact de la barre du haut, et section complète dans les réglages. */
   renderMusic(): void {
-    const L = fr();
     const top = this.root.querySelector('#m-music');
     if (top && musicSource() === 'spotify') {
       // Spotify piloté depuis le jeu : lecture ici, titre, commandes, playlists, volume.
       top.innerHTML = `<img class="mm-cover" id="sp-cover" alt="" hidden />
         <span class="mm-now" id="mu-now"><i class="sp">●</i> Spotify</span>
-        <button class="mm-ico" id="sp-prev" title="${L ? 'Précédent' : 'Previous'}">${ICON.prev}</button>
-        <button class="mm-ico on" id="sp-play" title="${L ? 'Lecture / pause (B)' : 'Play / pause (B)'}">${ICON.play}</button>
-        <button class="mm-ico" id="sp-next" title="${L ? 'Suivant (N)' : 'Next (N)'}">${ICON.next}</button>
-        <button class="mm-ico" id="sp-lists" title="${L ? 'Mes playlists' : 'My playlists'}">${ICON.list}</button>
-        <button class="mm-ico" id="sp-game" title="${L ? 'Passer à la musique du jeu (arrête Spotify)' : 'Switch to the game music (stops Spotify)'}">${ICON.music}</button>
+        <button class="mm-ico" id="sp-prev" title="${S('previous')}">${ICON.prev}</button>
+        <button class="mm-ico on" id="sp-play" title="${S('playPauseB')}">${ICON.play}</button>
+        <button class="mm-ico" id="sp-next" title="${S('nextN')}">${ICON.next}</button>
+        <button class="mm-ico" id="sp-lists" title="${S('myPlaylists')}">${ICON.list}</button>
+        <button class="mm-ico" id="sp-game" title="${S('switchToTheGame')}">${ICON.music}</button>
         ${
           spotify.canPlayHere
-            ? `<button class="mm-spotify" id="sp-here" title="${L ? 'Faire jouer Spotify par le jeu' : 'Play Spotify in the game'}">${L ? 'Écouter ici' : 'Play here'}</button>`
-            : `<button class="mm-spotify" id="sp-relog" title="${L ? 'Une reconnexion autorise la lecture dans le jeu' : 'Reconnect once to allow in-game playback'}">${L ? 'Jouer ici' : 'Play here'}</button>`
+            ? `<button class="mm-spotify" id="sp-here" title="${S('playSpotifyInThe')}">${S('playHere')}</button>`
+            : `<button class="mm-spotify" id="sp-relog" title="${S('reconnectOnceToAllow')}">${S('playHere2')}</button>`
         }
         <div class="mm-pop" id="sp-pop" hidden></div>`;
       const later = () => setTimeout(() => void this.refreshNowPlaying(), 700);
@@ -2936,11 +3799,11 @@ export class MainMenu {
       top.querySelector('#sp-game')?.addEventListener('click', () => void this.switchSource('game'));
       void this.refreshNowPlaying();
     } else if (top) {
-      const cur = music.enabled && music.current ? esc(music.current.title) : L ? 'Musique coupée' : 'Music off';
-      top.innerHTML = `<button class="mm-ico ${music.enabled ? 'on' : ''}" id="mu-toggle" title="${L ? 'Musique marche / arrêt (B)' : 'Music on / off (B)'}">${music.enabled ? ICON.music : ICON.musicOff}</button>
+      const cur = music.enabled && music.current ? esc(music.current.title) : S('musicOff');
+      top.innerHTML = `<button class="mm-ico ${music.enabled ? 'on' : ''}" id="mu-toggle" title="${S('musicOnOffB')}">${music.enabled ? ICON.music : ICON.musicOff}</button>
         <span class="mm-now" id="mu-now">${cur}</span>
-        <button class="mm-ico" id="mu-next" title="${L ? 'Morceau suivant (N)' : 'Next track (N)'}">${ICON.next}</button>
-        <button class="mm-spotify" id="sp-login" title="${spotify.connected ? (L ? 'Passer à Spotify' : 'Switch to Spotify') : L ? 'Connecter ton compte Spotify' : 'Connect your Spotify account'}"><i class="sp">●</i> Spotify</button>`;
+        <button class="mm-ico" id="mu-next" title="${S('nextTrackN')}">${ICON.next}</button>
+        <button class="mm-spotify" id="sp-login" title="${spotify.connected ? (S('switchToSpotify')) : S('connectYourSpotifyAccount')}"><i class="sp">●</i> Spotify</button>`;
       top.querySelector('#mu-toggle')?.addEventListener('click', () => {
         music.toggle();
         this.renderMusic();
@@ -2950,10 +3813,10 @@ export class MainMenu {
     }
     const set = this.root.querySelector('#m-music-settings');
     if (set) {
-      set.innerHTML = `<button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle2">♪ ${L ? 'Musique du jeu' : 'Game music'} : ${music.enabled ? (music.yielded ? (L ? 'laisse la place à Spotify' : 'yields to Spotify') : L ? 'activée' : 'on') : L ? 'coupée' : 'off'}</button>
+      set.innerHTML = `<button class="btn small ${music.enabled ? 'on' : ''}" id="mu-toggle2">♪ ${S('gameMusic')} : ${music.enabled ? (music.yielded ? (S('yieldsToSpotify')) : S('on2')) : S('off3')}</button>
         <label class="mm-vol">Volume<input id="mu-vol" type="range" min="0" max="1" step="0.05" value="${music.volume}" /></label>
-        ${spotify.connected ? `<span class="mm-seg-inline"><button class="btn small ${musicSource() === 'game' ? 'primary' : ''}" id="src-game">${L ? 'Source : musique du jeu' : 'Source: game music'}</button><button class="btn small ${musicSource() === 'spotify' ? 'primary' : ''}" id="src-spotify">${L ? 'Source : Spotify' : 'Source: Spotify'}</button></span>` : ''}
-        ${spotify.connected ? `<button class="btn small" id="sp-logout">${L ? 'Déconnecter Spotify' : 'Disconnect Spotify'}</button>` : `<button class="btn small mm-spotify" id="sp-login2"><i class="sp">●</i> ${L ? 'Connecter Spotify' : 'Connect Spotify'}</button>`}`;
+        ${spotify.connected ? `<span class="mm-seg-inline"><button class="btn small ${musicSource() === 'game' ? 'primary' : ''}" id="src-game">${S('sourceGameMusic')}</button><button class="btn small ${musicSource() === 'spotify' ? 'primary' : ''}" id="src-spotify">${S('sourceSpotify')}</button></span>` : ''}
+        ${spotify.connected ? `<button class="btn small" id="sp-logout">${S('disconnectSpotify')}</button>` : `<button class="btn small mm-spotify" id="sp-login2"><i class="sp">●</i> ${S('connectSpotify')}</button>`}`;
       set.querySelector('#mu-toggle2')?.addEventListener('click', () => {
         music.toggle();
         this.renderMusic();
@@ -2982,7 +3845,7 @@ export class MainMenu {
     const el = this.root.querySelector('#mu-now');
     if (!el) return;
     const np = await spotify.nowPlaying();
-    el.innerHTML = np ? `${esc(np.title)} <span>— ${esc(np.artist)}</span>` : `<i class="sp">●</i> ${fr() ? 'Spotify : rien en lecture' : 'Spotify: nothing playing'}`;
+    el.innerHTML = np ? `${esc(np.title)} <span>— ${esc(np.artist)}</span>` : `<i class="sp">●</i> ${S('spotifyNothingPlaying')}`;
     el.setAttribute('title', np ? `${np.title} — ${np.artist}` : '');
     const cover = this.root.querySelector<HTMLImageElement>('#sp-cover');
     if (cover) {
@@ -2995,12 +3858,12 @@ export class MainMenu {
     if (here) {
       const on = np?.isPlaying ? await spotify.playingHere() : false;
       here.classList.toggle('on', on);
-      here.textContent = on ? (fr() ? '♪ Dans le jeu' : '♪ In game') : fr() ? 'Écouter ici' : 'Play here';
+      here.textContent = on ? (S('inGame')) : S('playHere');
     }
   }
 
   private spotifyError(): void {
-    const msg = spotify.playerError || (fr() ? 'Lecture impossible dans le jeu.' : 'Cannot play in the game.');
+    const msg = spotify.playerError || (S('cannotPlayInThe'));
     const el = this.root.querySelector('#mu-now');
     if (el) el.innerHTML = `<span class="warn-text">${esc(msg)}</span>`;
   }
@@ -3013,16 +3876,15 @@ export class MainMenu {
       pop.hidden = true;
       return;
     }
-    const L = fr();
     pop.hidden = false;
-    pop.innerHTML = `<div class="mm-pop-head">${L ? 'Mes playlists' : 'My playlists'}</div><div class="mm-hint">${L ? 'Chargement…' : 'Loading…'}</div>`;
+    pop.innerHTML = `<div class="mm-pop-head">${S('myPlaylists')}</div><div class="mm-hint">${S('loading2')}</div>`;
     const lists = await spotify.playlists();
-    pop.innerHTML = `<div class="mm-pop-head">${L ? 'Mes playlists' : 'My playlists'}
+    pop.innerHTML = `<div class="mm-pop-head">${S('myPlaylists')}
         <label class="mm-vol">Volume<input id="sp-vol" type="range" min="0" max="1" step="0.05" value="0.7" /></label></div>
       <div class="mm-pop-list">${
         lists.length
           ? lists.map((p) => `<button class="mm-pl" data-uri="${esc(p.uri)}">${p.image ? `<img src="${esc(p.image)}" alt="" />` : '<i></i>'}<b>${esc(p.name)}</b><span>${p.tracks}</span></button>`).join('')
-          : `<p class="mm-hint">${spotify.canPlayHere ? (L ? 'Aucune playlist.' : 'No playlists.') : L ? 'Clique « Jouer ici » (reconnexion) pour voir tes playlists.' : 'Click “Play here” (reconnect) to see your playlists.'}</p>`
+          : `<p class="mm-hint">${spotify.canPlayHere ? (S('noPlaylists')) : S('clickPlayHereReconnect')}</p>`
       }</div>`;
     pop.querySelector('#sp-vol')?.addEventListener('input', (e) => spotify.setHereVolume(Number((e.target as HTMLInputElement).value)));
     pop.querySelectorAll<HTMLElement>('[data-uri]').forEach((b) =>
@@ -3042,24 +3904,23 @@ export class MainMenu {
       void spotify.login();
       return;
     }
-    const L = fr();
     const uri = redirectUri();
     const local = location.hostname === 'localhost';
     const dlg = document.createElement('div');
     dlg.className = 'mm-modal';
     dlg.innerHTML = `<div class="mm-dialog">
-      <h2><i class="sp">●</i> ${L ? 'Connecter Spotify' : 'Connect Spotify'}</h2>
-      <p>${L ? 'Une seule fois : Spotify demande que le jeu soit déclaré comme « application » sur ton compte développeur (gratuit, 2 minutes).' : 'One time only: Spotify needs the game declared as an “app” on your developer account (free, 2 minutes).'}</p>
+      <h2><i class="sp">●</i> ${S('connectSpotify')}</h2>
+      <p>${S('oneTimeOnlySpotify')}</p>
       <ol>
-        <li>${L ? 'Ouvre' : 'Open'} <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> ${L ? 'et clique « Create app ».' : 'and click “Create app”.'}</li>
-        <li>${L ? 'Nom : « Allez Robert » ; API : coche « Web API ».' : 'Name: “Allez Robert”; API: tick “Web API”.'}</li>
-        <li>${L ? 'Redirect URI, à copier exactement (avec le « / » final) :' : 'Redirect URI, copy exactly (with the trailing “/”):'} <code>${esc(uri)}</code> <button class="mm-link" id="sp-copy">${L ? 'Copier' : 'Copy'}</button></li>
-        <li>${L ? 'Enregistre, puis colle ici le « Client ID » :' : 'Save, then paste the “Client ID” here:'}</li>
+        <li>${S('open')} <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener">developer.spotify.com/dashboard</a> ${S('andClickCreateApp')}</li>
+        <li>${S('nameAllezRobertApi')}</li>
+        <li>${S('redirectUriCopyExactly')} <code>${esc(uri)}</code> <button class="mm-link" id="sp-copy">${S('copy')}</button></li>
+        <li>${S('saveThenPasteThe')}</li>
       </ol>
       <input id="sp-id" class="mm-input" placeholder="Client ID" autocomplete="off" spellcheck="false" />
-      ${local ? `<p class="mm-hint">${L ? 'Spotify refuse « localhost » : à la connexion, le jeu passe tout seul à l’adresse 127.0.0.1 (garde-la ensuite).' : 'Spotify rejects “localhost”: on sign-in the game switches to 127.0.0.1 by itself (keep using it afterwards).'}</p>` : ''}
-      <p class="mm-hint">${L ? 'La musique sort de ton appli Spotify (ordinateur ou téléphone) ; lecture / pause et morceau suivant demandent un compte Premium.' : 'Music plays from your Spotify app (computer or phone); play / pause and next need Premium.'}</p>
-      <div class="mm-dialog-foot"><button class="btn" id="sp-cancel">${L ? 'Annuler' : 'Cancel'}</button><button class="btn primary" id="sp-ok">${L ? 'Se connecter à Spotify' : 'Sign in to Spotify'}</button></div>
+      ${local ? `<p class="mm-hint">${S('spotifyRejectsLocalhostOn')}</p>` : ''}
+      <p class="mm-hint">${S('musicPlaysFromYour')}</p>
+      <div class="mm-dialog-foot"><button class="btn" id="sp-cancel">${S('cancel')}</button><button class="btn primary" id="sp-ok">${S('signInToSpotify')}</button></div>
     </div>`;
     this.root.appendChild(dlg);
     const close = () => dlg.remove();
@@ -3084,18 +3945,17 @@ export class MainMenu {
   private renderDevices(): void {
     const box = this.root.querySelector('#m-devices');
     if (!box) return;
-    const L = fr();
     const list = this.devices.list();
     const transports = this.devices.transports();
     const previousTransport = box.querySelector<HTMLElement>('#m-transport')?.dataset.value;
     const selectedTransport = transports.find((tr) => tr.id === previousTransport)?.id ?? transports[0]?.id ?? '';
     const roles: Array<[Role, I18nKey, string]> = [
-      ['trainer', 'trainer', L ? 'Résistance pilotée (FTMS, FE-C)' : 'Controlled resistance (FTMS, FE-C)'],
-      ['power', 'powerMeter', L ? 'Pédales ou manivelle (Assioma…)' : 'Pedals or crank (Assioma…)'],
-      ['cadence', 'cadence', L ? 'Capteur de cadence (Wahoo RPM…)' : 'Cadence sensor (Wahoo RPM…)'],
-      ['heartRate', 'hrm', L ? 'Ceinture ou montre (TRACKR, TICKR…)' : 'Strap or watch (TRACKR, TICKR…)'],
-      ['shifter', 'shifter', L ? 'Manettes (Click, AXS, D-Fly)' : 'Controllers (Click, AXS, D-Fly)'],
-      ['fan', 'fan', L ? 'Ventilateur connecté' : 'Smart fan'],
+      ['trainer', 'trainer', S('controlledResistanceFtmsFe')],
+      ['power', 'powerMeter', S('pedalsOrCrankAssioma')],
+      ['cadence', 'cadence', S('cadenceSensorWahooRpm')],
+      ['heartRate', 'hrm', S('strapOrWatchTrackr')],
+      ['shifter', 'shifter', S('controllersClickAxsD')],
+      ['fan', 'fan', S('smartFan')],
     ];
     const live = this.devices.live?.();
     const tile = ([role, k, sub]: [Role, I18nKey, string]) => {
@@ -3107,21 +3967,21 @@ export class MainMenu {
       const via = !own && fromName && (from === 'trainer' || (role === 'cadence' && from === 'pedals')) ? from : undefined;
       const ok = own || via !== undefined;
       const viaHtml = via
-        ? `<span class="mm-dev-name">${esc(fromName ?? '')} · ${via === 'trainer' ? (L ? 'via le home trainer' : 'via the trainer') : L ? 'via les pédales' : 'via the pedals'}</span>`
+        ? `<span class="mm-dev-name">${esc(fromName ?? '')} · ${via === 'trainer' ? (S('viaTheTrainer')) : S('viaThePedals')}</span>`
         : '';
       const liveKind = role === 'power' ? 'watts' : role === 'cadence' ? 'cadence' : role === 'heartRate' ? 'hr'
         : role === 'shifter' && this.s.drivetrain === 'cassette' ? 'gear' : undefined;
       const liveHtml = liveKind && ok ? `<span class="mm-dev-live" data-live="${liveKind}">${liveText(liveKind, live)}</span>` : '';
       // Tacx NEO appairé : essai du ressenti route accessible tout de suite depuis la tuile.
-      const roadTest = role === 'trainer' && ok && this.devices.roadFeelSupported?.() ? `<button class="mm-link" data-roadtest-open>${L ? 'Tester le ressenti route' : 'Test road feel'}</button>` : '';
+      const roadTest = role === 'trainer' && ok && this.devices.roadFeelSupported?.() ? `<button class="mm-link" data-roadtest-open>${S('testRoadFeel')}</button>` : '';
       return `<div class="mm-dev ${ok ? 'ok' : ds.length ? 'pending' : ''}">
         <div class="mm-dev-ico">${ICON[role as keyof typeof ICON] ?? ''}</div>
         <div class="mm-dev-body"><b>${esc(t(k))}</b>
-          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} ${d.canReconnect && this.devices.reconnect ? `<button class="mm-link" data-reconnect="${esc(d.id)}">${L ? 'reconnecter' : 'reconnect'}</button> ` : ''}<button class="mm-link" data-forget="${esc(d.id)}">${L ? 'oublier' : 'forget'}</button></span>`).join('') : viaHtml || `<span>${esc(sub)}</span>`}
+          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} ${d.canReconnect && this.devices.reconnect ? `<button class="mm-link" data-reconnect="${esc(d.id)}">${S('reconnect')}</button> ` : ''}<button class="mm-link" data-forget="${esc(d.id)}">${S('forget')}</button></span>`).join('') : viaHtml || `<span>${esc(sub)}</span>`}
           ${liveHtml}
           ${roadTest}
         </div>
-        <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}"${via ? ` title="${esc(role === 'power' ? (L ? 'Des pédales associées deviennent la puissance de référence.' : 'Paired pedals become the reference power.') : L ? 'Un capteur de cadence associé passe avant le home trainer.' : 'A paired cadence sensor takes over from the trainer.')}"` : ''}>${own ? (L ? 'Changer' : 'Change') : L ? 'Associer' : 'Pair'}</button>
+        <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}"${via ? ` title="${esc(role === 'power' ? (S('pairedPedalsBecomeThe')) : S('aPairedCadenceSensor'))}"` : ''}>${own ? (S('change')) : S('pair')}</button>
       </div>`;
     };
     // Appareils en gros blocs, comme sur l'écran « Prêt à rouler ? » (mêmes dessins, mêmes mots d'état).
@@ -3176,7 +4036,7 @@ export class MainMenu {
       void this.devices.adapters().then((ads) => {
         const el = box.querySelector('#m-adapters');
         if (!el || ads.length < 2) return;
-        el.innerHTML = `<label class="field">${L ? 'Adaptateur Bluetooth' : 'Bluetooth adapter'}<select id="m-adapter">${ads.map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>`;
+        el.innerHTML = `<label class="field">${S('bluetoothAdapter')}<select id="m-adapter">${ads.map((a) => `<option value="${esc(a.id)}" ${a.isDefault ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>`;
         el.querySelector('select')?.addEventListener('change', (e) => void this.devices.selectAdapter?.((e.target as HTMLSelectElement).value));
         enhanceSelects(el);
       });
@@ -3208,7 +4068,7 @@ export class MainMenu {
       : L
         ? 'Astuce : l’application Windows télécharge les zones plus vite et les garde sur ton ordinateur. <a href="/#telecharger" target="_blank" rel="noopener" style="color:#ffd23f">Télécharger l’application</a>'
         : 'Tip: the Windows app downloads areas faster and keeps them on your computer. <a href="/#telecharger" target="_blank" rel="noopener" style="color:#ffd23f">Get the app</a>';
-    el.innerHTML = `<div class="world-wait-box"><div class="world-wait-bar"><i style="animation:none;width:0%"></i></div><span></span><small class="world-wait-tip">${tip}</small><button class="btn small" style="margin-top:14px">${L ? 'Annuler' : 'Cancel'}</button></div>`;
+    el.innerHTML = `<div class="world-wait-box"><div class="world-wait-bar"><i style="animation:none;width:0%"></i></div><span></span><small class="world-wait-tip">${tip}</small><button class="btn small" style="margin-top:14px">${S('cancel')}</button></div>`;
     document.body.appendChild(el);
     const bar = el.querySelector<HTMLElement>('.world-wait-bar i') as HTMLElement;
     const label = el.querySelector<HTMLElement>('.world-wait-box > span') as HTMLElement;
@@ -3225,9 +4085,9 @@ export class MainMenu {
         // Échec : Robert bras croisés, ce qui s'est passé en clair, l'astuce de l'appli, puis « Fermer ».
         const missing = /pas publiée|introuvable/.test(dl.error);
         const why = missing
-          ? L ? 'Cette zone n’est pas encore publiée sur ce serveur.' : 'This area is not published on this server yet.'
-          : L ? 'Le téléchargement s’est interrompu. Vérifie ta connexion, puis réessaie.' : 'The download was interrupted. Check your connection and try again.';
-        el.innerHTML = `<div class="world-wait-box zone-dl-err"><img class="world-wait-bike" src="${crossedArmsSrc()}" alt="" /><h3>${L ? 'Zone indisponible' : 'Area unavailable'}</h3><p>${why}</p>${tip ? `<small class="world-wait-tip">${tip}</small>` : ''}<button class="btn primary" style="margin-top:16px">${L ? 'Fermer' : 'Close'}</button></div>`;
+          ? S('thisAreaIsNot')
+          : S('theDownloadWasInterrupted');
+        el.innerHTML = `<div class="world-wait-box zone-dl-err"><img class="world-wait-bike" src="${crossedArmsSrc()}" alt="" /><h3>${S('areaUnavailable')}</h3><p>${why}</p>${tip ? `<small class="world-wait-tip">${tip}</small>` : ''}<button class="btn primary" style="margin-top:16px">${S('close')}</button></div>`;
         el.querySelector('button')?.addEventListener('click', () => el.remove());
         return;
       }
@@ -3239,7 +4099,7 @@ export class MainMenu {
       const pct = Math.floor((dl.done / Math.max(dl.total, 1)) * 100);
       bar.style.transition = 'none';
       bar.style.width = `${pct}%`;
-      label.textContent = `${L ? 'Téléchargement de' : 'Downloading'} ${name} ${pct} %`;
+      label.textContent = `${S('downloading2')} ${name} ${pct} %`;
     };
     const timer = setInterval(tick, 150);
     tick();
@@ -3391,7 +4251,7 @@ export class MainMenu {
         if (words.length && n === 0 && !none) {
           none = document.createElement('p');
           none.className = 'mm-hint kom-nomatch';
-          none.textContent = fr() ? 'Aucune montée ne correspond.' : 'No climb matches.';
+          none.textContent = S('noClimbMatches');
           this.root.querySelector('.kom-wrap')?.after(none);
         } else if (none && (n > 0 || !words.length)) none.remove();
       };
@@ -3470,7 +4330,7 @@ export class MainMenu {
         this.routesAfterWorld = true;
         this.loadingZone = this.mapZones().find((z) => z.id === id)?.name ?? id;
         const hint = this.root.querySelector('.fm-dialog .mm-hint');
-        if (hint) hint.textContent = `${fr() ? 'Chargement de' : 'Loading'} ${this.loadingZone}…`;
+        if (hint) hint.textContent = `${S('loading')} ${this.loadingZone}…`;
         this.onWorld?.(id);
       };
       this.franceMap.bind(this.root, this.mapZones(), openZone);
@@ -3498,7 +4358,7 @@ export class MainMenu {
     }
     on('m-all-paris', 'click', () => {
       if (this.loadingZone) return;
-      this.loadingZone = fr() ? 'Paris entier' : 'All of Paris';
+      this.loadingZone = S('allOfParis2');
       this.render();
       this.onWorld?.(compositeId([...new Set([...PARIS_CITY_ZONES, ...this.loadedZones])]));
     });
@@ -3823,21 +4683,21 @@ export class MainMenu {
       if (!f || !this.root.querySelector<HTMLInputElement>('#fe-consent')?.checked) return;
       const msg = this.root.querySelector<HTMLElement>('#fe-photo-msg');
       const L = getLang() === 'fr';
-      if (msg) msg.textContent = L ? 'Analyse sur ton appareil…' : 'Analysing on your device…';
+      if (msg) msg.textContent = S('analysingOnYourDevice');
       try {
         // Repères détectés, à corriger à la main dans une fenêtre avant l'ajustement de l'avatar.
         const { likenessWithEditing } = await import('./landmarkEditor.ts');
         const l = await likenessWithEditing(f);
         if (!l) {
           const m3 = this.root.querySelector<HTMLElement>('#fe-photo-msg');
-          if (m3) m3.textContent = L ? 'Annulé ; photo oubliée.' : 'Cancelled; photo discarded.';
+          if (m3) m3.textContent = S('cancelledPhotoDiscarded');
           return;
         }
         faceSet(withLikeness(s.look, l));
         const m2 = this.root.querySelector<HTMLElement>('#fe-photo-msg');
-        if (m2) m2.textContent = l.face ? (L ? 'Visage, teint et cheveux appliqués ; photo oubliée.' : 'Face, skin and hair applied; photo discarded.') : L ? 'Aucun visage trouvé : teint et cheveux seulement.' : 'No face found: skin and hair only.';
+        if (m2) m2.textContent = l.face ? (S('faceSkinAndHair')) : S('noFaceFoundSkin');
       } catch {
-        if (msg) msg.textContent = L ? 'Analyse impossible sur cet appareil.' : 'Analysis failed on this device.';
+        if (msg) msg.textContent = S('analysisFailedOnThis');
       }
     });
     on<HTMLInputElement>('fe-bare', 'change', (el) => {
@@ -4219,7 +5079,7 @@ export class MainMenu {
       const c = document.getElementById('scene') as HTMLCanvasElement | null;
       if (!out || !c?.width) return;
       const lang = fr() ? 'fr-FR' : 'en-GB';
-      out.textContent = `${fr() ? 'Rendu actuel' : 'Current render'} : ${c.width.toLocaleString(lang)} × ${c.height.toLocaleString(lang)} · ${((c.width * c.height) / 1e6).toLocaleString(lang, { maximumFractionDigits: 1 })} Mpx`;
+      out.textContent = `${SET('renderNow')}${S('txt')}${c.width.toLocaleString(lang)} × ${c.height.toLocaleString(lang)} · ${((c.width * c.height) / 1e6).toLocaleString(lang, { maximumFractionDigits: 1 })} Mpx`;
     };
     showRes();
     on<HTMLSelectElement>('m-maxres', 'change', (el) => {
@@ -4227,6 +5087,14 @@ export class MainMenu {
       window.dispatchEvent(new Event('resize'));
       // Le moteur redimensionne à l'image suivante.
       requestAnimationFrame(() => requestAnimationFrame(showRes));
+    });
+    // Limite d'images par seconde : lue par le moteur au chargement (engine/display.ts), donc à la prochaine sortie.
+    on<HTMLSelectElement>('m-fpscap', 'change', (el) => {
+      try {
+        localStorage.setItem('ar.fpsCap', el.value || '0');
+      } catch {
+        /* stockage indisponible : le choix n'est pas gardé */
+      }
     });
     on<HTMLSelectElement>('m-season', 'change', (el) => {
       s.season = el.value as Settings['season'];

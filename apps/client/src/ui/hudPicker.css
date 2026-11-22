@@ -1,3 +1,11 @@
-/* Choix du HUD (Réglages) : mêmes boutons que les autres choix (.mm-seg) ; l'aperçu en jeu apparaît au survol. */
-.hp-picker { max-width: 560px; }
+/* Choix du HUD (Réglages) : un bloc « gros blocs » (ab-tile) par disposition ; l'aperçu en jeu apparaît au survol. */
+.hp-picker { max-width: 620px; gap: 10px; }
+.hp-picker .hp-card { display: grid; gap: 4px; padding: 14px 16px; border-radius: 18px; cursor: pointer; transition: transform 0.12s, border-color 0.12s; }
+.hp-picker .hp-card:hover { transform: translateY(-2px); border-color: rgba(255, 210, 63, 0.7); }
+.hp-picker .hp-card.is-on { border-color: var(--ar-accent, #ffd23f); }
+.hp-picker .hp-card .ab-name { font-size: 18px; }
+.hp-picker .hp-card .ab-detail { font-size: 14px; }
+.hp-picker .hp-card .ab-state { margin-top: 2px; font-size: 14px; }
+@media (max-width: 560px) { .hp-picker { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .hp-picker .hp-card { transition: none; } }
 .hp-pop { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9999; width: min(980px, 92vw); aspect-ratio: 800 / 245; object-fit: cover; object-position: top; background: #0a0e16; border-radius: 14px; border: 2px solid var(--ar-accent, #ffd23f); box-shadow: 0 0 0 100vmax rgba(4, 6, 10, 0.62), 0 0 40px rgba(255, 210, 63, 0.35); pointer-events: none; }

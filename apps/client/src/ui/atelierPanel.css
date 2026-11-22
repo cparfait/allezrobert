@@ -1,0 +1,45 @@
+/*
+ * Atelier (garage) aligné sur le langage « gros blocs » (blocks.css) : boutons ab-btn neutres et une seule action
+ * jaune (`ab-go`, équiper ou acheter la pièce choisie), cartes à coins ronds et bordure fine, titres en casse normale,
+ * textes d'au moins 14 px (12 px pour les mentions), focus clavier visible. La mise en page reste celle de menu.css.
+ */
+.at-panel .at-btn, .at-panel .at-reset { border: 0; border-radius: 14px; padding: 10px 16px; font: 700 15px var(--font, system-ui); color: var(--ar-fg, #f5f7fa); background: rgba(255, 255, 255, 0.14); }
+.at-panel .at-btn:hover:not(:disabled), .at-panel .at-reset:hover { filter: none; background: rgba(255, 255, 255, 0.22); color: var(--ar-fg, #f5f7fa); }
+.at-panel .at-btn.ab-go { padding: 12px 24px; font-size: 16px; font-weight: 800; background: var(--ar-accent, #ffd23f); color: #0a0e16; box-shadow: 0 6px 22px rgba(255, 210, 63, 0.28); }
+.at-panel .at-btn.ab-go:hover:not(:disabled) { background: var(--ar-accent, #ffd23f); filter: brightness(1.08); }
+.at-panel .at-btn.ghost:disabled { opacity: 1; color: #fca5a5; background: rgba(239, 68, 68, 0.12); }
+.at-panel .at-foot.ab-foot { padding-top: 12px; }
+
+/* Cartes : pièce, ensemble, détail de la pièce choisie. */
+.at-panel .at-item { border-radius: 16px; }
+.at-panel .at-body b { font-size: 15px; }
+.at-panel .at-body small { font-size: 14px; }
+.at-panel .at-rar { font-size: 12px; }
+.at-panel .at-eff { font-size: 14px; }
+.at-panel .at-st { font-size: 14px; }
+.at-panel .at-detail { padding: 14px 16px; border-radius: 22px; border: 2px solid rgba(96, 165, 250, 0.6); }
+.at-panel .at-detail b { font-size: 18px; font-weight: 800; }
+.at-panel .at-detail p { font-size: 14px; line-height: 1.35; color: #c3cddb; }
+.at-panel .at-kit { border-radius: 22px; border: 2px solid rgba(255, 255, 255, 0.1); border-top: 4px solid var(--badge); background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); }
+.at-panel .at-kit:hover { border-color: rgba(255, 210, 63, 0.7); border-top-color: var(--badge); }
+.at-panel .at-kit.sel { border-color: var(--ar-accent, #ffd23f); border-top-color: var(--badge); }
+.at-panel .at-kit-body b { font-size: 19px; font-weight: 800; }
+.at-panel .at-kit-body p { font-size: 14px; line-height: 1.35; color: #c3cddb; }
+.at-panel .at-count { font-size: 14px; }
+.at-panel .at-pieces li { font-size: 12px; }
+.at-panel .at-msg, .at-panel .at-hint { font-size: 14px; }
+.at-panel .at-hint { color: #c3cddb; }
+.at-panel .at-rider button { padding: 8px 10px; font-size: 14px; }
+.at-panel .gr-vchip { font-size: 14px; }
+
+/* Focus clavier : contour jaune visible (menu.css le retire sur les pastilles et le schéma). */
+.at-panel .at-chip:focus-visible, .at-panel .at-item:focus-visible, .at-panel .at-btn:focus-visible, .at-panel .at-reset:focus-visible, .at-panel .gr-vchip:focus-visible, .at-panel .at-rider button:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
+.at-panel .at-hot:focus-visible circle { stroke: var(--ar-accent, #ffd23f); stroke-width: 3; }
+
+/* Chiffres du vélo : titre de section en casse normale, tableau lisible. */
+.at-stats h3.ab-section { margin: 0 0 10px; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg, #f5f7fa); }
+.at-stats h3.ab-section small { font-size: 14px; }
+.at-stats table { font-size: 14px; }
+.at-stats .at-gain { font-size: 14px; }
+.at-stats .at-gain em { font-size: 12px; }
+.at-stats .at-note { font-size: 12px; }

@@ -5,7 +5,71 @@
  * étapes, et le bouton pour la choisir. Un clic sur une ligne la montre ; « Choisir cette séance » la valide.
  */
 import type { LibraryWorkout, WorkoutStep, WorkoutType } from '@allezrobert/physics';
+import { strings } from '../i18n/index.ts';
+import './blocks.css';
 import './workoutStudio.css';
+
+const S = strings(
+  {
+    nWorkouts: '{n} séances',
+    oneWorkout: '{n} séance',
+    unfav: 'Retirer des favoris',
+    fav: 'Ajouter aux favoris',
+    all: 'Toutes',
+    mine: 'Mes séances',
+    noWorkoutMatchesChange: 'Aucune séance ne correspond. Change la durée ou la recherche.',
+    showAll: 'Tout afficher',
+    starWorkoutsToFind: 'Ajoute des séances à tes favoris avec l’étoile ☆ ; les séances importées (.zwo, .erg, .mrc) sont gardées ici.',
+    pickAWorkoutFrom: 'Choisis une séance dans la liste.',
+    duration: 'Durée',
+    decimal: ',',
+    avgPower: 'Puissance moy.',
+    intensity: 'Intensité',
+    lowerIntensity: 'Baisser l’intensité',
+    raiseIntensity: 'Augmenter l’intensité',
+    backTo100: 'Revenir à 100 %',
+    allWorkoutTargetsFor: 'Toutes les cibles de la séance, pour cette sortie et les suivantes.',
+    timeInZone: 'Temps par zone',
+    chosen: '✓ Séance choisie',
+    chooseThisWorkout: 'Choisir cette séance',
+    family: 'Famille',
+    length: 'Durée',
+    name: 'Nom',
+    searchWorkouts: 'Rechercher une séance…',
+    sortBy: 'Trier par',
+    allOut: 'à fond',
+  },
+  {
+    nWorkouts: '{n} workouts',
+    oneWorkout: '{n} workout',
+    unfav: 'Remove from favourites',
+    fav: 'Add to favourites',
+    all: 'All',
+    mine: 'Mine',
+    noWorkoutMatchesChange: 'No workout matches. Change the length or the search.',
+    showAll: 'Show all',
+    starWorkoutsToFind: 'Star ☆ workouts to find them here; imported ones (.zwo, .erg, .mrc) are kept here too.',
+    pickAWorkoutFrom: 'Pick a workout from the list.',
+    duration: 'Duration',
+    decimal: '.',
+    avgPower: 'Avg power',
+    intensity: 'Intensity',
+    lowerIntensity: 'Lower intensity',
+    raiseIntensity: 'Raise intensity',
+    backTo100: 'Back to 100%',
+    allWorkoutTargetsFor: 'All workout targets, for this ride and the next ones.',
+    timeInZone: 'Time in zone',
+    chosen: '✓ Chosen',
+    chooseThisWorkout: 'Choose this workout',
+    family: 'Family',
+    length: 'Length',
+    name: 'Name',
+    searchWorkouts: 'Search workouts…',
+    sortBy: 'Sort by',
+    allOut: 'all out',
+  },
+);
+
 
 /** Filtre de durée (en minutes arrondies) : tout, ≤ 30, 31–45, 46–60, 61–90, plus de 90. */
 export type WorkoutDurFilter = '' | 'le30' | '30-45' | '45-60' | '60-90' | 'gt90';
@@ -204,7 +268,7 @@ function stepRows(p: Profile, ctx: StudioCtx): string {
       const b = powerOf(st, st.powerEnd, ctx.intensity);
       const pct = a === b ? `${Math.round(a * 100)} %` : `${Math.round(a * 100)} → ${Math.round(b * 100)} %`;
       const watts = a === b ? `${Math.round(a * ctx.ftp)} W` : `${Math.round(a * ctx.ftp)} → ${Math.round(b * ctx.ftp)} W`;
-      const what = st.mode === 'max' ? (ctx.fr ? 'à fond' : 'all out') : `${pct} FTP`;
+      const what = st.mode === 'max' ? S('allOut') : `${pct} FTP`;
       return `<li><i style="background:${ctx.zoneColor((a + b) / 2)}"></i><b>${n > 1 ? `${n} × ` : ''}${dur(st.durationS)}</b><span>${what}</span><em>${st.mode === 'max' ? '' : watts}</em></li>`;
     })
     .join('');
@@ -226,11 +290,11 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
 
   // Échelle de l'intensité : une famille = une couleur de zone et 1 à 6 barres.
   const tile = (f: WorkoutType | 'mine' | '', label: string, level: number, color: string) =>
-    `<button class="ws-tile${f === filter ? ' on' : ''}" data-wkfilter="${f}" style="--wk:${color}"><span class="ws-lvl">${[1, 2, 3, 4, 5, 6].map((i) => `<i${i <= level ? ' class="on"' : ''}></i>`).join('')}</span><b>${esc(label)}</b><small>${count(f)}</small></button>`;
+    `<button type="button" class="ws-tile${f === filter ? ' on' : ''}" data-wkfilter="${f}" style="--wk:${color}"><span class="ws-lvl">${[1, 2, 3, 4, 5, 6].map((i) => `<i${i <= level ? ' class="on"' : ''}></i>`).join('')}</span><b>${esc(label)}</b><small>${count(f)}</small></button>`;
   const tiles =
-    tile('', fr ? 'Toutes' : 'All', 0, '#ffd23f') +
+    tile('', S('all'), 0, '#ffd23f') +
     ctx.types.map((t, i) => tile(t, ctx.typeLabels[t][lang], i + 1, ctx.typeColors[t])).join('') +
-    tile('mine', `★ ${fr ? 'Mes séances' : 'Mine'}`, 0, '#ffd23f');
+    tile('mine', `★ ${S('mine')}`, 0, '#ffd23f');
 
   const row = (w: LibraryWorkout) => {
     const p = profileOf(w, zoneIndex, k);
@@ -240,13 +304,13 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
       <svg class="ws-spark" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true">${shapes(p.steps, p.total, 120, 30, ctx.zoneColor, 0.5, k)}</svg>
       <span class="ws-name"><b>${esc(w.name[lang])}</b><small>${ctx.typeLabels[w.type][lang]} · TSS ${p.tss}</small></span>
       <em>${dur(p.total)}</em>
-      <span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${esc(w.id)}" role="button" tabindex="0" aria-pressed="${fav}" title="${fr ? (fav ? 'Retirer des favoris' : 'Ajouter aux favoris') : fav ? 'Remove from favourites' : 'Add to favourites'}">${fav ? '★' : '☆'}</span>
+      <span class="mm-wk-fav${fav ? ' on' : ''}" data-fav="${esc(w.id)}" role="button" tabindex="0" aria-pressed="${fav}" title="${S(fav ? 'unfav' : 'fav')}">${fav ? '★' : '☆'}</span>
     </div>`;
   };
   // Liste : rangée par famille (de la plus facile à la plus dure) quand « Toutes » est choisi et triée par famille.
   const empty = narrowed
-    ? `<p class="ws-empty">${fr ? 'Aucune séance ne correspond. Change la durée ou la recherche.' : 'No workout matches. Change the length or the search.'} <button class="mm-link" data-wkreset>${fr ? 'Tout afficher' : 'Show all'}</button></p>`
-    : `<p class="ws-empty">${fr ? 'Ajoute des séances à tes favoris avec l’étoile ☆ ; les séances importées (.zwo, .erg, .mrc) sont gardées ici.' : 'Star ☆ workouts to find them here; imported ones (.zwo, .erg, .mrc) are kept here too.'}</p>`;
+    ? `<p class="ws-empty">${S('noWorkoutMatchesChange')} <button class="mm-link" data-wkreset>${S('showAll')}</button></p>`
+    : `<p class="ws-empty">${S('starWorkoutsToFind')}</p>`;
   const list = !visible.length
     ? empty
     : filter || ctx.sort !== 'type'
@@ -259,7 +323,7 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
           .join('');
 
   let actions = '';
-  let detail = `<p class="ws-empty">${fr ? 'Choisis une séance dans la liste.' : 'Pick a workout from the list.'}</p>`;
+  let detail = `<p class="ws-empty">${S('pickAWorkoutFrom')}</p>`;
   if (selected) {
     const p = profileOf(selected, zoneIndex, k);
     const W = 640;
@@ -280,38 +344,38 @@ export function workoutStudioHtml(ctx: StudioCtx): string {
     detail = `<div class="ws-hero" style="--wk:${ctx.typeColors[selected.type]}">
         <header><span class="ws-type">${ctx.typeLabels[selected.type][lang]}</span><h3>${esc(selected.name[lang])}</h3><p>${esc(selected.description[lang])}</p></header>
         <div class="ws-stats">
-          <div><small>${fr ? 'Durée' : 'Duration'}</small><b>${dur(p.total)}</b></div>
+          <div><small>${S('duration')}</small><b>${dur(p.total)}</b></div>
           <div><small>TSS</small><b>${p.tss}</b></div>
-          <div><small>IF</small><b>${p.ifv.toFixed(2).replace('.', fr ? ',' : '.')}</b></div>
-          <div><small>${fr ? 'Puissance moy.' : 'Avg power'}</small><b>${Math.round(p.avg * ctx.ftp)} W</b></div>
+          <div><small>IF</small><b>${p.ifv.toFixed(2).replace('.', S('decimal'))}</b></div>
+          <div><small>${S('avgPower')}</small><b>${Math.round(p.avg * ctx.ftp)} W</b></div>
         </div>
         <div class="ws-int${Math.abs(k - 1) > 1e-6 ? ' changed' : ''}">
-          <span class="ws-int-lbl">${fr ? 'Intensité' : 'Intensity'}</span>
-          <button type="button" class="ws-int-btn" data-wkint="-1" aria-label="${fr ? 'Baisser l’intensité' : 'Lower intensity'}"${k <= 0.8 + 1e-6 ? ' disabled' : ''}>−</button>
+          <span class="ws-int-lbl">${S('intensity')}</span>
+          <button type="button" class="ws-int-btn" data-wkint="-1" aria-label="${S('lowerIntensity')}"${k <= 0.8 + 1e-6 ? ' disabled' : ''}>−</button>
           <b class="ws-int-val">${Math.round(k * 100)} %</b>
-          <button type="button" class="ws-int-btn" data-wkint="1" aria-label="${fr ? 'Augmenter l’intensité' : 'Raise intensity'}"${k >= 1.2 - 1e-6 ? ' disabled' : ''}>+</button>
-          ${Math.abs(k - 1) > 1e-6 ? `<button type="button" class="mm-link ws-int-reset" data-wkint="0">${fr ? 'Revenir à 100 %' : 'Back to 100%'}</button>` : ''}
-          <small>${fr ? 'Toutes les cibles de la séance, pour cette sortie et les suivantes.' : 'All workout targets, for this ride and the next ones.'}</small>
+          <button type="button" class="ws-int-btn" data-wkint="1" aria-label="${S('raiseIntensity')}"${k >= 1.2 - 1e-6 ? ' disabled' : ''}>+</button>
+          ${Math.abs(k - 1) > 1e-6 ? `<button type="button" class="mm-link ws-int-reset" data-wkint="0">${S('backTo100')}</button>` : ''}
+          <small>${S('allWorkoutTargetsFor')}</small>
         </div>
         <div class="ws-chart"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${grid.replace(/<text/g, '<text')}<g class="shapes">${shapes(p.steps, p.total, W, H, ctx.zoneColor, 1.5, k)}</g></svg><div class="ws-ticks">${ticks.join('')}</div></div>
-        <div class="ws-zones" title="${fr ? 'Temps par zone' : 'Time in zone'}">${zoneBar}</div>
+        <div class="ws-zones" title="${S('timeInZone')}">${zoneBar}</div>
         <ol class="ws-steps">${stepRows(p, ctx)}</ol>
       </div>`;
-    actions = `<div class="ws-actions"><button class="ws-go" data-preset="${esc(selected.id)}">${isCur ? (fr ? '✓ Séance choisie' : '✓ Chosen') : fr ? 'Choisir cette séance' : 'Choose this workout'}</button></div>`;
+    actions = `<div class="ws-actions"><button type="button" class="ab-btn ab-go ws-go" data-preset="${esc(selected.id)}">${isCur ? S('chosen') : S('chooseThisWorkout')}</button></div>`;
   }
 
   const durs = WORKOUT_DUR_FILTERS.map((d) => `<button type="button" class="ws-seg${d.id === ctx.dur ? ' on' : ''}" data-wkdur="${d.id}" aria-pressed="${d.id === ctx.dur}">${d[lang]}</button>`).join('');
   const sorts: Array<[WorkoutSort, string]> = [
-    ['type', fr ? 'Famille' : 'Family'],
-    ['dur', fr ? 'Durée' : 'Length'],
+    ['type', S('family')],
+    ['dur', S('length')],
     ['tss', 'TSS'],
-    ['name', fr ? 'Nom' : 'Name'],
+    ['name', S('name')],
   ];
   const toolbar = `<div class="ws-tools">
-      <label class="ws-search"><span aria-hidden="true">⌕</span><input type="search" id="ws-q" value="${esc(ctx.query)}" placeholder="${fr ? 'Rechercher une séance…' : 'Search workouts…'}" autocomplete="off" spellcheck="false" /></label>
-      <div class="ws-segs" role="group" aria-label="${fr ? 'Durée' : 'Length'}">${durs}</div>
-      <label class="ws-sort">${fr ? 'Trier par' : 'Sort by'}<select id="ws-sort">${sorts.map(([v, l]) => `<option value="${v}"${v === ctx.sort ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-      <span class="ws-count">${visible.length} ${fr ? (visible.length > 1 ? 'séances' : 'séance') : visible.length > 1 ? 'workouts' : 'workout'}</span>
+      <label class="ws-search"><span aria-hidden="true">⌕</span><input type="search" id="ws-q" value="${esc(ctx.query)}" placeholder="${S('searchWorkouts')}" autocomplete="off" spellcheck="false" /></label>
+      <div class="ws-segs" role="group" aria-label="${S('length')}">${durs}</div>
+      <label class="ws-sort">${S('sortBy')}<select id="ws-sort">${sorts.map(([v, l]) => `<option value="${v}"${v === ctx.sort ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <span class="ws-count">${S(visible.length > 1 ? 'nWorkouts' : 'oneWorkout').replace('{n}', String(visible.length))}</span>
     </div>`;
 
   return `<div class="ws-top"><div class="ws-tiles">${tiles}</div>${toolbar}</div>

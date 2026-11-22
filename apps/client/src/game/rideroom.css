@@ -1,11 +1,16 @@
-/* Sortie de groupe et course : salon, compte à rebours, panneau en direct, résultats. */
-.mp-panel { padding: 10px 14px; min-width: 250px; max-width: 300px; font-size: 13.5px; pointer-events: auto; }
-.mp-panel h4 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ar-muted); font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+/*
+ * Sortie de groupe et course : salon, compte à rebours, panneau en direct, résultats.
+ * Fenêtres (salon, arrivée, résultats) au langage des gros blocs (ui/blocks.css) : grand titre, sous-titre,
+ * blocs, état écrit avec sa pastille, une seule action jaune en bas à droite.
+ */
+.mp-panel { padding: 10px 14px; min-width: 250px; max-width: 300px; font-size: 14px; pointer-events: auto; }
+.mp-panel h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; color: var(--ar-fg); display: flex; justify-content: space-between; gap: 8px; }
+.mp-panel h4 span:last-child { font-weight: 600; color: var(--ar-muted); }
 .mp-big { font-size: 30px; font-weight: 800; line-height: 1.05; }
 .mp-big small { font-size: 15px; color: var(--ar-muted); font-weight: 600; }
 .mp-line { display: flex; justify-content: space-between; gap: 10px; color: #d8dee6; }
 .mp-line b { color: var(--ar-fg); }
-.mp-standings { margin-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px; display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; font-size: 12.5px; }
+.mp-standings { margin-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 6px; display: grid; grid-template-columns: 22px 1fr auto; gap: 2px 8px; font-size: 14px; }
 .mp-standings .me { color: var(--ar-accent); font-weight: 700; }
 .mp-standings .muted { color: var(--ar-muted); }
 .mp-pace { font-size: 22px; font-weight: 800; }
@@ -13,36 +18,43 @@
 .mp-pace.high { color: #f97316; }
 .mp-pace.low { color: #60a5fa; }
 .mp-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-.mp-btn { border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.08); color: var(--ar-fg); border-radius: 8px; padding: 4px 10px; font: 600 12.5px var(--font); cursor: pointer; text-decoration: none; }
+.mp-btn { border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.08); color: var(--ar-fg); border-radius: 10px; padding: 6px 12px; font: 700 14px var(--font); cursor: pointer; text-decoration: none; }
 .mp-btn:hover { background: rgba(255, 255, 255, 0.16); }
+.mp-btn:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
 .mp-btn.primary { background: var(--ar-accent); color: #111; border-color: transparent; }
 .mp-btn.discord { background: #5865f2; border-color: transparent; color: #fff; }
 .mp-banner { padding: 6px 12px; font-size: 14px; font-weight: 700; color: #111; background: var(--ar-accent); border-radius: 10px; }
 
 .mp-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 30; }
-.mp-modal { pointer-events: auto; padding: 22px 26px; min-width: 380px; max-width: min(640px, 92vw); max-height: 80vh; overflow: auto; background: var(--ar-bg-strong); }
-.mp-modal h2 { margin: 0 0 4px; font-size: 24px; }
-.mp-modal .sub { color: var(--ar-muted); margin-bottom: 14px; }
-.mp-code { font: 800 34px var(--mono); letter-spacing: 0.18em; color: var(--ar-accent); }
-.mp-roster { display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; margin: 12px 0; font-size: 14px; }
-.mp-roster .tag { color: var(--ar-muted); font-size: 12px; }
-.mp-results { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 8px; }
-.mp-results th { text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ar-muted); font-weight: 600; padding: 4px 8px; }
-.mp-results td { padding: 5px 8px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.mp-modal { pointer-events: auto; display: flex; flex-direction: column; gap: 16px; padding: 24px 26px 18px; min-width: min(420px, 92vw); max-width: min(720px, 94vw); max-height: 86vh; overflow: auto; background: linear-gradient(180deg, rgba(22, 29, 43, 0.97), rgba(12, 16, 25, 0.97)); border: 2px solid rgba(255, 255, 255, 0.12); border-radius: 26px; font-size: 15px; }
+.mp-modal .ab-title em { font-style: normal; color: var(--ar-accent); }
+.mp-modal .ab-section { margin-bottom: 8px; }
+.mp-tiles .ab-tile { grid-template-columns: 1fr; grid-template-areas: 'name' 'detail' 'val'; padding: 16px 18px 14px; }
+.mp-tiles .ab-val small { font-size: 16px; }
+.ab-val b.mp-code { font-family: var(--mono, ui-monospace, monospace); letter-spacing: 0.12em; color: var(--ar-accent); }
+.mp-roster { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 14px; font-size: 15px; }
+.mp-roster .ab-state { font-size: 14px; }
+.mp-note { margin: 0; font-size: 15px; line-height: 1.4; color: #c3cddb; }
+.ab-btn.mp-discord { display: inline-flex; align-items: center; background: #5865f2; color: #fff; text-decoration: none; }
+.ab-btn.mp-discord:hover { background: #4752c4; }
+.mp-ai { color: var(--ar-muted); }
+.mp-results { width: 100%; border-collapse: collapse; font-size: 15px; }
+.mp-results th { text-align: left; font-size: 14px; font-weight: 700; color: var(--ar-muted); padding: 4px 8px; }
+.mp-results td { padding: 6px 8px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .mp-results tr.me td { color: var(--ar-accent); font-weight: 700; }
-.mp-results td.num, .mp-results th.num { text-align: right; }
+.mp-results td.num, .mp-results th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .mp-countdown { font: 900 min(28vh, 220px) / 1 var(--font); color: #fff; text-shadow: 0 6px 40px rgba(0, 0, 0, 0.55); letter-spacing: -0.02em; }
 .mp-countdown.go { color: var(--ar-accent); font-size: min(18vh, 150px); }
 
 /* Équipements dans la salle d'attente. */
-.mp-gear { margin: 12px 0 4px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
-.mp-gear h3 { margin: 0 0 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ar-muted); font-weight: 600; }
-.mp-gear-grid { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 6px 10px; align-items: center; font-size: 13.5px; }
+.mp-gear { margin: 0; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.mp-gear h3 { margin: 0 0 8px; font-size: 18px; font-weight: 800; letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg); }
+.mp-gear-grid { display: grid; grid-template-columns: 12px 1fr auto auto; gap: 6px 10px; align-items: center; font-size: 15px; }
 .mp-gear-name { display: flex; flex-direction: column; min-width: 0; }
-.mp-gear-name small { color: var(--ar-muted); font-size: 11.5px; }
-.mp-gear-dot { width: 9px; height: 9px; border-radius: 50%; background: #6b7280; }
+.mp-gear-name small { color: var(--ar-muted); font-size: 14px; }
+.mp-gear-dot { width: 12px; height: 12px; border-radius: 50%; background: #6b7280; }
 .mp-gear-dot.ok { background: #22c55e; }
 .mp-gear-dot.warn { background: #eab308; }
-.mp-gear-state { font-size: 12px; color: var(--ar-muted); }
+.mp-gear-state { font-size: 14px; font-weight: 700; color: var(--ar-muted); }
 .mp-gear-state.ok { color: #22c55e; }
 .mp-gear-state.warn { color: #eab308; }

@@ -1,4 +1,8 @@
-/* Garage V3 : reprend les classes du garage Réel et Poly (menu.css) ; ici, seulement les ajustements. */
+/*
+ * Garage V3 : reprend les classes du garage Réel et Poly (menu.css) ; ici, seulement les ajustements, alignés sur le
+ * langage « gros blocs » (ui/blocks.css) : textes d'au moins 14 px (12 px pour les mentions), titres en casse normale,
+ * cartes à grands coins ronds et bordure fine, focus clavier jaune visible.
+ */
 .v3-top, .v3-head, .ar-v3-garage, .ar-v3-garage > section, .v3-wardrobe { display: grid; gap: 12px; min-width: 0; }
 .v3-head:empty { display: none; }
 .v3-top [hidden], .ar-v3-garage [hidden] { display: none !important; }
@@ -7,18 +11,19 @@
 .v3-head .v3-navrow .gr-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .v3-head .gr-typename { margin-top: 0; }
 
-.ar-v3-garage .field { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: #aeb7c3; }
+.ar-v3-garage .field { display: grid; gap: 6px; font-size: 14px; font-weight: 700; color: #c3cddb; }
 .ar-v3-garage :is(select, input[type="search"]) {
   box-sizing: border-box; width: 100%; min-width: 0; padding: 8px 10px;
-  border: 1px solid var(--mm-line); border-radius: 8px; background: rgba(255, 255, 255, 0.05);
-  color: var(--ar-fg); font: inherit; font-size: 13px; font-weight: 600;
+  border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; background: rgba(255, 255, 255, 0.05);
+  color: var(--ar-fg); font: inherit; font-size: 14px; font-weight: 600;
 }
 .ar-v3-garage input[type="search"]::placeholder { color: #8d98a6; }
 .ar-v3-garage input[type="range"] { width: 100%; accent-color: var(--ar-accent); }
 .ar-v3-garage .gr-sub:disabled { opacity: 0.45; cursor: default; }
 .ar-v3-garage .gr-sub.on { background: var(--ar-accent); border-color: var(--ar-accent); color: #0a0e16; }
 .ar-v3-garage output:empty { display: none; }
-.ar-v3-garage output { font-size: 12px; color: #8d98a6; }
+.ar-v3-garage output { font-size: 14px; color: #c3cddb; }
+.ar-v3-garage :is(select, input[type="search"]):focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
 .ar-v3-garage .gr-cap { margin: 0; }
 /* Article porté en tête de la rubrique : vignette à gauche du nom. */
 .ar-v3-garage .gr-cap.v3-cap { grid-template-columns: auto 1fr auto; align-items: center; }
@@ -34,17 +39,17 @@
 .v3-chip > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .v3-chip.v3-chip-text > span {
   position: static; width: auto; height: auto; clip: auto; padding: 4px;
-  font-size: 10px; font-weight: 700; line-height: 1.15; color: #c9d1db; text-align: center; overflow-wrap: anywhere;
+  font-size: 12px; font-weight: 700; line-height: 1.15; color: #c9d1db; text-align: center; overflow-wrap: anywhere;
 }
 
 .v3-bikefocus { display: flex; align-items: center; gap: 12px; }
 /* Carte des réglages du vélo : une ligne par réglage, séparées d'un filet. */
-.v3-settings { display: grid; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
-.v3-settings > * { padding: 10px 12px; }
+.v3-settings { display: grid; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 22px; background: linear-gradient(180deg, rgba(22, 29, 43, 0.92), rgba(12, 16, 25, 0.9)); overflow: hidden; }
+.v3-settings > * { padding: 12px 16px; }
 .v3-settings > * + * { border-top: 1px solid rgba(255, 255, 255, 0.07); }
 .v3-settings > [hidden] { display: none; }
 .v3-color-row { display: grid; gap: 8px; }
-.v3-color-title { font-size: 12px; font-weight: 700; color: #aeb7c3; }
+.v3-color-title { font-size: 14px; font-weight: 700; color: #c3cddb; }
 /* Coloris : pastille de la couleur dominante ; « Couleur principale » : piste des couleurs possibles. */
 .v3-color-dot { display: inline-block; width: 12px; height: 12px; margin-right: 7px; border-radius: 50%; vertical-align: -1px; background: rgba(255, 255, 255, 0.15); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 .v3-color-dot.neutral { background: linear-gradient(135deg, #f2f2f2 0 50%, #1d1d1f 50% 100%); }
@@ -52,19 +57,20 @@
 .v3-hue-head { display: flex; align-items: center; justify-content: space-between; }
 .v3-hue-preview { width: 22px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); }
 .v3-hue-preview[hidden] { display: none; }
-.v3-hue-hint { font-size: 10.5px; font-weight: 500; color: #8d98a6; }
+.v3-hue-hint { font-size: 12px; font-weight: 500; color: #9aa6b5; }
 .ar-v3-garage input[type=range].v3-hue-track { appearance: none; height: 10px; border-radius: 5px; }
 .ar-v3-garage input[type=range].v3-hue-track::-webkit-slider-thumb { appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #0a0e16; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6); }
-.v3-body-hint { display: flex; gap: 6px; align-items: baseline; font-size: 10.5px; font-weight: 500; color: #8d98a6; }
+.v3-body-hint { display: flex; gap: 6px; align-items: baseline; font-size: 12px; font-weight: 500; color: #9aa6b5; }
 .v3-link { all: unset; cursor: pointer; color: var(--ar-accent, #ffd23f); text-decoration: underline; text-underline-offset: 2px; }
-.v3-link:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); }
-.v3-setting-line { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #aeb7c3; }
+.v3-link:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.v3-setting-line { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: #c3cddb; }
 .v3-setting-line b { color: #fff; }
 .v3-color-row .v3-inline-colors { margin: 0; padding: 0; border: 0; background: none; border-radius: 0; }
 .v3-ride { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; }
 .ar-v3-garage .v3-ride .field { grid-template-columns: auto 1fr; align-items: center; gap: 12px; }
-.ar-v3-garage .v3-play { min-width: 96px; justify-content: center; }
-.ar-v3-garage .v3-fold.v3-setting-toggle { font-size: 12px; font-weight: 700; color: #aeb7c3; text-transform: none; letter-spacing: 0; }
+.ar-v3-garage .v3-play { min-width: 110px; justify-content: center; padding: 10px 16px; border-radius: 14px; font-size: 15px; font-weight: 700; }
+.ar-v3-garage .v3-play:focus-visible, .ar-v3-garage .gr-sub:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.ar-v3-garage .v3-fold.v3-setting-toggle { font-size: 14px; font-weight: 700; color: #c3cddb; text-transform: none; letter-spacing: 0; }
 .ar-v3-garage .v3-fold.v3-setting-toggle::before { content: none; }
 .ar-v3-garage .v3-fold.v3-setting-toggle span { color: #fff; }
 .ar-v3-garage .v3-fold.v3-setting-toggle::after { content: '›'; margin-left: 10px; font-size: 17px; line-height: 1; color: #8d98a6; transition: transform 0.15s; }
@@ -76,24 +82,24 @@
 .v3-profiles-label { display: inline-flex; align-items: center; gap: 8px; font-style: normal; }
 .v3-profiles-label svg { color: var(--ar-accent, #ffd23f); }
 .v3-profiles-body[hidden] { display: none; }
-.v3-profile { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 6px 8px; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 8px; }
+.v3-profile { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; padding: 8px 12px; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 14px; }
 .v3-profile.on { border-color: var(--ar-accent, #ffd23f); background: rgba(255, 210, 63, 0.07); }
 .v3-profile > input { grid-column: 1 / -1; }
 .v3-profile-open { all: unset; cursor: pointer; display: grid; gap: 1px; min-width: 0; }
-.v3-profile-open b { font-size: 12.5px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.v3-profile-open small { font-size: 10.5px; color: #8d98a6; }
-.v3-profile-open:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
-.v3-profile-ask { font-size: 11px; font-weight: 700; color: #f5a524; }
-.v3-icon-button { all: unset; cursor: pointer; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: #aeb7c3; font-size: 13px; }
+.v3-profile-open b { font-size: 15px; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v3-profile-open small { font-size: 12px; color: #9aa6b5; }
+.v3-profile-open:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.v3-profile-ask { font-size: 12px; font-weight: 700; color: #f5a524; }
+.v3-icon-button { all: unset; cursor: pointer; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; color: #c3cddb; font-size: 15px; }
 .v3-icon-button:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-.v3-icon-button:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); }
+.v3-icon-button:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
 .v3-profile-save { display: grid; gap: 6px; margin-top: 2px; }
 .v3-profile-new { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
-.ar-v3-garage .v3-profiles input[type=text] { min-width: 0; padding: 6px 9px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 6px; background: rgba(0, 0, 0, 0.25); color: #fff; font: inherit; font-size: 12px; }
+.ar-v3-garage .v3-profiles input[type=text] { min-width: 0; padding: 8px 11px; border: 2px solid rgba(255, 255, 255, 0.12); border-radius: 12px; background: rgba(0, 0, 0, 0.25); color: #fff; font: inherit; font-size: 14px; }
 .ar-v3-garage .gr-sub.v3-accent { background: var(--ar-accent, #ffd23f); border-color: var(--ar-accent, #ffd23f); color: #0a0e16; }
 .ar-v3-garage .gr-sub.v3-danger { border-color: #e5484d; color: #ff8589; }
-/* Catalogue : intitulé, puis type, recherche et dé sur une ligne. */
-.ar-v3-garage .v3-subtitle { margin: 8px 0 0; font: 700 10px/1.2 var(--mono, monospace); letter-spacing: 0.12em; text-transform: uppercase; color: #8d98a6; }
+/* Catalogue : intitulé (titre de section « gros blocs », casse normale), puis type, recherche et dé sur une ligne. */
+.ar-v3-garage .v3-subtitle { margin: 10px 0 0; font: 800 18px/1.2 var(--font, system-ui); letter-spacing: -0.01em; text-transform: none; color: var(--ar-fg, #f5f7fa); }
 .ar-v3-garage .v3-catalog-row { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) auto; }
 .ar-v3-garage .mm-bikelist { display: grid; gap: 6px; }
 .ar-v3-garage .mm-biketypes { margin: 0; }
@@ -103,7 +109,7 @@ span.mm-bikeicon { display: block; }
 .v3-tip {
   position: fixed; z-index: 10000; max-width: 240px; padding: 5px 9px; border-radius: 6px; pointer-events: none;
   background: #0a0e16; border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-  color: #fff; font-size: 12px; font-weight: 700; line-height: 1.25; white-space: normal;
+  color: #fff; font-size: 14px; font-weight: 700; line-height: 1.25; white-space: normal;
 }
 /* Pastille en attente de sa photo : pictogramme de la catégorie. */
 .v3-chip-wait svg { width: 46%; height: 46%; color: #6f7a88; }
@@ -116,12 +122,13 @@ span.mm-bikeicon { display: block; }
 .ar-v3-garage .v3-fold[aria-expanded="true"]::before { transform: rotate(90deg); }
 .ar-v3-garage .v3-fold span { margin-left: auto; }
 .ar-v3-garage .v3-fold:hover { color: #fff; }
-.ar-v3-garage .v3-fold:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
+.ar-v3-garage .v3-fold:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
 .ar-v3-garage .mm-seg button { width: auto; border: 0; }
 /* Personnage : silhouette et corps en tête, avant les catégories (deux rangées de boutons segmentés). */
 .v3-identity { display: grid; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--mm-line); }
-.v3-identity .field { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: #aeb7c3; }
-.v3-identity .mm-seg button { width: auto; border: 0; padding: 6px 8px; font-size: 12.5px; }
+.v3-identity .field { display: grid; gap: 6px; font-size: 14px; font-weight: 700; color: #c3cddb; }
+.v3-identity .mm-seg button { width: auto; border: 0; padding: 8px 12px; font-size: 14px; }
+.ar-v3-garage .mm-seg button:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
 /* Silhouette et dé « personnage au hasard » sur la même ligne. */
 .v3-sexrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 .ar-v3-garage .gr-dice, .v3-identity .gr-dice { width: 38px; height: 38px; padding: 0; }
@@ -136,12 +143,12 @@ span.mm-bikeicon { display: block; }
 .v3-dice:hover { filter: brightness(1.1); }
 .v3-dice:hover svg { transform: rotate(25deg); }
 .v3-dice:active { transform: scale(0.94); }
-.v3-dice:focus-visible { outline: 2px solid rgba(255, 210, 63, 0.8); outline-offset: 2px; }
+.v3-dice:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
 .v3-navrow, .v3-searchrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
 
 /* Coloris proposés sous le vélo cliqué, dans la liste. */
 .v3-inline-colors { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 4px; padding: 10px; border-radius: 0 0 12px 12px; background: rgba(255, 210, 63, 0.07); border: 1px solid rgba(255, 210, 63, 0.25); border-top: 0; }
-.v3-inline-colors .gr-sub { font-size: 12px; padding: 5px 11px; }
+.v3-inline-colors .gr-sub { font-size: 14px; padding: 7px 13px; }
 .v3-inline-colors > .field { flex: 1 0 100%; margin: 0; }
 .v3-inline-colors[hidden] { display: none; }
 /* Roues : vignettes Zwift (roue entière), sinon pictogramme de vélo. */
@@ -161,6 +168,7 @@ span.mm-bikeicon { display: block; }
 .v3-admin-open { appearance: none; display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px; background: rgba(255, 255, 255, 0.05); color: #d8dee6; cursor: pointer; }
 .v3-admin-open[hidden] { display: none; }
 .v3-admin-open:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.v3-admin-open:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
 .v3-admin { position: fixed; inset: 0; z-index: 9000; display: grid; grid-template-rows: auto auto auto 1fr; gap: 12px; padding: 18px 22px; background: #0b0f16; color: #d8dee6; font: 13px/1.4 system-ui, sans-serif; }
 .v3-admin header { display: flex; align-items: center; justify-content: space-between; }
 .v3-admin h2 { margin: 0; font-size: 18px; font-weight: 800; color: #fff; }
@@ -187,9 +195,9 @@ span.mm-bikeicon { display: block; }
 .v3-admin-tags { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .v3-admin-tags span { padding: 2px 7px; border-radius: 999px; background: rgba(229, 72, 77, 0.18); color: #ff8589; font-size: 10.5px; font-weight: 800; }
 /* Listes déroulantes V3 (v3/dropdown.ts) : celles de l'appli, à la taille du panneau. */
-.ar-v3-garage .v3-dd .mm-dd-btn { padding: 7px 10px; border-radius: 8px; font-size: 13px; }
-.v3-dd-list .mm-dd-opt { font-size: 13px; padding: 6px 9px; }
-.v3-dd-list .v3-dd-group { margin: 6px 4px 2px; font: 700 9.5px/1.2 var(--mono, monospace); letter-spacing: 0.1em; text-transform: uppercase; color: #8d98a6; }
+.ar-v3-garage .v3-dd .mm-dd-btn { padding: 9px 12px; border-radius: 12px; font-size: 14px; }
+.v3-dd-list .mm-dd-opt { font-size: 14px; padding: 7px 10px; }
+.v3-dd-list .v3-dd-group { margin: 8px 4px 2px; font: 800 14px/1.2 var(--font, system-ui); letter-spacing: 0; text-transform: none; color: #c3cddb; }
 /* Objets pas encore gagnés (progression Beta) : montrés atténués avec un cadenas, comme aux garages Réel et Poly. */
 .ar-v3-garage .mm-bike.locked { opacity: 0.6; }
 .ar-v3-garage .mm-bike.locked:hover { opacity: 0.85; }
@@ -197,3 +205,16 @@ span.mm-bikeicon { display: block; }
 .ar-v3-garage .gr-chip.v3-chip.locked { filter: saturate(0.5) brightness(0.75); }
 .ar-v3-garage .gr-chip.v3-chip.locked:hover { filter: none; }
 .ar-v3-garage .gr-chip.v3-chip { position: relative; }
+/* Pastilles et emplacements du vestiaire : grille dense gardée, coins, état choisi et focus au langage « gros blocs ». */
+.ar-v3-garage .gr-chip.v3-chip { border-radius: 14px; }
+.ar-v3-garage .gr-chip.v3-chip.on { box-shadow: inset 0 0 0 2px var(--ar-accent, #ffd23f); }
+.ar-v3-garage .gr-chip:focus-visible, .v3-head .gr-slot:focus-visible, .v3-top .gr-group:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.v3-head .gr-typename { font-size: 18px; font-weight: 800; font-style: normal; letter-spacing: -0.01em; text-transform: none; }
+.ar-v3-garage .mm-presets-title.mm-pack { font-size: 15px; letter-spacing: 0; text-transform: none; }
+.ar-v3-garage .mm-bike-txt b { font-size: 15px; }
+.ar-v3-garage .mm-bike-txt small { font-size: 14px; }
+.ar-v3-garage .mm-bike-state { font-size: 12px; }
+.ar-v3-garage .mm-bl-brand { font-size: 14px; letter-spacing: 0; text-transform: none; }
+.ar-v3-garage .gr-cap b { font-size: 15px; }
+.ar-v3-garage .gr-cap em { font: 700 12px/1.4 var(--font, system-ui); letter-spacing: 0; text-transform: none; }
+.ar-v3-garage .mm-bl-brand span, .ar-v3-garage .mm-presets-title span { font-size: 12px; }

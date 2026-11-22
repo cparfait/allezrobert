@@ -1,0 +1,23 @@
+/*
+ * Éditeur de visage (garage) aligné sur le langage « gros blocs » (blocks.css) : titres de section en casse normale,
+ * textes d'au moins 14 px, coins et bordures des blocs, focus clavier visible. La mise en page reste celle de menu.css.
+ */
+.fe .fe-title { margin: 4px 0 -2px; font-size: 17px; }
+.fe .fe-profiles button, .fe .fe-seg button { padding: 8px 14px; border-radius: 12px; border: 2px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.06); font-size: 14px; font-weight: 700; }
+.fe .fe-profiles button:hover, .fe .fe-seg button:hover { border-color: rgba(255, 210, 63, 0.7); background: rgba(255, 255, 255, 0.1); }
+.fe .fe-seg button.on { background: var(--ar-accent, #ffd23f); border-color: var(--ar-accent, #ffd23f); color: #0a0e16; }
+.fe .fe-tabs { gap: 6px; padding-bottom: 8px; }
+.fe .fe-tabs button { padding: 8px 14px; border-radius: 12px; font-size: 14px; font-weight: 700; color: #c3cddb; }
+.fe .fe-tabs button:hover:not(.on) { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.fe .fe-tabs button.on { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
+.fe .fe-range { gap: 4px; font-size: 14px; color: #c3cddb; }
+.fe .fe-check, .fe .fe-photo { font-size: 14px; }
+.fe .fe-photo { padding: 12px 14px; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.6), rgba(12, 16, 25, 0.5)); }
+.fe .fe-photo summary { font-size: 15px; }
+.fe .fe-photo p { font-size: 14px; color: #c3cddb; }
+.fe .fe-photo-btn { padding: 10px 16px; border-radius: 14px; font-size: 15px; }
+.fe .fe-actions { gap: 10px 16px; }
+.fe .fe-actions .ab-btn { padding: 10px 16px; border: 0; border-radius: 14px; background: rgba(255, 255, 255, 0.14); font: 700 15px var(--font, system-ui); color: var(--ar-fg, #f5f7fa); }
+.fe .fe-actions .ab-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.22); }
+.fe .fe-actions .ab-btn:disabled { opacity: 1; color: #8d98a6; }
+.fe button:focus-visible, .fe .fe-photo summary:focus-visible, .fe .fe-photo-btn:focus-within { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }

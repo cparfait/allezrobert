@@ -8,8 +8,78 @@
  */
 import { frenchOf, isPavedEdge, itineraryRoute, joinItineraries, planItinerary, RoadNet, snapToRoad, type Itinerary, type RoadGraphData, type RoadSnap, type RouteData, type WorldPlace } from '@allezrobert/shared';
 import { BASEMAP_ATTRIBUTION, basemapImage } from './basemap.ts';
-import { getLang } from '../i18n/index.ts';
+import { getLang, strings } from '../i18n/index.ts';
+import './blocks.css';
 import './routePlanner.css';
+
+const S = strings(
+  {
+    near: 'près {p}',
+    unnamed: 'route sans nom',
+    tooFar: 'Clique plus près d’une route.',
+    tooClose: 'Point trop près du précédent.',
+    noRoad: 'Aucune route praticable jusqu’à ce point.',
+    hintStart0: 'Ton départ (D) est celui de la zone. Clique ailleurs sur la carte pour le déplacer (molette : zoom, glisser : déplacer).',
+    hintStart1: 'Clique ailleurs pour déplacer ton départ. Ensuite, choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).',
+    hint0: 'Clique sur la carte pour choisir ton départ, puis tes points de passage (molette : zoom, glisser : déplacer).',
+    hint1: 'Clique ton prochain point (le parcours suit les routes), ou pars d’ici en roulage libre.',
+    hintLoop: 'Boucle fermée : tu reviens à ton départ.',
+    hintMore: 'Clique pour ajouter des points de passage, ou reviens au départ pour faire une boucle.',
+    start: 'Départ',
+    via1: '1 point de passage',
+    viaN: '{n} points de passage',
+    backStart: 'Retour au départ',
+    finish: 'Arrivée',
+    startHere: 'Partir d’ici',
+    defaultStart: 'Revenir au départ par défaut',
+    rideLoop: 'Rouler cette boucle',
+    rideRoute: 'Rouler cet itinéraire',
+    freeHere: 'Partir d’ici en libre',
+    loop: 'Revenir au départ',
+    undo: 'Annuler le dernier point',
+    clear: 'Effacer',
+    free: 'Rouler en libre',
+    aria: 'Itinéraire sur la carte',
+    road: 'route',
+    track: 'chemin',
+    homeLegend: 'départ par défaut',
+    titleStart: 'Ton point de départ',
+    titleRoute: 'Ton itinéraire',
+  },
+  {
+    near: 'near {p}',
+    unnamed: 'unnamed road',
+    tooFar: 'Click closer to a road.',
+    tooClose: 'Point too close to the previous one.',
+    noRoad: 'No rideable road to this point.',
+    hintStart0: 'Your start (D) is the area’s default. Click elsewhere on the map to move it (wheel: zoom, drag: pan).',
+    hintStart1: 'Click elsewhere to move your start. Then pick your road at each junction (← / →, U to turn around).',
+    hint0: 'Click the map to pick your start, then your waypoints (wheel: zoom, drag: pan).',
+    hint1: 'Click your next point (the route follows the roads), or ride freely from here.',
+    hintLoop: 'Loop closed: you finish where you started.',
+    hintMore: 'Click to add waypoints, or go back to the start to make a loop.',
+    start: 'Start',
+    via1: '1 waypoint',
+    viaN: '{n} waypoints',
+    backStart: 'Back to the start',
+    finish: 'Finish',
+    startHere: 'Start here',
+    defaultStart: 'Back to the default start',
+    rideLoop: 'Ride this loop',
+    rideRoute: 'Ride this route',
+    freeHere: 'Ride freely from here',
+    loop: 'Back to the start',
+    undo: 'Undo last point',
+    clear: 'Clear',
+    free: 'Free ride',
+    aria: 'Route on the map',
+    road: 'road',
+    track: 'track',
+    homeLegend: 'default start',
+    titleStart: 'Your start',
+    titleRoute: 'Your route',
+  },
+);
 
 /** Préfixe des parcours calculés (un seul à la fois dans la liste des parcours du monde). */
 export const ITINERARY_PREFIX = 'itineraire-';
@@ -209,14 +279,13 @@ export class RoutePlanner {
 
   /** Où est ce point : route (nom ou numéro) et lieu le plus proche. */
   private where(s: RoadSnap): string {
-    const L = fr();
     const e = this.net?.edge(s.edge);
     const road = e?.name || e?.ref || '';
     const place = this.nearPlace(s.x, s.z)?.name;
-    const near = place ? (L ? `près ${frenchOf(place)}` : `near ${place}`) : '';
+    const near = place ? S('near').replace('{p}', fr() ? frenchOf(place) : place) : '';
     if (road && near) return `${road}, ${near}`;
     if (near) return near;
-    return road || (L ? 'route sans nom' : 'unnamed road');
+    return road || S('unnamed');
   }
 
   private scaleK(): string {
@@ -268,7 +337,6 @@ export class RoutePlanner {
   /** Bloc complet : carte cliquable et panneau (consignes, chiffres, boutons). */
   html(routeCard: (r: RouteData) => string): string {
     if (!this.open) return '';
-    const L = fr();
     const v = this.view;
     const r = this.result;
     const pts = this.points;
@@ -294,62 +362,39 @@ export class RoutePlanner {
     const only = this.onlyStart;
     const hint = this.error
       ? `<p class="rp-err">${esc(this.error)}</p>`
-      : only
-        ? `<p class="mm-hint">${
-            !n
-              ? L
-                ? 'Ton départ (D) est celui de la zone. Clique ailleurs sur la carte pour le déplacer (molette : zoom, glisser : déplacer).'
-                : 'Your start (D) is the area’s default. Click elsewhere on the map to move it (wheel: zoom, drag: pan).'
-              : L
-                ? 'Clique ailleurs pour déplacer ton départ. Ensuite, choisis ta route à chaque carrefour (← / →, U pour faire demi-tour).'
-                : 'Click elsewhere to move your start. Then pick your road at each junction (← / →, U to turn around).'
-          }</p>`
-        : `<p class="mm-hint">${
-          !n
-            ? L
-              ? 'Clique sur la carte pour choisir ton départ, puis tes points de passage (molette : zoom, glisser : déplacer).'
-              : 'Click the map to pick your start, then your waypoints (wheel: zoom, drag: pan).'
-            : n === 1
-              ? L
-                ? 'Clique ton prochain point (le parcours suit les routes), ou pars d’ici en roulage libre.'
-                : 'Click your next point (the route follows the roads), or ride freely from here.'
-              : this.closed
-                ? L
-                  ? 'Boucle fermée : tu reviens à ton départ.'
-                  : 'Loop closed: you finish where you started.'
-                : L
-                  ? 'Clique pour ajouter des points de passage, ou reviens au départ pour faire une boucle.'
-                  : 'Click to add waypoints, or go back to the start to make a loop.'
-        }</p>`;
+      : `<p class="mm-hint">${only ? S(n ? 'hintStart1' : 'hintStart0') : S(!n ? 'hint0' : n === 1 ? 'hint1' : this.closed ? 'hintLoop' : 'hintMore')}</p>`;
     const list = n
-      ? `<ol class="rp-pts"><li><i class="rp-dot rp-from"></i>${L ? 'Départ' : 'Start'} · <b>${esc(this.where(pts[0] as RoadSnap))}</b></li>${
-          n > 2 ? `<li><i class="rp-dot rp-via"></i>${n - 2} ${L ? `point${n - 2 > 1 ? 's' : ''} de passage` : `waypoint${n - 2 > 1 ? 's' : ''}`}</li>` : ''
-        }${n > 1 ? (this.closed ? `<li><i class="rp-dot rp-from"></i>${L ? 'Retour au départ' : 'Back to the start'}</li>` : `<li><i class="rp-dot rp-to"></i>${L ? 'Arrivée' : 'Finish'} · <b>${esc(this.where(pts[n - 1] as RoadSnap))}</b></li>`) : ''}</ol>`
+      ? `<ol class="rp-pts"><li><i class="rp-dot rp-from"></i>${S('start')} · <b>${esc(this.where(pts[0] as RoadSnap))}</b></li>${
+          n > 2 ? `<li><i class="rp-dot rp-via"></i>${n - 2 > 1 ? S('viaN').replace('{n}', String(n - 2)) : S('via1')}</li>` : ''
+        }${n > 1 ? (this.closed ? `<li><i class="rp-dot rp-from"></i>${S('backStart')}</li>` : `<li><i class="rp-dot rp-to"></i>${S('finish')} · <b>${esc(this.where(pts[n - 1] as RoadSnap))}</b></li>`) : ''}</ol>`
       : '';
-    const go = (id: string, label: string, cls = '') => `<button class="rp-btn ${cls}" data-plan="${id}">${label}</button>`;
+    // Une seule action jaune (la première proposée) ; les autres restent des boutons neutres.
+    let goUsed = false;
+    const go = (id: string, label: string, main = false) => {
+      const yellow = main && !goUsed;
+      if (yellow) goUsed = true;
+      return `<button type="button" class="ab-btn rp-btn${yellow ? ' ab-go rp-go' : ''}" data-plan="${id}">${label}</button>`;
+    };
     const actions = only
-      ? [
-          n ? go('here', `${L ? 'Partir d’ici' : 'Start here'} →`, 'rp-go') : go('free', `${L ? 'Partir d’ici' : 'Start here'} →`, 'rp-go'),
-          n ? go('clear', L ? 'Revenir au départ par défaut' : 'Back to the default start') : '',
-        ].join('')
+      ? [n ? go('here', `${S('startHere')} →`, true) : go('free', `${S('startHere')} →`, true), n ? go('clear', S('defaultStart')) : ''].join('')
       : [
-      r ? go('ride', `${L ? (this.closed ? 'Rouler cette boucle' : 'Rouler cet itinéraire') : this.closed ? 'Ride this loop' : 'Ride this route'} →`, 'rp-go') : '',
-      n === 1 && !this.noFree ? go('here', `${L ? 'Partir d’ici en libre' : 'Ride freely from here'} →`, 'rp-go') : '',
-      n > 1 && !this.closed ? go('loop', `↺ ${L ? 'Revenir au départ' : 'Back to the start'}`) : '',
-      n ? go('undo', `↶ ${L ? 'Annuler le dernier point' : 'Undo last point'}`) : '',
-      n ? go('clear', L ? 'Effacer' : 'Clear') : '',
-      this.noFree ? '' : go('free', L ? 'Rouler en libre' : 'Free ride', n ? '' : 'rp-go'),
-    ].join('');
+          r ? go('ride', `${S(this.closed ? 'rideLoop' : 'rideRoute')} →`, true) : '',
+          n === 1 && !this.noFree ? go('here', `${S('freeHere')} →`, true) : '',
+          n > 1 && !this.closed ? go('loop', `↺ ${S('loop')}`) : '',
+          n ? go('undo', `↶ ${S('undo')}`) : '',
+          n ? go('clear', S('clear')) : '',
+          this.noFree ? '' : go('free', S('free'), !n),
+        ].join('');
     const zoomed = v.w < this.bounds.w * HAMLET_ZOOM;
-    return `<section class="rp" aria-label="${L ? 'Itinéraire sur la carte' : 'Route on the map'}">
+    return `<section class="rp" aria-label="${S('aria')}">
       <div class="rp-mapbox">
         <svg class="rp-map${zoomed ? ' rp-zoomed' : ''}" viewBox="${v.x.toFixed(1)} ${v.z.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}" preserveAspectRatio="xMidYMid meet">
           ${this.basemap(1800)}${this.areaOutline()}<g class="rp-roads">${this.roads}</g>${line}<g class="rp-places">${this.placeLabels()}</g>${marks}
         </svg>
-        <div class="rp-legend">${this.open?.originL93 ? `<span class="rp-attr">${BASEMAP_ATTRIBUTION}</span>` : ''}<span><i class="rp-l-major"></i>${L ? 'route' : 'road'}</span><span><i class="rp-l-track"></i>${L ? 'chemin' : 'track'}</span>${n ? '' : `<span><i class="rp-dot rp-home"></i>${L ? 'départ par défaut' : 'default start'}</span>`}</div>
+        <div class="rp-legend">${this.open?.originL93 ? `<span class="rp-attr">${BASEMAP_ATTRIBUTION}</span>` : ''}<span><i class="rp-l-major"></i>${S('road')}</span><span><i class="rp-l-track"></i>${S('track')}</span>${n ? '' : `<span><i class="rp-dot rp-home"></i>${S('homeLegend')}</span>`}</div>
       </div>
-      <div class="rp-side">
-        <h3>${only ? (L ? 'Ton point de départ' : 'Your start') : L ? 'Ton itinéraire' : 'Your route'}</h3>
+      <div class="rp-side ab-tile ab-plain">
+        <h3 class="ab-section">${S(only ? 'titleStart' : 'titleRoute')}</h3>
         ${hint}${list}
         ${r ? `<div class="rp-card">${routeCard(r)}</div>` : ''}
         <div class="rp-actions">${actions}</div>
@@ -455,7 +500,7 @@ export class RoutePlanner {
     if (!this.net) return;
     const snap = snapToRoad(this.net, x, z, Math.max(60, tolM));
     if (!snap) {
-      this.error = fr() ? 'Clique plus près d’une route.' : 'Click closer to a road.';
+      this.error = S('tooFar');
       return;
     }
     // Départ seulement (parcours libre) : un nouveau clic déplace le départ.
@@ -472,7 +517,6 @@ export class RoutePlanner {
   /** Ajoute un point : étape calculée depuis le point précédent (refusé si impossible). */
   private addPoint(snap: RoadSnap): void {
     if (!this.net) return;
-    const L = fr();
     this.error = '';
     const prev = this.points[this.points.length - 1];
     if (!prev) {
@@ -480,12 +524,12 @@ export class RoutePlanner {
       return;
     }
     if (Math.hypot(snap.x - prev.x, snap.z - prev.z) < 30) {
-      this.error = L ? 'Point trop près du précédent.' : 'Point too close to the previous one.';
+      this.error = S('tooClose');
       return;
     }
     const leg = planItinerary(this.net, prev, snap);
     if (!leg) {
-      this.error = L ? 'Aucune route praticable jusqu’à ce point.' : 'No rideable road to this point.';
+      this.error = S('noRoad');
       return;
     }
     this.points.push(snap);

@@ -1,4 +1,6 @@
+import '../ui/blocks.css';
 import './rideroom.css';
+import { strings } from '../i18n/index.ts';
 import type { RideEventMsg, RideResult, RouteTrack } from '@allezrobert/shared';
 import { flagSvg } from '../ui/flagSvg.ts';
 import type { RideNetClient } from '../net/index.ts';
@@ -15,6 +17,173 @@ function setHtml(el: HTMLElement, html: string): void {
   el.innerHTML = h;
   el.style.display = h ? '' : 'none';
 }
+const S = strings(
+  {
+    rankFirst: '{n}er',
+    rankOther: '{n}e',
+    placeFirst: '{n}er',
+    placeOther: '{n}e',
+    finishRanked: 'Arrivée ! {rank} en {time}',
+    finishUnranked: 'Arrivée (hors classement)',
+    wins: '🏁 {name} remporte la course',
+    you: 'Toi',
+    prime: 'Prime',
+    abandons: '{name} abandonne',
+    dqSelf: 'Mis hors course : puissance invraisemblable',
+    dqOther: '{name} mis hors course (puissance)',
+    powerCheck: 'Contrôle de puissance : {reason}. Vérifie ton capteur.',
+    deadline: 'Heure limite : {time} pour franchir la ligne',
+    regroupOn: 'Regroupement ! (écart {m} m) — la tête temporise, la queue est aidée',
+    regroupOff: 'Groupe reformé',
+    split: 'Le groupe s’est scindé ({m} m)',
+    splitHint: ' — G pour regrouper',
+    freePace: 'Allure libre',
+    announcedPaceToast: 'Allure annoncée : {p} W/kg',
+    lead: 'tête',
+    primes: 'Primes',
+    race: 'Course',
+    lap: 'tour',
+    finishedIn: 'Arrivé en',
+    toGo: 'Reste',
+    ahead: 'Devant',
+    behind: 'Derrière',
+    timeLimit: 'Heure limite',
+    lobbyTitle: 'Salle d’attente',
+    lobbySub: 'Course · {route}',
+    laps: '{n} tours',
+    primesSub: 'primes KOM et sprint',
+    distance: 'Distance',
+    inviteCode: 'Code d’invitation',
+    inviteDetail: 'À donner aux amis pour rejoindre la course.',
+    riders: 'Coureurs ({n})',
+    youSuffix: ' (toi)',
+    host: 'Organisateur',
+    ai: 'IA',
+    guest: 'Invité · non classé',
+    ready: 'Prêt',
+    reconnecting: 'Reconnexion…',
+    hostHint: 'Les IA complètent le peloton ; chaque ami qui arrive prend la place d’une IA.',
+    waitingHost: 'En attente du départ donné par {name}…',
+    start: 'Donner le départ (10 s)',
+    discordChannel: 'Salon Discord',
+    leave: 'Quitter',
+    finishTitle: 'Arrivée !',
+    finishTitleRank: 'Arrivée ! {rank} · {time}',
+    waitingOne: 'en attente de 1 coureur…',
+    waitingMany: 'en attente de {n} coureurs…',
+    provisional: 'classement provisoire',
+    hide: 'Masquer',
+    endRide: 'Terminer la sortie',
+    results: 'Résultats',
+    keepRiding: 'Continuer à rouler',
+    rider: 'Coureur',
+    time: 'Temps',
+    gap: 'Écart',
+    raceResults: 'Résultats de la course',
+    standingsLeft: 'Classement au moment de ton départ',
+    groupRide: 'Sortie de groupe',
+    sticky: 'groupe soudé',
+    regrouping: 'Regroupement en cours',
+    targetAvg: 'Moyenne visée (IA)',
+    announcedPace: 'Allure annoncée',
+    free: 'libre',
+    yourPace: 'Ton allure (3 s)',
+    leader: 'Meneur',
+    targetDown: 'Moyenne visée −1 km/h',
+    targetUp: 'Moyenne visée +1 km/h',
+    noTarget: 'Moyenne libre',
+    paceDown: 'Allure annoncée −0,1 W/kg ([)',
+    paceUp: 'Allure annoncée +0,1 W/kg (])',
+    freeBtn: 'Libre',
+    stopRegroup: 'Arrêter (G)',
+    regroup: 'Regrouper (G)',
+  },
+  {
+    rankFirst: '#{n}',
+    rankOther: '#{n}',
+    placeFirst: '{n}',
+    placeOther: '{n}',
+    finishRanked: 'Finished! {rank} in {time}',
+    finishUnranked: 'Finished (unranked)',
+    wins: '🏁 {name} wins the race',
+    you: 'You',
+    prime: 'Prime',
+    abandons: '{name} abandons',
+    dqSelf: 'Disqualified: implausible power',
+    dqOther: '{name} disqualified (power)',
+    powerCheck: 'Power check: capped. Check your power meter.',
+    deadline: 'Time limit: {time} to finish',
+    regroupOn: 'Regroup! (gap {m} m)',
+    regroupOff: 'Group back together',
+    split: 'The group has split ({m} m)',
+    splitHint: ' — G to regroup',
+    freePace: 'Free pace',
+    announcedPaceToast: 'Announced pace: {p} W/kg',
+    lead: 'lead',
+    primes: 'Primes',
+    race: 'Race',
+    lap: 'lap',
+    finishedIn: 'Finished in',
+    toGo: 'To go',
+    ahead: 'Ahead',
+    behind: 'Behind',
+    timeLimit: 'Time limit',
+    lobbyTitle: 'Waiting room',
+    lobbySub: 'Race · {route}',
+    laps: '{n} laps',
+    primesSub: 'KOM and sprint primes',
+    distance: 'Distance',
+    inviteCode: 'Invite code',
+    inviteDetail: 'Give it to friends so they can join the race.',
+    riders: 'Riders ({n})',
+    youSuffix: ' (you)',
+    host: 'Host',
+    ai: 'AI',
+    guest: 'Guest · unranked',
+    ready: 'Ready',
+    reconnecting: 'Reconnecting…',
+    hostHint: 'AI riders fill the field; each friend who joins takes an AI’s place.',
+    waitingHost: 'Waiting for {name} to start…',
+    start: 'Start the race (10 s)',
+    discordChannel: 'Discord channel',
+    leave: 'Leave',
+    finishTitle: 'Finish!',
+    finishTitleRank: 'Finish! {rank} · {time}',
+    waitingOne: 'waiting for 1 rider…',
+    waitingMany: 'waiting for {n} riders…',
+    provisional: 'provisional standings',
+    hide: 'Hide',
+    endRide: 'End ride',
+    results: 'Results',
+    keepRiding: 'Keep riding',
+    rider: 'Rider',
+    time: 'Time',
+    gap: 'Gap',
+    raceResults: 'Race results',
+    standingsLeft: 'Standings when you left',
+    groupRide: 'Group ride',
+    sticky: 'sticky',
+    regrouping: 'Regrouping',
+    targetAvg: 'Target average (AI)',
+    announcedPace: 'Announced pace',
+    free: 'free',
+    yourPace: 'Your pace (3 s)',
+    leader: 'Leader',
+    targetDown: 'Target −1 km/h',
+    targetUp: 'Target +1 km/h',
+    noTarget: 'No target',
+    paceDown: 'Announced pace −0.1 W/kg ([)',
+    paceUp: 'Announced pace +0.1 W/kg (])',
+    freeBtn: 'Free',
+    stopRegroup: 'Stop (G)',
+    regroup: 'Regroup (G)',
+  },
+);
+/** Remplit les `{clé}` d'un gabarit du dictionnaire. */
+const fill = (tpl: string, v: Record<string, string | number>): string => tpl.replace(/\{(\w+)\}/g, (m, k: string) => (k in v ? String(v[k]) : m));
+const rankText = (n: number): string => fill(n === 1 ? S('rankFirst') : S('rankOther'), { n });
+const placeText = (n: number): string => fill(n === 1 ? S('placeFirst') : S('placeOther'), { n });
+
 const km = (m: number): string => (m / 1000).toFixed(m < 10_000 ? 2 : 1).replace('.', ',');
 
 export interface RideRoomUiOptions {
@@ -171,8 +340,8 @@ export class RideRoomUi {
         if (ev.riderId === me) this.onFinish?.();
         if (ev.riderId === me && ev.rank === 1) this.onWin?.();
         this.refreshArrival();
-        if (ev.riderId === me) this.o.toast(ev.rank > 0 ? (fr ? `Arrivée ! ${ev.rank}${ev.rank === 1 ? 'er' : 'e'} en ${formatRaceTime(ev.timeMs)}` : `Finished! #${ev.rank} in ${formatRaceTime(ev.timeMs)}`) : fr ? 'Arrivée (hors classement)' : 'Finished (unranked)');
-        else if (ev.rank === 1) this.o.toast(fr ? `🏁 ${this.name(ev.riderId)} remporte la course` : `🏁 ${this.name(ev.riderId)} wins the race`);
+        if (ev.riderId === me) this.o.toast(ev.rank > 0 ? fill(S('finishRanked'), { rank: rankText(ev.rank), time: formatRaceTime(ev.timeMs) }) : S('finishUnranked'));
+        else if (ev.rank === 1) this.o.toast(fill(S('wins'), { name: this.name(ev.riderId) }));
         break;
       }
       case 'results':
@@ -188,37 +357,37 @@ export class RideRoomUi {
         this.upsert(ev.riderId, ev.segmentKind === 'kom' ? { komPts: (r?.komPts ?? 0) + ev.points } : { sprintPts: (r?.sprintPts ?? 0) + ev.points });
         const seg = this.o.track.route.segments.find((s) => s.id === ev.segmentId)?.name ?? '';
         const icon = ev.segmentKind === 'kom' ? '⛰' : '⚡';
-        const who = ev.riderId === me ? (fr ? 'Toi' : 'You') : this.name(ev.riderId);
-        this.o.toast(`${icon} ${fr ? 'Prime' : 'Prime'} ${seg} : ${who} ${ev.place}${fr ? (ev.place === 1 ? 'er' : 'e') : ''} (+${ev.points} pts)`);
+        const who = ev.riderId === me ? S('you') : this.name(ev.riderId);
+        this.o.toast(`${icon} ${S('prime')} ${seg} : ${who} ${placeText(ev.place)} (+${ev.points} pts)`);
         break;
       }
       case 'abandon':
         this.upsert(ev.riderId, { name: ev.name, status: 'dnf', rank: 0 });
-        this.o.toast(fr ? `${ev.name} abandonne` : `${ev.name} abandons`);
+        this.o.toast(fill(S('abandons'), { name: ev.name }));
         break;
       case 'flag':
         if (ev.action === 'dq') {
           this.upsert(ev.riderId, { status: 'dq', rank: 0 });
-          this.o.toast(ev.riderId === me ? (fr ? 'Mis hors course : puissance invraisemblable' : 'Disqualified: implausible power') : fr ? `${this.name(ev.riderId)} mis hors course (puissance)` : `${this.name(ev.riderId)} disqualified (power)`);
-        } else if (ev.riderId === me) this.o.toast(fr ? `Contrôle de puissance : ${ev.reason}. Vérifie ton capteur.` : `Power check: capped. Check your power meter.`);
+          this.o.toast(ev.riderId === me ? S('dqSelf') : fill(S('dqOther'), { name: this.name(ev.riderId) }));
+        } else if (ev.riderId === me) this.o.toast(fill(S('powerCheck'), { reason: ev.reason }));
         break;
       case 'deadline':
-        this.o.toast(fr ? `Heure limite : ${formatRaceTime(ev.at - this.net.serverNow())} pour franchir la ligne` : `Time limit: ${formatRaceTime(ev.at - this.net.serverNow())} to finish`);
+        this.o.toast(fill(S('deadline'), { time: formatRaceTime(ev.at - this.net.serverNow()) }));
         break;
       case 'join':
         if (this.o.mode === 'race' && this.phase === 'running') this.unranked.add(ev.riderId);
         break;
       case 'regroup':
-        this.o.toast(ev.active ? (fr ? `Regroupement ! (écart ${ev.spreadM} m) — la tête temporise, la queue est aidée` : `Regroup! (gap ${ev.spreadM} m)`) : fr ? 'Groupe reformé' : 'Group back together');
+        this.o.toast(ev.active ? fill(S('regroupOn'), { m: ev.spreadM }) : S('regroupOff'));
         break;
       case 'split': {
         const canAsk = this.net.selfId === this.net.hostId || this.net.selfId === this.leaderId;
-        this.o.toast(fr ? `Le groupe s'est scindé (${ev.gapM} m)${canAsk ? ' — G pour regrouper' : ''}` : `The group has split (${ev.gapM} m)${canAsk ? ' — G to regroup' : ''}`);
+        this.o.toast(fill(S('split'), { m: ev.gapM }) + (canAsk ? S('splitHint') : ''));
         break;
       }
       case 'options': {
         const pace = ev.options.paceWkg;
-        this.o.toast(pace === null ? (fr ? 'Allure libre' : 'Free pace') : fr ? `Allure annoncée : ${pace.toFixed(1).replace('.', ',')} W/kg` : `Announced pace: ${pace.toFixed(1)} W/kg`);
+        this.o.toast(pace === null ? S('freePace') : fill(S('announcedPaceToast'), { p: pace.toFixed(1).replace('.', fr ? ',' : '.') }));
         break;
       }
       default:
@@ -268,7 +437,6 @@ export class RideRoomUi {
   }
 
   private updateRace(self: { distM: number; speedMs: number }): void {
-    const fr = this.fr;
     const w = this.w;
     if (!w) return;
     // Salle d'attente.
@@ -297,18 +465,18 @@ export class RideRoomUi {
     const meRow = rows.find((r) => r.id === this.net.selfId);
     if (meRow && meRow.pos > 5) top.push(meRow);
     const gapCell = (r: StandingRow): string =>
-      r.status === 'finished' ? (r.gapMs ? formatGap(r.gapMs) : formatRaceTime(r.timeMs ?? 0)) : r.behindM ? `+ ${Math.round(r.behindM)} m` : r.pos === 1 ? (fr ? 'tête' : 'lead') : '';
+      r.status === 'finished' ? (r.gapMs ? formatGap(r.gapMs) : formatRaceTime(r.timeMs ?? 0)) : r.behindM ? `+ ${Math.round(r.behindM)} m` : r.pos === 1 ? S('lead') : '';
     const deadline = w.deadline !== undefined && this.phase === 'running' ? w.deadline - this.net.serverNow() : undefined;
-    const pts = (mine?.komPts ?? 0) + (mine?.sprintPts ?? 0) > 0 ? `<div class="mp-line"><span>${fr ? 'Primes' : 'Primes'}</span><b>⛰ ${mine?.komPts ?? 0} · ⚡ ${mine?.sprintPts ?? 0} pts</b></div>` : '';
+    const pts = (mine?.komPts ?? 0) + (mine?.sprintPts ?? 0) > 0 ? `<div class="mp-line"><span>${S('primes')}</span><b>⛰ ${mine?.komPts ?? 0} · ⚡ ${mine?.sprintPts ?? 0} pts</b></div>` : '';
     const status = meRow && meRow.status !== 'racing' && meRow.status !== 'finished' ? `<div class="mp-line"><b>${esc(statusLabel(meRow.status, this.o.lang))}</b></div>` : '';
     setHtml(this.btns, '');
-    setHtml(this.body, `<h4><span>${fr ? 'Course' : 'Race'}</span><span>${fr ? 'tour' : 'lap'} ${info?.lap ?? 1}/${laps}</span></h4>
+    setHtml(this.body, `<h4><span>${S('race')}</span><span>${S('lap')} ${info?.lap ?? 1}/${laps}</span></h4>
       <div class="mp-big num">${info && info.pos > 0 ? `${info.pos}<small> / ${info.total}</small>` : '—'}</div>
       ${status}
-      ${mine?.status === 'finished' ? `<div class="mp-line"><span>${fr ? 'Arrivé en' : 'Finished in'}</span><b class="num">${formatRaceTime(mine.timeMs)}</b></div>` : `<div class="mp-line"><span>${fr ? 'Reste' : 'To go'}</span><b class="num">${km(info?.remainingM ?? 0)} km</b></div>`}
-      ${info?.aheadM !== undefined ? `<div class="mp-line"><span>${fr ? 'Devant' : 'Ahead'}</span><b class="num">${Math.round(info.aheadM)} m</b></div>` : ''}
-      ${info?.behindM !== undefined ? `<div class="mp-line"><span>${fr ? 'Derrière' : 'Behind'}</span><b class="num">${Math.round(info.behindM)} m</b></div>` : ''}
-      ${deadline !== undefined && deadline > 0 ? `<div class="mp-line"><span>${fr ? 'Heure limite' : 'Time limit'}</span><b class="num">${formatRaceTime(deadline)}</b></div>` : ''}
+      ${mine?.status === 'finished' ? `<div class="mp-line"><span>${S('finishedIn')}</span><b class="num">${formatRaceTime(mine.timeMs)}</b></div>` : `<div class="mp-line"><span>${S('toGo')}</span><b class="num">${km(info?.remainingM ?? 0)} km</b></div>`}
+      ${info?.aheadM !== undefined ? `<div class="mp-line"><span>${S('ahead')}</span><b class="num">${Math.round(info.aheadM)} m</b></div>` : ''}
+      ${info?.behindM !== undefined ? `<div class="mp-line"><span>${S('behind')}</span><b class="num">${Math.round(info.behindM)} m</b></div>` : ''}
+      ${deadline !== undefined && deadline > 0 ? `<div class="mp-line"><span>${S('timeLimit')}</span><b class="num">${formatRaceTime(deadline)}</b></div>` : ''}
       ${pts}
       <div class="mp-standings">${top
         .map((r) => {
@@ -328,19 +496,29 @@ export class RideRoomUi {
     this.lobbyKey = key;
     const laps = w.route.loop ? (w.options.laps ?? 1) : 1;
     const dist = km(this.targetM());
-    this.overlay.innerHTML = `<div class="panel mp-modal mp-lobby">
-      <h2>${fr ? 'Course · salle d’attente' : 'Race · waiting room'}</h2>
-      <div class="sub">${esc(w.route.name)} · ${dist} km${laps > 1 ? ` · ${laps} ${fr ? 'tours' : 'laps'}` : ''} · ${fr ? 'primes KOM et sprint' : 'KOM and sprint primes'}</div>
-      <div class="mp-line"><span>${fr ? 'Code d’invitation' : 'Invite code'}</span><span class="mp-code">${esc(w.inviteCode)}</span></div>
+    const tag = (r: (typeof riders)[number]): [string, string] =>
+      r.isHost ? ['is-info', S('host')] : r.isAI ? ['', S('ai')] : r.isGuest ? ['is-warn', S('guest')] : r.connected ? ['is-ok', S('ready')] : ['is-warn', S('reconnecting')];
+    this.overlay.innerHTML = `<div class="panel mp-modal mp-lobby" role="dialog" aria-labelledby="mp-lobby-title">
+      <header class="mp-head"><h2 class="ab-title" id="mp-lobby-title">${S('lobbyTitle')}</h2><p class="ab-sub">${fill(S('lobbySub'), { route: esc(w.route.name) })} · ${S('primesSub')}</p></header>
+      <div class="ab-grid ab-grid-2 mp-tiles">
+        <div class="ab-tile is-on"><span class="ab-name">${S('inviteCode')}</span><span class="ab-detail">${S('inviteDetail')}</span><span class="ab-val"><b class="mp-code">${esc(w.inviteCode)}</b></span></div>
+        <div class="ab-tile"><span class="ab-name">${S('distance')}</span><span class="ab-detail">${esc(w.route.name)}</span><span class="ab-val"><b>${dist}</b><small>km${laps > 1 ? ` · ${fill(S('laps'), { n: laps })}` : ''}</small></span></div>
+      </div>
+      <section><h3 class="ab-section">${fill(S('riders'), { n: riders.length })}</h3>
       <div class="mp-roster">${riders
-        .map((r) => `<span>${this.flag(r.id)}${esc(r.name)}${r.id === this.net.selfId ? (fr ? ' (toi)' : ' (you)') : ''}</span><span class="tag">${r.isHost ? (fr ? 'organisateur' : 'host') : r.isAI ? 'IA' : r.isGuest ? (fr ? 'invité · non classé' : 'guest · unranked') : r.connected ? (fr ? 'prêt' : 'ready') : fr ? 'reconnexion…' : 'reconnecting…'}</span>`)
-        .join('')}</div>
+        .map((r) => {
+          const [cls, label] = tag(r);
+          return `<span>${this.flag(r.id)}${esc(r.name)}${r.id === this.net.selfId ? S('youSuffix') : ''}</span><span class="ab-state ${cls}"><i></i>${label}</span>`;
+        })
+        .join('')}</div></section>
       ${this.o.gear ? gearHtml(this.o.gear, fr) : ''}
-      <div class="sub">${this.net.isHost ? (fr ? 'Les IA complètent le peloton ; chaque ami qui arrive prend la place d’une IA.' : 'AI riders fill the field; each friend who joins takes an AI’s place.') : fr ? `En attente du départ donné par ${esc(host)}…` : `Waiting for ${esc(host)} to start…`}</div>
-      <div class="mp-btns">
-        ${this.net.isHost ? `<button class="mp-btn primary" data-act="start">${fr ? 'Donner le départ (10 s)' : 'Start the race (10 s)'}</button>` : ''}
-        ${this.discord ? `<a class="mp-btn discord" href="${esc(this.discord)}" target="_blank" rel="noopener noreferrer">${fr ? 'Salon Discord' : 'Discord channel'}</a>` : ''}
-        <button class="mp-btn" data-act="leave">${fr ? 'Quitter' : 'Leave'}</button>
+      <p class="mp-note">${this.net.isHost ? S('hostHint') : fill(S('waitingHost'), { name: esc(host) })}</p>
+      <div class="ab-foot">
+        <button type="button" class="ab-btn" data-act="leave">${S('leave')}</button>
+        <div class="ab-btns">
+          ${this.discord ? `<a class="ab-btn mp-discord" href="${esc(this.discord)}" target="_blank" rel="noopener noreferrer">${S('discordChannel')}</a>` : ''}
+          ${this.net.isHost ? `<button type="button" class="ab-btn ab-go" data-act="start">${S('start')}</button>` : ''}
+        </div>
       </div></div>`;
     if (this.o.gear) bindGear(this.overlay, this.o.gear);
     this.overlay.querySelector('[data-act="start"]')?.addEventListener('click', () => this.net.startCountdown(10));
@@ -370,18 +548,18 @@ export class RideRoomUi {
    */
   private refreshArrival(): void {
     if (!this.finished || this.arrivalClosed || this.finalResults) return;
-    const fr = this.fr;
     const mine = this.known.get(this.net.selfId);
     const rows = this.liveResults();
     const waiting = rows.filter((r) => r.status === 'racing' && !r.isAI).length;
-    this.overlay.innerHTML = `<div class="panel mp-modal">
-      <h2>${fr ? 'Arrivée !' : 'Finish!'}${mine && mine.rank > 0 ? ` ${mine.rank}${fr ? (mine.rank === 1 ? 'er' : 'e') : ''} · ${formatRaceTime(mine.timeMs)}` : ''}</h2>
-      <div class="sub">${esc(this.o.track.route.name)} · ${waiting > 0 ? (fr ? `en attente de ${waiting} coureur${waiting > 1 ? 's' : ''}…` : `waiting for ${waiting} rider${waiting > 1 ? 's' : ''}…`) : fr ? 'classement provisoire' : 'provisional standings'}</div>
+    const title = mine && mine.rank > 0 ? fill(S('finishTitleRank'), { rank: rankText(mine.rank), time: formatRaceTime(mine.timeMs) }) : S('finishTitle');
+    this.overlay.innerHTML = `<div class="panel mp-modal" role="dialog" aria-labelledby="mp-arrival-title">
+      <header class="mp-head"><h2 class="ab-title" id="mp-arrival-title">${title}</h2>
+      <p class="ab-sub">${esc(this.o.track.route.name)} · ${waiting > 0 ? (waiting > 1 ? fill(S('waitingMany'), { n: waiting }) : S('waitingOne')) : S('provisional')}</p></header>
       ${this.resultsTable(rows)}
-      <div class="mp-btns" style="justify-content:flex-end">
-        <button class="mp-btn" data-act="close">${fr ? 'Masquer' : 'Hide'}</button>
-        <button class="mp-btn primary" data-act="leave">${fr ? 'Terminer la sortie' : 'End ride'}</button>
-      </div></div>`;
+      <div class="ab-foot"><div class="ab-btns">
+        <button type="button" class="ab-btn" data-act="close">${S('hide')}</button>
+        <button type="button" class="ab-btn ab-go" data-act="leave">${S('endRide')}</button>
+      </div></div></div>`;
     this.overlay.querySelector('[data-act="close"]')?.addEventListener('click', () => {
       this.arrivalClosed = true;
       this.overlay.innerHTML = '';
@@ -390,16 +568,14 @@ export class RideRoomUi {
   }
 
   private showResults(results: RideResult[]): void {
-    const fr = this.fr;
     this.resultsShown = true;
-    this.overlay.innerHTML = `<div class="panel mp-modal">
-      <h2>${fr ? 'Résultats' : 'Results'}</h2>
-      <div class="sub">${esc(this.o.track.route.name)}</div>
+    this.overlay.innerHTML = `<div class="panel mp-modal" role="dialog" aria-labelledby="mp-results-title">
+      <header class="mp-head"><h2 class="ab-title" id="mp-results-title">${S('results')}</h2><p class="ab-sub">${esc(this.o.track.route.name)}</p></header>
       ${this.resultsTable(results)}
-      <div class="mp-btns" style="justify-content:flex-end">
-        <button class="mp-btn" data-act="close">${fr ? 'Continuer à rouler' : 'Keep riding'}</button>
-        <button class="mp-btn primary" data-act="leave">${fr ? 'Terminer la sortie' : 'End ride'}</button>
-      </div></div>`;
+      <div class="ab-foot"><div class="ab-btns">
+        <button type="button" class="ab-btn" data-act="close">${S('keepRiding')}</button>
+        <button type="button" class="ab-btn ab-go" data-act="leave">${S('endRide')}</button>
+      </div></div></div>`;
     this.overlay.querySelector('[data-act="close"]')?.addEventListener('click', () => {
       this.overlay.innerHTML = '';
     });
@@ -408,17 +584,16 @@ export class RideRoomUi {
 
   /** Tableau des résultats (fenêtre de fin et résumé de la sortie). */
   resultsTable(results: RideResult[]): string {
-    const fr = this.fr;
     const hasPts = results.some((r) => (r.komPts ?? 0) + (r.sprintPts ?? 0) > 0);
     const komLeader = Math.max(0, ...results.map((r) => r.komPts ?? 0));
     const sprintLeader = Math.max(0, ...results.map((r) => r.sprintPts ?? 0));
-    return `<table class="mp-results"><thead><tr><th class="num">#</th><th>${fr ? 'Coureur' : 'Rider'}</th><th class="num">${fr ? 'Temps' : 'Time'}</th><th class="num">${fr ? 'Écart' : 'Gap'}</th>${hasPts ? '<th class="num">⛰</th><th class="num">⚡</th>' : ''}</tr></thead><tbody>${results
+    return `<table class="mp-results"><thead><tr><th class="num">#</th><th>${S('rider')}</th><th class="num">${S('time')}</th><th class="num">${S('gap')}</th>${hasPts ? '<th class="num">⛰</th><th class="num">⚡</th>' : ''}</tr></thead><tbody>${results
       .map((r) => {
         const st = r.status ?? (r.rank > 0 ? 'finished' : 'unranked');
         const cls = r.riderId === this.net.selfId ? 'me' : '';
         const jersey = (r.komPts ?? 0) > 0 && r.komPts === komLeader ? ' ⛰' : '';
         const green = (r.sprintPts ?? 0) > 0 && r.sprintPts === sprintLeader ? ' ⚡' : '';
-        return `<tr class="${cls}"><td class="num">${r.rank > 0 ? r.rank : '–'}</td><td>${this.flag(r.riderId)}${esc(r.name)}${r.isAI ? ' <span style="color:var(--ar-muted)">IA</span>' : ''}${jersey}${green}</td><td class="num">${st === 'finished' ? formatRaceTime(r.timeMs) : esc(statusLabel(st, this.o.lang))}</td><td class="num">${st === 'finished' && r.gapMs !== undefined ? formatGap(r.gapMs) : r.distM !== undefined && st !== 'unranked' ? `${km(r.distM)} km` : ''}</td>${hasPts ? `<td class="num">${r.komPts ?? 0}</td><td class="num">${r.sprintPts ?? 0}</td>` : ''}</tr>`;
+        return `<tr class="${cls}"><td class="num">${r.rank > 0 ? r.rank : '–'}</td><td>${this.flag(r.riderId)}${esc(r.name)}${r.isAI ? ` <span class="mp-ai">${S('ai')}</span>` : ''}${jersey}${green}</td><td class="num">${st === 'finished' ? formatRaceTime(r.timeMs) : esc(statusLabel(st, this.o.lang))}</td><td class="num">${st === 'finished' && r.gapMs !== undefined ? formatGap(r.gapMs) : r.distM !== undefined && st !== 'unranked' ? `${km(r.distM)} km` : ''}</td>${hasPts ? `<td class="num">${r.komPts ?? 0}</td><td class="num">${r.sprintPts ?? 0}</td>` : ''}</tr>`;
       })
       .join('')}</tbody></table>`;
   }
@@ -439,8 +614,7 @@ export class RideRoomUi {
         return out;
       });
     if (!res.length) return '';
-    const fr = this.fr;
-    return `<h2>${this.finalResults ? (fr ? 'Résultats de la course' : 'Race results') : fr ? 'Classement au moment de ton départ' : 'Standings when you left'}</h2>${this.resultsTable(res)}`;
+    return `<h2 class="ab-section">${this.finalResults ? S('raceResults') : S('standingsLeft')}</h2>${this.resultsTable(res)}`;
   }
 
   private updateGroup(self: { distM: number; wkg: number }): void {
@@ -455,18 +629,18 @@ export class RideRoomUi {
     const canRegroup = me === this.net.hostId || me === leaderId;
     const band = pace !== null ? paceBand(self.wkg, pace) : 'ok';
     const nf = (v: number) => v.toFixed(1).replace('.', fr ? ',' : '.');
-    setHtml(this.body, `<h4><span>${fr ? 'Sortie de groupe' : 'Group ride'}</span><span>${w.options.stickyGroup ? (fr ? 'groupe soudé' : 'sticky') : ''}</span></h4>
-      ${w.regrouping ? `<div class="mp-banner">${fr ? 'Regroupement en cours' : 'Regrouping'}</div>` : ''}
-      ${target !== null ? `<div class="mp-line"><span>${fr ? 'Moyenne visée (IA)' : 'Target average (AI)'}</span><b class="num">${nf(target).replace(/[,.]0$/, '')} km/h</b></div>` : ''}
-      <div class="mp-line"><span>${fr ? 'Allure annoncée' : 'Announced pace'}</span><b class="num">${pace !== null ? `${nf(pace)} W/kg` : fr ? 'libre' : 'free'}</b></div>
-      <div class="mp-line"><span>${fr ? 'Ton allure (3 s)' : 'Your pace (3 s)'}</span><span class="mp-pace num ${pace !== null ? band : ''}">${nf(self.wkg)}</span></div>
-      <div class="mp-line"><span>${fr ? 'Meneur' : 'Leader'}</span><b>★ ${esc(this.name(leaderId))}${leader ? ` · ${leader.unwrappedM - self.distM >= 0 ? '+' : '−'}${Math.round(Math.abs(leader.unwrappedM - self.distM))} m` : leaderId === me ? (fr ? ' (toi)' : ' (you)') : ''}</b></div>`);
+    setHtml(this.body, `<h4><span>${S('groupRide')}</span><span>${w.options.stickyGroup ? S('sticky') : ''}</span></h4>
+      ${w.regrouping ? `<div class="mp-banner">${S('regrouping')}</div>` : ''}
+      ${target !== null ? `<div class="mp-line"><span>${S('targetAvg')}</span><b class="num">${nf(target).replace(/[,.]0$/, '')} km/h</b></div>` : ''}
+      <div class="mp-line"><span>${S('announcedPace')}</span><b class="num">${pace !== null ? `${nf(pace)} W/kg` : S('free')}</b></div>
+      <div class="mp-line"><span>${S('yourPace')}</span><span class="mp-pace num ${pace !== null ? band : ''}">${nf(self.wkg)}</span></div>
+      <div class="mp-line"><span>${S('leader')}</span><b>★ ${esc(this.name(leaderId))}${leader ? ` · ${leader.unwrappedM - self.distM >= 0 ? '+' : '−'}${Math.round(Math.abs(leader.unwrappedM - self.distM))} m` : leaderId === me ? S('youSuffix') : ''}</b></div>`);
     setHtml(
       this.btns,
       `
-        ${this.net.isHost ? `<button class="mp-btn" data-act="tslower" title="${fr ? 'Moyenne visée −1 km/h' : 'Target −1 km/h'}">−1 km/h</button><button class="mp-btn" data-act="tfaster" title="${fr ? 'Moyenne visée +1 km/h' : 'Target +1 km/h'}">+1 km/h</button>${target !== null ? `<button class="mp-btn" data-act="tfree">${fr ? 'Moyenne libre' : 'No target'}</button>` : ''}` : ''}
-        ${this.net.isHost ? `<button class="mp-btn" data-act="slower" title="[">−</button><button class="mp-btn" data-act="faster" title="]">+</button><button class="mp-btn" data-act="free">${fr ? 'Libre' : 'Free'}</button>` : ''}
-        ${canRegroup ? `<button class="mp-btn ${w.regrouping ? '' : 'primary'}" data-act="regroup">${w.regrouping ? (fr ? 'Arrêter (G)' : 'Stop (G)') : fr ? 'Regrouper (G)' : 'Regroup (G)'}</button>` : ''}
+        ${this.net.isHost ? `<button type="button" class="mp-btn" data-act="tslower" title="${S('targetDown')}" aria-label="${S('targetDown')}">−1 km/h</button><button type="button" class="mp-btn" data-act="tfaster" title="${S('targetUp')}" aria-label="${S('targetUp')}">+1 km/h</button>${target !== null ? `<button type="button" class="mp-btn" data-act="tfree">${S('noTarget')}</button>` : ''}` : ''}
+        ${this.net.isHost ? `<button type="button" class="mp-btn" data-act="slower" title="${S('paceDown')}" aria-label="${S('paceDown')}">−</button><button type="button" class="mp-btn" data-act="faster" title="${S('paceUp')}" aria-label="${S('paceUp')}">+</button><button type="button" class="mp-btn" data-act="free">${S('freeBtn')}</button>` : ''}
+        ${canRegroup ? `<button type="button" class="mp-btn ${w.regrouping ? '' : 'primary'}" data-act="regroup">${w.regrouping ? S('stopRegroup') : S('regroup')}</button>` : ''}
         ${this.discord ? `<a class="mp-btn discord" href="${esc(this.discord)}" target="_blank" rel="noopener noreferrer">Discord</a>` : ''}`,
     );
     this.panel.style.display = '';

@@ -11,7 +11,151 @@ import { bikeSwatch, css } from './swatch.ts';
 import { roadEffectHtml } from '../ui/roadEffect.ts';
 import { loadSettings } from '../ui/settings.ts';
 import { v3Resource } from '../engine/v3Access.ts';
+import { getLang, strings } from '../i18n/index.ts';
+import '../ui/blocks.css';
 import './garage.css';
+
+/** Textes du garage Beta ; `{n}`, `{name}`… : valeurs remplacées à l'appel (voir `fill`). */
+const S = strings(
+  {
+    navAria: 'Rubriques du garage V3',
+    diceAll: 'Tout au hasard : personnage, tenue, vélo, coloris, roues et home trainer',
+    admin: 'Gérer les objets V3',
+    roadAria: 'Effet sur la route',
+    effectLine: 'En selle : {kg} kg · traînée {drag} %',
+    effectTitle: 'Vélo {bike} kg + équipement {gear} kg (poids et traînée Zwift) ; appliqué à la prochaine sortie en style V3. Pneus : {tyre}.',
+    tyreMtb: 'VTT',
+    tyreGravel: 'gravel',
+    tyreRoad: 'route',
+    character: 'Personnage',
+    kit: 'Tenue',
+    bike: 'Vélo',
+    diceKit: 'Tenue au hasard (maillot, casque, lunettes, gants, chaussettes et chaussures)',
+    silhouette: 'Silhouette',
+    man: 'Homme',
+    woman: 'Femme',
+    body: 'Corps',
+    bodyStandard: 'Standard',
+    bodySkinny: 'Mince',
+    bodyBig: 'Fort',
+    bodyAuto: 'Revenir à l’IMC',
+    bmi: 'IMC',
+    bmiValue: 'IMC {v}',
+    byBmi: 'Selon ton {v} (Mensurations)',
+    diceCharacter: 'Personnage au hasard (corps, tête, cheveux, barbe)',
+    mainColour: 'Couleur principale',
+    mainColourHint: 'Change les parties colorées de la peinture ; le noir, le gris et le blanc restent.',
+    hueTitle: 'Fait tourner les couleurs de la peinture (coloris réglable) ; le noir, le gris et le blanc ne changent pas.',
+    posture: 'Posture',
+    pedal: '▶ Pédaler',
+    pause: '❚❚ Pause',
+    pedalTitle: 'Pédaler à 90 tr/min',
+    wheels: 'Roues',
+    stock: 'D’origine',
+    drag: 'traînée',
+    equipped: '✓ Équipé',
+    lockState: 'Niveau {need} · dans {n} niv.',
+    wheelLocked: 'Pas encore débloquée : cliquer pour l’essayer',
+    bikeLocked: 'Pas encore débloqué : cliquer pour l’essayer',
+    previewSuffix: ' · aperçu, niveau {n}',
+    preview: 'Aperçu · niveau {n}',
+    stockWith: 'Livrées avec ce vélo : {name}',
+    stockWithout: 'Livrées avec ce vélo',
+    trainer: 'Home trainer',
+    none: 'Aucun',
+    catalog: 'Catalogue des vélos',
+    bikeType: 'Type de vélo',
+    searchBike: 'Rechercher un vélo',
+    diceBike: 'Vélo au hasard (modèle, coloris et roues)',
+    allTypes: 'Tous les types ({n})',
+    noBrand: 'Sans marque',
+    noBike: 'Aucun vélo ne correspond.',
+    colourway: 'Coloris',
+    colourwayN: 'Coloris {n}',
+    onlyColour: 'Un seul coloris pour ce vélo dans Zwift, sans teinte réglable.',
+    variants: 'Variantes par type de vélo',
+    typeRoute: 'Route',
+    typeChrono: 'Chrono',
+    typeGravel: 'Gravel',
+    typeVtt: 'VTT',
+    typeCruiser: 'Ville',
+    typeConcept: 'Concept',
+    typeTricycle: 'Tricycle',
+    typeHandbike: 'Handbike',
+    typeRecumbent: 'Couché',
+  },
+  {
+    navAria: 'V3 garage sections',
+    diceAll: 'All at random: character, kit, bike, colourway, wheels and home trainer',
+    admin: 'Manage V3 items',
+    roadAria: 'Effect on the road',
+    effectLine: 'Riding: {kg} kg · drag {drag} %',
+    effectTitle: 'Bike {bike} kg + gear {gear} kg (Zwift weight and drag); applied to the next ride in V3 style. Tyres: {tyre}.',
+    tyreMtb: 'MTB',
+    tyreGravel: 'gravel',
+    tyreRoad: 'road',
+    character: 'Character',
+    kit: 'Kit',
+    bike: 'Bike',
+    diceKit: 'Random kit (jersey, helmet, glasses, gloves, socks and shoes)',
+    silhouette: 'Build',
+    man: 'Man',
+    woman: 'Woman',
+    body: 'Body',
+    bodyStandard: 'Standard',
+    bodySkinny: 'Slim',
+    bodyBig: 'Heavy',
+    bodyAuto: 'Back to BMI',
+    bmi: 'BMI',
+    bmiValue: 'BMI {v}',
+    byBmi: 'From your {v} (Measurements)',
+    diceCharacter: 'Random character (body, head, hair, beard)',
+    mainColour: 'Main colour',
+    mainColourHint: 'Changes the coloured parts of the paint; black, grey and white stay.',
+    hueTitle: 'Rotates the paint colours (adjustable colourway); black, grey and white do not change.',
+    posture: 'Position',
+    pedal: '▶ Pedal',
+    pause: '❚❚ Pause',
+    pedalTitle: 'Pedal at 90 rpm',
+    wheels: 'Wheels',
+    stock: 'Stock',
+    drag: 'drag',
+    equipped: '✓ Equipped',
+    lockState: 'Level {need} · in {n} lv.',
+    wheelLocked: 'Not unlocked yet: click to try them',
+    bikeLocked: 'Not unlocked yet: click to try it',
+    previewSuffix: ' · preview, level {n}',
+    preview: 'Preview · level {n}',
+    stockWith: 'Supplied with this bike: {name}',
+    stockWithout: 'Supplied with this bike',
+    trainer: 'Home trainer',
+    none: 'None',
+    catalog: 'Bike catalogue',
+    bikeType: 'Bike type',
+    searchBike: 'Search for a bike',
+    diceBike: 'Random bike (model, colourway and wheels)',
+    allTypes: 'All types ({n})',
+    noBrand: 'No brand',
+    noBike: 'No bike matches.',
+    colourway: 'Colourway',
+    colourwayN: 'Colourway {n}',
+    onlyColour: 'Only one colourway for this bike in Zwift, with no adjustable tint.',
+    variants: 'Variants by bike type',
+    typeRoute: 'Road',
+    typeChrono: 'Time trial',
+    typeGravel: 'Gravel',
+    typeVtt: 'MTB',
+    typeCruiser: 'City',
+    typeConcept: 'Concept',
+    typeTricycle: 'Tricycle',
+    typeHandbike: 'Handbike',
+    typeRecumbent: 'Recumbent',
+  },
+);
+/** Gabarit du dictionnaire avec ses valeurs (`{n}` → 12). */
+const fill = (text: string, values: Record<string, string | number>): string => text.replace(/\{(\w+)\}/g, (m, k: string) => (k in values ? String(values[k]) : m));
+/** Nombres à la française ou à l'anglaise selon la langue. */
+const locale = (): string => (getLang() === 'fr' ? 'fr-FR' : 'en-GB');
 
 export interface V3GarageActions {
   equipment(equipment: V3Equipment): void;
@@ -32,11 +176,11 @@ export interface V3GarageActions {
 }
 
 /** Libellés des types de vélos du catalogue V3, dans l'ordre d'affichage. */
-const BIKE_TYPES: Array<[string, string]> = [
-  ['route', 'Route'], ['chrono', 'Chrono'], ['gravel', 'Gravel'], ['vtt', 'VTT'], ['cruiser', 'Ville'],
-  ['concept', 'Concept'], ['tricycle', 'Tricycle'], ['handbike', 'Handbike'], ['couché', 'Couché'],
+const BIKE_TYPES: Array<[string, Parameters<typeof S>[0]]> = [
+  ['route', 'typeRoute'], ['chrono', 'typeChrono'], ['gravel', 'typeGravel'], ['vtt', 'typeVtt'], ['cruiser', 'typeCruiser'],
+  ['concept', 'typeConcept'], ['tricycle', 'typeTricycle'], ['handbike', 'typeHandbike'], ['couché', 'typeRecumbent'],
 ];
-const typeLabel = (type: string) => BIKE_TYPES.find(([id]) => id === type)?.[1] ?? type;
+const typeLabel = (type: string) => { const key = BIKE_TYPES.find(([id]) => id === type)?.[1]; return key ? S(key) : type; };
 const bikeName = (bike: V3Bike) => (bike.name.toLowerCase().startsWith(bike.brand.toLowerCase()) ? bike.name : bike.brand + ' ' + bike.name).trim();
 
 function field(parent: HTMLElement, label: string, control: HTMLElement): HTMLLabelElement {
@@ -112,11 +256,11 @@ export function createV3Garage(actions: V3GarageActions) {
   top.className = 'v3-top';
   const nav = document.createElement('nav');
   nav.className = 'gr-groups';
-  nav.setAttribute('aria-label', 'Rubriques du garage V3');
+  nav.setAttribute('aria-label', S('navAria'));
   // Dé général à côté des rubriques : tout tiré ensemble (tenue, personnage, vélo, coloris, roues, home trainer).
   const navRow = document.createElement('div');
   navRow.className = 'v3-navrow';
-  const allDice = diceButton('Tout au hasard : personnage, tenue, vélo, coloris, roues et home trainer');
+  const allDice = diceButton(S('diceAll'));
   allDice.onclick = () => {
     void (async () => {
       await randomKit();
@@ -130,8 +274,8 @@ export function createV3Garage(actions: V3GarageActions) {
   adminButton.type = 'button';
   adminButton.className = 'v3-admin-open';
   adminButton.innerHTML = V3_ICON.admin;
-  adminButton.title = 'Gérer les objets V3';
-  adminButton.setAttribute('aria-label', 'Gérer les objets V3');
+  adminButton.title = S('admin');
+  adminButton.setAttribute('aria-label', S('admin'));
   adminButton.onclick = () => { void openV3Admin(actions.photo).catch(report); };
   // Montré seulement en développement ou au compte administrateur.
   adminButton.hidden = true;
@@ -175,7 +319,7 @@ export function createV3Garage(actions: V3GarageActions) {
   // pour le vélo V3 roulé : placé par l'atelier à gauche du panneau, comme dans les autres styles.
   const road = document.createElement('aside');
   road.className = 'gr-road';
-  road.setAttribute('aria-label', 'Effet sur la route');
+  road.setAttribute('aria-label', S('roadAria'));
   // Poids changé dans « Mensurations » (pied du garage) : effet sur la route recalculé une fois le réglage enregistré.
   document.addEventListener('change', event => {
     const id = (event.target as HTMLElement | null)?.id;
@@ -189,11 +333,10 @@ export function createV3Garage(actions: V3GarageActions) {
     const html = document.createElement('template');
     html.innerHTML = roadEffectHtml(effect.setup, rider.massKg, rider.ftpWatts);
     road.replaceChildren(...(html.content.firstElementChild?.childNodes ?? []));
-    const kg = (value: number) => value.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const kg = (value: number) => value.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
     const drag = Math.round(effect.dragPct * 10) / 10;
-    effectLine.textContent = 'En selle : ' + kg(effect.setup.massKg) + ' kg · traînée ' + (drag > 0 ? '+' : '') + drag.toLocaleString('fr-FR') + ' %';
-    effectLine.title = 'Vélo ' + kg(effect.bikeKg) + ' kg + équipement ' + kg(effect.gearKg) + ' kg (poids et traînée Zwift) ; '
-      + 'appliqué à la prochaine sortie en style V3. Pneus : ' + (effect.setup.tyre === 'mtb' ? 'VTT' : effect.setup.tyre === 'gravel' ? 'gravel' : 'route') + '.';
+    effectLine.textContent = fill(S('effectLine'), { kg: kg(effect.setup.massKg), drag: (drag > 0 ? '+' : '') + drag.toLocaleString(locale()) });
+    effectLine.title = fill(S('effectTitle'), { bike: kg(effect.bikeKg), gear: kg(effect.gearKg), tyre: S(effect.setup.tyre === 'mtb' ? 'tyreMtb' : effect.setup.tyre === 'gravel' ? 'tyreGravel' : 'tyreRoad') });
   }
   function sectionFor(id: string, title: string, icon: string) {
     const head = document.createElement('div');
@@ -240,9 +383,9 @@ export function createV3Garage(actions: V3GarageActions) {
   }
 
   // Ordre des rubriques : Personnage, Tenue, Vélo.
-  const character = sectionFor('character', 'Personnage', V3_ICON.face);
-  const kit = sectionFor('kit', 'Tenue', V3_ICON.tenue);
-  const bikes = sectionFor('bikes', 'Vélo', V3_ICON.bike);
+  const character = sectionFor('character', S('character'), V3_ICON.face);
+  const kit = sectionFor('kit', S('kit'), V3_ICON.tenue);
+  const bikes = sectionFor('bikes', S('bike'), V3_ICON.bike);
   const wardrobeActions = {
     equipment: apply, report, photo: actions.photo, sex: actions.sex,
     tryOn: (item: V3Gear) => startTrial({ ...equipment, kit: { ...equipment.kit, [item.type]: { id: item.id, color: 0 } } }),
@@ -253,7 +396,7 @@ export function createV3Garage(actions: V3GarageActions) {
   const kitWardrobe = addWardrobe(kit.head, kit.section, () => equipment, wardrobeActions);
   const openKit = kitWardrobe.open;
   // Dé de la tenue seule, à droite des emplacements (maillot, casque, gants…), comme ceux du personnage et du vélo.
-  const kitDice = diceButton('Tenue au hasard (maillot, casque, lunettes, gants, chaussettes et chaussures)');
+  const kitDice = diceButton(S('diceKit'));
   kitDice.onclick = () => { void randomKit().catch(report); };
   const kitSlots = kit.head.querySelector<HTMLElement>('.gr-slots');
   if (kitSlots) {
@@ -270,9 +413,9 @@ export function createV3Garage(actions: V3GarageActions) {
   const sexSeg = document.createElement('div');
   sexSeg.className = 'mm-seg';
   sexSeg.setAttribute('role', 'radiogroup');
-  sexSeg.setAttribute('aria-label', 'Silhouette');
+  sexSeg.setAttribute('aria-label', S('silhouette'));
   // Homme ou femme ; sans choix enregistré, la silhouette effective (celle du profil) est cochée.
-  const sexes: Array<['male' | 'female', string]> = [['male', 'Homme'], ['female', 'Femme']];
+  const sexes: Array<['male' | 'female', string]> = [['male', S('man')], ['female', S('woman')]];
   function showSex() {
     const current = equipment.sex ?? actions.sex?.() ?? 'male';
     for (const button of sexSeg.querySelectorAll<HTMLButtonElement>('button')) {
@@ -296,22 +439,22 @@ export function createV3Garage(actions: V3GarageActions) {
     };
     sexSeg.append(button);
   }
-  sexField.append('Silhouette');
+  sexField.append(S('silhouette'));
   // Corps Zwift : standard, mince, fort (le corps fort n'existe que pour le coureur).
   const bodyField = document.createElement('div');
   bodyField.className = 'field';
   const bodySeg = document.createElement('div');
   bodySeg.className = 'mm-seg';
   bodySeg.setAttribute('role', 'radiogroup');
-  bodySeg.setAttribute('aria-label', 'Corps');
-  const bodies: Array<[V3Body, string]> = [['standard', 'Standard'], ['skinny', 'Mince'], ['big', 'Fort']];
+  bodySeg.setAttribute('aria-label', S('body'));
+  const bodies: Array<[V3Body, string]> = [['standard', S('bodyStandard')], ['skinny', S('bodySkinny')], ['big', S('bodyBig')]];
   // Corps par défaut selon l'IMC (Mensurations) tant qu'aucun n'est choisi ; un bouton y revient après un choix.
   const bodyHint = document.createElement('small');
   bodyHint.className = 'v3-body-hint';
   const bodyAuto = document.createElement('button');
   bodyAuto.type = 'button';
   bodyAuto.className = 'v3-link';
-  bodyAuto.textContent = 'Revenir à l’IMC';
+  bodyAuto.textContent = S('bodyAuto');
   bodyAuto.onclick = () => { const { body: _, ...rest } = equipment; apply(rest); showBody(); };
   function showBody() {
     const female = (actions.sex?.() ?? equipment.sex) === 'female';
@@ -323,8 +466,8 @@ export function createV3Garage(actions: V3GarageActions) {
       button.setAttribute('aria-checked', String(on));
     }
     const bmi = riderBmi();
-    const value = bmi === undefined ? '' : 'IMC ' + bmi.toLocaleString('fr-FR');
-    bodyHint.replaceChildren(equipment.body ? value + (value ? ' · ' : '') : 'Selon ton ' + (value || 'IMC') + ' (Mensurations)', ...(equipment.body ? [bodyAuto] : []));
+    const value = bmi === undefined ? '' : fill(S('bmiValue'), { v: bmi.toLocaleString(locale()) });
+    bodyHint.replaceChildren(equipment.body ? value + (value ? ' · ' : '') : fill(S('byBmi'), { v: value || S('bmi') }), ...(equipment.body ? [bodyAuto] : []));
   }
   // Poids ou taille changés dans « Mensurations » : le corps par défaut suit.
   document.addEventListener('change', event => {
@@ -344,7 +487,7 @@ export function createV3Garage(actions: V3GarageActions) {
     button.onclick = () => { apply({ ...equipment, body }); showBody(); };
     bodySeg.append(button);
   }
-  bodyField.append('Corps', bodySeg, bodyHint);
+  bodyField.append(S('body'), bodySeg, bodyHint);
   // Personnage au hasard : corps, tête, coiffure et couleur, barbe ; la silhouette choisie est gardée.
   const sexNow = () => equipment.sex ?? actions.sex?.() ?? 'male';
   async function randomCharacter(): Promise<void> {
@@ -388,7 +531,7 @@ export function createV3Garage(actions: V3GarageActions) {
     apply({ ...equipment, kit, sockHeight: pick<V3SockHeight>(['low', 'mid', 'high']) });
     kitWardrobe.refresh();
   }
-  const dice = diceButton('Personnage au hasard (corps, tête, cheveux, barbe)');
+  const dice = diceButton(S('diceCharacter'));
   dice.onclick = () => { void randomCharacter().catch(report); };
   const sexRow = document.createElement('div');
   sexRow.className = 'v3-sexrow';
@@ -414,9 +557,8 @@ export function createV3Garage(actions: V3GarageActions) {
   bikes.section.append(focus);
   // Teinte des coloris réglables de Zwift : fait tourner les couleurs de la peinture (noir, gris et blanc restent).
   // Proposée avec les coloris, sous le vélo choisi dans la liste.
-  const hue = createHueControl(value => apply({ ...equipment, hue: value }), 'Couleur principale',
-    'Change les parties colorées de la peinture ; le noir, le gris et le blanc restent.');
-  hue.field.title = 'Fait tourner les couleurs de la peinture (coloris réglable) ; le noir, le gris et le blanc ne changent pas.';
+  const hue = createHueControl(value => apply({ ...equipment, hue: value }), S('mainColour'), S('mainColourHint'));
+  hue.field.title = S('hueTitle');
   // Réglages du vélo équipé, regroupés dans une carte : une ligne par réglage (posture, roues, home trainer).
   const settingsCard = document.createElement('div');
   settingsCard.className = 'v3-settings';
@@ -428,19 +570,19 @@ export function createV3Garage(actions: V3GarageActions) {
   settingsCard.append(colorRow);
   const ride = document.createElement('div');
   ride.className = 'v3-ride';
-  const poses = select(ride, 'Posture');
+  const poses = select(ride, S('posture'));
   for (const [id, label] of Object.entries(V3_POSES)) poses.add(new Option(label, id));
   const play = document.createElement('button');
   play.type = 'button';
   play.className = 'gr-sub v3-play';
-  play.textContent = '▶ Pédaler';
-  play.title = 'Pédaler à 90 tr/min';
+  play.textContent = S('pedal');
+  play.title = S('pedalTitle');
   play.setAttribute('aria-pressed', 'false');
   play.onclick = () => {
     const on = play.getAttribute('aria-pressed') === 'false';
     play.setAttribute('aria-pressed', String(on));
     play.classList.toggle('on', on);
-    play.textContent = on ? '❚❚ Pause' : '▶ Pédaler';
+    play.textContent = S(on ? 'pause' : 'pedal');
     actions.playing(on);
   };
   ride.append(play);
@@ -455,7 +597,7 @@ export function createV3Garage(actions: V3GarageActions) {
   wheelToggle.className = 'v3-fold v3-setting-toggle';
   wheelToggle.setAttribute('aria-expanded', 'false');
   const wheelName = document.createElement('span');
-  wheelToggle.append('Roues', wheelName);
+  wheelToggle.append(S('wheels'), wheelName);
   const wheelList = document.createElement('div');
   wheelList.className = 'mm-bikelist v3-wheels';
   wheelList.hidden = true;
@@ -506,16 +648,16 @@ export function createV3Garage(actions: V3GarageActions) {
     wheelField.hidden = !offered.length;
     const current = mountedWheel(equipment, bike, catalogWheels);
     const origin = bike?.wheels?.id ? catalogWheels.find(wheel => wheel.id === bike.wheels?.id) : undefined;
-    wheelName.textContent = current ? wheelLabel(current) : 'D’origine';
+    wheelName.textContent = current ? wheelLabel(current) : S('stock');
     if (wheelList.hidden) return;
     // Poids et traînée de la paire par rapport aux roues d'origine du vélo.
     const versus = (wheel: V3Wheel) => {
       const own = bike?.wheels;
-      const kind = wheel.kind === 'gravel' ? 'Gravel' : 'Route';
-      if (!own) return kind + ' · ' + wheel.weightG.toLocaleString('fr-FR') + ' g';
+      const kind = S(wheel.kind === 'gravel' ? 'typeGravel' : 'typeRoute');
+      if (!own) return kind + ' · ' + wheel.weightG.toLocaleString(locale()) + ' g';
       const grams = Math.round(wheel.weightG - own.weightG);
       const drag = Math.round((wheel.cdaBias - own.cdaBias) / DEFAULT_BIKE.cda * 1000) / 10;
-      return kind + ' · ' + (grams > 0 ? '+' : '') + grams.toLocaleString('fr-FR') + ' g · traînée ' + (drag > 0 ? '+' : '') + drag.toLocaleString('fr-FR') + ' %';
+      return kind + ' · ' + (grams > 0 ? '+' : '') + grams.toLocaleString(locale()) + ' g · ' + S('drag') + ' ' + (drag > 0 ? '+' : '') + drag.toLocaleString(locale()) + ' %';
     };
     const row = (wheel: V3Wheel | undefined, name: string, detail: string) => {
       const on = current?.id === wheel?.id;
@@ -532,19 +674,19 @@ export function createV3Garage(actions: V3GarageActions) {
       text.append(title, sub);
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
-      if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
+      if (on) side.innerHTML = '<span class="mm-bike-state">' + S('equipped') + '</span>';
       if (wheel) button.dataset.v3Wheel = wheel.id;
       const need = wheel && !on ? wheelLevel(wheel, catalogWheels) : 0;
       if (need > level) {
         button.classList.add('locked');
-        side.innerHTML = '<span class="mm-bike-state v3-locked">' + V3_LOCK + ' Niveau ' + need + ' · dans ' + (need - level) + ' niv.</span>';
-        button.title = 'Pas encore débloquée : cliquer pour l’essayer';
+        side.innerHTML = '<span class="mm-bike-state v3-locked">' + V3_LOCK + ' ' + fill(S('lockState'), { need, n: need - level }) + '</span>';
+        button.title = S('wheelLocked');
       }
       button.append(wheelIcon(wheel ?? origin), text, side);
       button.onclick = () => {
         if (need > level && wheel) {
           startTrial({ ...equipment, wheels: wheel.id });
-          wheelName.textContent = wheelLabel(wheel) + ' · aperçu, niveau ' + need;
+          wheelName.textContent = wheelLabel(wheel) + fill(S('previewSuffix'), { n: need });
           return;
         }
         apply({ ...equipment, wheels: wheel?.id });
@@ -552,7 +694,7 @@ export function createV3Garage(actions: V3GarageActions) {
       };
       return button;
     };
-    const rows: HTMLElement[] = [row(undefined, 'D’origine', origin ? 'Livrées avec ce vélo : ' + wheelLabel(origin) : 'Livrées avec ce vélo')];
+    const rows: HTMLElement[] = [row(undefined, S('stock'), origin ? fill(S('stockWith'), { name: wheelLabel(origin) }) : S('stockWithout'))];
     for (const brand of [...new Set(offered.map(wheel => wheel.brand))]) {
       const own = offered.filter(wheel => wheel.brand === brand);
       const heading = document.createElement('h5');
@@ -581,9 +723,9 @@ export function createV3Garage(actions: V3GarageActions) {
   const trainers = document.createElement('div');
   trainers.className = 'v3-inline-colors v3-trainers';
   trainers.setAttribute('role', 'radiogroup');
-  trainers.setAttribute('aria-label', 'Home trainer');
+  trainers.setAttribute('aria-label', S('trainer'));
   const trainerOptions: Array<[string | null, string]> = [
-    [null, 'Aucun'], ...COSMETICS.filter(item => item.slot === 'trainer').map(item => [item.id, item.name.fr] as [string, string]),
+    [null, S('none')], ...COSMETICS.filter(item => item.slot === 'trainer').map(item => [item.id, item.name[getLang() === 'fr' ? 'fr' : 'en']] as [string, string]),
   ];
   // Replié par défaut : l'intertitre montre le home trainer choisi.
   const trainerToggle = document.createElement('button');
@@ -591,7 +733,7 @@ export function createV3Garage(actions: V3GarageActions) {
   trainerToggle.className = 'v3-fold v3-setting-toggle';
   trainerToggle.setAttribute('aria-expanded', 'false');
   const trainerName = document.createElement('span');
-  trainerToggle.append('Home trainer', trainerName);
+  trainerToggle.append(S('trainer'), trainerName);
   trainers.hidden = true;
   trainerToggle.onclick = () => {
     trainers.hidden = !trainers.hidden;
@@ -619,20 +761,20 @@ export function createV3Garage(actions: V3GarageActions) {
   settingsCard.append(trainerField);
   showTrainer();
   const catalogTitle = document.createElement('h4');
-  catalogTitle.className = 'v3-subtitle';
-  catalogTitle.textContent = 'Catalogue des vélos';
+  catalogTitle.className = 'v3-subtitle ab-section';
+  catalogTitle.textContent = S('catalog');
   const types = document.createElement('select');
   types.className = 'v3-types';
-  types.setAttribute('aria-label', 'Type de vélo');
+  types.setAttribute('aria-label', S('bikeType'));
   types.onchange = () => { bikeType = types.value; fillBikes(); };
   const searchBike = document.createElement('input');
   searchBike.type = 'search';
-  searchBike.placeholder = 'Rechercher un vélo';
+  searchBike.placeholder = S('searchBike');
   searchBike.setAttribute('aria-label', searchBike.placeholder);
   const list = document.createElement('div');
   list.className = 'mm-bikelist';
   // Vélo au hasard, avec un coloris au hasard.
-  const bikeDice = diceButton('Vélo au hasard (modèle, coloris et roues)');
+  const bikeDice = diceButton(S('diceBike'));
   bikeDice.onclick = () => { void randomBike().catch(report); };
   const searchRow = document.createElement('div');
   searchRow.className = 'v3-searchrow v3-catalog-row';
@@ -661,7 +803,7 @@ export function createV3Garage(actions: V3GarageActions) {
     for (const bike of earned) counts.set(bike.type, (counts.get(bike.type) ?? 0) + 1);
     const known = BIKE_TYPES.filter(([id]) => counts.has(id));
     const other = [...counts.keys()].filter(id => !BIKE_TYPES.some(([type]) => type === id)).map(id => [id, id] as [string, string]);
-    const options: Array<[string, string]> = [['all', 'Tous les types (' + earned.length + ')'],
+    const options: Array<[string, string]> = [['all', fill(S('allTypes'), { n: earned.length })],
       ...[...known, ...other].map(([id, label]): [string, string] => [id, label + ' (' + (counts.get(id) ?? 0) + ')'])];
     if (types.options.length !== options.length) types.replaceChildren(...options.map(([id, label]) => new Option(label, id)));
     types.value = bikeType;
@@ -683,7 +825,7 @@ export function createV3Garage(actions: V3GarageActions) {
         toggle.type = 'button';
         toggle.className = 'v3-fold';
         toggle.setAttribute('aria-expanded', String(!!query || openBrands.has(bike.brand)));
-        toggle.append(brand || 'Sans marque', count);
+        toggle.append(brand || S('noBrand'), count);
         const name = bike.brand;
         toggle.onclick = () => {
           // Une seule marque ouverte à la fois : en ouvrir une ferme les autres.
@@ -710,12 +852,12 @@ export function createV3Garage(actions: V3GarageActions) {
       text.append(name, sub);
       const side = document.createElement('span');
       side.className = 'mm-bike-side';
-      if (on) side.innerHTML = '<span class="mm-bike-state">✓ Équipé</span>';
+      if (on) side.innerHTML = '<span class="mm-bike-state">' + S('equipped') + '</span>';
       const need = on ? 0 : bikeLevel(bike, catalogBikes);
       if (need > level) {
         row.classList.add('locked');
-        side.innerHTML = '<span class="mm-bike-state v3-locked">' + V3_LOCK + ' Niveau ' + need + ' · dans ' + (need - level) + ' niv.</span>';
-        row.title = 'Pas encore débloqué : cliquer pour l’essayer';
+        side.innerHTML = '<span class="mm-bike-state v3-locked">' + V3_LOCK + ' ' + fill(S('lockState'), { need, n: need - level }) + '</span>';
+        row.title = S('bikeLocked');
       }
       row.append(bikeIcon(bike), text, side);
       row.onclick = () => {
@@ -724,7 +866,7 @@ export function createV3Garage(actions: V3GarageActions) {
           startTrial({ ...equipment, bike: bike.id, color: 0, hue: undefined });
           focus.firstElementChild?.replaceWith(bikeIcon(bike, true));
           focusName.textContent = bikeName(bike);
-          focusType.textContent = 'Aperçu · niveau ' + need;
+          focusType.textContent = fill(S('preview'), { n: need });
           return;
         }
         choose(bike.id);
@@ -734,7 +876,7 @@ export function createV3Garage(actions: V3GarageActions) {
     if (!rows.length) {
       const empty = document.createElement('p');
       empty.className = 'mm-hint';
-      empty.textContent = 'Aucun vélo ne correspond.';
+      empty.textContent = S('noBike');
       rows.push(empty);
     }
     list.replaceChildren(...rows);
@@ -787,15 +929,15 @@ export function createV3Garage(actions: V3GarageActions) {
       const only = document.createElement('div');
       only.className = 'v3-setting-line';
       const name = document.createElement('b');
-      name.textContent = options[0]?.name && options[0].name !== 'Default' ? options[0].name : 'D’origine';
-      only.append('Coloris', name);
-      only.title = 'Un seul coloris pour ce vélo dans Zwift, sans teinte réglable.';
+      name.textContent = options[0]?.name && options[0].name !== 'Default' ? options[0].name : S('stock');
+      only.append(S('colourway'), name);
+      only.title = S('onlyColour');
       colorRow.replaceChildren(only);
       return;
     }
     const title = document.createElement('div');
     title.className = 'v3-color-title';
-    title.textContent = 'Coloris';
+    title.textContent = S('colourway');
     // Pastille de couleur de chaque coloris (couleur dominante de sa peinture), noms de Zwift souvent peu parlants.
     const dot = (index: number) => {
       const swatch = document.createElement('i');
@@ -809,13 +951,13 @@ export function createV3Garage(actions: V3GarageActions) {
     const box = document.createElement('div');
     box.className = 'v3-inline-colors';
     box.setAttribute('role', 'radiogroup');
-    box.setAttribute('aria-label', 'Coloris');
+    box.setAttribute('aria-label', S('colourway'));
     if (options.length > 1) options.forEach((option, i) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'gr-sub';
       button.setAttribute('role', 'radio');
-      button.append(dot(i), option.name || 'Coloris ' + (i + 1));
+      button.append(dot(i), option.name || fill(S('colourwayN'), { n: i + 1 }));
       button.onclick = () => {
         apply({ ...equipment, color: i, hue: undefined });
         hue.set(option);
@@ -874,7 +1016,7 @@ export function createV3Garage(actions: V3GarageActions) {
   void getV3Clips().then(clips => {
     const alternatives = [...new Set(clips.map(clip => clip.name))].filter(name => !(name in V3_POSES));
     const group = document.createElement('optgroup');
-    group.label = 'Variantes par type de vélo';
+    group.label = S('variants');
     for (const name of alternatives) group.append(new Option(name, name));
     poses.add(group);
   }).catch(report);
@@ -948,7 +1090,7 @@ export function createV3Garage(actions: V3GarageActions) {
       if (!row) {
         focus.firstElementChild?.replaceWith(bikeIcon(bike, true));
         focusName.textContent = bikeName(bike);
-        focusType.textContent = 'Aperçu · niveau ' + bikeLevel(bike, catalogBikes);
+        focusType.textContent = fill(S('preview'), { n: bikeLevel(bike, catalogBikes) });
       }
       flash(row ?? focus);
     } else if (kind === 'wheel') {
@@ -965,7 +1107,7 @@ export function createV3Garage(actions: V3GarageActions) {
       if (mountedWheel(equipment, bike, catalogWheels)?.id !== wheel.id) startTrial({ ...equipment, wheels: wheel.id });
       actions.highlight?.({ kind: 'wheel', id: wheel.id }, true);
       // Paire pas encore gagnée (ou d'une autre famille que le vélo) : l'intitulé des roues la montre le temps de l'essai.
-      if (!row) wheelName.textContent = wheelLabel(wheel) + ' · aperçu, niveau ' + wheelLevel(wheel, catalogWheels);
+      if (!row) wheelName.textContent = wheelLabel(wheel) + fill(S('previewSuffix'), { n: wheelLevel(wheel, catalogWheels) });
       flash(row ?? wheelToggle);
     }
   }
