@@ -9,6 +9,7 @@ import type { WorldRoutes } from '../world/routeStore.ts';
 import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, V3_AVAILABLE, V3_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
+import { zoneClimbs, type KomIndex } from './komCatalog.ts';
 import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, xpForLevel, SHOE_MARKS, equippedTuneIds, trainerOf, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY, WORKOUT_TYPES, WORKOUT_TYPE_LABELS, parseWorkoutFile, tunedBikeSetup, type LibraryWorkout, type WorkoutStep, type WorkoutType } from '@allezrobert/physics';
@@ -196,7 +197,7 @@ const S = strings(
     searchAClimbA: 'Chercher une montée, un parcours ou une zone…',
     searchAClimb: 'Chercher une montée',
     filterByArea: 'Filtrer par zone',
-    aZoneSClimbs: 'Les montées d’une zone apparaissent après sa première visite.',
+    aZoneSClimbs: 'Toutes les zones : une côte d’une autre zone charge sa zone, départ 150 m avant le pied.',
     noTimedClimbIn2: 'Pas de montée chronométrée dans cette zone : choisis-en une autre.',
     best2: 'record',
     openWorld: 'monde ouvert',
@@ -547,7 +548,7 @@ const S = strings(
     searchAClimbA: 'Search a climb, a route or an area…',
     searchAClimb: 'Search a climb',
     filterByArea: 'Filter by area',
-    aZoneSClimbs: 'A zone’s climbs appear after you first visit it.',
+    aZoneSClimbs: 'All areas: a climb from another area loads that area, start 150 m before the foot.',
     noTimedClimbIn2: 'No timed climb in this area: pick another one.',
     best2: 'best',
     openWorld: 'open world',
@@ -1859,6 +1860,9 @@ export class MainMenu {
   private komSort: { key: 'name' | 'length' | 'grade' | 'best'; dir: 1 | -1 } | null = null;
   /** Recherche dans la liste des montées (filtre les lignes sur place, sans redessiner). */
   private komQuery = '';
+  /** Montées de toutes les zones publiées (index fabriqué par scripts/kom-index.ts), chargé à la première ouverture du Défi KOM. */
+  private komCatalog: KomIndex | null = null;
+  private komCatalogAsked = false;
   private pendingKom: { routeId: string; segId: string } | null = null;
   /** Parcours ouvert dans sa fiche (fenêtre « route »). */
   private detailId = '';
@@ -2832,12 +2836,29 @@ export class MainMenu {
     return koms;
   }
 
+  /** Parcours choisi pas encore chargé (il est dans l'index de la zone) : sa montée choisie ne doit pas être remplacée. */
+  private komRouteLoading(): boolean {
+    const id = this.s.routeId;
+    return !this.allRoutes.some((x) => x.id === id) && this.routeIds.includes(id);
+  }
+
   /** Panneau de gauche du mode Défi KOM : la montée choisie et son record, un clic rouvre le tableau. */
   private challengeChoiceHtml(r: RouteData | undefined): string {
     const koms = this.zoneClimbs(r);
+    // Parcours choisi encore en chargement (montée prise dans le tableau, souvent d'une autre zone) : la montée
+    // choisie est gardée telle quelle et montrée d'après l'index des montées, sans retomber sur une autre.
+    const waiting = this.komRouteLoading();
+    const known = waiting ? this.komCatalog?.zones[this.worldId]?.climbs.find((c) => c.routeId === this.s.routeId && c.segId === this.s.challengeSeg) : undefined;
+    if (known) {
+      const rec = readKomRecord(known.routeId, known.segId);
+      const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
+      return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${S('changeClimb')}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(known.name)}</b><span class="ab-detail">${S('best')} : ${t}</span>
+        <span class="mm-kom-vals"><span class="ab-val"><b>${this.km(known.lengthM)}</b><small>km</small></span><span class="ab-val"><b>${dec(known.grade)}</b><small>%</small></span></span></button>
+      <button class="ab-btn mm-change" data-picker="koms">${S('changeClimb')}</button>`;
+    }
     if (!koms.length) return `<p class="mm-hint">${S('noTimedClimbIn')}</p><button class="ab-btn mm-change" data-picker="koms">${S('seeAllClimbs')}</button>`;
     const cur = koms.find((c) => c.k.id === this.s.challengeSeg && c.route.id === this.s.routeId) ?? (koms[0] as (typeof koms)[number]);
-    this.s.challengeSeg = cur.k.id;
+    if (!waiting) this.s.challengeSeg = cur.k.id;
     const rec = readKomRecord(cur.route.id, cur.k.id);
     const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
     return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${S('changeClimb')}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(cur.k.name)}</b><span class="ab-detail">${S('best')} : ${t}</span>
@@ -2848,9 +2869,28 @@ export class MainMenu {
   /** Fenêtre centrale « Défi KOM » : tableau des montées et de tes records, filtre par zone. */
   private komsHtml(): string {
     const lang = getLang();
-    // Zones connues : celle affichée (toujours à jour) et celles déjà visitées.
+    // Zones connues : toutes les zones publiées (index livré avec le jeu, chargé à part la première fois),
+    // complétées par celles déjà visitées que l'index ne connaît pas encore (zone reconstruite depuis).
     this.indexClimbs();
+    if (!this.komCatalogAsked) {
+      this.komCatalogAsked = true;
+      void import('../data/komIndex.json')
+        .then((m) => {
+          this.komCatalog = (m.default ?? m) as unknown as KomIndex;
+          if (this.picker === 'koms') this.render();
+        })
+        .catch(() => undefined);
+    }
     const index = this.komIndex();
+    if (this.komCatalog) {
+      const tyre = bikeSetupFor(loadProgress().equipped).tyre;
+      for (const [z, zi] of Object.entries(this.komCatalog.zones)) {
+        const list = zoneClimbs(zi, tyre, lang);
+        // Montées seulement sur les itinéraires d'un autre vélo : pas de puce de zone vide.
+        if (list.length) index[z] = list;
+        else delete index[z];
+      }
+    }
     const zoneIds = Object.keys(index).sort((a, b) => (a === this.worldId ? -1 : b === this.worldId ? 1 : this.zoneLabel(a).localeCompare(this.zoneLabel(b), lang)));
     const filter = this.komZone && index[this.komZone] ? this.komZone : '';
     const rows = zoneIds
@@ -2921,7 +2961,9 @@ export class MainMenu {
         }
     if (!koms.length) return `<p class="mm-hint">${S('noTimedClimbIn2')}</p>`;
     const cur = r?.id;
-    if (!koms.some((c) => c.route.id === cur && c.k.id === this.s.challengeSeg)) this.s.challengeSeg = (koms[0] as (typeof koms)[number]).k.id;
+    // Parcours choisi encore en chargement : la montée choisie reste (elle sera dans la liste à son arrivée).
+    const waiting = this.komRouteLoading();
+    if (!waiting && !koms.some((c) => c.route.id === cur && c.k.id === this.s.challengeSeg)) this.s.challengeSeg = (koms[0] as (typeof koms)[number]).k.id;
     // panneau de gauche : la côte choisie seulement (la liste complète est dans la fenêtre de la zone)
     const shown = onlySelected ? koms.filter((c) => c.route.id === cur && c.k.id === this.s.challengeSeg) : koms;
     return `<div class="mm-routes mm-presets">${shown
