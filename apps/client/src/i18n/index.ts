@@ -191,7 +191,10 @@ function initialLang(): Lang {
   } catch {
     // Stockage interdit : langue du navigateur.
   }
-  return typeof navigator === 'undefined' || navigator.language.startsWith('fr') ? 'fr' : 'en';
+  // Hors navigateur (tests, outils) : français, quelle que soit la langue de la machine (Node 22 définit `navigator`,
+  // en anglais sur la CI ; les tests attendent les textes français).
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return 'fr';
+  return navigator.language.startsWith('fr') ? 'fr' : 'en';
 }
 
 let lang: Lang = initialLang();
