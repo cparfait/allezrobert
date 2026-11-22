@@ -1336,9 +1336,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Poids envoyé au trainer FE-C (Neo…) : celui du vélo réellement roulé, égalisé ou non en multijoueur.
   input.setRiderWeights?.(s.massKg, ride.params.massKg - s.massKg);
-  // Équipiers IA : en sortie libre (nombre réglable, 0 possible) et en repli d'une sortie de groupe / course (serveur
-  // injoignable). Séance, test FTP, défi, monde ouvert et multijoueur : pas d'IA locale.
-  const aiCount = workout || mp || challenge || (s.mode !== 'free' && s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(s.aiRiders, 0), engine.quality.aiRidersMax);
+  // Équipiers IA : en sortie libre, le nombre choisi dans Réglages › Sortie (0 par défaut, chaque IA coûte des images par
+  // seconde) ; en repli d'une sortie de groupe / course (serveur injoignable), celui de la sortie. Séance, test FTP, défi,
+  // monde ouvert et multijoueur : pas d'IA locale.
+  const wantedAi = s.mode === 'free' ? (s.soloAiRiders ?? 0) : s.aiRiders;
+  const aiCount = workout || mp || challenge || (s.mode !== 'free' && s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(wantedAi, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
   // Course hors ligne : les IA roulent à 82 % de leur propre FTP (niveau × FTP du joueur), pas à l'allure du joueur.
   if (s.mode === 'race' && aiCount > 0) peloton.paceFtpPct = 0.82 * (s.aiLevel ?? 1);
@@ -2183,6 +2185,20 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           },
           effects: { ao: engine.quality.ao, bloom: engine.quality.bloom, taa: engine.quality.taa },
           onEffect: (k) => engine.rebuildPipeline({ ...engine.quality, [k]: !engine.quality[k] }),
+        },
+        // Panneaux montrés pendant la sortie : bascule immédiate, gardée dans les réglages (comme les boutons des panneaux).
+        display: {
+          hidden: s.hudHidden ?? [],
+          onToggle: (ids, shown) => {
+            const cur = new Set(s.hudHidden ?? []);
+            for (const id of ids) {
+              if (shown) cur.delete(id);
+              else cur.add(id);
+            }
+            s.hudHidden = [...cur];
+            saveSettings(s);
+            hud.setHidden(s.hudHidden);
+          },
         },
         ...(mp?.net.roomId ? { roomId: mp.net.roomId } : {}),
         ...(room?.racing ? { finishLabel: getLang() === 'fr' ? 'Abandonner la course' : 'Abandon the race' } : {}),

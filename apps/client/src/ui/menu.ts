@@ -758,6 +758,8 @@ const S = strings(
 /** Textes de l'onglet Réglages. */
 const SET = strings(
   {
+    soloAi: 'Équipiers IA en sortie libre',
+    soloAiHelp: 'Coureurs IA qui roulent avec toi. Chacun coûte des images par seconde : 0 pour rouler seul.',
     advanced: 'Avancé',
     sub: 'Chaque choix s’applique tout de suite, sauf mention contraire.',
     qualityHelp: 'Plus haut : plus beau, plus exigeant pour la carte graphique.',
@@ -824,6 +826,8 @@ const SET = strings(
     renderNow: 'Rendu actuel',
   },
   {
+    soloAi: 'AI teammates on free rides',
+    soloAiHelp: 'AI riders who ride with you. Each one costs frames per second: 0 to ride alone.',
     advanced: 'Advanced',
     sub: 'Every choice applies right away unless stated otherwise.',
     qualityHelp: 'Higher: prettier, harder on the graphics card.',
@@ -3759,6 +3763,7 @@ export class MainMenu {
       ${this.setAdvanced('interface', opt(SET('uiArea'), SET('uiAreaHelp'), this.seg('m-uiaspect', getUiAspectCap(), [['full', SET('uiFull')], ['16:9', '16:9'], ['21:9', '21:9']]), true))}`;
 
     const ride = `
+      ${opt(SET('soloAi'), SET('soloAiHelp'), this.stepper('m-solo-ai', 0, 8, s.soloAiRiders ?? 0))}
       ${opt(t('season'), '', this.seg('m-season', s.season, (['spring', 'summer', 'autumn', 'winter'] as const).map((q) => [q, t(q)])), true)}
       ${opt(SET('startTime'), '', this.seg('m-realtime', s.realTime ? '1' : '0', [['1', `${SET('nowTime')} · ${this.hourLabel(nowHour())}`], ['0', SET('customTime')]]), true)}
       ${s.realTime ? '' : opt(`${t('hour')}${val('m-hourv', this.hourLabel(s.hour))}`, '', range('m-hour', 5, 22, 0.25, s.hour))}
@@ -5031,7 +5036,7 @@ export class MainMenu {
       }),
     );
     // Profil.
-    const num = (id: string, key: 'ftpWatts' | 'aiRiders') =>
+    const num = (id: string, key: 'ftpWatts' | 'aiRiders' | 'soloAiRiders') =>
       on<HTMLInputElement>(id, 'change', (el) => {
         s[key] = Number(el.value);
         changed();
@@ -5054,6 +5059,7 @@ export class MainMenu {
     measurement('m-height', 'heightCm');
     num('m-ftp', 'ftpWatts');
     num('m-ai', 'aiRiders');
+    num('m-solo-ai', 'soloAiRiders');
     this.root.querySelectorAll<HTMLElement>('[data-sex]').forEach((el) =>
       el.addEventListener('click', () => {
         s.look = withSex(s.look, el.dataset.sex as 'male' | 'female');

@@ -40,6 +40,8 @@ export interface Settings {
   /** Ne pas envoyer à Strava : le compteur Garmin enregistre déjà la sortie. */
   skipStrava: boolean;
   aiRiders: number;
+  /** Équipiers IA en sortie libre (0 : seul sur la route ; chaque coureur IA coûte des images par seconde). */
+  soloAiRiders: number;
   /** Niveau des coureurs IA en fraction de la FTP du joueur (0,8 / 1 / 1,15). */
   aiLevel: number;
   /** Sortie de groupe avec IA : vitesse moyenne visée (km/h) ; 0 = libre (allure des coureurs). */
@@ -108,6 +110,7 @@ export const DEFAULT_SETTINGS: Settings = {
   di2Model: '',
   skipStrava: true,
   aiRiders: 4,
+  soloAiRiders: 0,
   aiLevel: 1,
   groupTargetKmh: 0,
   powerSource: 'pedals',
