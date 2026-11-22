@@ -33,6 +33,11 @@ export interface CheckInput {
   simulatorOn: boolean;
   /** La sortie a fini de se charger. */
   loaded: boolean;
+  /**
+   * Menu (onglet Capteurs) : le simulateur ne se branche qu'au départ d'une sortie, s'il n'y a aucun vrai capteur.
+   * Avec ce nom, home trainer, puissance et cardio affichent déjà « Simulé » dans ce cas, au lieu de « Non associé ».
+   */
+  simulatorPlanned?: string;
 }
 
 export interface CheckTile {
@@ -70,6 +75,8 @@ export interface CheckModel {
 export const CHECK_ROLES: readonly CheckRole[] = ['trainer', 'power', 'cadence', 'heartRate', 'shifter', 'fan'];
 const OPTIONAL: ReadonlySet<CheckRole> = new Set<CheckRole>(['cadence', 'heartRate', 'shifter', 'fan']);
 const SEARCHING = new Set(['connecting', 'reconnecting']);
+/** Ce que fournit le simulateur : home trainer, puissance, cardio. */
+const SIMULATED_ROLES: ReadonlySet<CheckRole> = new Set<CheckRole>(['trainer', 'power', 'heartRate']);
 
 /** État des blocs et du bouton de départ d'après les appareils connus. Fonction pure. */
 export function startCheckModel(input: CheckInput): CheckModel {
@@ -96,6 +103,8 @@ export function startCheckModel(input: CheckInput): CheckModel {
     if (lost) return { role, state: 'lost', device: lost.name, optional, action: lost.canReconnect ? 'reconnect' : 'pair', deviceId: lost.id };
     const sim = mine.find((d) => d.simulated && d.ok);
     if (sim && input.simulatorOn) return { role, state: 'simulated', device: sim.name, optional, action: 'pair', ...liveValue() };
+    if (input.simulatorPlanned && input.simulatorOn && SIMULATED_ROLES.has(role) && !input.devices.some((d) => !d.simulated))
+      return { role, state: 'simulated', device: input.simulatorPlanned, optional, action: 'pair' };
     return { role, state: 'none', optional, action: 'pair' };
   });
   const state = (role: CheckRole): CheckState => (tiles.find((t) => t.role === role) as CheckTile).state;

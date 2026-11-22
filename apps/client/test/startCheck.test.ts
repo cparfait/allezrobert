@@ -22,6 +22,18 @@ describe('écran de départ : état des blocs et du bouton', () => {
     expect(m.offerSimulator).toBe(false);
   });
 
+  it('menu : simulateur coché mais pas encore branché, sans vrai capteur → « Simulé » pour trainer, puissance et cardio', () => {
+    const m = startCheckModel(input({ simulatorOn: true, simulatorPlanned: 'Simulateur (au départ)' }));
+    expect(tile(m, 'trainer')).toMatchObject({ state: 'simulated', device: 'Simulateur (au départ)' });
+    expect(tile(m, 'power').state).toBe('simulated');
+    expect(tile(m, 'heartRate').state).toBe('simulated');
+    expect(tile(m, 'cadence').state).toBe('none');
+    // Un vrai capteur connu : le simulateur ne se branchera pas.
+    expect(tile(startCheckModel(input({ simulatorOn: true, simulatorPlanned: 'Sim', devices: [dev('tickr', ['heartRate'], { ok: false, raw: 'disconnected' })] })), 'trainer').state).toBe('none');
+    // Simulateur décoché : rien de simulé.
+    expect(tile(startCheckModel(input({ simulatorOn: false, simulatorPlanned: 'Sim' })), 'trainer').state).toBe('none');
+  });
+
   it('home trainer connecté : puissance et cadence fournies par lui, capteurs dédiés facultatifs à associer', () => {
     const m = startCheckModel(input({ devices: [dev('neo', ['trainer'])], live: { powerFrom: 'trainer', powerName: 'NEO', watts: 187, cadenceFrom: 'trainer', cadenceName: 'NEO', cadence: 91 } }));
     expect(tile(m, 'trainer')).toMatchObject({ state: 'live', device: 'NEO', value: 187, unit: 'W', action: 'none', optional: false });

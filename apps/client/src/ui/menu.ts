@@ -4024,44 +4024,8 @@ export class MainMenu {
     const transports = this.devices.transports();
     const previousTransport = box.querySelector<HTMLElement>('#m-transport')?.dataset.value;
     const selectedTransport = transports.find((tr) => tr.id === previousTransport)?.id ?? transports[0]?.id ?? '';
-    const roles: Array<[Role, I18nKey, string]> = [
-      ['trainer', 'trainer', S('controlledResistanceFtmsFe')],
-      ['power', 'powerMeter', S('pedalsOrCrankAssioma')],
-      ['cadence', 'cadence', S('cadenceSensorWahooRpm')],
-      ['heartRate', 'hrm', S('strapOrWatchTrackr')],
-      ['shifter', 'shifter', S('controllersClickAxsD')],
-      ['fan', 'fan', S('smartFan')],
-    ];
     const live = this.devices.live?.();
-    const tile = ([role, k, sub]: [Role, I18nKey, string]) => {
-      const ds = list.filter((d) => d.roleIds?.includes(role));
-      const own = ds.some((d) => d.ok);
-      // Puissance et cadence sans capteur dédié : fournies par le home trainer (ou les pédales), comme dans MyWhoosh.
-      const from = role === 'power' ? live?.powerFrom : role === 'cadence' ? live?.cadenceFrom : undefined;
-      const fromName = role === 'power' ? live?.powerName : live?.cadenceName;
-      const via = !own && fromName && (from === 'trainer' || (role === 'cadence' && from === 'pedals')) ? from : undefined;
-      const ok = own || via !== undefined;
-      const viaHtml = via
-        ? `<span class="mm-dev-name">${esc(fromName ?? '')} · ${via === 'trainer' ? (S('viaTheTrainer')) : S('viaThePedals')}</span>`
-        : '';
-      const liveKind = role === 'power' ? 'watts' : role === 'cadence' ? 'cadence' : role === 'heartRate' ? 'hr'
-        : role === 'shifter' && this.s.drivetrain === 'cassette' ? 'gear' : undefined;
-      const liveHtml = liveKind && ok ? `<span class="mm-dev-live" data-live="${liveKind}">${liveText(liveKind, live)}</span>` : '';
-      // Tacx NEO appairé : essai du ressenti route accessible tout de suite depuis la tuile.
-      const roadTest = role === 'trainer' && ok && this.devices.roadFeelSupported?.() ? `<button class="mm-link" data-roadtest-open>${S('testRoadFeel')}</button>` : '';
-      return `<div class="mm-dev ${ok ? 'ok' : ds.length ? 'pending' : ''}">
-        <div class="mm-dev-ico">${ICON[role as keyof typeof ICON] ?? ''}</div>
-        <div class="mm-dev-body"><b>${esc(t(k))}</b>
-          ${ds.length ? ds.map((d) => `<span class="mm-dev-name">${esc(d.name)} · ${esc(d.state)}${d.detail ? ` · ${esc(d.detail)}` : ''} ${d.canReconnect && this.devices.reconnect ? `<button class="mm-link" data-reconnect="${esc(d.id)}">${S('reconnect')}</button> ` : ''}<button class="mm-link" data-forget="${esc(d.id)}">${S('forget')}</button></span>`).join('') : viaHtml || `<span>${esc(sub)}</span>`}
-          ${liveHtml}
-          ${roadTest}
-        </div>
-        <button class="btn small ${ok ? '' : 'primary'}" data-pair="${role}"${via ? ` title="${esc(role === 'power' ? (S('pairedPedalsBecomeThe')) : S('aPairedCadenceSensor'))}"` : ''}>${own ? (S('change')) : S('pair')}</button>
-      </div>`;
-    };
     // Appareils en gros blocs, comme sur l'écran « Prêt à rouler ? » (mêmes dessins, mêmes mots d'état).
-    void roles;
-    void tile;
     box.innerHTML = `
       ${deviceTilesHtml({ devices: list, live, simulatorOn: this.devices.simulatorOn(), icons: START_ICONS, liveText: (k) => liveText(k, live), canReconnect: !!this.devices.reconnect, roadFeel: !!this.devices.roadFeelSupported?.(), cassette: this.s.drivetrain === 'cassette' })}
       ${deviceOptionsHtml({ transportSeg: this.seg('m-transport', selectedTransport, transports.map((tr) => [tr.id, tr.label])), bluetooth: selectedTransport === 'web-bluetooth', simulatorOn: this.devices.simulatorOn(), guest: this.s.guest, warnings: this.devices.warnings() })}

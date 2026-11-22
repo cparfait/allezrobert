@@ -648,7 +648,8 @@ export function deviceTilesHtml(o: DeviceTilesInput): string {
   const lang = o.lang ?? (fr() ? 'fr' : 'en');
   const F = lang === 'fr';
   const HX = hxOf(F);
-  const model = startCheckModel({ devices: o.devices, live: o.live, simulatorOn: o.simulatorOn, loaded: true });
+  // Onglet Capteurs : le simulateur se branchera au départ ; ses blocs disent déjà « Simulé ».
+  const model = startCheckModel({ devices: o.devices, live: o.live, simulatorOn: o.simulatorOn, loaded: true, simulatorPlanned: F ? 'Simulateur (au départ)' : 'Simulator (at the start)' });
   const tiles = CHECK_ROLES.map((role) => {
     const tile = model.tiles.find((x) => x.role === role);
     if (!tile) return '';
