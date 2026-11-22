@@ -3131,6 +3131,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ghost: ghost.hasBest || friendGhost ? s.showGhost !== false : null,
       ...(fullMap ? { mapOpen: (fullMap as { isOpen: boolean }).isOpen } : {}),
       muted: audio.isMuted(),
+      shifter: !!devicePanel?.list().some((d) => d.ok && !d.simulated && !!d.kinds?.includes('shifter')),
       sounds: Object.fromEntries(PAIR_SOUND_BUSES.map((b) => [b, busOn(getMix(), b)])) as Record<PairSoundBus, boolean>,
       lookBack: rig.lookBack,
       ...(peloton.riders.length ? { groupPacePct: Math.round((peloton.paceFtpPct ?? 0.75) * 100) } : {}),

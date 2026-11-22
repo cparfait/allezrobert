@@ -184,6 +184,8 @@ function field(id: FieldId, m: Metrics): { v: string; u: string; color?: string 
     case 'lap':
       return { v: String(m.lap), u: '' };
     case 'gear':
+      // Rapport : seulement avec des manettes de vitesses appairées.
+      if (!S.st?.shifter) return { v: '–', u: '' };
       return { v: m.gearLabel || String(m.gearIndex + 1), u: `${m.gearIndex + 1}/${m.gearCount}` };
     case 'draft':
       return { v: nf(m.draftPct), u: '%' };
@@ -519,8 +521,8 @@ function extraHtml(st: PairState): string {
     const s = st.segment;
     h += `<div class="strip seg ${esc(s.kind)}"><b>${s.kind === 'kom' ? '⛰' : s.kind === 'sprint' ? '⚡' : '🏁'} ${esc(s.name)}</b><span>${fmtTime(s.elapsedS)}</span><i class="bar"><i style="width:${Math.round(s.progress * 100)}%"></i></i></div>`;
   }
-  // Barre des rapports.
-  h += `<div class="gears" aria-label="${esc(t.gear)}">${Array.from({ length: m.gearCount }, (_, i) => `<i class="${i === m.gearIndex ? 'on' : i < m.gearIndex ? 'lo' : ''}"></i>`).join('')}</div>`;
+  // Barre des rapports : seulement avec des manettes de vitesses appairées.
+  if (st.shifter) h += `<div class="gears" aria-label="${esc(t.gear)}">${Array.from({ length: m.gearCount }, (_, i) => `<i class="${i === m.gearIndex ? 'on' : i < m.gearIndex ? 'lo' : ''}"></i>`).join('')}</div>`;
   return h;
 }
 
@@ -732,8 +734,9 @@ function renderClimbMini(): void {
 
 function ctrlHtml(): string {
   const st = S.st!;
+  // Vitesses (− rapport +) : seulement avec des manettes de vitesses appairées.
   return `<section class="ctrl">
-    <div class="cg">
+    <div class="cg" id="c-gears"${st.shifter ? '' : ' hidden'}>
       <h2>${esc(t.ctrlGears)}</h2>
       <div class="shift">
         <button class="btn huge" data-cmd="shift-down" aria-label="${esc(t.shiftDown)}">−</button>
@@ -809,6 +812,8 @@ function roadFeelHtml(st: PairState): string {
 
 function updateCtrl(st: PairState): void {
   const m = st.metrics!;
+  const box = document.getElementById('c-gears');
+  if (box) box.hidden = !st.shifter;
   const g = document.getElementById('c-gear');
   if (!g) return;
   g.textContent = m.gearLabel || String(m.gearIndex + 1);

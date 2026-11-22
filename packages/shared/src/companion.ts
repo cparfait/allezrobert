@@ -173,6 +173,8 @@ export interface PairState {
   mapOpen?: boolean;
   /** Son du jeu coupé ; regard vers l'arrière ; allure demandée au groupe en % de FTP. */
   muted?: boolean;
+  /** Manettes de vitesses appairées et connectées (Click, AXS, D-Fly…) : le téléphone montre alors le rapport. */
+  shifter?: boolean;
   /** Types de sons audibles (true) ou coupés (false). */
   sounds?: Record<PairSoundBus, boolean>;
   lookBack?: boolean;
