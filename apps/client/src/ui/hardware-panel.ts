@@ -703,6 +703,8 @@ export interface DeviceOptionsInput {
   /** Avertissements du gestionnaire d'appareils, un par ligne. */
   warnings?: readonly string[];
   lang?: 'fr' | 'en';
+  /** false : sans le simulateur ni l'invité (affichés à part, voir deviceModesHtml). */
+  modes?: boolean;
 }
 
 /**
@@ -710,6 +712,20 @@ export interface DeviceOptionsInput {
  * menu. Identifiants conservés : `#m-transport` (dans `transportSeg`), `#m-adapters`, `#m-sim`, `#m-guest`. La
  * mise en garde Bluetooth tient en une ligne et ne s'affiche qu'avec le Bluetooth du navigateur. Fonction pure.
  */
+/** Rouler sans matériel : simulateur et invité (lignes partagées par deviceOptionsHtml et deviceModesHtml). */
+function deviceModesRows(o: Pick<DeviceOptionsInput, 'simulatorOn' | 'guest'>, row: (label: string, help: string, control: string) => string, HX: ReturnType<typeof hxOf>): string {
+  return `${row(HX('simulator'), HX('rideWithoutHardwarePower'), `<input type="checkbox" class="hw-switch" id="m-sim" aria-label="${HX('simulator')}" ${o.simulatorOn ? 'checked' : ''}/>`)}
+    ${row(HX('guestWithoutHardware'), HX('keyboardOrGamepadUnranked'), `<input type="checkbox" class="hw-switch" id="m-guest" aria-label="${HX('guestWithoutHardware')}" ${o.guest ? 'checked' : ''}/>`)}`;
+}
+
+/** Simulateur et invité seuls : l'écran Capteurs les met tout en bas, sous les réglages du home trainer. */
+export function deviceModesHtml(o: Pick<DeviceOptionsInput, 'simulatorOn' | 'guest' | 'lang'>): string {
+  const F = (o.lang ?? (fr() ? 'fr' : 'en')) === 'fr';
+  const HX = hxOf(F);
+  const row = (label: string, help: string, control: string) => `<div class="mm-opt"><div class="mm-opt-l"><b>${label}</b><small>${help}</small></div>${control}</div>`;
+  return `<div class="hw-opts">${deviceModesRows(o, row, HX)}</div>`;
+}
+
 export function deviceOptionsHtml(o: DeviceOptionsInput): string {
   const F = (o.lang ?? (fr() ? 'fr' : 'en')) === 'fr';
   const HX = hxOf(F);
@@ -718,8 +734,7 @@ export function deviceOptionsHtml(o: DeviceOptionsInput): string {
   return `<div class="hw-opts">
     ${o.transportSeg ? row(HX('connection'), HX('howTheGameTalks'), o.transportSeg, true) : ''}
     <div id="m-adapters"></div>
-    ${row(HX('simulator'), HX('rideWithoutHardwarePower'), `<input type="checkbox" class="hw-switch" id="m-sim" aria-label="${HX('simulator')}" ${o.simulatorOn ? 'checked' : ''}/>`)}
-    ${row(HX('guestWithoutHardware'), HX('keyboardOrGamepadUnranked'), `<input type="checkbox" class="hw-switch" id="m-guest" aria-label="${HX('guestWithoutHardware')}" ${o.guest ? 'checked' : ''}/>`)}
+    ${o.modes === false ? '' : deviceModesRows(o, row, HX)}
     ${(o.warnings ?? []).map((w) => `<p class="hw-line warn">${esc(w)}</p>`).join('')}
     ${o.bluetooth ? `<p class="hw-line">${HX('bluetoothASensorTalks')}</p>` : ''}
   </div>`;

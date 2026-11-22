@@ -1408,3 +1408,21 @@ p.kom-empty { margin: 0; padding: 28px 14px; text-align: center; color: #aeb7c3;
 .mm-modes { container-type: inline-size; }
 .mm-mode { min-width: 0; }
 .mm-mode b { font-size: clamp(11px, 2.05cqi, 14px); max-width: 100%; overflow-wrap: break-word; hyphens: auto; }
+
+/* Capteurs : simulateur et invité tout en bas, séparés des réglages du home trainer. */
+.mm-devmodes { margin-top: 18px; padding-top: 6px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+
+/* Liste des montées : lignes serrées sur une seule rangée (l'ancienne grille .kom-tile à 4 étages les rendait très
+   hautes) et fond plus marqué une ligne sur deux (lignes visibles seulement, la recherche en masque). */
+.kom-list { gap: 2px; }
+.kom-row.kom-tile { grid-template-areas: none; padding: 6px 12px; border-radius: 10px; border-width: 1px; min-height: 0; }
+/* Sans icône : la première colonne est le nom. */
+.kom-list { --kom-cols: minmax(0, 1fr) 96px 104px 132px 104px; }
+.kom-head span:first-child { text-align: left; }
+.kom-row .kr-main b { font-size: 15.5px; }
+.kom-row .kr-main small { font-size: 12.5px; }
+.kom-row .kr-num b, .kom-row .kr-best b { font-size: 17px; }
+.kom-row:nth-child(even of .kom-row:not([hidden])) { background: rgba(255, 255, 255, 0.085); }
+.kom-row .ab-act { padding: 6px 14px; min-height: 0; }
+@media (max-width: 900px) { .kom-list { --kom-cols: minmax(0, 1fr) 70px 70px 90px; } }
+.kom-head span:nth-child(n + 2) { text-align: right; }

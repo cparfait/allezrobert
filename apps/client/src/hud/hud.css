@@ -906,3 +906,5 @@ button.ab-tile.pz-quit:hover { border-color: rgba(239, 68, 68, 0.75); }
   .pz-sound #p-sound .grid3 { grid-template-columns: 1fr; }
 }
 
+/* Lecteur Spotify intégré (Web Playback SDK) : son cadre technique ne doit jamais se voir (petit carré noir en haut à gauche). */
+iframe[src*="sdk.scdn.co"] { position: fixed !important; left: -10000px !important; top: 0 !important; width: 1px !important; height: 1px !important; border: 0 !important; opacity: 0 !important; pointer-events: none !important; }

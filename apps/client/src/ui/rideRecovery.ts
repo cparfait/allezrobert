@@ -55,7 +55,6 @@ export interface RecoveryActions {
   fit(draft: RideDraft): void;
 }
 
-const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="17" r="3.5"/><circle cx="18" cy="17" r="3.5"/><path d="M6 17l4-8h5l3 8M10 9l-1.5-3H7M15 9l-2 8"/></svg>';
 
 const num = (x: number, digits: number): string => x.toLocaleString(getLang() === 'fr' ? 'fr-FR' : 'en-GB', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const clock = (t: number): string => new Date(t).toLocaleString(getLang() === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
@@ -100,7 +99,6 @@ function showDraft(store: DraftStore, draft: RideDraft, actions: RecoveryActions
     root.innerHTML = `<div class="rr-card">
       <header><h2 class="ab-title" id="rr-title">${S('title')}</h2><p class="ab-sub">${S('sub').replace('{time}', esc(new Date(lastT).toLocaleTimeString(getLang() === 'fr' ? 'fr-FR' : 'en-GB', { hour: '2-digit', minute: '2-digit' })))}</p></header>
       <div class="ab-tile is-info rr-tile">
-        <span class="ab-ico">${ICON}</span>
         <span class="ab-name">${esc(draft.name)}</span>
         <span class="ab-detail">${esc(clock(draft.startT))}</span>
         <span class="ab-val rr-vals"><span><b>${num(draft.distanceM / 1000, 1)}</b> <small>${S('km')}</small></span><span><b>${duration(draft.elapsedS)}</b> <small>${S('duration')}</small></span>${watts > 0 ? `<span><b>${Math.round(watts)}</b> <small>${S('watts')}</small></span>` : ''}</span>

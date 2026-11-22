@@ -1,4 +1,4 @@
-import { deviceOptionsHtml, deviceTilesHtml } from './hardware-panel.ts';
+import { deviceModesHtml, deviceOptionsHtml, deviceTilesHtml } from './hardware-panel.ts';
 import { ICONS as START_ICONS } from './startCheck.ts';
 import { workoutStudioHtml, type WorkoutDurFilter, type WorkoutSort } from './workoutStudio.ts';
 import { clampWorkoutIntensity, ftpTestProtocolOf } from '../game/workout.ts';
@@ -2354,7 +2354,7 @@ export class MainMenu {
       friends: () => this.friends.html(),
       garage: () => this.garageHtml(),
       devices: () =>
-        `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}<header class="mm-head"><h2 class="ab-title">${t('devices')}</h2><p class="ab-sub">${S('pairYourTrainerAnd')}</p></header><div id="m-devices"></div><h3 class="ab-section set-title mm-trainer-title">${SET('trainerSettings')}</h3><div class="ab-tile ab-plain set-card mm-trainer-set">${this.trainerSettingsHtml()}</div></section>`,
+        `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}<header class="mm-head"><h2 class="ab-title">${t('devices')}</h2><p class="ab-sub">${S('pairYourTrainerAnd')}</p></header><div id="m-devices"></div><h3 class="ab-section set-title mm-trainer-title">${SET('trainerSettings')}</h3><div class="ab-tile ab-plain set-card mm-trainer-set">${this.trainerSettingsHtml()}</div><div id="m-devmodes" class="mm-devmodes"></div></section>`,
       progress: () => this.progress.html(this.closeBtn()),
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
@@ -2865,7 +2865,6 @@ export class MainMenu {
             const hay = `${c.name} ${c.routeName} ${this.zoneLabel(c.zone)}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
             // Une ligne par montée (liste plus lisible qu'une grille de blocs) : colonnes alignées sur l'en-tête.
             return `<button type="button" class="kom-tile kom-row${on ? ' is-on' : ''}" role="listitem" data-kom="${esc(c.segId)}" data-kom-route="${esc(c.routeId)}" data-kom-zone="${esc(c.zone)}" data-search="${esc(hay)}">
-              <span class="kr-ico">${ICON.challenge}</span>
               <span class="kr-main"><b>${esc(c.name)}</b><small>${esc(c.routeName)} · ${esc(this.zoneLabel(c.zone))}</small></span>
               <span class="kr-num"><b>${this.km(c.lengthM)}</b><small>km</small></span>
               <span class="kr-num"><b>${dec(c.grade)}</b><small>%</small></span>
@@ -2881,7 +2880,7 @@ export class MainMenu {
         <header><div class="pk-head"><h2 class="ab-title">${S('komChallenge')}</h2><p class="ab-sub">${S('flyingStartGhostOf')}</p></div><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${S('searchAClimbA')}" aria-label="${S('searchAClimb')}" />
         <div class="kom-filter" role="group" aria-label="${S('filterByArea')}">${chips}</div>
-        <div class="kom-wrap"><div class="kom-list" role="list"><div class="kom-head" aria-hidden="true"><span></span><span>${S('colClimb')}</span><span>${S('colLength')}</span><span>${S('colGrade')}</span><span>${S('colBest')}</span><span></span></div>${body}</div></div>
+        <div class="kom-wrap"><div class="kom-list" role="list"><div class="kom-head" aria-hidden="true"><span>${S('colClimb')}</span><span>${S('colLength')}</span><span>${S('colGrade')}</span><span>${S('colBest')}</span><span></span></div>${body}</div></div>
         <div class="kom-foot"><span>${count(rows.length, 'climb1', 'climbN')} · ${count(records, 'record1', 'recordN')}</span><span>${S('aZoneSClimbs')}</span></div>
       </div></div>`;
   }
@@ -4116,7 +4115,7 @@ export class MainMenu {
     // Appareils en gros blocs, comme sur l'écran « Prêt à rouler ? » (mêmes dessins, mêmes mots d'état).
     box.innerHTML = `
       ${deviceTilesHtml({ devices: list, live, simulatorOn: this.devices.simulatorOn(), icons: START_ICONS, liveText: (k) => liveText(k, live), canReconnect: !!this.devices.reconnect, roadFeel: !!this.devices.roadFeelSupported?.(), cassette: this.s.drivetrain === 'cassette' })}
-      ${deviceOptionsHtml({ transportSeg: this.seg('m-transport', selectedTransport, transports.map((tr) => [tr.id, tr.label])), bluetooth: selectedTransport === 'web-bluetooth', simulatorOn: this.devices.simulatorOn(), guest: this.s.guest, warnings: this.devices.warnings() })}
+      ${deviceOptionsHtml({ transportSeg: this.seg('m-transport', selectedTransport, transports.map((tr) => [tr.id, tr.label])), bluetooth: selectedTransport === 'web-bluetooth', simulatorOn: this.devices.simulatorOn(), guest: this.s.guest, warnings: this.devices.warnings(), modes: false })}
       <div id="m-devextra"></div>`;
     this.bindSegs(box);
     // Mesures en direct : rafraîchies chaque seconde tant que l'écran Capteurs est affiché.
@@ -4150,11 +4149,14 @@ export class MainMenu {
       sec.open = true;
       sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-    (box.querySelector('#m-guest') as HTMLInputElement).addEventListener('change', (e) => {
+    // Rouler sans matériel (simulateur, invité) : tout en bas de l'écran, sous les réglages du home trainer.
+    const modes = this.root.querySelector<HTMLElement>('#m-devmodes');
+    if (modes) modes.innerHTML = deviceModesHtml({ simulatorOn: this.devices.simulatorOn(), guest: this.s.guest });
+    modes?.querySelector<HTMLInputElement>('#m-guest')?.addEventListener('change', (e) => {
       this.s.guest = (e.target as HTMLInputElement).checked;
       saveSettings(this.s);
     });
-    (box.querySelector('#m-sim') as HTMLInputElement).addEventListener('change', (e) => {
+    modes?.querySelector<HTMLInputElement>('#m-sim')?.addEventListener('change', (e) => {
       this.devices.useSimulator((e.target as HTMLInputElement).checked);
       this.renderDevices();
       this.renderStatus();
