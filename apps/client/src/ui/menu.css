@@ -74,6 +74,12 @@
 .ab-btn.mm-signin:hover { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
 /* Le bandeau tient dans la largeur : la musique rétrécit d'abord (titre coupé), puis les mentions secondaires disparaissent. */
 .mm-right { min-width: 0; }
+/* Carte « Heure et météo » : interrupteur et bouton de repli côte à côte. */
+.mm-wx-head { display: flex; align-items: center; gap: 8px; flex: none; }
+.mm-wx-fold { appearance: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: rgba(255, 255, 255, 0.08); color: #c3cddb; cursor: pointer; transition: transform 0.15s, background 0.15s; }
+.mm-wx-fold:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+.mm-wx-fold:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 2px; }
+.mm-wx-fold.is-folded svg { transform: rotate(180deg); }
 .mm-right > .mm-music { flex: 0 1 auto; min-width: 0; }
 .mm-right .mm-now { min-width: 0; }
 @media (max-width: 1800px) { button.mm-credits small { display: none; } }

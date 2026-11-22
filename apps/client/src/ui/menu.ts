@@ -70,6 +70,8 @@ const S = strings(
     startAt: 'Départ à',
     todaySWeather: 'météo du moment',
     timeAndWeather: 'Heure et météo',
+    wxFold: 'Réduire l’heure et la météo',
+    wxUnfold: 'Afficher le détail de l’heure et de la météo',
     real: 'Réelles',
     custom: 'Personnalisées',
     conditions: 'Conditions',
@@ -418,6 +420,8 @@ const S = strings(
     startAt: 'Start at',
     todaySWeather: 'today’s weather',
     timeAndWeather: 'Time and weather',
+    wxFold: 'Collapse time and weather',
+    wxUnfold: 'Show time and weather details',
     real: 'Real',
     custom: 'Custom',
     conditions: 'Conditions',
@@ -1565,6 +1569,14 @@ export class MainMenu {
   );
   /** Historique (sous-onglet du Profil). */
   private readonly historyPanel = new HistoryPanel();
+  /** Carte « Heure et météo » réduite à son résumé (en personnalisé). */
+  private wxFolded = (() => {
+    try {
+      return localStorage.getItem('ar.wxFolded') === '1';
+    } catch {
+      return false;
+    }
+  })();
   /** Sous-onglet du Profil : réglages du coureur ou historique des sorties. */
   private profileView: 'profile' | 'history' = 'profile';
   /** Compteur de km du profil : redessiné quand l'historique change (nouvelle sortie, synchronisation). */
@@ -2093,12 +2105,17 @@ export class MainMenu {
         ? `Heure actuelle (${this.hourLabel(nowHour())}) et météo du moment autour du départ.`
         : `Current time (${this.hourLabel(nowHour())}) and today’s weather around the start.`
       : `${S('startAt')} ${this.hourLabel(s.realTime ? nowHour() : s.hour)} · ${s.realWeather ? (S('todaySWeather')) : skyLabel}`;
+    // Personnalisé : la carte se réduit à sa ligne de résumé (bouton « ˄ / ˅ », choix gardé).
+    const folded = !allReal && this.wxFolded;
+    const foldBtn = allReal
+      ? ''
+      : `<button type="button" class="mm-wx-fold${folded ? ' is-folded' : ''}" data-wxfold aria-expanded="${!folded}" title="${folded ? S('wxUnfold') : S('wxFold')}" aria-label="${folded ? S('wxUnfold') : S('wxFold')}"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 10.5 8 5.5l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
     return `<div class="mm-card mm-wxcard">
-      <div class="mm-opt mm-opt-first"><div class="mm-opt-l"><b>${S('timeAndWeather')}</b><small>${esc(summary)}</small></div>${this.seg('m-realall', allReal ? '1' : '0', [
+      <div class="mm-opt mm-opt-first"><div class="mm-opt-l"><b>${S('timeAndWeather')}</b><small>${esc(summary)}</small></div><div class="mm-wx-head">${this.seg('m-realall', allReal ? '1' : '0', [
         ['1', S('real')],
         ['0', S('custom')],
-      ])}</div>
-      ${allReal ? '' : `<div class="mm-weather">
+      ])}${foldBtn}</div></div>
+      ${allReal || folded ? '' : `<div class="mm-weather">
       ${this.hourFields()}
       <div class="field">${S('conditions')}${this.seg('m-realwx', s.realWeather ? '1' : '0', [
         ['1', S('todayReal')],
@@ -5220,6 +5237,15 @@ export class MainMenu {
       changed();
     });
     if (this.tab === 'garage' && this.garageSlot === 'atelier') this.atelier.bind(this.root);
+    this.root.querySelector<HTMLElement>('[data-wxfold]')?.addEventListener('click', () => {
+      this.wxFolded = !this.wxFolded;
+      try {
+        localStorage.setItem('ar.wxFolded', this.wxFolded ? '1' : '0');
+      } catch {
+        // Stockage interdit : choix valable pour la session.
+      }
+      this.render();
+    });
     on<HTMLSelectElement>('m-wx', 'change', (el) => {
       const w = WEATHER_PRESETS.find(([id]) => id === el.value)?.[1];
       if (!w) return;
