@@ -723,6 +723,8 @@ async function boot(): Promise<void> {
         url.searchParams.set('route', routeKey(s));
         url.searchParams.delete('quality');
         url.searchParams.set('autostart', '1');
+        // Rechargement voulu par le jeu (pas un outil de test) : l'écran des capteurs s'affichera quand même.
+        markStartCheckNext();
         location.href = url.toString();
         return;
       }
@@ -1037,8 +1039,12 @@ async function boot(): Promise<void> {
   // Historique local (SQLite dans l'appli de bureau) : ouverture et import des anciennes données.
   void rideHistory.ready(settings.ftpWatts).catch((e) => console.warn('Historique indisponible', e));
   if (autostart) {
+    // Départ relancé par le jeu (nouvelle sortie, qualité changée) : écran des capteurs pendant la préparation.
+    // Départ automatique d'un outil ou d'un banc (?autostart seul) : pas d'écran.
+    const overlay = takeStartCheckNext() ? rideOverlay() : undefined;
+    if (overlay) beginStartCheck(overlay, settings, {}, true);
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
-    void startRide(scene, settings, devices.source(), {});
+    void startRide(scene, settings, devices.source(), {}, overlay);
   } else {
     // L'atelier est déjà préparé (écran de chargement) ; aucune zone : l'accueil est une vidéo,
     // le paysage se prépare au clic sur « Rouler ».
@@ -1104,12 +1110,31 @@ let rideActive = false;
 let startCheck: StartCheckHandle | null = null;
 
 /** Ouvre l'écran de départ si ce départ s'y prête (ni outil, ni invité, ni salle déjà partie, ni « ne plus afficher »). */
-function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode?: string; tutorial?: boolean; publicRoom?: boolean; nearFriend?: string }): void {
+/** Le prochain départ automatique vient d'un rechargement voulu par le jeu : l'écran des capteurs y a sa place. */
+const START_CHECK_NEXT = 'ar.startCheckNext';
+function markStartCheckNext(): void {
+  try {
+    sessionStorage.setItem(START_CHECK_NEXT, '1');
+  } catch {
+    // Stockage interdit : départ sans l'écran, comme avant.
+  }
+}
+function takeStartCheckNext(): boolean {
+  try {
+    const on = sessionStorage.getItem(START_CHECK_NEXT) === '1';
+    sessionStorage.removeItem(START_CHECK_NEXT);
+    return on;
+  } catch {
+    return false;
+  }
+}
+
+function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode?: string; tutorial?: boolean; publicRoom?: boolean; nearFriend?: string }, relaunched = false): void {
   startCheck?.close();
   startCheck = null;
   const panel = devicePanel;
   const q = new URLSearchParams(location.search);
-  if (!panel || !startCheckWanted({ autostart: q.has('autostart'), nointro: q.has('nointro'), guest: !!s.guest, tutorial: !!extras.tutorial, joining: !!(extras.inviteCode || extras.publicRoom || extras.nearFriend) })) return;
+  if (!panel || !startCheckWanted({ autostart: q.has('autostart') && !relaunched, nointro: q.has('nointro'), guest: !!s.guest, tutorial: !!extras.tutorial, joining: !!(extras.inviteCode || extras.publicRoom || extras.nearFriend) })) return;
   const model = startCheckModel({ devices: panel.list() as CheckDevice[], live: panel.live?.(), simulatorOn: panel.simulatorOn(), loaded: true });
   if (skipStartCheck(model, startCheckSkipPref())) return;
   startCheck = openStartCheck(document.body, {
@@ -1938,8 +1963,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
     input.setRoadFeel?.({ surface: 'off', intensityPercent: 0 });
     const url = new URL(location.href);
-    if (autostart) url.searchParams.set('autostart', '1');
-    else {
+    if (autostart) {
+      url.searchParams.set('autostart', '1');
+      // « Nouvelle sortie » : départ direct, mais avec l'écran des capteurs comme une sortie lancée du menu.
+      markStartCheckNext();
+    } else {
       url.searchParams.delete('autostart');
       // « Quitter » : on revient dans le menu (onglet Rouler), pas sur la vidéo d'accueil et son bouton.
       sessionStorage.setItem(AFTER_RIDE_KEY, '1');
