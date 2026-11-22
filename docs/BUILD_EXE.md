@@ -187,3 +187,71 @@ Hors ligne, elle démarre avec les ressources déjà présentes.
 (`pnpm --filter @allezrobert/terrain packs` pour régénérer les manifestes). Avec elle,
 l'application vérifie chaque fichier reçu et une mise à jour de zone ne retélécharge que les
 fichiers modifiés ; sans elle (anciens manifestes), la zone est retéléchargée en entier.
+
+## 10. Politique de sécurité du contenu (CSP) : version d'essai
+
+Par défaut l'application n'a pas de CSP (`"csp": null` dans `tauri.conf.json`). Une politique existe, décrite
+source par source dans `apps/desktop/scripts/csp.mjs`, mais elle n'est activée que sur demande : une origine
+oubliée casse une fonction sans message visible, et cela ne se vérifie que dans l'application construite.
+
+**Sortir une version d'essai avec la CSP**
+
+```bash
+AR_CSP=1 deploy/publish-desktop.sh
+```
+
+Le script contrôle la politique (`csp.mjs --check`), écrit la surcharge pour le domaine et les adresses du build
+dans `apps/desktop/src-tauri/target/tauri.csp.conf.json`, puis lance `tauri build --config` avec ce fichier. Sans
+`AR_CSP=1`, rien ne change. Ne pas publier cette version (`--upload`) avant d'avoir fait les essais ci-dessous.
+
+**Ce que la politique apporte, et sa limite.** Tout est fermé par défaut (`default-src 'self'`, `object-src 'none'`,
+`frame-ancestors 'none'`), et `connect-src` est une liste fermée : une page compromise ne peut pas envoyer de
+données ailleurs que vers le serveur du jeu et les services listés. En revanche `script-src` garde
+`'unsafe-inline'`, parce que les séquences (intro, écrans de fin) sont assemblées dans un `srcdoc` dont les
+scripts sont écrits dans la page (`packages/sequences/src/assemble.ts`) : un script injecté pourrait donc encore
+s'exécuter. Pour retirer `'unsafe-inline'`, il faut d'abord sortir ces scripts en fichiers.
+
+Tauri ajoute normalement un nonce à `script-src` et `style-src` ; or un nonce fait ignorer `'unsafe-inline'` par
+le navigateur. La surcharge pose donc `dangerousDisableAssetCspModification: ["script-src", "style-src"]` pour
+que la politique appliquée soit exactement celle écrite.
+
+**À essayer dans la version d'essai** (une ligne par fonction qui dépend d'une origine ou d'une exception) :
+
+| Fonction | Ce qu'il faut voir |
+|---|---|
+| Séquences | l'intro d'une sortie et l'écran de fin s'animent (scripts en ligne du `srcdoc`) |
+| Chargement d'une sortie | textures et modèles présents (WebAssembly du transcodeur KTX2 et de meshopt, worker créé depuis un blob) |
+| Installation d'une zone | téléchargement, puis sortie sur cette zone (`http://worlds.localhost`, serveur des cartes) |
+| Style Bêta | coureurs et vélos Bêta affichés (`http://arv3.localhost`) |
+| Plan IGN | fond de la mini-carte et de la carte complète, recherche d'une ville (`data.geopf.fr`) |
+| Météo réelle | conditions du jour appliquées (`api.open-meteo.com`) |
+| Multijoueur | création d'une sortie de groupe et entrée par code (API et WebSocket du serveur) |
+| Voix | chat vocal d'une sortie de groupe (LiveKit : sous-domaine du serveur du jeu) |
+| Compagnon | QR code affiché, téléphone appairé |
+| Spotify | connexion, lecture dans le jeu (`sdk.scdn.co`, `api.spotify.com`) |
+| MediaPipe | portrait à partir d'une photo dans le profil (WebAssembly embarqué) |
+| Capteurs | association Bluetooth, ANT+ et Direct Connect (commandes Tauri : `http://ipc.localhost`) |
+| Mise à jour | bandeau de mise à jour et ressources du jeu synchronisées au lancement |
+
+**Lire les refus.** L'exe publié n'a pas d'outils de développement. Pour voir la console, construire la même
+version en mode débogage, après avoir écrit la surcharge une fois (`AR_CSP=1 deploy/publish-desktop.sh`, ou
+`node apps/desktop/scripts/csp.mjs --out apps/desktop/src-tauri/target/tauri.csp.conf.json`) :
+
+```bash
+AR_DESKTOP=1 VITE_SERVER_URL=https://allezrobert.cparfait.ovh/colyseus VITE_WORLDS_URL=https://allezrobert.cparfait.ovh pnpm --filter @allezrobert/desktop exec tauri build --debug --no-bundle --config src-tauri/target/tauri.csp.conf.json
+```
+
+L'exécutable est dans `apps/desktop/src-tauri/target/debug/` ; clic droit → Inspecter ouvre la console de
+WebView2. Chaque refus y apparaît en rouge : « Refused to connect to … because it violates the following Content
+Security Policy directive: "connect-src …" ». L'origine refusée et la directive suffisent : ajouter la source à
+`SOURCES` dans `apps/desktop/scripts/csp.mjs` avec sa justification, relancer
+`node apps/desktop/scripts/csp.mjs --write`, puis reconstruire.
+
+**Tenir la politique à jour.** `node apps/desktop/scripts/csp.mjs --check` (aussi lancé par le test
+`apps/desktop/test/csp.test.ts`) échoue si une adresse externe apparaît dans le code du jeu sans être déclarée,
+ou si `src-tauri/tauri.csp.conf.json` n'est plus à jour. Une adresse fournie par le serveur à l'exécution
+(LiveKit) n'est pas visible par ce contrôle : si `LIVEKIT_DOMAIN` n'est pas un sous-domaine du serveur du jeu,
+l'ajouter à la main.
+
+**En faire le défaut.** Une fois les essais passés, recopier le bloc `app.security` de
+`src-tauri/tauri.csp.conf.json` dans `tauri.conf.json` et retirer la branche `AR_CSP` du script.

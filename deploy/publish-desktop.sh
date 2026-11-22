@@ -14,6 +14,7 @@
 # Variables : DOMAIN (allezrobert.cparfait.ovh), VPS (utilisateur@hôte pour --upload),
 # REMOTE_DIR (/home/debian/docker/allezrobert/deploy/data/downloads), NOTES (texte de la mise à jour),
 # TAURI_SIGNING_PRIVATE_KEY (clé des mises à jour ; par défaut ~/.tauri/allezrobert-updater.key).
+# AR_CSP=1 : version d'essai avec la politique de sécurité du contenu (apps/desktop/scripts/csp.mjs).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -46,7 +47,16 @@ if [[ "$mode" != "--upload-only" ]]; then
   fi
 
   echo "→ Build de l'application Windows $version (serveur : $VITE_SERVER_URL)"
-  pnpm --filter @allezrobert/desktop build
+  if [[ "${AR_CSP:-0}" == "1" ]]; then
+    # Version d'essai avec la politique de sécurité du contenu (désactivée par défaut, voir docs/BUILD_EXE.md § CSP) :
+    # la surcharge est écrite pour ce domaine et ces adresses de serveur, puis fusionnée par Tauri (--config).
+    node apps/desktop/scripts/csp.mjs --check
+    node apps/desktop/scripts/csp.mjs --domain "$DOMAIN" --out apps/desktop/src-tauri/target/tauri.csp.conf.json
+    echo "  CSP activée pour ce build (AR_CSP=1)"
+    pnpm --filter @allezrobert/desktop exec tauri build --config src-tauri/target/tauri.csp.conf.json
+  else
+    pnpm --filter @allezrobert/desktop build
+  fi
 
   if [[ -n "$(find apps/client/dist/worlds -type d -name tiles 2>/dev/null)" ]]; then
     echo "Des tuiles sont restées dans apps/client/dist/worlds : l'exe ne doit pas les contenir." >&2

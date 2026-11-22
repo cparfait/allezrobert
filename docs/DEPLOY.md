@@ -306,6 +306,66 @@ Le bouton « Créer la vidéo (MP4) » de l'écran de fin met un rendu en file (
 - **Photos du sommet** : le client réduit les photos prises sur les KOM (3 au plus, JPEG ≤ 200 Ko) et les joint à la demande (`photos`, corps JSON limité à 1 Mo). HyperFrames les place dans une scène « Au sommet » (à la place du classement en solo, sinon des meilleurs moments) ; le repli FFmpeg ajoute une diapositive de 3 s par photo.
 - Vérifier : `GET /api/renders/capabilities` renvoie `{"available":true,"engine":"hyperframes"|"ffmpeg"}` ; sinon `docker compose logs renderer` (ou les journaux du serveur en mode inline).
 
+## 12 quater. Graphes routiers (`graph.json`)
+
+Chaque zone ouverte a un graphe routier, `worlds/<zone>/graph.json` (1 à 34 Mo, 498 Mo pour 86 zones). Il sert
+au parcours libre, au planificateur et à la mini-carte. Qui le lit, et d'où :
+
+| Lecteur | D'où vient le graphe |
+|---|---|
+| Jeu web | `/worlds/<zone>/graph.json`, servi par Caddy |
+| Application Windows et macOS | téléchargé avec le pack de la zone sur ce même chemin (`packs.rs`), gardé hors ligne ; l'installateur ne l'embarque pas |
+| Zone installée dans le navigateur | même chemin, copié dans le cache du navigateur (`world/packs.ts`, `fetchGraphInto`) |
+| Serveur de jeu, appli compagnon | ne le lisent pas |
+| Outils du PC (`trail-tours`, `check-route-widths`, `packs`) | le fichier local du dossier `worlds/` |
+
+Caddy sert d'abord le graphe déposé par `deploy/sync-zones.sh` dans `deploy/data/worlds/<zone>/graph.json`
+(à côté de `tiles/`), sinon celui de l'image web. `sync-zones.sh` l'envoie avec les tuiles de la zone,
+seulement s'il a changé, avec sa copie `graph.json.gz` que Caddy sert telle quelle.
+
+```bash
+deploy/sync-zones.sh montmartre     # tuiles et graphe de la zone
+deploy/sync-zones.sh --graphs       # seulement les graphes, de toutes les zones qui en ont un sur ce PC
+deploy/sync-zones.sh --no-graphs    # les tuiles sans les graphes
+```
+
+### Sortir les graphes de Git (à faire en trois temps)
+
+Les graphes sont encore versionnés, et l'image web les contient : c'est ce qui les rend disponibles tant que
+le serveur n'a pas reçu les siens. Les retirer de Git avant l'étape 2 casserait le parcours libre sur le web.
+
+1. **Déployer puis remplir le serveur.** Pousser, mettre à jour le serveur (`git pull`, le `Caddyfile` est lu
+   depuis le dépôt du VPS, puis `./deploy.sh pull`), et lancer depuis ce PC, qui a tous les graphes :
+   ```bash
+   SYNC_KEY=<clé> bash deploy/sync-zones.sh --graphs
+   ```
+   Chaque zone doit finir par « ok ». Sur le VPS, `ls deploy/data/worlds/*/graph.json | wc -l` doit donner le
+   nombre de zones ouvertes.
+2. **Vérifier en ligne.** Sur le site, lancer un parcours libre dans deux zones (une d'Île-de-France, une
+   autre) et ouvrir le planificateur : les routes doivent apparaître. Dans l'application, supprimer puis
+   retélécharger une zone et rouler en parcours libre sans réseau. Contrôler aussi qu'un graphe vient bien du
+   volume : `curl -sI https://<domaine>/worlds/montmartre/graph.json` doit montrer `Cache-Control: public,
+   max-age=3600` (l'en-tête de la nouvelle règle).
+3. **Seulement alors, retirer les graphes de Git et de l'image web :**
+   ```bash
+   git rm --cached apps/client/public/worlds/*/graph.json
+   for d in apps/client/public/worlds/*/; do grep -qx 'graph.json' "$d.gitignore" 2>/dev/null || echo 'graph.json' >> "$d.gitignore"; done
+   echo 'apps/client/public/worlds/*/graph.json' >> deploy/docker/web.Dockerfile.dockerignore
+   git add apps/client/public/worlds/*/.gitignore deploy/docker/web.Dockerfile.dockerignore
+   git commit -m "chore(mondes) : graphes routiers hors du suivi Git (servis par le volume du serveur)"
+   ```
+   Les fichiers restent sur le disque du PC. À partir de là, **une zone reconstruite doit toujours passer par
+   `sync-zones.sh`** : son graphe n'arrive plus par l'image.
+
+Ce qui change après l'étape 3 :
+- une copie neuve du dépôt (autre PC, CI) n'a plus de graphes : le jeu lancé en local n'a pas de parcours
+  libre, sauf avec `VITE_WORLDS_URL` pointant sur le serveur (le jeu y prend alors les graphes) ;
+- `ile-de-robert` est produite par `tools/island`, pas par `tools/terrain` : son graphe suit la même règle et
+  doit être envoyé aussi (`--graphs` le prend) ;
+- aucun test ne lit un graphe du dépôt (`graphFetch.test.ts` et `installerDiet.test.ts` fabriquent les leurs) ;
+- l'historique Git garde les anciennes versions : le dépôt ne maigrit que si l'historique est réécrit, ce qui
+  est une autre décision.
+
 ## 13. Premier déploiement
 
 ```bash

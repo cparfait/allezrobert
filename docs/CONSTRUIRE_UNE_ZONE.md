@@ -211,6 +211,8 @@ Sortie dans `apps/client/public/worlds/ma-zone/` :
 | `places.json` | noms de villages pour la carte du menu | oui |
 | `tiles/` | altitudes, entités, orthophotos | **non** (déployées à part) |
 
+Mise en ligne : `deploy/sync-zones.sh <zone>` envoie les tuiles et le graphe (`graph.json`, seulement s'il a changé). Le graphe est encore versionné ; la procédure pour le sortir de Git est dans [DEPLOY.md](DEPLOY.md), § 12 quater.
+
 ## 3. Vérifier
 
 ```bash

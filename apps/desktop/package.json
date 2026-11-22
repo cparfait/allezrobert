@@ -10,6 +10,7 @@
     "build": "tauri build",
     "icons": "node scripts/make-icon.mjs && tauri icon src-tauri/icons/source.png -o src-tauri/icons",
     "check": "cargo check --manifest-path src-tauri/Cargo.toml",
+    "csp": "node scripts/csp.mjs",
     "test": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {

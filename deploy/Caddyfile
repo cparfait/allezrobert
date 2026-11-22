@@ -80,6 +80,32 @@
 		file_server
 	}
 
+	# Graphes routiers des zones (/worlds/<zone>/graph.json, 1 à 34 Mo) : celui déposé par deploy/sync-zones.sh
+	# à côté des tuiles (deploy/data/worlds/<zone>/graph.json) d'abord, sinon celui de l'image web. Tant que le
+	# serveur n'en a pas reçu, rien ne change : c'est l'image qui répond. La copie graph.json.gz envoyée avec lui
+	# est servie telle quelle (pas de compression à chaque requête). L'application Windows (autre origine) les
+	# télécharge avec le pack de la zone, d'où l'en-tête CORS.
+	# (22/11 — non testé, à valider au prochain déploiement ; voir docs/DEPLOY.md § 12 quater)
+	@graphfiles path /worlds/*/graph.json
+	handle @graphfiles {
+		header Access-Control-Allow-Origin "*"
+		header Cache-Control "public, max-age=3600"
+		@synced file {
+			root /srv
+			try_files {path}
+		}
+		handle @synced {
+			root * /srv
+			file_server {
+				precompressed gzip
+			}
+		}
+		handle {
+			root * /srv/client
+			file_server
+		}
+	}
+
 	# Tuile absente (mise à jour en cours) : ne jamais garder ce 404 dans le navigateur, sinon il
 	# reste 7 jours en cache alors que le fichier existe de nouveau.
 	handle_errors {
