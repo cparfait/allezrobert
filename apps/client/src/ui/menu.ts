@@ -9,7 +9,7 @@ import type { WorldRoutes } from '../world/routeStore.ts';
 import { ROAD_FEEL, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel } from '@allezrobert/shared';
 import { GRAPHIC_STYLE, V3_AVAILABLE, V3_STYLE, setGraphicStyle, type GraphicStyle } from '../engine/style.ts';
 import { readKomRecord } from '../game/challenge.ts';
-import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, SHOE_MARKS, equippedTuneIds, trainerOf, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
+import { COUNTRIES, BIKE_BRANDS, BIKE_GROUPS, BIKE_TEAMS, COSMETICS, DEFAULT_BIKE, bikeById, routesForBike, mirrorStartM, rankRouteId, lookSex, tuneItem, withSex, bottleCapacity, bikeSetupFor, jerseyLookOf, helmetLookOf, glassesLookOf, levelProgress, xpForLevel, SHOE_MARKS, equippedTuneIds, trainerOf, type BikeCollection, type BikeType, type CapLook, type CosmeticSlot } from '@allezrobert/shared';
 import { shoeAccentOf } from '../rider/shoeLook.ts';
 import { WORKOUT_LIBRARY, WORKOUT_TYPES, WORKOUT_TYPE_LABELS, parseWorkoutFile, tunedBikeSetup, type LibraryWorkout, type WorkoutStep, type WorkoutType } from '@allezrobert/physics';
 import { rideHistory } from '../data/history/instance.ts';
@@ -906,6 +906,7 @@ const SET = strings(
 /** Gabarits, pluriels et confirmations du menu ({n}, {w}, {what}, {name} remplacés à l'appel). */
 const MX = strings(
   {
+    credits: 'crédits',
     locale: 'fr-FR',
     dec: ',',
     favAdd: 'Ajouter aux favoris',
@@ -935,6 +936,7 @@ const MX = strings(
     spClientId: 'Identifiant client (Client ID)',
   },
   {
+    credits: 'credits',
     locale: 'en-GB',
     dec: '.',
     favAdd: 'Add to favourites',
@@ -2326,10 +2328,15 @@ export class MainMenu {
         <div class="mm-right">
           ${this.musicInHero() ? '' : '<div class="mm-music" id="m-music"></div>'}
           <div class="mm-account">
-            <div class="mm-avatar mm-me" data-tab="profile" role="button" title="${S('myProfile')}" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</div>
-            <div class="mm-who mm-me" data-tab="profile" role="button" title="${S('myProfile')}"><b>${esc(name)}</b>
-              <span>${S('level')} ${level}<i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i><em class="mm-credits" role="button" tabindex="0" title="${S('creditsOpenTheGarage')}">${COIN} ${(this.account?.credits ?? p.credits).toLocaleString(MX('locale'))}</em></span></div>
-            ${this.account ? `<button class="mm-link" id="m-logout">${S('signOut')}</button>` : `<button class="mm-link" id="m-login">${S('signIn')}</button>`}
+            <button type="button" class="mm-me-card mm-me" data-tab="profile" title="${S('myProfile')}">
+              <span class="mm-avatar" style="background:${this.s.look.jersey}">${esc(initials || 'R')}</span>
+              <span class="mm-who"><b>${esc(name)}</b><span class="mm-lvl"><em>${S('level')} ${level}</em><i class="mm-xp"><i style="width:${(lp.progress * 100).toFixed(0)}%"></i></i>${
+                // Points d'XP vers le niveau suivant : seulement quand le niveau affiché est celui de la progression locale.
+                lp.nextLevelXp !== null && level === lp.level ? `<small>${(p.xp - xpForLevel(lp.level)).toLocaleString(MX('locale'))} / ${(lp.nextLevelXp - xpForLevel(lp.level)).toLocaleString(MX('locale'))} XP</small>` : ''
+              }</span></span>
+            </button>
+            <button type="button" class="mm-credits" title="${S('creditsOpenTheGarage')}">${COIN}<b>${(this.account?.credits ?? p.credits).toLocaleString(MX('locale'))}</b><small>${MX('credits')}</small></button>
+            ${this.account ? `<button type="button" class="mm-link" id="m-logout">${S('signOut')}</button>` : `<button type="button" class="ab-btn mm-signin" id="m-login">${S('signIn')}</button>`}
           </div>
           ${inDesktop ? `<button class="mm-quit" id="m-quit" title="${S('quitAllezRobert')}" aria-label="${S('quit')}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>` : ''}
         </div>

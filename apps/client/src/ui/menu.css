@@ -59,6 +59,25 @@
 .mm-pl b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mm-pl span { font-size: 12px; color: #8d98a6; }
 .mm-account { display: flex; align-items: center; gap: 10px; flex: none; white-space: nowrap; }
+/* Bloc du joueur : avatar, nom, niveau avec sa barre et ses points ; un seul bouton qui ouvre le profil. */
+.mm-me-card { appearance: none; display: flex; align-items: center; gap: 10px; padding: 5px 14px 5px 5px; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 16px; background: rgba(255, 255, 255, 0.05); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: border-color 0.12s; }
+.mm-me-card:hover { border-color: rgba(255, 210, 63, 0.7); }
+.mm-me-card:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
+.mm-me-card .mm-avatar { width: 40px; height: 40px; font-size: 15px; }
+.mm-me-card .mm-who b { font-size: 15px; }
+.mm-who .mm-lvl { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #c3cddb; }
+.mm-lvl em { font-style: normal; font-weight: 800; color: var(--ar-accent, #ffd23f); }
+.mm-lvl .mm-xp { width: 96px; height: 6px; }
+.mm-lvl small { font-size: 12px; color: #9aa6b5; font-variant-numeric: tabular-nums; }
+/* Connexion : un vrai bouton, pas un lien perdu au bout du bandeau. */
+.ab-btn.mm-signin { padding: 8px 16px; font-size: 14px; background: transparent; color: var(--ar-accent, #ffd23f); box-shadow: inset 0 0 0 2px var(--ar-accent, #ffd23f); }
+.ab-btn.mm-signin:hover { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
+/* Le bandeau tient dans la largeur : la musique rétrécit d'abord (titre coupé), puis les mentions secondaires disparaissent. */
+.mm-right { min-width: 0; }
+.mm-right > .mm-music { flex: 0 1 auto; min-width: 0; }
+.mm-right .mm-now { min-width: 0; }
+@media (max-width: 1800px) { button.mm-credits small { display: none; } }
+@media (max-width: 1500px) { .mm-lvl small { display: none; } }
 .mm-avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #fff; border: 2px solid rgba(255, 255, 255, 0.85); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
 .mm-who { display: flex; flex-direction: column; line-height: 1.2; }
 .mm-who b { font-size: 14px; }
@@ -444,6 +463,10 @@
 /* Atelier du garage : panneau des pièces, ensembles, chiffres avant → après */
 .mm-credits { font-style: normal; display: inline-flex; align-items: center; gap: 4px; font-weight: 800; color: #ffe08a; font-variant-numeric: tabular-nums; }
 .mm-credits { cursor: pointer; padding: 1px 7px; margin-left: 4px; border-radius: 999px; background: rgba(255, 224, 138, 0.1); border: 1px solid rgba(255, 224, 138, 0.25); transition: background 0.15s ease, border-color 0.15s ease; }
+/* Crédits du bandeau : pastille lisible (pièce, nombre, mot). */
+button.mm-credits { appearance: none; gap: 6px; padding: 7px 12px; margin: 0; font: inherit; font-size: 14px; color: #ffe08a; }
+button.mm-credits b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+button.mm-credits small { font-size: 12px; font-weight: 600; color: #e6cf86; }
 .mm-credits:hover, .mm-credits:focus-visible { background: rgba(255, 224, 138, 0.22); border-color: rgba(255, 224, 138, 0.6); }
 .mm-credits:focus-visible { outline: 3px solid var(--ar-accent, #ffd23f); outline-offset: 3px; }
 .at-coin { display: inline-block; vertical-align: -2px; }
