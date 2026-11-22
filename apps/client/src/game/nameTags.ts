@@ -37,7 +37,7 @@ export function createNameTag(text: string, nationality?: string): NameTag {
   el.style.cssText =
     'position:absolute;left:0;top:0;display:none;align-items:center;gap:6px;padding:3px 9px 3px 7px;border-radius:6px;' +
     'background:rgba(10,14,22,0.78);color:#f5f7fa;font:700 13px/1.2 Inter,"Segoe UI",sans-serif;white-space:nowrap;' +
-    'transform:translate(-50%,-100%);will-change:transform';
+    'transform:translate(-50%,-100%);transform-origin:50% 100%;transition:opacity .25s;will-change:transform';
   const flag = nationality ? flagSvg(nationality, 12) : '';
   const name = shortRiderName(text).replace(/[<>&]/g, '');
   el.innerHTML = `${flag ? `<span style="display:inline-flex">${flag}</span>` : ''}<span>${name}</span>` +
@@ -81,22 +81,50 @@ function canvasRect(): DOMRect | null {
   return (rectCache ??= rectCanvas.getBoundingClientRect());
 }
 
+const _cam = new THREE.Vector3();
+/** Étiquettes placées à cette image (les plus proches d'abord) : sert à écarter celles qui se recouvrent. */
+const placed: Array<{ x: number; y: number; w: number }> = [];
+const order: Array<{ t: NameTag; d: number; x: number; y: number }> = [];
+/** Largeur approximative d'une étiquette (px) : lue une fois, à la première apparition. */
+const widths = new WeakMap<HTMLElement, number>();
+
+/**
+ * Lisibilité en peloton : opacité et taille diminuent avec la distance (pleine jusqu'à 25 m, 40 % et 75 % à 90 m),
+ * et une étiquette qui recouvre plus de la moitié d'une étiquette plus proche est masquée.
+ */
 export function placeNameTags(tags: readonly NameTag[], camera: THREE.Camera): void {
   camera.updateMatrixWorld();
+  camera.getWorldPosition(_cam);
   const rect = canvasRect();
+  order.length = 0;
   for (const t of tags) {
     let show = t.anchor.visible && !!rect;
     if (show && rect) {
       _v.copy(t.anchor.position).project(camera);
       show = _v.z > -1 && _v.z < 1 && Math.abs(_v.x) < 1.1 && Math.abs(_v.y) < 1.1;
-      if (show) {
-        const x = rect.left + ((_v.x + 1) / 2) * rect.width;
-        const y = rect.top + ((1 - _v.y) / 2) * rect.height;
-        t.el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-100%)`;
-      }
+      if (show) order.push({ t, d: t.anchor.position.distanceTo(_cam), x: rect.left + ((_v.x + 1) / 2) * rect.width, y: rect.top + ((1 - _v.y) / 2) * rect.height });
     }
-    const display = show ? 'flex' : 'none';
-    if (t.el.style.display !== display) t.el.style.display = display;
+    if (!show && t.el.style.display !== 'none') t.el.style.display = 'none';
+  }
+  order.sort((a, b) => a.d - b.d);
+  placed.length = 0;
+  for (const o of order) {
+    const k = Math.min(1, Math.max(0, (o.d - 25) / 65));
+    const scale = 1 - 0.25 * k;
+    const el = o.t.el;
+    if (el.style.display !== 'flex') el.style.display = 'flex';
+    let w = widths.get(el);
+    if (w === undefined) {
+      w = el.offsetWidth || 90;
+      widths.set(el, w);
+    }
+    w *= scale;
+    const covered = placed.some((p) => Math.abs(p.y - o.y) < 18 * scale && Math.abs(p.x - o.x) < (p.w + w) / 4);
+    const opacity = covered ? 0 : 1 - 0.6 * k;
+    if (!covered) placed.push({ x: o.x, y: o.y, w });
+    el.style.transform = `translate(${o.x.toFixed(1)}px,${o.y.toFixed(1)}px) translate(-50%,-100%) scale(${scale.toFixed(2)})`;
+    const op = opacity.toFixed(2);
+    if (el.style.opacity !== op) el.style.opacity = op;
   }
 }
 
