@@ -841,6 +841,7 @@ const SET = strings(
     catInterface: 'Interface',
     catRide: 'Sortie',
     catTrainer: 'Home trainer',
+    trainerSettings: 'Réglages du home trainer',
     catSound: 'Son et musique',
     catCompanion: 'Compagnon',
     catZones: 'Zones hors ligne',
@@ -920,6 +921,7 @@ const SET = strings(
     catInterface: 'Interface',
     catRide: 'Ride',
     catTrainer: 'Smart trainer',
+    trainerSettings: 'Smart trainer settings',
     catSound: 'Sound and music',
     catCompanion: 'Companion',
     catZones: 'Offline areas',
@@ -2018,7 +2020,7 @@ export class MainMenu {
   openSettingsSection(id: string): void {
     this.settingsOpen.add(id);
     // Anciennes rubriques repliables : chacune a rejoint une catégorie.
-    const cat: Record<string, string> = { graphics: 'image', hud: 'interface', weather: 'ride', trainer: 'trainer', music: 'sound', sound: 'sound', companion: 'companion', zones: 'zones', lang: 'general', expert: 'expert' };
+    const cat: Record<string, string> = { graphics: 'image', hud: 'interface', weather: 'ride', trainer: 'ride', music: 'sound', sound: 'sound', companion: 'companion', zones: 'zones', lang: 'general', expert: 'expert' };
     this.settingsCat = cat[id] ?? id;
   }
 
@@ -2344,7 +2346,7 @@ export class MainMenu {
       friends: () => this.friends.html(),
       garage: () => this.garageHtml(),
       devices: () =>
-        `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}<header class="mm-head"><h2 class="ab-title">${t('devices')}</h2><p class="ab-sub">${S('pairYourTrainerAnd')}</p></header><div id="m-devices"></div></section>`,
+        `<section class="mm-panel mm-center mm-wide mm-xl">${this.closeBtn()}<header class="mm-head"><h2 class="ab-title">${t('devices')}</h2><p class="ab-sub">${S('pairYourTrainerAnd')}</p></header><div id="m-devices"></div><h3 class="ab-section set-title mm-trainer-title">${SET('trainerSettings')}</h3><div class="ab-tile ab-plain set-card mm-trainer-set">${this.trainerSettingsHtml()}</div></section>`,
       progress: () => this.progress.html(this.closeBtn()),
       profile: () => this.profileHtml(),
       settings: () => this.settingsHtml(),
@@ -3765,6 +3767,25 @@ export class MainMenu {
     return `<section class="set-adv" data-sec="adv-${id}"><h4 class="set-adv-t">${SET('advanced')}</h4>${body}</section>`;
   }
 
+  /**
+   * Réglages du home trainer, dans l'écran Capteurs sous les blocs des appareils (avant : une rubrique des Réglages,
+   * loin de l'appareil). Branchés par `bind` comme les autres réglages (mêmes id).
+   */
+  private trainerSettingsHtml(): string {
+    const s = this.s;
+    const L = fr();
+    const opt = (label: string, help: string, control: string, col = false) => this.setOpt(label, help, control, col);
+    const range = (id: string, min: number, max: number, step: number, value: number) => `<input class="set-range" id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${value}" />`;
+    const val = (id: string, text: string) => ` <span class="set-val" id="${id}">${text}</span>`;
+    const RF = ROAD_FEEL_TEXT[getLang()];
+    return `
+      ${opt(`${t('difficulty')}${val('m-diffv', `${Math.round(s.trainerDifficulty * 100)} %`)}`, SET('diffHelp'), range('m-diff', 0, 1, 0.05, s.trainerDifficulty))}
+      ${opt(SET('drive'), SET('driveHelp'), this.seg('m-drive', s.drivetrain, [['cog', SET('virtual')], ['cassette', SET('cassette')]]), true)}
+      ${opt(`${RF.title}${val('m-roadfeelv', roadFeelValue(s.roadFeelPercent, L))}`, '', range('m-roadfeel', 0, ROAD_FEEL.maxPercent, 5, s.roadFeelPercent))}
+      ${roadFeelMessage(s.roadFeelPercent, L)}
+      ${this.setAdvanced('trainer', opt(`${SET('inertia')}${val('m-inertiav', `${Math.round(s.inertia * 100)} %`)}`, SET('inertiaHelp'), range('m-inertia', 0.6, 1, 0.05, s.inertia)))}`;
+  }
+
   /** Limite d'images par seconde enregistrée (`ar.fpsCap`, '0' = celle de l'écran), lue par engine/display.ts au chargement. */
   private fpsCapSeg(): string {
     let cur = '0';
@@ -3828,18 +3849,10 @@ export class MainMenu {
       ${opt(SET('clouds'), '', range('m-clouds', 0, 1, 0.05, s.clouds))}
       ${opt(SET('rain'), SET('rainHelp'), range('m-rain', 0, 1, 0.05, s.rain))}
       ${opt(SET('fog'), '', range('m-fog', 0, 1, 0.05, s.fog))}
-      ${opt(SET('evolve'), '', this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [['0', SET('fixed')], ['1', SET('changing')]]), true)}`;
-
-    const RF = ROAD_FEEL_TEXT[getLang()];
-    const trainer = `
-      ${opt(`${t('difficulty')}${val('m-diffv', `${Math.round(s.trainerDifficulty * 100)} %`)}`, SET('diffHelp'), range('m-diff', 0, 1, 0.05, s.trainerDifficulty))}
-      ${opt(SET('drive'), SET('driveHelp'), this.seg('m-drive', s.drivetrain, [['cog', SET('virtual')], ['cassette', SET('cassette')]]), true)}
-      ${opt(`${RF.title}${val('m-roadfeelv', roadFeelValue(s.roadFeelPercent, L))}`, '', range('m-roadfeel', 0, ROAD_FEEL.maxPercent, 5, s.roadFeelPercent))}
-      ${roadFeelMessage(s.roadFeelPercent, L)}
+      ${opt(SET('evolve'), '', this.seg('m-evolve', s.weatherEvolves ? '1' : '0', [['0', SET('fixed')], ['1', SET('changing')]]), true)}
       ${this.setAdvanced(
-        'trainer',
-        `${opt(`${SET('inertia')}${val('m-inertiav', `${Math.round(s.inertia * 100)} %`)}`, SET('inertiaHelp'), range('m-inertia', 0.6, 1, 0.05, s.inertia))}
-        ${opt(SET('smooth'), SET('smoothHelp'), this.seg('m-smooth', s.smoothing3s ? '1' : '0', [['0', SET('off')], ['1', '3 s']]))}
+        'ride',
+        `${opt(SET('smooth'), SET('smoothHelp'), this.seg('m-smooth', s.smoothing3s ? '1' : '0', [['0', SET('off')], ['1', '3 s']]))}
         ${opt(`${SET('stand')}${val('m-standv', s.standWatts ? `${s.standWatts} W` : 'Auto')}`, SET('standHelp'), range('m-stand', 0, 1200, 25, s.standWatts))}`,
       )}`;
 
@@ -3864,7 +3877,6 @@ export class MainMenu {
       ['image', SET('catImage'), ico('<rect x="3" y="5" width="18" height="13" rx="2"/><path d="M8 21h8"/>'), image],
       ['interface', SET('catInterface'), ico('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 10v10"/>'), interfaceCat],
       ['ride', SET('catRide'), ico('<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/>'), ride],
-      ['trainer', SET('catTrainer'), ico('<circle cx="7" cy="16" r="4"/><circle cx="17" cy="16" r="4"/><path d="M7 16l4-8h4l2 8M9 8h4"/>'), trainer],
       ['sound', SET('catSound'), ico('<path d="M4 10v4h4l5 4V6L8 10H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/>'), sound],
       ['companion', SET('catCompanion'), ico('<rect x="7" y="3" width="10" height="18" rx="2"/><path d="M11 18h2"/>'), '<div id="m-companion-settings"></div>'],
       ['zones', SET('catZones'), ico('<path d="M12 4v10M8 10l4 4 4-4M5 19h14"/>'), '<div id="m-zones-settings"></div>'],
