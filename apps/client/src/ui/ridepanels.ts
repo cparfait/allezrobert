@@ -13,7 +13,8 @@ import { exportSaved } from './desktopUi.ts';
 import './blocks.css';
 
 /** Construit le fichier FIT de la sortie (positions GPS reconstruites depuis le repère monde). */
-export function rideToFit(ride: RideSession, opts: { name: string; massKg: number; ftp: number; originL93?: { x: number; y: number }; skipStrava: boolean }): Uint8Array {
+/** FIT de la sortie : une `RideSession` ou un brouillon relu (départ, mesures, tours). */
+export function rideToFit(ride: Pick<RideSession, 'startT' | 'records' | 'lapTimes'>, opts: { name: string; massKg: number; ftp: number; originL93?: { x: number; y: number }; skipStrava: boolean }): Uint8Array {
   const records: ActivityRecord[] = ride.records.map((r) => {
     const rec = r as ActivityRecord & { x?: number; z?: number };
     const out: ActivityRecord = { ...rec };
@@ -188,7 +189,30 @@ export function showPause(root: HTMLElement, cb: PauseCallbacks): void {
     if (devices) more.appendChild(devices);
   }
   (root.querySelector('#p-resume') as HTMLElement).onclick = cb.onResume;
-  (root.querySelector('#p-finish') as HTMLElement).onclick = cb.onFinish;
+  // « Terminer » en deux temps : le premier appui demande confirmation (4 s), le second termine. Évite d'arrêter
+  // une longue sortie par un appui de trop sur la manette ou le cintre.
+  const finishBtn = root.querySelector('#p-finish') as HTMLElement;
+  let armed: ReturnType<typeof setTimeout> | null = null;
+  finishBtn.onclick = () => {
+    if (armed) {
+      clearTimeout(armed);
+      armed = null;
+      cb.onFinish();
+      return;
+    }
+    const name = finishBtn.querySelector('.ab-name');
+    const detail = finishBtn.querySelector('.ab-detail');
+    const before = [name?.textContent ?? '', detail?.textContent ?? ''] as const;
+    if (name) name.textContent = fr ? 'Confirmer ?' : 'Confirm?';
+    if (detail) detail.textContent = fr ? 'Appuie encore pour terminer la sortie.' : 'Press again to end the ride.';
+    finishBtn.classList.add('pz-armed');
+    armed = setTimeout(() => {
+      armed = null;
+      if (name) name.textContent = before[0];
+      if (detail) detail.textContent = before[1];
+      finishBtn.classList.remove('pz-armed');
+    }, 4000);
+  };
   const cmp = root.querySelector<HTMLElement>('#p-companion');
   if (cmp && cb.onCompanion) cmp.onclick = cb.onCompanion;
   if (cb.roomId) void renderRideInvite(root.querySelector('#p-friends') as HTMLElement, cb.roomId);

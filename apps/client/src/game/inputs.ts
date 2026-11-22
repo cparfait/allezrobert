@@ -44,6 +44,8 @@ export interface InputSource {
   onWarning?(cb: (message: string) => void): void;
   /** État lisible des appareils pour le HUD. */
   status(): Array<{ label: string; state: 'ok' | 'warn' | 'off' }>;
+  /** Home trainer ou capteur de puissance vu connecté pendant la sortie, puis perdu (muet, reconnexion, coupé) : noms. */
+  lostSensors?(): string[];
   dispose(): void;
 }
 

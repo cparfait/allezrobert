@@ -272,6 +272,18 @@ export class RideSession {
     return this.elapsedS > 0 ? this.totalWork / this.elapsedS : 0;
   }
 
+  /** Travail produit depuis le départ (kJ) : sert à l'XP. */
+  get workKJ(): number {
+    return this.totalWork / 1000;
+  }
+
+  /** Secondes enregistrées avec la puissance du simulateur (touches +/−, aucun vrai capteur). */
+  simulatedS = 0;
+  /** Sortie pédalée au simulateur (plus de 10 % du temps) : hors classements et records. */
+  get simulated(): boolean {
+    return this.records.length > 0 && this.simulatedS > this.records.length * 0.1;
+  }
+
   normalizedPower(): number {
     return this.np.value;
   }
@@ -455,6 +467,7 @@ export class RideSession {
       this.recAcc -= 1;
       this.np.add(this.inputs.watts);
       const i = this.inputs;
+      if (i.cadenceSimulated) this.simulatedS++;
       this.records.push({
         t: now,
         distanceM: this.state.distM - (this.opts.startDistM ?? 0),

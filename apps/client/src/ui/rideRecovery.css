@@ -1,0 +1,17 @@
+/* Récupération d'une sortie interrompue (rideRecovery.ts) : fenêtre en gros blocs par-dessus le menu. */
+.rr-overlay { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; padding: 16px; background: rgba(5, 8, 14, 0.72); backdrop-filter: blur(6px); }
+.rr-card { width: min(720px, 100%); display: grid; gap: 18px; padding: clamp(20px, 3vw, 32px); border-radius: 26px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(20, 26, 39, 0.98), rgba(10, 14, 22, 0.98)); box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5); color: var(--ar-fg, #f5f7fa); }
+.rr-tile { grid-template-areas: 'ico name' 'ico detail' 'val val' 'state state'; }
+.rr-tile .ab-detail::first-letter { text-transform: uppercase; }
+.rr-vals { flex-wrap: wrap; gap: 8px 26px; }
+.rr-vals > span { display: inline-flex; align-items: baseline; gap: 6px; }
+.rr-msg { margin: 0; min-height: 1.4em; font-size: 16px; font-weight: 700; color: #fca5a5; }
+.rr-msg.is-ok { color: #86efac; }
+.rr-later { font-size: 14px; color: #9aa6b5; }
+.ab-btn.rr-danger { background: rgba(239, 68, 68, 0.85); color: #fff; }
+@media (prefers-reduced-motion: no-preference) {
+  .rr-card { animation: rr-in 0.22s ease-out; }
+}
+@keyframes rr-in {
+  from { opacity: 0; transform: translateY(12px); }
+}

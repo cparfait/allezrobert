@@ -38,6 +38,8 @@ export interface RideInput {
   ftpWatts: number;
   /** Échantillons à 1 Hz (puissance, FC, cadence). */
   samples: readonly TrainingSample[];
+  /** Sortie au simulateur : gardée dans l'historique, mais ses puissances ne comptent pas dans les records. */
+  noPowerRecords?: boolean;
 }
 
 /** Statut de la dernière synchronisation (affiché dans l'historique). */
@@ -186,7 +188,7 @@ export class HistoryService {
       syncedAt: prev?.syncedAt ?? null,
     };
     await this.store.putRide(ride);
-    await this.store.mergePowerRecords(
+    if (!input.noPowerRecords) await this.store.mergePowerRecords(
       ride.curve.map(([d, w]) => [d, w, input.startT] as PowerRecordTuple),
       true,
     );

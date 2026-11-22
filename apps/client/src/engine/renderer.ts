@@ -195,10 +195,23 @@ function compileConcurrency(): number {
   return Number.isFinite(n) && n >= 1 ? Math.min(Math.round(n), 64) : 16;
 }
 
+/** Rappels à la perte du GPU (pilote planté, mise en veille, GPU débranché) : WebGPU `device.lost` ou contexte WebGL perdu. */
+const gpuLostHandlers: Array<(message: string) => void> = [];
+export function onGpuLost(cb: (message: string) => void): void {
+  gpuLostHandlers.push(cb);
+}
+
 export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings): Promise<Engine> {
   const forceWebGL = new URLSearchParams(location.search).has('webgl');
   // ?perf=1 : mesures GPU (requêtes d'horodatage) pour le panneau de performance (F3).
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: false, forceWebGL, powerPreference: 'high-performance', trackTimestamp: perfRequested() });
+  // GPU perdu : la scène ne peut plus être dessinée. Les rappels sauvent ce qui doit l'être puis rechargent la page.
+  (renderer as unknown as { onDeviceLost: (info: { message?: string; reason?: string }) => void }).onDeviceLost = (info) => {
+    const message = info?.message ?? info?.reason ?? 'GPU perdu';
+    console.error('GPU perdu :', message);
+    if (!gpuLostHandlers.length) location.reload();
+    for (const h of gpuLostHandlers) h(message);
+  };
   await renderer.init();
   main = renderer;
   initTextureLoading(renderer);

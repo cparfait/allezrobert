@@ -533,6 +533,20 @@ class ManagerInputSource implements InputSource {
     this.shiftCbs.push(cb);
   }
 
+  /** Appareils vus connectés pendant la sortie. */
+  private readonly seenConnected = new Set<string>();
+  lostSensors(): string[] {
+    const roles = this.manager.roles;
+    const ids = new Set([roles.trainer, roles.power].filter((x): x is string => !!x));
+    const lost: string[] = [];
+    for (const d of this.manager.summaries()) {
+      if (!ids.has(d.id) || d.transport === 'simulator') continue;
+      if (d.state === 'connected') this.seenConnected.add(d.id);
+      else if (this.seenConnected.has(d.id)) lost.push(d.name);
+    }
+    return lost;
+  }
+
   onWarning(cb: (message: string) => void): void {
     this.offs.push(this.manager.on('warning', (w) => cb(w.message)));
   }
