@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_BIKE, RouteTrack, type RouteData } from '@allezrobert/shared';
+import { decodeRoute, DEFAULT_BIKE, RouteTrack, type RouteData } from '@allezrobert/shared';
 import { BuildingObstacleIndex, COLLISION_MANIFEST_PATH, COLLISION_PILOT_ROUTE, RouteBuildingCollision, corridorHalfM, createPilotBuildingCollision, createRiderState, insideObstaclePolygon, roadHalfM, type BuildingObstacleData, type CollisionManifest, type RouteObstaclePose } from '@allezrobert/physics';
 import { RideSession } from '../../client/src/game/ride.ts';
 import { CollisionPoseFollower, CollisionPrediction } from '../../client/src/net/collision-follow.ts';
 import { RideSimulation, resolveRideOptions } from '../src/ride/simulation.ts';
 
-const read = <T>(path: string): T => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')) as T;
+// Itinéraires au format compact ou non (routeCodec.ts) : decodeRoute laisse les autres fichiers tels quels.
+const read = <T>(path: string): T => decodeRoute<T>(JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')));
 const route = read<RouteData>(`../../client/public/worlds/chevreuse/routes/${COLLISION_PILOT_ROUTE}.json`);
 const { data } = read<CollisionManifest>(`../../client/public${COLLISION_MANIFEST_PATH}`);
 const wall = data.obstacles.find((o) => o.id.endsWith('2491946994'))!;

@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_BIKE, RouteTrack, type RouteData, type WorldMeta } from '@allezrobert/shared';
+import { decodeRoute, DEFAULT_BIKE, RouteTrack, type RouteData, type WorldMeta } from '@allezrobert/shared';
 import { BUILDING_COLLISION_RADIUS_M, RouteBuildingCollision, insideObstaclePolygon, loadBuildingObstacleIndex, roadHalfM, type BuildingObstacleData, type RouteObstaclePose, type RouteObstacleResult } from '@allezrobert/physics';
 import { RideSession } from '../../client/src/game/ride.ts';
 import { RideSimulation, resolveRideOptions } from '../src/ride/simulation.ts';
 
-const read = <T>(url: URL): T => JSON.parse(readFileSync(url, 'utf8')) as T;
+// Itinéraires au format compact ou non (routeCodec.ts) : decodeRoute laisse les autres fichiers tels quels.
+const read = <T>(url: URL): T => decodeRoute<T>(JSON.parse(readFileSync(url, 'utf8')));
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 function fixture(name: string) {

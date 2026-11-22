@@ -10,7 +10,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { RoadGraphData } from '@allezrobert/shared';
+import { decodeRoute, type RoadGraphData } from '@allezrobert/shared';
 
 const WORLDS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../apps/client/public/worlds');
 const CELL = 20;
@@ -66,7 +66,7 @@ for (const zone of fs.readdirSync(WORLDS)) {
   const grid = buildGrid(JSON.parse(fs.readFileSync(graphFile, 'utf8')) as RoadGraphData);
   for (const file of fs.readdirSync(routesDir).filter((f) => f.endsWith('.json'))) {
     const raw = JSON.parse(fs.readFileSync(path.join(routesDir, file), 'utf8')) as RouteFile | { route: RouteFile };
-    const r = 'route' in raw ? raw.route : raw;
+    const r = decodeRoute<RouteFile>('route' in raw ? raw.route : raw);
     if (!r.points?.length || !r.roadWidths?.length) continue;
     const widthAt = (d: number) => r.roadWidths!.find((q) => d >= q.startM && d <= q.endM)?.widthM ?? r.roadWidthM;
     let seen = 0, wider = 0, n = 0;

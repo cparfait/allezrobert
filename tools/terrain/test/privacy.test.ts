@@ -4,6 +4,7 @@
  * construit sont absents (dépôt public cloné sans données personnelles).
  */
 import fs from 'node:fs';
+import { decodeRoute } from '@allezrobert/shared';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GARMIN_DIR, OUT_DIR, PRIVACY_RADIUS_M } from '../src/config.ts';
@@ -27,7 +28,7 @@ describe.skipIf(!hasGarmin || !hasWorld)('vie privée des sorties', () => {
     const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'));
     expect(files.length).toBeGreaterThan(0);
     for (const f of files) {
-      const r = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')) as { points: Array<{ x: number; z: number }> };
+      const r = decodeRoute<{ points: Array<{ x: number; z: number }> }>(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
       let worst = Infinity;
       for (const p of r.points) worst = Math.min(worst, minDistanceToPoints(p.x, p.z, sensitive));
       expect(worst).toBeGreaterThanOrEqual(PRIVACY_RADIUS_M);

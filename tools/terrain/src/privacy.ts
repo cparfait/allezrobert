@@ -3,6 +3,7 @@
  * départ ou d'une arrivée de sortie Garmin. Les points sensibles ne sont jamais écrits.
  */
 import fs from 'node:fs';
+import { decodeRoute } from '@allezrobert/shared';
 import path from 'node:path';
 import { distPointRect, tileRect, type Rect } from './frame.ts';
 
@@ -35,7 +36,7 @@ export function auditWorldDir(dir: string, sensitive: Array<{ x: number; z: numb
   const routesDir = path.join(dir, 'routes');
   if (fs.existsSync(routesDir)) {
     for (const f of fs.readdirSync(routesDir).filter((f) => f.endsWith('.json'))) {
-      const r = JSON.parse(fs.readFileSync(path.join(routesDir, f), 'utf8')) as { points: Array<{ x: number; z: number }> };
+      const r = decodeRoute<{ points: Array<{ x: number; z: number }> }>(JSON.parse(fs.readFileSync(path.join(routesDir, f), 'utf8')));
       let worst = Infinity;
       for (const p of r.points) worst = Math.min(worst, minDistanceToPoints(p.x, p.z, sensitive));
       if (worst < radius) out.push({ what: `routes/${f}`, distanceM: Math.round(worst) });
