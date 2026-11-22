@@ -163,3 +163,19 @@
 .sum-body { flex: 1 0 auto; min-height: auto; }
 .sum-main, .sum-charts { flex: none; min-height: auto; }
 .sum-chart { min-height: auto; }
+
+/* Ce qui vient d'être acquis : résultat, sauvegarde, FIT et compte, en trois blocs d'état. */
+.sum-status { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: clamp(10px, 1.2vw, 16px); margin-bottom: 14px; }
+.sum-st.ab-tile { grid-template-columns: auto 1fr; grid-template-areas: 'ico name' 'ico state' 'detail detail' 'act act'; gap: 2px 14px; padding: 14px 16px; align-content: start; }
+.sum-st .ab-name { font-size: 15px; font-weight: 700; color: #c3cddb; align-self: end; }
+.sum-st .ab-state { font-size: clamp(18px, 1.6vw, 22px); font-weight: 800; align-self: start; }
+.sum-st.is-info .ab-state { color: #93c5fd; }
+.sum-st .ab-detail { margin-top: 8px; font-size: 14.5px; color: #dbe3ed; }
+.sum-st .ab-chip { grid-area: act; justify-self: start; margin-top: 10px; }
+/* Envois vers les services tiers : une ligne par service, état puis nouvel essai. */
+.rx { display: grid; gap: 8px; margin-top: 10px; }
+.rx:empty { display: none; }
+.rx-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); font-size: 15px; }
+.rx-row b { min-width: 110px; }
+.rx-row .ab-chip { margin-left: auto; }
+.sum-exports a.ab-chip { display: inline-block; margin-left: 8px; text-decoration: none; }

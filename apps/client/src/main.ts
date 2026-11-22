@@ -53,6 +53,8 @@ import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/po
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
 import { DraftWriter, defaultDraftStore, type RideDraft } from './game/rideDraft.ts';
 import { offerRideRecovery } from './ui/rideRecovery.ts';
+import { rideEndOf, rideEndView, type AccountState, type SaveState } from './ui/rideOutcome.ts';
+import { uploadRideFit } from './ui/rideExports.ts';
 import { activateFocus, moveFocus } from './ui/focusNav.ts';
 import { BackgroundClock, GroupTalk, SensorLossWatch, hardwareCommand, rideKeyAction } from './game/rideControls.ts';
 import { showRideSummary } from './ui/summary.ts';
@@ -294,7 +296,7 @@ const BOOT = strings(
 );
 
 /** Sortie récupérée d'un brouillon : historique (sans records de puissance au simulateur) et XP restante. */
-async function saveRecoveredRide(d: RideDraft): Promise<{ xp: number }> {
+async function saveRecoveredRide(d: RideDraft): Promise<{ xp: number; account: AccountState }> {
   const workKJ = d.records.reduce((a, r) => a + (r.watts ?? 0), 0) / 1000;
   await rideHistory.recordRide({
     startT: d.startT,
@@ -312,12 +314,26 @@ async function saveRecoveredRide(d: RideDraft): Promise<{ xp: number }> {
     noPowerRecords: d.simulated,
   });
   const xp = awardRide({ distanceM: d.distanceM, elevationM: d.elevationM, movingS: d.elapsedS, workKJ }, d.credited, d.routeId ? { routeId: d.routeId } : {});
-  return { xp: xp.gained };
+  // Le FIT part aussi sur le compte (et de là vers Strava / intervals.icu) : après cet écran, le brouillon est effacé
+  // et le fichier ne pourrait plus être refait. Hors ligne ou sans compte : l'écran dit de le télécharger.
+  const sent = await uploadRideFit(recoveredFit(d), {
+    name: `Allez Robert ! — ${d.name}`,
+    routeId: d.routeId,
+    skipStrava: d.skipStrava,
+    clientRideId: rideClientId(d.startT),
+    kind: d.kind,
+    ftp: d.ftpWatts,
+    workoutId: d.workoutId ?? null,
+    workoutName: d.workoutName ?? null,
+  }).catch(() => null);
+  if (sent) await rideHistory.updateRide(rideClientId(d.startT), { hasFit: true }).catch(() => undefined);
+  return { xp: xp.gained, account: sent ? 'sent' : 'failed' };
 }
 
 /** FIT d'une sortie récupérée. */
+const recoveredFit = (d: RideDraft): Uint8Array => rideToFit(d, { name: `Allez Robert ! — ${d.name}`, massKg: d.massKg, ftp: d.ftpWatts, ...(d.originL93 ? { originL93: d.originL93 } : {}), skipStrava: d.skipStrava });
 function downloadRecoveredFit(d: RideDraft): void {
-  const bytes = rideToFit(d, { name: `Allez Robert ! — ${d.name}`, massKg: d.massKg, ftp: d.ftpWatts, ...(d.originL93 ? { originL93: d.originL93 } : {}), skipStrava: d.skipStrava });
+  const bytes = recoveredFit(d);
   download(bytes, `allez-robert-${new Date(d.startT).toISOString().slice(0, 16).replace(/[:T]/g, '-')}.fit`);
 }
 const MENU_MEDIA_VERSION = 12;
@@ -2047,6 +2063,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Test FTP quitté en cours : il se termine (la voix dit le résultat) ; sinon la voix redit le bilan.
     const ftpTestRide = !!workout && isFtpTestKind(workout.kind);
     const ftpEndedBefore = ftpTestRide && !!workout?.ended;
+    // Course encore en cours au moment de terminer : c'est un abandon (le bilan le dit).
+    const racingAtEnd = !!room?.racing;
     workout?.stop();
     // Le choix se fait sur le bilan : la fenêtre de fin de test se ferme.
     closeFtpResult?.();
@@ -2076,8 +2094,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       ? null
       : previousComparable(pastRides, { routeId: track.route.id, date: ride.startT, distanceM: stats.distanceM, movingS: stats.movingS, avgSpeedKmh: stats.avgSpeedKmh, avgWatts: stats.avgWatts, np: stats.np });
     // Historique d'entraînement : la sortie, ses mesures et sa séance (une sortie reprise remplace la précédente).
+    // État de la sauvegarde, montré sur le bilan : écrite, trop courte (moins d'une minute), en échec ou invité.
+    let saved: SaveState | Promise<SaveState> = s.guest ? 'guest' : 'too_short';
     if (!s.guest && ride.records.length >= 60) {
-      void rideHistory
+      saved = rideHistory
         .recordRide({
           startT: ride.startT,
           name: track.route.name,
@@ -2092,8 +2112,23 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           samples: ride.records,
           noPowerRecords: ride.simulated,
         })
-        .catch((e) => console.warn('Sortie non gardée dans l’historique', e));
+        .then((): SaveState => 'saved')
+        .catch((e): SaveState => {
+          console.warn('Sortie non gardée dans l’historique', e);
+          return 'failed';
+        });
     }
+    const canResume = !mp;
+    const rideEnd = rideEndOf({
+      ftpTest: ftpTestRide,
+      ftpHasResult: !!ftpOutcome.result,
+      racingAtEnd,
+      raceRank: room?.selfRank() ?? 0,
+      challengeDone: !!challengeResult,
+      workout: !!workout && !ftpTestRide,
+      workoutFinished: !!workout?.position.finished,
+      routeFinished: summitShown || (!nav && reachedFinish(track.route.loop, ride.dir, ride.state.distM, track.length)),
+    });
     // Brouillon : cette fin est enregistrée ; il ne restera à récupérer que ce qui serait roulé après « Reprendre ».
     draftRecorded = ride.records.length;
     void draft?.flush();
@@ -2138,6 +2173,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         records,
         withGroup: peloton.riders.length > 0 || !!mp || ride.group.draftS > 0,
         guest: s.guest,
+        end: rideEndView(rideEnd, { fr: L, raceRank: room?.selfRank() ?? 0, oldFtp: ftpOutcome.oldFtp, canResume }),
+        saved,
         trophies: trophies.map((t) => ({ name: t.name[getLang()], description: t.description[getLang()], xp: t.xp })),
         ...(challengeResult ? { challenge: challengeResult } : {}),
         ...(ftpTestRide && workout ? { ftpTest: ftpReportOf(workout) } : {}),
@@ -2187,12 +2224,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         ...(s.guest
           ? {}
           : {
-              onlineBox: (box: HTMLElement) =>
+              onlineBox: (box: HTMLElement, onAccount: (state: AccountState) => void) =>
                 void onlinePanel(box, ride, fitBytes, undefined, {
                   clientRideId: rideClientId(ride.startT),
                   kind: rideKind,
                   ...rideWorkout,
                   ftp: s.ftpWatts,
+                  onAccount,
                   onSaved: () => void rideHistory.updateRide(rideClientId(ride.startT), { hasFit: true }),
                 }),
               onFeedback: (f) => void rideHistory.updateRide(rideClientId(ride.startT), { feedback: f }),

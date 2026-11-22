@@ -3,6 +3,9 @@ import type { RideSession } from '../game/ride.ts';
 import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, type RideStats } from '../game/stats.ts';
 import type { HistoryRide, RideFeedback } from '@allezrobert/shared';
 import { bindFtpReport, ftpHistoryHtml, ftpProfileHtml, ftpReportView, ftpResultCardHtml, ftpTestChartSvg, ftpZonesHtml, type FtpTestReport } from './ftpTestReport.ts';
+import { accountView, saveView, type AccountState, type RideEndView, type SaveState, type StateView } from './rideOutcome.ts';
+import { renderRideExports } from './rideExports.ts';
+import { apiBase } from './account.ts';
 import './blocks.css';
 import './summary.css';
 
@@ -37,6 +40,10 @@ export interface SummaryData {
   trophies?: Array<{ name: string; description: string; xp: number }>;
   /** Test FTP : le bilan parle de la FTP (résultat, choix, zones) au lieu du parcours. */
   ftpTest?: FtpTestReport;
+  /** Façon dont la sortie s'est terminée : titre du bilan et bloc « Résultat ». */
+  end?: RideEndView;
+  /** Sauvegarde dans l'historique de l'appareil : état connu, ou promesse de l'écriture en cours. */
+  saved?: SaveState | Promise<SaveState>;
 }
 
 export interface SummaryActions {
@@ -50,7 +57,7 @@ export interface SummaryActions {
   onNewRide(): void;
   onQuit(): void;
   /** Panneau compte / Strava / intervals.icu rempli après coup. */
-  onlineBox?: (box: HTMLElement) => void;
+  onlineBox?: (box: HTMLElement, onAccount: (state: AccountState) => void) => void;
   /** Ressenti de la sortie, gardé dans l'historique (absent : pas de question). */
   onFeedback?: (feedback: RideFeedback) => void;
   /** Test FTP : choix fait sur le bilan (garder la nouvelle FTP ou l'ancienne). */
@@ -74,7 +81,19 @@ const IC = {
   user: svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'),
   share: svg('<circle cx="6" cy="12" r="2.5"/><circle cx="17.5" cy="6" r="2.5"/><circle cx="17.5" cy="18" r="2.5"/><path d="m8.2 10.8 7-3.6M8.2 13.2l7 3.6"/>'),
   file: svg('<path d="M7 3h7l4 4v14H7zM14 3v4h4M12 11v6M9.5 14.5 12 17l2.5-2.5"/>'),
+  saved: svg('<path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6"/>'),
 };
+/** Bloc d'état du bilan : nom, état en un mot avec sa pastille, une ligne de détail, action éventuelle. */
+function statusBlock(id: string, icon: string, name: string, v: StateView, action = ''): string {
+  return `<div class="ab-tile sum-st is-${v.tone}" id="${id}"><span class="ab-ico sm">${icon}</span><span class="ab-name">${name}</span><span class="ab-state"><i></i><span data-word>${v.word}</span></span><span class="ab-detail" data-detail>${v.detail}</span>${action}</div>`;
+}
+function setStatus(root: HTMLElement, id: string, v: StateView): void {
+  const el = root.querySelector<HTMLElement>(`#${id}`);
+  if (!el) return;
+  el.className = `ab-tile sum-st is-${v.tone}`;
+  (el.querySelector('[data-word]') as HTMLElement).textContent = v.word;
+  (el.querySelector('[data-detail]') as HTMLElement).textContent = v.detail;
+}
 /** Entête d'un bloc annexe : icône dans son carré et nom en gras. */
 const blockHead = (icon: string, title: string) => `<div class="sum-bh"><span class="ab-ico sm">${icon}</span><b class="ab-name">${title}</b></div>`;
 /** Sépare « 210 W » en valeur et unité (une valeur sans unité, comme « 1:39 », reste entière). */
@@ -172,6 +191,14 @@ const S = strings(
     trophy1: '{n} trophée',
     trophyN: '{n} trophées',
     rpm: 'tr/min',
+    result: 'Résultat',
+    backup: 'Sauvegarde',
+    fitAndAccount: 'FIT et compte',
+    downloadFit: 'Télécharger le .fit',
+    filesAndExports: 'Fichier et envois',
+    fitOnAccount: 'Le FIT est gardé sur ton compte.',
+    fitNotKept: 'Le FIT de cette sortie n’a pas été envoyé sur ton compte : pas de fichier ni d’envoi possible.',
+    exportsUnavailable: 'Envois illisibles pour le moment (hors ligne ?).',
   },
   {
     dec: '.',
@@ -248,6 +275,14 @@ const S = strings(
     trophy1: '{n} trophy',
     trophyN: '{n} trophies',
     rpm: 'rpm',
+    result: 'Result',
+    backup: 'Backup',
+    fitAndAccount: 'FIT and account',
+    downloadFit: 'Download the .fit',
+    filesAndExports: 'File and uploads',
+    fitOnAccount: 'The FIT is kept on your account.',
+    fitNotKept: 'The FIT of this ride was not sent to your account: no file and no upload possible.',
+    exportsUnavailable: 'Uploads unreadable right now (offline?).',
   },
 );
 
@@ -317,10 +352,17 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
   const segs = d.ride.segmentResults;
   const g = d.ride.group;
   const beaten = d.records.beaten;
+  // Ce qui vient d'être acquis, en trois blocs : le résultat, la sauvegarde, le FIT et le compte.
+  const savedNow: SaveState = d.guest ? 'guest' : typeof d.saved === 'string' ? d.saved : 'saving';
+  const statusHtml = d.end
+    ? `<div class="sum-status">${statusBlock('s-st-end', IC.flag, S('result'), d.end)}${statusBlock('s-st-save', IC.saved, S('backup'), saveView(savedNow, L))}${
+        d.guest ? '' : statusBlock('s-st-acct', IC.file, S('fitAndAccount'), accountView(a.onlineBox ? 'checking' : 'signed_out', L), `<button type="button" class="ab-btn ab-chip" id="s-fit2">${S('downloadFit')}</button>`)
+      }</div>`
+    : '';
   root.innerHTML = `<div class="sum">
     <header class="sum-head">
       <div class="sum-hero"><span class="sum-robert" aria-hidden="true"></span>
-        <div><h1 class="ab-title">${fv ? fv.title : S('wellDoneEmGreat')}</h1><p class="ab-sub">${fv ? esc(fv.subtitle) : esc(d.routeName)}</p>
+        <div><h1 class="ab-title">${fv ? fv.title : d.end?.title || S('wellDoneEmGreat')}</h1><p class="ab-sub">${fv ? esc(fv.subtitle) : esc(d.routeName)}</p>
           ${chips.length ? `<div class="sum-chips">${chips.join('')}</div>` : ''}</div></div>
       <nav class="sum-actions">
         ${a.onResume ? `<button class="sum-btn ab-btn" id="s-resume">${S('resume')}</button>` : ''}
@@ -406,7 +448,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         </section>`
         }
       </aside>
-      <main class="sum-main${ftpT ? ' ftprep-main' : ''}">${
+      <main class="sum-main${ftpT ? ' ftprep-main' : ''}">${statusHtml}${
         ftpT && fv
           ? `
         ${ftpResultCardHtml(ftpT, L)}
@@ -490,6 +532,8 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     }
   }
   on('s-fit', a.onFit);
+  on('s-fit2', a.onFit);
+  if (d.saved && typeof d.saved !== 'string') void d.saved.then((st) => setStatus(root, 's-st-save', saveView(st, L)));
   on('s-gpx', a.onGpx);
   on('s-resume', a.onResume);
   on('s-new', a.onNewRide);
@@ -501,7 +545,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
     }),
   );
   const online = root.querySelector('#s-online') as HTMLElement;
-  if (a.onlineBox) a.onlineBox(online);
+  if (a.onlineBox) a.onlineBox(online, (st) => setStatus(root, 's-st-acct', accountView(st, L)));
   else online.closest('.sum-share')?.querySelector('.sum-online')?.remove();
   if (ftpT) {
     // Choix fait sur le bilan : la carte et les zones suivent la valeur retenue.
@@ -545,10 +589,20 @@ export function showPastRide(root: HTMLElement, r: HistoryRide, o: { massKg: num
         <section class="sum-card sum-chart"><h3>${S('powerCurve')}</h3>
           <div class="sum-canvas"><canvas id="c-curve"></canvas><div class="sum-tip" hidden></div></div></section>
         <section class="sum-card sum-chart"><h3>${S('timeInZone')}</h3><div class="sum-zones" id="c-zones"></div></section>
+        <section class="sum-card sum-chart sum-wide sum-exports"><h3>${S('filesAndExports')}</h3>${
+          r.serverId && r.hasFit
+            ? `<p class="sum-muted">${S('fitOnAccount')} <a class="ab-btn ab-chip" href="${apiBase()}/activities/${encodeURIComponent(r.serverId)}/fit" download>${S('downloadFit')}</a></p><div class="rx" id="s-exports"></div>`
+            : `<p class="sum-muted">${S('fitNotKept')}</p>`
+        }</section>
       </div>
     </main>
   </div>`;
   (root.querySelector('#s-close') as HTMLElement).onclick = o.onClose;
+  // Envois tiers de la sortie : état relu sur le compte, nouvel essai possible après un échec.
+  const exportsBox = root.querySelector<HTMLElement>('#s-exports');
+  if (exportsBox && r.serverId) void renderRideExports(exportsBox, r.serverId, L).then((ok) => {
+    if (!ok && exportsBox.isConnected) exportsBox.innerHTML = `<p class="sum-muted">${S('exportsUnavailable')}</p>`;
+  });
   const stats = { curve: r.curve.map(([durationS, watts]) => ({ durationS, watts })) } as RideStats;
   if (r.zonesS.length) drawZones(root.querySelector('#c-zones') as HTMLElement, r.zonesS, r.ftpAtRide ?? o.ftp);
   else (root.querySelector('#c-zones') as HTMLElement).innerHTML = `<p class="sum-muted">${S('noZoneDataFor')}</p>`;

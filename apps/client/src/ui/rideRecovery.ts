@@ -8,11 +8,16 @@ import './blocks.css';
 import './rideRecovery.css';
 import { getLang, strings } from '../i18n/index.ts';
 import { loadDraft, pendingDrafts, type DraftStore, type RideDraft } from '../game/rideDraft.ts';
+import { accountView, saveView, type AccountState } from './rideOutcome.ts';
 
 const S = strings(
   {
     title: 'Sortie interrompue',
     sub: 'Ta dernière sortie ne s’est pas terminée normalement. Elle est sauvegardée jusqu’à {time}.',
+    history: 'Historique',
+    account: 'FIT et compte',
+    notYet: 'Pas encore enregistrée',
+    notYetDetail: 'Rien n’est compté tant que tu ne l’enregistres pas.',
     km: 'km',
     duration: 'durée',
     watts: 'W moy.',
@@ -31,6 +36,10 @@ const S = strings(
   {
     title: 'Interrupted ride',
     sub: 'Your last ride did not end normally. It is saved up to {time}.',
+    history: 'History',
+    account: 'FIT and account',
+    notYet: 'Not saved yet',
+    notYetDetail: 'Nothing counts until you save it.',
     km: 'km',
     duration: 'time',
     watts: 'W avg.',
@@ -50,7 +59,7 @@ const S = strings(
 
 export interface RecoveryActions {
   /** Enregistre la sortie (historique) et crédite l'XP restante ; renvoie l'XP gagnée. */
-  save(draft: RideDraft): Promise<{ xp: number }>;
+  save(draft: RideDraft): Promise<{ xp: number; account?: AccountState }>;
   /** Télécharge le FIT de la sortie. */
   fit(draft: RideDraft): void;
 }
@@ -104,6 +113,10 @@ function showDraft(store: DraftStore, draft: RideDraft, actions: RecoveryActions
         <span class="ab-val rr-vals"><span><b>${num(draft.distanceM / 1000, 1)}</b> <small>${S('km')}</small></span><span><b>${duration(draft.elapsedS)}</b> <small>${S('duration')}</small></span>${watts > 0 ? `<span><b>${Math.round(watts)}</b> <small>${S('watts')}</small></span>` : ''}</span>
         ${draft.simulated ? `<span class="ab-state is-warn"><i></i>${S('simulated')}</span>` : ''}
       </div>
+      <div class="rr-states" aria-live="polite">
+        <div class="rr-state" data-st="history"><b>${S('history')}</b><span class="ab-state is-warn"><i></i><span>${S('notYet')}</span></span><small>${S('notYetDetail')}</small></div>
+        <div class="rr-state" data-st="account" hidden><b>${S('account')}</b><span class="ab-state"><i></i><span></span></span><small></small></div>
+      </div>
       <p class="rr-msg" aria-live="polite"></p>
       <footer class="ab-foot"><span class="rr-later">${S('later')}</span><div class="ab-btns">
         <button type="button" class="ab-btn" data-rr="ignore">${S('ignore')}</button>
@@ -114,6 +127,14 @@ function showDraft(store: DraftStore, draft: RideDraft, actions: RecoveryActions
     document.body.appendChild(root);
     const btn = (k: string) => root.querySelector<HTMLButtonElement>(`[data-rr="${k}"]`)!;
     const msg = root.querySelector<HTMLElement>('.rr-msg')!;
+    const setState = (key: string, tone: string, word: string, detail: string) => {
+      const row = root.querySelector<HTMLElement>(`[data-st="${key}"]`)!;
+      row.hidden = false;
+      const st = row.querySelector<HTMLElement>('.ab-state')!;
+      st.className = `ab-state is-${tone}`;
+      (st.lastElementChild as HTMLElement).textContent = word;
+      row.querySelector('small')!.textContent = detail;
+    };
     const close = (next: boolean) => {
       document.removeEventListener('keydown', onKey, true);
       root.remove();
@@ -143,10 +164,17 @@ function showDraft(store: DraftStore, draft: RideDraft, actions: RecoveryActions
       btn('ignore').disabled = true;
       save.textContent = S('saving');
       try {
-        const { xp } = await actions.save(draft);
+        const { xp, account } = await actions.save(draft);
         await store.remove(draft.startT);
-        msg.textContent = `${S('saved')}${xp > 0 ? ` · ${S('xp').replace('{n}', String(xp))}` : ''}`;
-        msg.classList.add('is-ok');
+        // Ce qui vient d'être acquis : l'historique et l'XP, puis le sort du FIT (compte ou seulement cet appareil).
+        const fr = getLang() === 'fr';
+        const h = saveView('saved', fr);
+        setState('history', h.tone, `${h.word}${xp > 0 ? ` · ${S('xp').replace('{n}', String(xp))}` : ''}`, h.detail);
+        if (account) {
+          const v = accountView(account, fr);
+          setState('account', v.tone, v.word, account === 'sent' ? v.detail : fr ? 'Le FIT n’est pas sur ton compte : télécharge-le maintenant, il ne sera plus proposé.' : 'The FIT is not on your account: download it now, it will not be offered again.');
+        }
+        msg.textContent = '';
         btn('ignore').remove();
         save.disabled = false;
         save.textContent = S('close');

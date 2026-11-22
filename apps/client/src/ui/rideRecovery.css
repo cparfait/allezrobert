@@ -16,3 +16,9 @@
 @keyframes rr-in {
   from { opacity: 0; transform: translateY(12px); }
 }
+
+/* Ce qui est acquis : une ligne par chose (historique, FIT et compte), état en un mot puis détail. */
+.rr-states { display: grid; gap: 8px; }
+.rr-state { display: grid; grid-template-columns: 130px auto; gap: 2px 12px; align-items: center; padding: 10px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); font-size: 15px; }
+.rr-state[hidden] { display: none; }
+.rr-state small { grid-column: 2; font-size: 14px; color: #c3cddb; }

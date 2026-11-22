@@ -5,6 +5,8 @@ import { worldToWgs84, type ActivityRecord, type RideKind } from '@allezrobert/s
 import { t, getLang } from '../i18n/index.ts';
 import type { SummaryVideoPanel } from './summaryvideo.ts';
 import { apiBase, fetchMe } from './account.ts';
+import { renderRideExports, uploadRideFit } from './rideExports.ts';
+import type { AccountState } from './rideOutcome.ts';
 import { renderRideInvite } from './friends.ts';
 import type { RideSession } from '../game/ride.ts';
 import { renderMusicControls, renderSoundSettings } from './soundSettings.ts';
@@ -254,12 +256,15 @@ export interface UploadMeta {
   ftp: number;
   /** FIT bien enregistré sur le compte. */
   onSaved?: () => void;
+  /** État de l'envoi sur le compte, pour le bloc « Compte » du bilan. */
+  onAccount?: (state: AccountState) => void;
 }
 
 export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () => Uint8Array, video?: SummaryVideoPanel, meta?: UploadMeta): Promise<void> {
   const fr = getLang() === 'fr';
   const me = await fetchMe();
   video?.setLoggedIn(!!me);
+  meta?.onAccount?.(me ? 'to_send' : 'signed_out');
   if (!me) {
     box.innerHTML = `<p class="meta" style="color:var(--ar-muted);font-size:13px">${fr ? 'Connecte-toi pour enregistrer la sortie sur ton compte et l’envoyer vers Strava / intervals.icu.' : 'Sign in to save the ride and send it to Strava / intervals.icu.'}</p>`;
     return;
@@ -276,7 +281,7 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
       ${integ?.strava.available && !integ.strava.connected ? `<button class="btn small" id="o-strava">${fr ? 'Relier' : 'Link'}</button>` : ''}</div>
     <div class="device"><div><b>intervals.icu</b><div class="meta">${integ?.intervals.connected ? (fr ? 'relié' : 'linked') : fr ? 'clé API (Réglages → Developer settings)' : 'API key (Settings → Developer settings)'}</div></div>
       ${integ?.intervals.connected ? '' : `<form id="o-int" class="row"><input id="o-intkey" type="password" placeholder="${fr ? 'clé API' : 'API key'}" class="btn small" style="width:160px;text-align:left"/><button class="btn small" type="submit">${fr ? 'Relier' : 'Link'}</button></form>`}</div>
-  </div>`;
+  </div><div class="rx" id="o-exports"></div>`;
   box.querySelector('#o-strava')?.addEventListener('click', () => (location.href = `${apiBase()}/integrations/strava/start?redirect=${encodeURIComponent(location.pathname)}`));
   box.querySelector('#o-int')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -288,24 +293,28 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
   box.querySelector('#o-save')?.addEventListener('click', async (e) => {
     const b = e.target as HTMLButtonElement;
     b.disabled = true;
-    const q = new URLSearchParams({ name: `Allez Robert ! — ${ride.route.name}`.slice(0, 100), routeId: ride.route.id, skipStrava: st.skipStrava ? '1' : '0' });
-    if (meta) {
-      q.set('clientRideId', meta.clientRideId);
-      q.set('kind', meta.kind);
-      q.set('ftp', String(Math.round(meta.ftp)));
-      if (meta.workoutId) q.set('workoutId', meta.workoutId.slice(0, 80));
-      if (meta.workoutName) q.set('workoutName', meta.workoutName.slice(0, 100));
-    }
-    const r = await api(`/activities?${q}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: fit() as BlobPart }).catch(() => null);
+    meta?.onAccount?.('sending');
+    const sent = await uploadRideFit(fit(), {
+      name: `Allez Robert ! — ${ride.route.name}`,
+      routeId: ride.route.id,
+      skipStrava: !!st.skipStrava,
+      ...(meta ? { clientRideId: meta.clientRideId, kind: meta.kind, ftp: meta.ftp, workoutId: meta.workoutId ?? null, workoutName: meta.workoutName ?? null } : {}),
+    });
     const msg = box.querySelector('#o-save-msg') as HTMLElement;
-    if (r?.ok) {
-      const j = (await r.json()) as { xpGained: number; progression: { level: number }; activity?: { id: string } };
-      if (j.activity?.id) video?.setActivity(j.activity.id);
+    if (sent) {
+      if (sent.activityId) video?.setActivity(sent.activityId);
       meta?.onSaved?.();
-      msg.textContent = `${fr ? 'Enregistrée' : 'Saved'} · +${j.xpGained} XP · ${fr ? 'niveau' : 'level'} ${j.progression.level}${integ?.strava.connected && !st.skipStrava ? ' · Strava…' : ''}${integ?.intervals.connected ? ' · intervals.icu…' : ''}`;
+      meta?.onAccount?.('sent');
+      msg.textContent = sent.duplicate ? (fr ? 'Déjà sur ton compte.' : 'Already on your account.') : `${fr ? 'Enregistrée' : 'Saved'} · +${sent.xpGained} XP · ${fr ? 'niveau' : 'level'} ${sent.level}`;
+      b.textContent = fr ? 'Envoyée' : 'Sent';
+      // Strava et intervals.icu partent en arrière-plan : on montre leur résultat, et un nouvel essai en cas d'échec.
+      const exportsBox = box.querySelector<HTMLElement>('#o-exports');
+      if (exportsBox && sent.activityId) void renderRideExports(exportsBox, sent.activityId, fr, { settle: true });
     } else {
-      msg.textContent = fr ? 'Enregistrement impossible pour le moment.' : 'Could not save right now.';
+      meta?.onAccount?.('failed');
+      msg.textContent = fr ? 'Envoi impossible pour le moment : réessaie, ou télécharge le FIT.' : 'Could not send right now: try again, or download the FIT.';
       b.disabled = false;
+      b.textContent = fr ? 'Réessayer' : 'Try again';
     }
   });
 }
