@@ -6,7 +6,7 @@ import { BIKE_REFERENCE, DEFAULT_LOOK, DEFAULT_TRAINER, PLAIN_BIKE_FAMILY, bikeB
 import { createAvatar, GltfRiderAvatar, type RiderAvatarLike, type RiderPose } from '../rider/gltfAvatar.ts';
 import { V3_STYLE } from '../engine/style.ts';
 import { createV3Garage } from '../v3/garage.ts';
-import { getV3Catalog, loadV3DisplayBike, readV3Equipment, V3Visual } from '../v3/visuals.ts';
+import { getV3Catalog, loadV3DisplayBike, readV3Equipment, V3Visual, type V3Equipment } from '../v3/visuals.ts';
 import { V3ThumbnailStudio } from '../v3/thumbnails.ts';
 import { BikeMaterials, loadBikeFamily, loneWheel, onBikeFamilyLoaded } from '../rider/bikes.ts';
 import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixOption, roubaixSizeForRider, type RoubaixBike, type RoubaixDress } from '../rider/roubaix.ts';
@@ -275,6 +275,11 @@ export class AtelierHost {
   private v3Reveal?: string;
   private v3Studio?: V3ThumbnailStudio;
   private v3Pose?: string;
+  /**
+   * Équipement Beta montré en ce moment (essai d'un article compris), donné par le garage Beta : réappliqué à chaque
+   * redessin (rotation du coureur…) au lieu de la tenue enregistrée, qui annulait l'essai dès qu'on tournait le coureur.
+   */
+  private v3Shown?: V3Equipment;
   private v3Playing = false;
   /** Garage V3, Personnage › Cheveux : casque retiré pour voir la coiffure. */
   private v3BareHead = false;
@@ -313,6 +318,7 @@ export class AtelierHost {
     if (st.v3Picker && !this.v3Panel) {
       this.v3Panel = createV3Garage({
         equipment: equipment => {
+          this.v3Shown = equipment;
           if (!this.state) return;
           this.v3?.set(this.state.look, equipment);
           this.mountTrainer(this.state.rider ? this.v3TrainerId() : undefined);
@@ -340,7 +346,9 @@ export class AtelierHost {
     }
     // Vélo V3 chargé ou changé : home trainer recalé sur ses roues.
     this.v3 ??= new V3Visual(this.avatar.v3Mount(), () => { this.frames = Math.max(this.frames, 2); if (this.trainer) this.fitTrainer(); }, error => this.v3Panel?.report(error));
-    this.v3.set(st.look);
+    // Garage Beta fermé : plus d'essai en cours, c'est la tenue enregistrée qui compte.
+    if (!st.v3Picker) this.v3Shown = undefined;
+    this.v3.set(st.look, this.v3Shown);
   }
 
   constructor(private readonly engine: Engine) {
