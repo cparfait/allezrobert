@@ -100,8 +100,8 @@ export interface RideExtras {
  * seul le surplus compte (et la série de jours n'est comptée qu'une fois).
  */
 export function awardRide(
-  ride: { distanceM: number; elevationM: number; movingS: number },
-  already?: { distanceM: number; elevationM: number; movingS: number },
+  ride: { distanceM: number; elevationM: number; movingS: number; workKJ?: number | null },
+  already?: { distanceM: number; elevationM: number; movingS: number; workKJ?: number | null },
   extra: RideExtras = {},
 ): { gained: number; total: number; level: number; progress: number; levelUp: boolean; unlocked: CosmeticItem[]; credits: number; streakDays: number; won: TuneItem[] } {
   const p = loadProgress();

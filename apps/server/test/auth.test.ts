@@ -109,6 +109,10 @@ describe('progression', () => {
   it('formule d’XP et niveaux', () => {
     expect(xpForRide({ distanceM: 30_000, elevationM: 300, movingS: 3600 })).toBe(1020);
     expect(xpForRide({ distanceM: 1e7, elevationM: 1e5, movingS: 1e6 })).toBe(4000);
+    // Avec la puissance : 1,2 XP par kJ + 4 par km (une heure à 200 W sur 30 km).
+    expect(xpForRide({ distanceM: 30_000, elevationM: 300, movingS: 3600, workKJ: 720 })).toBe(984);
+    // Descente en roue libre : presque rien.
+    expect(xpForRide({ distanceM: 5_000, elevationM: 0, movingS: 400, workKJ: 1 })).toBe(21);
     expect(xpForLevel(1)).toBe(0);
     expect(xpForLevel(2)).toBe(500);
     expect(xpForLevel(10)).toBe(22_500);

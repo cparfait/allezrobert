@@ -1068,9 +1068,24 @@ export class RideSimulation {
       if (n > 0) this.speedTrimWkg = Math.min(Math.max(this.speedTrimWkg + (v - sumSpeed / n) * 0.03 * dt, -1.2), 2.2);
       announced = flatWkg + this.speedTrimWkg;
     } else this.speedTrimWkg = 0;
-    const target = announced ?? (k > 0 ? sum / k : this.options.aiPaceWkg);
+    // Course : l'allure des IA vient de leur propre niveau (82 % de leur FTP, moyenne du peloton IA), plus de celle
+    // des humains ; on peut donc lâcher le peloton ou s'en faire lâcher. Sortie de groupe : elles suivent les humains.
+    const racePace = this.options.mode === 'race' ? this.aiRacePaceWkg() : undefined;
+    const target = announced ?? racePace ?? (k > 0 ? sum / k : this.options.aiPaceWkg);
     const a = 1 - Math.exp(-dt / (announced !== undefined ? 5 : 15));
     this.groupPaceWkg += (Math.min(Math.max(target, 1.2), 5.5) - this.groupPaceWkg) * a;
+  }
+
+  /** Allure de course des IA (W/kg) : 82 % de leur FTP moyenne rapportée au poids ; aucune IA : rien. */
+  private aiRacePaceWkg(): number | undefined {
+    let sum = 0;
+    let n = 0;
+    for (const r of this.riders) {
+      if (r.kind !== 'ai') continue;
+      sum += r.ftpWatts / r.riderMassKg;
+      n++;
+    }
+    return n > 0 ? (0.82 * sum) / n : undefined;
   }
 
   private aiContext(r: SimRider): AiContext {

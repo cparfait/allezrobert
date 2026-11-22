@@ -289,7 +289,8 @@ export function mountApi(app: express.Application, ctx: AppContext): void {
     }
     // Sans consentement FC : aucune donnée cardiaque n'est conservée.
     const fit = imported.hasHr && !profile.consentHr ? stripHeartRate(imported) : new Uint8Array(req.body);
-    const xp = xpForRide(s);
+    // XP au travail produit quand le FIT porte la puissance (moyenne × temps de roulage).
+    const xp = xpForRide({ ...s, workKJ: s.avgWatts !== undefined ? (s.avgWatts * s.movingS) / 1000 : null });
     const skipStrava = q.skipStrava === '1' || q.skipStrava === 'true' || profile.skipStrava;
     const before = levelInfo((await ctx.repos.getProgression(u.userId)).xp);
     const id = await ctx.repos.insertActivity({

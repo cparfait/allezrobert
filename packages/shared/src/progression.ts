@@ -12,8 +12,15 @@ import type { AvatarLook, CapLook, HelmetShape, JerseyStyle } from './net.ts';
 export const MAX_LEVEL = 50;
 export const MAX_XP_PER_RIDE = 4000;
 
-export function xpForRide(r: { distanceM: number; elevationM: number; movingS: number }): number {
+/**
+ * XP d'une sortie. Avec la puissance, l'XP suit le travail produit (1,2 XP par kJ) plus 4 XP par km : une
+ * descente en roue libre ne rapporte presque rien, un effort au seuil rapporte beaucoup. Sans puissance
+ * (`workKJ` absent ou nul), ancienne règle : 20/km + 1/m de dénivelé + 2/min. Une heure à 200 W sur 30 km
+ * donne à peu près la même chose dans les deux cas (≈ 1 000 XP).
+ */
+export function xpForRide(r: { distanceM: number; elevationM: number; movingS: number; workKJ?: number | null }): number {
   const km = Math.max(0, r.distanceM) / 1000;
+  if (r.workKJ && r.workKJ > 0) return Math.min(MAX_XP_PER_RIDE, Math.round(1.2 * r.workKJ + 4 * km));
   return Math.min(MAX_XP_PER_RIDE, Math.round(20 * km + Math.max(0, r.elevationM) + (2 * Math.max(0, r.movingS)) / 60));
 }
 

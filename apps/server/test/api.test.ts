@@ -269,7 +269,9 @@ describe('API — sorties, segments, progression', () => {
     expect(up.status).toBe(201);
     expect(up.body.activity.distanceM).toBeCloseTo(16_200, -1);
     expect(up.body.activity.avgHr).toBeUndefined();
-    expect(up.body.xpGained).toBe(Math.round(20 * 16.2 + up.body.activity.elevationM + 2 * (up.body.activity.movingS / 60)));
+    // XP au travail produit (puissance moyenne × temps de roulage) : 1,2 par kJ + 4 par km.
+    const a = up.body.activity;
+    expect(up.body.xpGained).toBe(Math.round(1.2 * ((a.avgWatts * a.movingS) / 1000) + (4 * a.distanceM) / 1000));
     expect(up.body.progression.level).toBe(2);
     expect(up.body.newlyUnlocked).toContain('jersey-chevreuse');
     const fit = await s.req('GET', `/api/activities/${up.body.activity.id}/fit`);
