@@ -646,7 +646,7 @@ export class Peloton {
       // Pièces sous ~1,5 px retirées du rendu (smallParts.ts), une image sur 6 par coureur.
       if (SMALL_PARTS_CULL && r.avatar.root.visible && (this.animFrame + ri) % 6 === 0) cullSmallParts(r.avatar.root, camera.position, camera.projectionMatrix.elements[5] ?? 1);
       // Au-delà de 60 m, version légère : un seul maillage figé (riderLight.ts), après la mise à jour V3 en style Bêta.
-      if (detail) updateRiderLight(r.avatar.root, detail, dist, this.animFrame, true, undefined, lightColorOf(r.avatar, r.v3));
+      if (detail) updateRiderLight(r.avatar.root, detail, dist, this.animFrame, true, undefined, lightColorOf(r.avatar, r.v3), !r.v3 || r.v3.posed);
       // Pièces de même matériau fusionnées (riderMerge.ts), tous styles : vérification une image sur 10.
       if (r.avatar.root.visible && (this.animFrame + ri) % 10 === 0) updateRiderMerge(r.avatar.root, this.animFrame);
     }

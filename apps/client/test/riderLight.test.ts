@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
-import { bakeLightGeometry } from '../src/game/riderLight.ts';
+import { bakeLightGeometry, needsLightBuild, updateRiderLight } from '../src/game/riderLight.ts';
 
 describe('coureur lointain en version légère', () => {
   it('un seul maillage, sommets dans le repère du coureur, couleur de chaque pièce', () => {
@@ -24,5 +24,39 @@ describe('coureur lointain en version légère', () => {
     expect(col.getX(0)).toBeCloseTo(1, 3);
     expect(col.getZ(pos.count - 1)).toBeCloseTo(1, 3);
     expect(g.index?.count).toBe((frame.geometry.index?.count ?? 0) + (wheel.geometry.index?.count ?? 0));
+  });
+
+  it('corps à squelette jamais dessiné : figé à sa place, pas à son ancienne position', () => {
+    const root = new THREE.Group();
+    const bone = new THREE.Bone();
+    const geometry = new THREE.BoxGeometry(0.4, 1.6, 0.3);
+    const n = geometry.getAttribute('position').count;
+    geometry.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(new Uint16Array(n * 4), 4));
+    geometry.setAttribute('skinWeight', new THREE.Float32BufferAttribute(Float32Array.from({ length: n * 4 }, (_, i) => (i % 4 === 0 ? 1 : 0)), 4));
+    const body = new THREE.SkinnedMesh(geometry, new THREE.MeshStandardMaterial());
+    body.add(bone);
+    root.add(body);
+    root.updateMatrixWorld(true);
+    body.bind(new THREE.Skeleton([bone]));
+    // Le coureur a roulé 300 m depuis la dernière mise à jour « de rendu » de son corps (masqué entre-temps).
+    root.position.set(300, 0, 0);
+    root.updateWorldMatrix(true, true);
+    const g = bakeLightGeometry([body], root);
+    g.computeBoundingBox();
+    expect(g.boundingBox!.min.x).toBeCloseTo(-0.2, 4);
+    expect(g.boundingBox!.max.x).toBeCloseTo(0.2, 4);
+  });
+
+  it('rendu détaillé pas encore prêt (coureur Bêta en chargement) : pas de version légère figée', () => {
+    const root = new THREE.Group();
+    const detail = new THREE.Group();
+    for (let i = 0; i < 3; i++) detail.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial()));
+    root.add(detail);
+    updateRiderLight(root, detail, 100, 1, false, true, undefined, false);
+    expect(needsLightBuild(root)).toBe(true);
+    expect(detail.visible).toBe(true);
+    updateRiderLight(root, detail, 100, 2, false, true, undefined, true);
+    expect(needsLightBuild(root)).toBe(false);
+    expect(detail.visible).toBe(false);
   });
 });

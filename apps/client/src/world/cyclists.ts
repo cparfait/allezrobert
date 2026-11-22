@@ -386,7 +386,7 @@ export class AmbientCyclists {
         a.setShadows(dist < this.shadowRange);
         if (SMALL_PARTS_CULL && a.root.visible && (this.animFrame + m.cadenceOff + 8) % 6 === 0) cullSmallParts(a.root, camera.position, (camera as THREE.PerspectiveCamera).projectionMatrix.elements[5] ?? 1);
         // Version légère au-delà de 60 m et pièces fusionnées (riderLight.ts, riderMerge.ts), tous styles.
-        if (detail) updateRiderLight(a.root, detail, dist, this.animFrame, castsShadow(a) && dist < this.shadowRange, undefined, lightColorOf(a, m.v3));
+        if (detail) updateRiderLight(a.root, detail, dist, this.animFrame, castsShadow(a) && dist < this.shadowRange, undefined, lightColorOf(a, m.v3), !m.v3 || m.v3.posed);
         if (m.v3) applyRiderShadows(a.root, dist < this.shadowRange, (m.v3 as unknown as { group: THREE.Object3D }).group);
         if (a.root.visible && (this.animFrame + m.cadenceOff + 3) % 10 === 0) updateRiderMerge(a.root, this.animFrame);
         if (c.sens > 0 && !outside) {

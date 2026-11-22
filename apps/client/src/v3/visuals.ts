@@ -1249,6 +1249,22 @@ export class V3Visual {
   get settled(): boolean {
     return this.ready && !!this.bike && !!this.rider && this.loading === 0;
   }
+  /** Mis en posture par `update` depuis le dernier chargement (voir `posed`). */
+  private posedOk = false;
+
+  /**
+   * Coureur complet (vélo, coureur, tenue) ET mis en posture depuis son dernier chargement : il peut être figé en
+   * version légère (riderLight.ts). Sans cela, un cycliste lointain était figé dès l'arrivée de son modèle, debout
+   * bras en croix, parfois sans vélo, et restait ainsi tant qu'il était à plus de 60 m de la caméra (caméra TV).
+   */
+  get posed(): boolean {
+    return this.posedOk && this.settled && this.group.visible;
+  }
+
+  private startLoading(): void {
+    this.loading++;
+    this.posedOk = false;
+  }
   private feet?: { rider: RiderVisual; right: Bone; left: Bone };
 
   activeEquipment(): V3Equipment | undefined {
@@ -1257,6 +1273,8 @@ export class V3Visual {
 
   constructor(private readonly mount: V3Mount, private readonly redraw = () => {}, private readonly report = (error: unknown) => console.warn(error)) {
     this.group.rotation.y = -Math.PI / 2;
+    // Masqué jusqu'à la première mise à jour complète (`update`) : un modèle tout juste chargé est en pose de repos.
+    this.group.visible = false;
     this.mount.parent.add(this.group);
     void getV3Clips().then(clips => { this.clips = clips; this.ready = true; this.redraw(); }).catch(this.report);
   }
@@ -1266,7 +1284,7 @@ export class V3Visual {
     this.equipment = equipment;
     if (equipment.bike !== previous?.bike || equipment.color !== previous.color || equipment.hue !== previous.hue || equipment.wheels !== previous.wheels) {
       const request = ++this.bikeRequest;
-      this.loading++;
+      this.startLoading();
       void loadBike(equipment).then(bike => {
         if (request !== this.bikeRequest) { free(bike.scene); return; }
         if (this.bike) free(this.bike.scene);
@@ -1281,7 +1299,7 @@ export class V3Visual {
       this.sex = sex;
       this.body = body;
       const request = ++this.riderRequest;
-      this.loading++;
+      this.startLoading();
       void loadRider(sex, body).then(rider => {
         if (request !== this.riderRequest) { free(rider.scene); return; }
         if (this.rider) {
@@ -1336,7 +1354,7 @@ export class V3Visual {
     if (this.kitKey === key) return;
     this.kitKey = key;
     const request = ++this.kitRequest;
-    this.loading++;
+    this.startLoading();
     // Pièces retirées (article « None ») : rien à charger, la pièce du corps est cachée.
     const bare = new Set<string>();
     const loaded = getV3Gear().then(items => {
@@ -1606,6 +1624,7 @@ export class V3Visual {
     if (!bike || (options.rider !== false && !showRider)) {
       this.mount.replace(true, true);
       this.group.visible = false;
+      this.posedOk = false;
       return;
     }
     this.group.visible = true;
@@ -1666,6 +1685,7 @@ export class V3Visual {
       !covered ? 'none' : helmetGear?.item.hairGeom ?? 'helmet');
     rider.levels.forEach(node => { node.visible = node.name === ['LOD0', 'LOD2', 'LOD5'][level]; });
     this.sway(dt, cadence, options.effort ?? 0.7, name, at === undefined, !!options.rock, !!options.trainer);
+    if (clip && this.loading === 0) this.posedOk = true;
   }
 
   dispose(): void {

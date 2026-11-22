@@ -110,6 +110,10 @@ export function bakeLightGeometry(parts: THREE.Mesh[], root: THREE.Object3D, col
     const c = partColor(p, colorOf);
     const vc = vertexColors(p);
     _m.multiplyMatrices(_inv, p.matrixWorld);
+    // Maillage à squelette : sa matrice de liaison inverse n'est remise à jour qu'au rendu (updateMatrixWorld). Pour
+    // une pièce jamais dessinée, ou masquée pendant que le coureur roulait, elle datait d'une ancienne position : le
+    // corps partait à des dizaines de mètres du vélo. Recalculée ici, comme le fait le rendu.
+    if (skin.isSkinnedMesh && skin.bindMode !== THREE.DetachedBindMode) skin.bindMatrixInverse.copy(skin.matrixWorld).invert();
     for (let i = 0; i < src.count; i++) {
       _v.fromBufferAttribute(src, i);
       if (skin.isSkinnedMesh) skin.applyBoneTransform(i, _v);
@@ -161,14 +165,18 @@ function cacheKey(parts: THREE.Mesh[], colorOf?: LightColor): string {
 /**
  * Bascule détaillé ↔ léger pour un coureur. `group` : rendu détaillé (V3Visual.group, ou branche du coureur réaliste
  * ou poly, voir riderDetail.ts) ; `root` : racine du coureur. `frame` : compteur d'images de l'appelant (une
- * construction au plus par image). `colorOf` : couleurs des pièces teintées par nœuds (riderDetail.ts).
+ * construction au plus par image). `colorOf` : couleurs des pièces teintées par nœuds (riderDetail.ts). `ready` :
+ * le rendu détaillé est complet et en posture (coureur Bêta : `V3Visual.posed`) ; sinon rien n'est construit.
  */
-export function updateRiderLight(root: THREE.Object3D, group: THREE.Object3D, distM: number, frame: number, castShadow: boolean, enabled = RIDER_LIGHT, colorOf?: LightColor): void {
+export function updateRiderLight(root: THREE.Object3D, group: THREE.Object3D, distM: number, frame: number, castShadow: boolean, enabled = RIDER_LIGHT, colorOf?: LightColor, ready = true): void {
   if (!enabled) return;
   let st = states.get(root);
   if (!st) states.set(root, (st = { mesh: null, on: false }));
   const want = st.on ? distM > LIGHT_BACK_M : distM > LIGHT_FROM_M;
   if (want && !st.mesh) {
+    // Rendu détaillé pas encore complet ni en posture (coureur Bêta en cours de chargement) : on attend, la version
+    // légère fige ce qu'elle voit et n'est jamais refaite.
+    if (!ready) return;
     if (lastBuildFrame === frame) return;
     root.updateWorldMatrix(true, true);
     const parts = detailParts(group);
