@@ -135,7 +135,8 @@ const S = strings(
     changeWorkout: 'Changer de séance',
     chooseYourWorkout: 'Choisis ta séance',
     close: 'Fermer',
-    orImportAWorkout: 'Ou importer une séance',
+    orImportAWorkout: 'Importer une séance',
+    workoutPickSub: 'Regarde le profil, règle l’intensité, puis choisis.',
     t8MinFrom50: '8 min de 50 à 80 W',
     t1530Min: '15 à 30 min',
     t5MinAt100: '5 min à 100 W',
@@ -485,7 +486,8 @@ const S = strings(
     changeWorkout: 'Change workout',
     chooseYourWorkout: 'Choose your workout',
     close: 'Close',
-    orImportAWorkout: 'Or import a workout',
+    orImportAWorkout: 'Import a workout',
+    workoutPickSub: 'Look at the profile, set the intensity, then choose.',
     t8MinFrom50: '8 min from 50 to 80 W',
     t1530Min: '15–30 min',
     t5MinAt100: '5 min at 100 W',
@@ -2575,7 +2577,7 @@ export class MainMenu {
     const L = fr();
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker wk-dialog ws" role="dialog" aria-modal="true">
-        <header><h2 class="ab-title">${S('chooseYourWorkout')}</h2><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
+        <header><div class="pk-head"><h2 class="ab-title">${S('chooseYourWorkout')}</h2><p class="ab-sub">${S('workoutPickSub')}</p></div><label class="ab-btn ws-import" title=".zwo / .erg / .mrc">${S('orImportAWorkout')}<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
         ${workoutStudioHtml({
           fr: L,
           filter: this.wkFilter,
@@ -2594,7 +2596,6 @@ export class MainMenu {
           sort: this.wkSort,
           intensity: clampWorkoutIntensity(this.s.workoutIntensity),
         })}
-        <label class="mm-file">${S('orImportAWorkout')} (.zwo / .erg / .mrc)<input id="m-workout" type="file" accept=".zwo,.erg,.mrc" hidden /><span id="m-wname">${this.workoutFile ? esc(this.workoutFile.name) : ''}</span></label>
       </div></div>`;
   }
 

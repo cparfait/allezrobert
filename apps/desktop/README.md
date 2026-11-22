@@ -193,7 +193,7 @@ des chaînes en français (`invoke(...)` rejette avec ce texte).
 ```
 apps/desktop/
 ├── package.json              # @allezrobert/desktop (scripts tauri dev / build)
-├── scripts/make-icon.mjs     # icône provisoire 1024 px (sans dépendance)
+├── src-tauri/icons/source.png # icône 1024 px (tête de Robert) ; `pnpm icons` refait les autres tailles
 └── src-tauri/
     ├── Cargo.toml / build.rs / tauri.conf.json
     ├── capabilities/default.json
