@@ -78,9 +78,20 @@ function takeReturnCode(): string | null {
 
 let returned: string | null | undefined;
 
+/**
+ * Images officielles de Strava (developers.strava.com/guidelines, archives 1.1 et 1.2), utilisées telles quelles :
+ * bouton « Connect with Strava » (48 px de haut) et logo « Compatible with Strava » (blanc, sur fond sombre).
+ */
+const STRAVA_BUTTON = `${import.meta.env.BASE_URL}strava/btn_strava_connect_with_orange.svg`;
+export const STRAVA_COMPATIBLE_LOGO = `${import.meta.env.BASE_URL}strava/api_logo_cptblWith_strava_horiz_white.svg`;
+/** Logo « Compatible with Strava », plus discret que le nom du jeu (règles de marque de Strava). */
+export function stravaCompatibleHtml(): string {
+  return `<img class="strava-compat" src="${STRAVA_COMPATIBLE_LOGO}" alt="Compatible with Strava" height="14" loading="lazy" />`;
+}
+
 /** Bloc « Strava » au langage des gros blocs : icône, détail, état en toutes lettres, action en pied. */
 function tile(tone: '' | 'is-ok' | 'is-warn' | 'is-bad', detail: string, state: string, action = ''): string {
-  return `<div class="ab-tile ${tone}" style="padding:14px 16px 12px"><span class="ab-ico sm">${UPLOAD_ICON}</span><span class="ab-name">Strava</span><span class="ab-detail">${detail}</span><span class="ab-state"><i></i>${state}</span>${action}</div>`;
+  return `<div class="ab-tile ${tone}" style="padding:14px 16px 12px"><span class="ab-ico sm">${UPLOAD_ICON}</span><span class="ab-name">Strava</span><span class="ab-detail">${detail}</span><span class="ab-state"><i></i>${state}</span>${action}</div><div class="strava-compat-row">${stravaCompatibleHtml()}</div>`;
 }
 
 /**
@@ -112,7 +123,8 @@ export function renderStravaLink(el: Element | null, loggedIn: boolean): void {
         renderStravaLink(el, true);
       });
     } else {
-      el.innerHTML = flash + tile('', S('linkHint'), S('stateNotLinked'), `<button type="button" class="ab-btn ab-chip" id="strava-link">${S('link')}</button>`);
+      // Bouton officiel « Connect with Strava » (image de Strava, non modifiée) : il mène à la page d'autorisation de Strava.
+      el.innerHTML = flash + tile('', S('linkHint'), S('stateNotLinked'), `<button type="button" class="strava-connect" id="strava-link" aria-label="${S('link')}"><img src="${STRAVA_BUTTON}" alt="Connect with Strava" width="237" height="48" /></button>`);
       el.querySelector('#strava-link')?.addEventListener('click', () => {
         location.href = `${apiBase()}/integrations/strava/start?redirect=${encodeURIComponent(location.pathname)}`;
       });

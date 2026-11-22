@@ -1,3 +1,4 @@
+import { stravaCompatibleHtml } from './stravaLink.ts';
 import { phoneIcon } from './companionQr.ts';
 import { encodeActivity, buildActivity } from '@allezrobert/fit';
 import { worldToWgs84, type ActivityRecord, type RideKind } from '@allezrobert/shared';
@@ -271,7 +272,7 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
   const st = JSON.parse(localStorage.getItem('ar.settings') ?? '{}') as { skipStrava?: boolean };
   box.innerHTML = `<h4 class="sum-sub">${fr ? 'Compte et services' : 'Account and services'}</h4><div class="device-list">
     <div class="device"><div><b>${fr ? 'Mon compte' : 'My account'}</b><div class="meta" id="o-save-msg">${fr ? 'Enregistre la sortie, l’XP et les segments' : 'Saves the ride, XP and segments'}</div></div><button class="btn small primary" id="o-save">${fr ? 'Enregistrer' : 'Save'}</button></div>
-    <div class="device"><div><b>Strava</b><div class="meta">${!integ?.strava.available ? (fr ? 'non configuré sur le serveur' : 'not configured on the server') : integ.strava.connected ? `${fr ? 'relié' : 'linked'}${integ.strava.athleteName ? ` · ${integ.strava.athleteName}` : ''}${st.skipStrava ? (fr ? ' · envoi désactivé (Garmin)' : ' · upload off (Garmin)') : ''}` : fr ? 'non relié' : 'not linked'}</div></div>
+    <div class="device"><div><b>Strava</b> ${stravaCompatibleHtml()}<div class="meta">${!integ?.strava.available ? (fr ? 'non configuré sur le serveur' : 'not configured on the server') : integ.strava.connected ? `${fr ? 'relié' : 'linked'}${integ.strava.athleteName ? ` · ${integ.strava.athleteName}` : ''}${st.skipStrava ? (fr ? ' · envoi désactivé (Garmin)' : ' · upload off (Garmin)') : ''}` : fr ? 'non relié' : 'not linked'}</div></div>
       ${integ?.strava.available && !integ.strava.connected ? `<button class="btn small" id="o-strava">${fr ? 'Relier' : 'Link'}</button>` : ''}</div>
     <div class="device"><div><b>intervals.icu</b><div class="meta">${integ?.intervals.connected ? (fr ? 'relié' : 'linked') : fr ? 'clé API (Réglages → Developer settings)' : 'API key (Settings → Developer settings)'}</div></div>
       ${integ?.intervals.connected ? '' : `<form id="o-int" class="row"><input id="o-intkey" type="password" placeholder="${fr ? 'clé API' : 'API key'}" class="btn small" style="width:160px;text-align:left"/><button class="btn small" type="submit">${fr ? 'Relier' : 'Link'}</button></form>`}</div>
