@@ -198,6 +198,12 @@ const S = strings(
     searchAClimb: 'Chercher une montée',
     filterByArea: 'Filtrer par zone',
     aZoneSClimbs: 'Toutes les zones : une côte d’une autre zone charge sa zone, départ 150 m avant le pied.',
+    komAllClimbs: 'Toutes les montées',
+    komDoneClimbs: 'Déjà faites',
+    komTodoClimbs: 'Pas encore faites',
+    komFilterDone: 'Filtrer selon les montées déjà faites',
+    komNoneDone: 'Aucune montée faite ici pour le moment : tes records apparaîtront dans cette liste.',
+    komAllDone: 'Toutes ces montées sont déjà faites.',
     noTimedClimbIn2: 'Pas de montée chronométrée dans cette zone : choisis-en une autre.',
     best2: 'record',
     openWorld: 'monde ouvert',
@@ -549,6 +555,12 @@ const S = strings(
     searchAClimb: 'Search a climb',
     filterByArea: 'Filter by area',
     aZoneSClimbs: 'All areas: a climb from another area loads that area, start 150 m before the foot.',
+    komAllClimbs: 'All climbs',
+    komDoneClimbs: 'Already done',
+    komTodoClimbs: 'Not done yet',
+    komFilterDone: 'Filter by climbs already done',
+    komNoneDone: 'No climb done here yet: your records will show up in this list.',
+    komAllDone: 'All these climbs are already done.',
     noTimedClimbIn2: 'No timed climb in this area: pick another one.',
     best2: 'best',
     openWorld: 'open world',
@@ -1860,6 +1872,8 @@ export class MainMenu {
   private komSort: { key: 'name' | 'length' | 'grade' | 'best'; dir: 1 | -1 } | null = null;
   /** Recherche dans la liste des montées (filtre les lignes sur place, sans redessiner). */
   private komQuery = '';
+  /** Filtre du tableau des montées : toutes, déjà faites (un record existe) ou pas encore faites. */
+  private komDone: '' | 'done' | 'todo' = '';
   /** Montées de toutes les zones publiées (index fabriqué par scripts/kom-index.ts), chargé à la première ouverture du Défi KOM. */
   private komCatalog: KomIndex | null = null;
   private komCatalogAsked = false;
@@ -2850,7 +2864,7 @@ export class MainMenu {
     const waiting = this.komRouteLoading();
     const known = waiting ? this.komCatalog?.zones[this.worldId]?.climbs.find((c) => c.routeId === this.s.routeId && c.segId === this.s.challengeSeg) : undefined;
     if (known) {
-      const rec = readKomRecord(known.routeId, known.segId);
+      const rec = readKomRecord(known.routeId, known.segId, { lenM: known.lengthM });
       const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
       return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${S('changeClimb')}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(known.name)}</b><span class="ab-detail">${S('best')} : ${t}</span>
         <span class="mm-kom-vals"><span class="ab-val"><b>${this.km(known.lengthM)}</b><small>km</small></span><span class="ab-val"><b>${dec(known.grade)}</b><small>%</small></span></span></button>
@@ -2859,7 +2873,7 @@ export class MainMenu {
     if (!koms.length) return `<p class="mm-hint">${S('noTimedClimbIn')}</p><button class="ab-btn mm-change" data-picker="koms">${S('seeAllClimbs')}</button>`;
     const cur = koms.find((c) => c.k.id === this.s.challengeSeg && c.route.id === this.s.routeId) ?? (koms[0] as (typeof koms)[number]);
     if (!waiting) this.s.challengeSeg = cur.k.id;
-    const rec = readKomRecord(cur.route.id, cur.k.id);
+    const rec = readKomRecord(cur.route.id, cur.k.id, { lenM: cur.k.endM - cur.k.startM });
     const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
     return `<button class="ab-tile is-on mm-kom" data-picker="koms" title="${S('changeClimb')}"><span class="ab-ico sm">${ICON.challenge}</span><b class="ab-name">${esc(cur.k.name)}</b><span class="ab-detail">${S('best')} : ${t}</span>
         <span class="mm-kom-vals"><span class="ab-val"><b>${this.km(cur.k.endM - cur.k.startM)}</b><small>km</small></span><span class="ab-val"><b>${dec(cur.k.avgGrade)}</b><small>%</small></span></span></button>
@@ -2886,7 +2900,7 @@ export class MainMenu {
       const tyre = bikeSetupFor(loadProgress().equipped).tyre;
       for (const [z, zi] of Object.entries(this.komCatalog.zones)) {
         const list = zoneClimbs(zi, tyre, lang);
-        // Montées seulement sur les itinéraires d'un autre vélo : pas de puce de zone vide.
+        // Zone sans montée (ou montées seulement pour un autre vélo) : absente de la liste des zones.
         if (list.length) index[z] = list;
         else delete index[z];
       }
@@ -2895,7 +2909,8 @@ export class MainMenu {
     const filter = this.komZone && index[this.komZone] ? this.komZone : '';
     const rows = zoneIds
       .filter((z) => !filter || z === filter)
-      .flatMap((z) => (index[z] ?? []).map((c) => ({ zone: z, ...c, rec: readKomRecord(c.routeId, c.segId) })));
+      .flatMap((z) => (index[z] ?? []).map((c) => ({ zone: z, ...c, rec: readKomRecord(c.routeId, c.segId, { zone: z, lenM: c.lengthM }) })))
+      .filter((c) => !this.komDone || (this.komDone === 'done') === !!c.rec);
     // Tri choisi par un clic sur un titre de colonne (sans record : toujours en fin de liste pour « Mon record »).
     const sort = this.komSort;
     if (sort) {
@@ -2914,13 +2929,15 @@ export class MainMenu {
       return `<button type="button" class="kom-sort${on ? ' on' : ''}" data-komsort="${key}" aria-sort="${on ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}">${label}${arrow}</button>`;
     };
     const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
-    const chips = [['', S('allAreas')] as const, ...zoneIds.map((z) => [z, this.zoneLabel(z)] as const)]
-      .map(([z, label]) => `<button class="kom-chip${z === filter ? ' on' : ''}" data-komzone="${esc(z)}">${esc(label)}</button>`)
+    // Liste déroulante des zones (près de 80 zones : des puces prendraient la moitié de la fenêtre).
+    const zoneOptions = [['', S('allAreas')] as const, ...zoneIds.map((z) => [z, this.zoneLabel(z)] as const)]
+      .map(([z, label]) => `<option value="${esc(z)}"${z === filter ? ' selected' : ''}>${esc(label)}</option>`)
       .join('');
     const body = rows.length
       ? rows
           .map((c) => {
-            const on = c.routeId === this.s.routeId && c.segId === this.s.challengeSeg && this.s.mode === 'challenge';
+            // Même identifiant d'itinéraire dans plusieurs zones (boucle-30-km…) : la zone compte aussi.
+            const on = c.zone === this.worldId && c.routeId === this.s.routeId && c.segId === this.s.challengeSeg && this.s.mode === 'challenge';
             const date = c.rec ? new Date(c.rec.date).toLocaleDateString(MX('locale'), { day: 'numeric', month: 'short', year: 'numeric' }) : '';
             const hay = `${c.name} ${c.routeName} ${this.zoneLabel(c.zone)}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
             // Une ligne par montée (liste plus lisible qu'une grille de blocs) : colonnes alignées sur l'en-tête.
@@ -2933,13 +2950,20 @@ export class MainMenu {
             </button>`;
           })
           .join('')
-      : `<p class="kom-empty">${S('noTimedClimbKnown')}</p>`;
+      : `<p class="kom-empty">${S(this.komDone === 'done' ? 'komNoneDone' : this.komDone === 'todo' ? 'komAllDone' : 'noTimedClimbKnown')}</p>`;
     const records = rows.filter((c) => c.rec).length;
     return `<div class="mm-modal mm-picker-modal" data-picker-close>
       <div class="mm-dialog mm-picker kom-dialog pk" role="dialog" aria-modal="true">
         <header><div class="pk-head"><h2 class="ab-title">${S('komChallenge')}</h2><p class="ab-sub">${S('flyingStartGhostOf')}</p></div><button class="mm-x" data-picker-close aria-label="${S('close')}">×</button></header>
-        <input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${S('searchAClimbA')}" aria-label="${S('searchAClimb')}" />
-        <div class="kom-filter" role="group" aria-label="${S('filterByArea')}">${chips}</div>
+        <div class="kom-filter"><input class="kom-search" id="m-kom-q" type="search" autocomplete="off" value="${esc(this.komQuery)}" placeholder="${S('searchAClimbA')}" aria-label="${S('searchAClimb')}" /><select class="kom-zone" id="m-kom-zone" aria-label="${S('filterByArea')}">${zoneOptions}</select><select class="kom-done" id="m-kom-done" aria-label="${S('komFilterDone')}">${(
+          [
+            ['', S('komAllClimbs')],
+            ['done', S('komDoneClimbs')],
+            ['todo', S('komTodoClimbs')],
+          ] as const
+        )
+          .map(([v, label]) => `<option value="${v}"${v === this.komDone ? ' selected' : ''}>${label}</option>`)
+          .join('')}</select></div>
         <div class="kom-wrap"><div class="kom-list" role="list"><div class="kom-head">${head('name', S('colClimb'))}${head('length', S('colLength'))}${head('grade', S('colGrade'))}${head('best', S('colBest'))}<span></span></div>${body}</div></div>
         <div class="kom-foot"><span>${count(rows.length, 'climb1', 'climbN')} · ${count(records, 'record1', 'recordN')}</span><span>${S('aZoneSClimbs')}</span></div>
       </div></div>`;
@@ -2968,7 +2992,7 @@ export class MainMenu {
     const shown = onlySelected ? koms.filter((c) => c.route.id === cur && c.k.id === this.s.challengeSeg) : koms;
     return `<div class="mm-routes mm-presets">${shown
       .map(({ route, k }) => {
-        const rec = readKomRecord(route.id, k.id);
+        const rec = readKomRecord(route.id, k.id, { lenM: k.endM - k.startM });
         const t = rec ? `${Math.floor(rec.timeS / 60)}:${String(Math.round(rec.timeS % 60)).padStart(2, '0')}` : S('noRecordYet');
         const on = route.id === cur && k.id === this.s.challengeSeg;
         return `<button class="mm-route ab-tile ab-plain ${on ? 'on is-on' : ''}" data-kom="${esc(k.id)}" data-kom-route="${esc(route.id)}"><b class="ab-name">${esc(k.name)}</b><span class="ab-detail">${this.km(k.endM - k.startM)} km · ${dec(k.avgGrade)} % · ${S('best2')} ${t}</span></button>`;
@@ -4489,12 +4513,14 @@ export class MainMenu {
       });
       if (this.komQuery) apply();
     }
-    this.root.querySelectorAll<HTMLElement>('[data-komzone]').forEach((el) =>
-      el.addEventListener('click', () => {
-        this.komZone = el.dataset.komzone ?? '';
-        this.render();
-      }),
-    );
+    this.root.querySelector<HTMLSelectElement>('#m-kom-zone')?.addEventListener('change', (e) => {
+      this.komZone = (e.target as HTMLSelectElement).value;
+      this.render();
+    });
+    this.root.querySelector<HTMLSelectElement>('#m-kom-done')?.addEventListener('change', (e) => {
+      this.komDone = (e.target as HTMLSelectElement).value as '' | 'done' | 'todo';
+      this.render();
+    });
     // Titres de colonnes du Défi KOM : tri par nom, longueur, pente ou record ; un second clic inverse l'ordre.
     this.root.querySelectorAll<HTMLElement>('[data-komsort]').forEach((el) =>
       el.addEventListener('click', () => {

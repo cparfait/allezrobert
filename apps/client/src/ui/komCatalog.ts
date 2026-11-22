@@ -37,7 +37,7 @@ export interface KomSourceZone {
 const bikeOf = (b: RouteBike | undefined): RouteBike => b ?? 'road';
 
 /**
- * Index des montées : par zone, dans l'ordre du catalogue ; une montée portée par plusieurs itinéraires
+ * Index des montées : toutes les zones publiées, dans l'ordre du catalogue ; une montée portée par plusieurs itinéraires
  * du même type de vélo n'est gardée qu'une fois (la première), comme dans la liste de la zone affichée.
  */
 export function buildKomIndex(zones: readonly KomSourceZone[]): KomIndex {
@@ -54,7 +54,8 @@ export function buildKomIndex(zones: readonly KomSourceZone[]): KomIndex {
         used.add(r.id);
         climbs.push({ routeId: r.id, segId: k.id, name: k.name, lengthM: Math.round((k.endM - k.startM) * 10) / 10, grade: Math.round(k.avgGrade * 100) / 100 });
       }
-    if (!climbs.length) continue;
+    // Zone sans montée gardée (liste vide) : l'index connaît ainsi toutes les zones publiées, et une entrée
+    // mémorisée dans le navigateur sous ce nom (parfois fausse) n'est plus montrée.
     out.zones[z.id] = {
       routes: z.routes.filter((r) => used.has(r.id)).map((r) => ({ id: r.id, name: r.name, ...(r.nameEn ? { nameEn: r.nameEn } : {}), ...(r.bike ? { bike: r.bike } : {}) })),
       bikes: [...new Set(z.routes.map((r) => bikeOf(r.bike)))],

@@ -13,22 +13,47 @@ export interface KomRecord {
   date: string;
 }
 
-const KEY = (routeId: string, segId: string) => `ar.kom.${routeId}.${segId}`;
+/**
+ * Clé d'un record : zone, itinéraire et montée. Plusieurs zones ont les mêmes identifiants d'itinéraire
+ * (boucle-30-km…) et donc de montée : sans la zone, un record de l'une valait pour toutes.
+ */
+const KEY = (zone: string, routeId: string, segId: string) => (zone ? `ar.kom.${zone}.${routeId}.${segId}` : `ar.kom.${routeId}.${segId}`);
+/** Clé d'avant la zone : relue pour reprendre les anciens records. */
+const LEGACY_KEY = (routeId: string, segId: string) => `ar.kom.${routeId}.${segId}`;
+/** Zone affichée (réglée au chargement de chaque zone) : zone des records lus et écrits sans zone précisée. */
+let komZone = '';
+export function setKomZone(zone: string): void {
+  komZone = zone;
+}
 /** Élan avant le pied de la côte (m). */
 export const CHALLENGE_RUNUP_M = 150;
 
-export function readKomRecord(routeId: string, segId: string): KomRecord | null {
+/**
+ * Record d'une montée. `zone` : zone de l'itinéraire (défaut : la zone affichée). `lenM` : longueur de la montée ;
+ * un ancien record (clé sans zone) n'est repris que si sa longueur, son dernier point, est la même (±1 m) :
+ * il revient ainsi à la seule zone où il a été fait, puis il est recopié sous la clé avec la zone.
+ */
+export function readKomRecord(routeId: string, segId: string, opts: { zone?: string; lenM?: number } = {}): KomRecord | null {
+  const zone = opts.zone ?? komZone;
   try {
-    const raw = localStorage.getItem(KEY(routeId, segId));
-    return raw ? (JSON.parse(raw) as KomRecord) : null;
+    const raw = localStorage.getItem(KEY(zone, routeId, segId));
+    if (raw) return JSON.parse(raw) as KomRecord;
+    if (!zone) return null;
+    const old = localStorage.getItem(LEGACY_KEY(routeId, segId));
+    if (!old) return null;
+    const rec = JSON.parse(old) as KomRecord;
+    const last = rec.dist?.[rec.dist.length - 1];
+    if (opts.lenM === undefined || last === undefined || Math.abs(last - opts.lenM) > 1) return null;
+    writeKomRecord(routeId, segId, rec, zone);
+    return rec;
   } catch {
     return null;
   }
 }
 
-function writeKomRecord(routeId: string, segId: string, r: KomRecord): void {
+function writeKomRecord(routeId: string, segId: string, r: KomRecord, zone = komZone): void {
   try {
-    localStorage.setItem(KEY(routeId, segId), JSON.stringify(r));
+    localStorage.setItem(KEY(zone, routeId, segId), JSON.stringify(r));
   } catch {
     // Stockage indisponible : le record ne sera pas gardé.
   }
@@ -97,7 +122,7 @@ export class KomChallenge {
     if (start < 0) start = track.route.loop ? start + track.length : 0;
     this.startD = start;
     this.runup = track.route.loop ? (seg.startM - start + track.length) % track.length : seg.startM - start;
-    this.record = readKomRecord(this.routeId, seg.id);
+    this.record = readKomRecord(this.routeId, seg.id, { lenM: this.len });
     this.ghost = this.record ? ghostAvatar(scene, look) : null;
     if (this.ghost) this.ghost.root.visible = false;
   }

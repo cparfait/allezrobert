@@ -79,7 +79,7 @@ import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
 import { openTuningPanel } from './dev/tuning.ts';
 import { frameStats } from './engine/frameStats.ts';
-import { KomChallenge, readKomRecord, type ChallengeResult } from './game/challenge.ts';
+import { KomChallenge, readKomRecord, setKomZone, type ChallengeResult } from './game/challenge.ts';
 import { HairpinWatcher, hairpinToast, reachedFinish, summitStats } from './game/climb.ts';
 import { showSummit } from './ui/summit.ts';
 import { fetchMe, showLogin, earlyLogin, applyProfile, logout, pushProfile, type Me } from './ui/account.ts';
@@ -777,6 +777,8 @@ async function boot(): Promise<void> {
     },
   });
   menu.worldId = scene.source.id;
+  // Records KOM rangés par zone (identifiants d'itinéraire communs à plusieurs zones).
+  setKomZone(scene.source.id);
   menu.loadedZones = scene.source.zones ?? [scene.source.id];
   menu.openWorld = !!scene.source.open;
   // Carte du planificateur : posée tout de suite (emprise, lieux), puis refaite quand le graphe routier, chargé
@@ -823,6 +825,7 @@ async function boot(): Promise<void> {
       url.searchParams.delete('route');
       history.replaceState(null, '', url.toString());
       menu.loadedZones = source.zones ?? [source.id];
+      setKomZone(source.id);
       menu.setWorld(source.routes, source.id, !!source.open);
       plannerMap(source);
     })();
@@ -1756,7 +1759,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   ride.onSegmentDone = (r) => {
     if (r.seg.kind === 'kom' || r.seg.kind === 'sprint') {
       const prev = Number(localStorage.getItem(segBestKey(r.seg.id)) ?? NaN);
-      const record = Number.isFinite(prev) && prev > 0 ? prev : readKomRecord(rankRouteId(track.route.id), r.seg.id)?.timeS ?? null;
+      const record = Number.isFinite(prev) && prev > 0 ? prev : readKomRecord(rankRouteId(track.route.id), r.seg.id, { lenM: r.seg.endM - r.seg.startM })?.timeS ?? null;
       announcer.segmentResult(r.seg.kind, r.timeS, record);
       if (!s.guest && (record === null || r.timeS < record)) localStorage.setItem(segBestKey(r.seg.id), String(r.timeS));
     }
@@ -1909,7 +1912,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       elevationGainM: ride.elevationGainM,
       avgWatts: ride.avgWatts(),
       massKg: s.massKg,
-      ...(kom ? { kom: { name: kom.seg.name, timeS: kom.timeS, avgWatts: kom.avgWatts, climbM: track.sample(kom.seg.endM).y - track.sample(kom.seg.startM).y, recordS: readKomRecord(rankRouteId(track.route.id), kom.seg.id)?.timeS ?? null } } : {}),
+      ...(kom ? { kom: { name: kom.seg.name, timeS: kom.timeS, avgWatts: kom.avgWatts, climbM: track.sample(kom.seg.endM).y - track.sample(kom.seg.startM).y, recordS: readKomRecord(rankRouteId(track.route.id), kom.seg.id, { lenM: kom.seg.endM - kom.seg.startM })?.timeS ?? null } } : {}),
     });
     showSummit(ui, { routeName: track.route.name, altitudeM: track.sample(track.length).y, stats }, {
       onSummary: () => finish(),
@@ -2518,7 +2521,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (komRecordSeen.key !== segId || now - komRecordSeen.at > 2000) {
       komRecordSeen.key = segId;
       komRecordSeen.at = now;
-      komRecordSeen.timeS = readKomRecord(rankRouteId(track.route.id), segId)?.timeS ?? null;
+      const seg = track.route.segments.find((g) => g.id === segId);
+      komRecordSeen.timeS = readKomRecord(rankRouteId(track.route.id), segId, seg ? { lenM: seg.endM - seg.startM } : {})?.timeS ?? null;
     }
     return komRecordSeen.timeS;
   };

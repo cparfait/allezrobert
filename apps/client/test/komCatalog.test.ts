@@ -21,8 +21,9 @@ describe('index des montées du Défi KOM', () => {
   ];
   const idx = buildKomIndex(zones);
 
-  it('garde chaque montée une fois par type de vélo et oublie les zones sans montée', () => {
-    expect(Object.keys(idx.zones)).toEqual(['z']);
+  it('garde chaque montée une fois par type de vélo, et les zones sans montée avec une liste vide', () => {
+    expect(Object.keys(idx.zones)).toEqual(['z', 'plate']);
+    expect(idx.zones.plate?.climbs).toEqual([]);
     expect(idx.zones.z?.climbs.map((c) => c.segId)).toEqual(['a-k1', 'b-k2', 'g-k1', 'g-k3']);
     expect(idx.zones.z?.climbs[1]).toMatchObject({ routeId: 'b', lengthM: 600, grade: 6.67 });
     expect(idx.zones.z?.bikes).toEqual(['road', 'gravel']);

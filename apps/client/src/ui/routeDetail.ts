@@ -126,7 +126,7 @@ function pointAt(r: RouteData, d: number): { x: number; z: number; y: number } {
 /** Ton meilleur temps (s) sur une montée ou un sprint : sorties normales et défis KOM. */
 function myLocalBest(routeId: string, seg: RouteSegment): number | null {
   const a = readSegmentPr(routeId, seg.id);
-  const b = seg.kind === 'kom' ? (readKomRecord(routeId, seg.id)?.timeS ?? null) : null;
+  const b = seg.kind === 'kom' ? (readKomRecord(routeId, seg.id, { lenM: seg.endM - seg.startM })?.timeS ?? null) : null;
   return a !== null && b !== null ? Math.min(a, b) : (a ?? b);
 }
 
