@@ -1681,10 +1681,10 @@ export class Hud {
         const lvlName = levelName(r.ambient?.level ?? r.level);
         const verdict = r.ambient
           ? r.ambient.follow === 'ok'
-            ? `<em class="rd-badge ok">${S('canFollow')}</em>`
+            ? `<em class="nb-verdict ok">${S('canFollow')}</em>`
             : r.ambient.follow === 'hard'
-              ? `<em class="rd-badge hard">${S('tooStrong')}</em>`
-              : `<em class="rd-badge easy">${S('slower')}</em>`
+              ? `<em class="nb-verdict hard">${S('tooStrong')}</em>`
+              : `<em class="nb-verdict easy">${S('slower')}</em>`
           : '';
         const rideOn = r.online && !r.me ? `<button class="rideon" data-rideon="${r.id}" title="Ride On">👍</button>` : '';
         const num = (v: number, d: number) => v.toFixed(d).replace('.', dec());
@@ -1698,7 +1698,7 @@ export class Hud {
         const flag = flagSvg(r.nationality, 13);
         const name = shortName(r.name).replace(/[<>&]/g, '');
         const title = [r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '', lvlName].filter(Boolean).join(' · ');
-        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${S('friend')}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${S('myGroup')}"></i>` : ''}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, getLang())}">${flag}</span>` : ''}</b><small class="nb-sub num">${verdict}${sub}</small></span></div>`;
+        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${S('friend')}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${S('myGroup')}"></i>` : ''}${verdict}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, getLang())}">${flag}</span>` : ''}</b><small class="nb-sub num">${sub}</small></span></div>`;
       })
       .join('');
     return head + rows;
