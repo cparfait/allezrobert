@@ -1692,7 +1692,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       if (!s.guest && (record === null || r.timeS < record)) localStorage.setItem(segBestKey(r.seg.id), String(r.timeS));
     }
     // Séquence HyperFrames (KOM / sprint) ; toast texte si les séquences sont coupées.
-    // Rang solo : le joueur est classé seul ; en multijoueur le serveur fournit le vrai rang.
+    // Rang solo : classé seul (1 sur 1), la séquence masque alors le bloc du rang ; en multijoueur le serveur fournit le vrai rang.
     if (s.guest) return;
     // Sommet d'une côte : photo automatique (caméra courante, sans l'interface).
     if (r.seg.kind === 'kom' && ride.summitPhotos.length < 6) {

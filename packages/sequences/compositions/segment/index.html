@@ -225,6 +225,8 @@
         AR.text('time', AR.segTime(v.time_s));
         AR.text('rank', AR.ordinal(v.rank));
         AR.text('rank-total', v.rank_total > 0 ? AR.t('seg.of') + ' ' + AR.num(v.rank_total) : '');
+        // Seul classé (sortie solo) : pas de « 1er sur 1 », le bloc du rang disparaît.
+        document.getElementById('blk-rank').style.display = v.rank_total === 1 ? 'none' : '';
         AR.text(
           'gap',
           Number(v.rank) <= 1 || !(v.gap_s > 0)
