@@ -1761,7 +1761,8 @@ export class Hud {
         return;
       }
       this.lastJunction = key;
-      const arrow = tw.dir === 'left' ? (tw.sharp ? '↲' : '↰') : tw.sharp ? '↳' : '↱';
+      // Flèche qui monte puis tourne, comme un panneau vu par le coureur qui avance (aussi en virage serré).
+      const arrow = tw.dir === 'left' ? '↰' : '↱';
       const label = S(tw.dir);
       box.innerHTML = `<i class="tn-arrow">${arrow}</i><b>${label}</b><span class="num tn-dist">${dist}</span>`;
       return;
