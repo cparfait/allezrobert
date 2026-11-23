@@ -975,7 +975,10 @@ async function boot(): Promise<void> {
   const showGarage = (look: AvatarLook, bareHead = menu.bareHeadPreview) => {
     if (!garage) return;
     garageLook = look;
-    const v = V3_STYLE && garage.view === '3q' ? { cam: [2.65, 1.35, 2.48], look: [0, 0.81, 0.1], fov: 33 } as const : GARAGE_VIEWS[garage.view];
+    const base = V3_STYLE && garage.view === '3q' ? { cam: [-2.75, 1.3, 0.45], look: [0, 0.78, 0.1], fov: 40 } as const : GARAGE_VIEWS[garage.view];
+    // Bêta : vues Vélo, Profil et Face un peu plus reculées (coureur et home trainer entiers).
+    const back = V3_STYLE ? ({ bike: 1.65, side: 1.4, front: 1.4 } as Partial<Record<GarageView, number>>)[garage.view] ?? 1 : 1;
+    const v = { ...base, cam: [base.cam[0] * back, base.cam[1], base.cam[2] * back] as const };
     const c = Math.cos(garage.yaw);
     const sn = Math.sin(garage.yaw);
     // Recul (tutoriel) : coureur plus petit, pour laisser la place aux sous-titres.

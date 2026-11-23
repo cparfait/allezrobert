@@ -958,7 +958,12 @@ export class AtelierHost {
       const ang = rest * 0.9 * (off.x < 0 ? -1 : 1);
       const c = Math.cos(ang);
       const s = Math.sin(ang);
-      off.set(off.x * c + off.z * s, off.y, -off.x * s + off.z * c).multiplyScalar(1 + rest * 0.85);
+      off.set(off.x * c + off.z * s, off.y, -off.x * s + off.z * c);
+      // Recul de l'arrivée borné à la pièce (Bêta : caméra côté transmission, près du mur des établis) : sinon la caméra
+      // partait derrière l'établi et le traversait.
+      const room = (v: number, neg: number, pos: number) => (v < 0 ? neg / -v : v > 0 ? pos / v : Infinity);
+      const back = V3_STYLE ? Math.max(1, Math.min(1 + rest * 0.85, room(off.x, 2.5, 3.0), room(off.z, 2.4, 3.0))) : 1 + rest * 0.85;
+      off.multiplyScalar(back);
       off.y += rest * 0.55;
       this.camPos.copy(this.goalLook).add(off);
       this.camLook.copy(this.goalLook);
