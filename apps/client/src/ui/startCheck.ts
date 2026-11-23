@@ -266,6 +266,11 @@ export interface StartCheckOptions {
   loading?: HTMLElement | null;
   /** Retour au menu demandé (la sortie n'a pas commencé). */
   onLeave(): void;
+  /**
+   * Portrait du coureur du joueur (style Bêta : debout, mains sur les hanches), montré à gauche des blocs dès qu'il est prêt.
+   * Reçoit « l'écran est-il fermé ? » ; renvoie une URL d'image (libérée à la fermeture), ou null.
+   */
+  portrait?: (closed: () => boolean) => Promise<string | null>;
 }
 
 export interface StartCheckHandle {
@@ -299,7 +304,10 @@ export function openStartCheck(parent: HTMLElement, o: StartCheckOptions): Start
       <div><h1>${T.title}</h1><p>${T.sub}</p></div>
       ${transports.length > 1 ? `<div class="sc-transport" role="radiogroup" aria-label="${T.connection}">${transports.map((t) => `<button type="button" role="radio" data-transport="${esc(t.id)}">${esc(t.label)}</button>`).join('')}</div>` : ''}
     </header>
-    <div class="sc-grid"></div>
+    <div class="sc-main">
+      ${o.portrait ? '<figure class="sc-rider" aria-hidden="true"><img alt="" /></figure>' : ''}
+      <div class="sc-grid"></div>
+    </div>
     <p class="sc-msg" role="status" aria-live="polite"></p>
     <footer class="sc-foot">
       <div class="sc-load"><div class="sc-bar"><i></i></div><span class="sc-step"></span></div>
@@ -318,6 +326,25 @@ export function openStartCheck(parent: HTMLElement, o: StartCheckOptions): Start
   const simBtn = el.querySelector('[data-act="sim"]') as HTMLButtonElement;
   const bar = el.querySelector('.sc-bar i') as HTMLElement;
   const step = el.querySelector('.sc-step') as HTMLElement;
+  // Portrait du coureur : la place est gardée (pas de saut des blocs), l'image apparaît en fondu quand elle est prête.
+  let portraitUrl: string | null = null;
+  if (o.portrait) {
+    el.classList.add('has-rider');
+    const img = el.querySelector('.sc-rider img') as HTMLImageElement;
+    void o
+      .portrait(() => closed)
+      .then((url) => {
+        if (!url) return;
+        if (closed) {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        portraitUrl = url;
+        img.onload = () => img.parentElement?.classList.add('is-ready');
+        img.src = url;
+      })
+      .catch((e: unknown) => console.warn('Portrait du coureur', e));
+  }
 
   const model = (): CheckModel =>
     startCheckModel({ devices: panel.list() as CheckDevice[], live: panel.live?.(), simulatorOn: panel.simulatorOn(), loaded });
@@ -377,6 +404,7 @@ export function openStartCheck(parent: HTMLElement, o: StartCheckOptions): Start
     window.clearInterval(timer);
     observer?.disconnect();
     document.removeEventListener('keydown', onKey, true);
+    if (portraitUrl) URL.revokeObjectURL(portraitUrl);
     el.remove();
   };
   const go = (): void => {

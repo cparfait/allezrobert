@@ -102,6 +102,7 @@ import { Trains } from './world/trains.ts';
 import { Multiplayer } from './game/multiplayer.ts';
 import { VoiceChat, fetchVoiceConfig } from './game/voice.ts';
 import { RideRoomUi } from './game/rideroom.ts';
+import { riderPortrait, warmRiderPortrait } from './ui/startRider.ts';
 import { openStartCheck, skipStartCheck, startCheckModel, startCheckSkipPref, startCheckWanted, type CheckDevice, type StartCheckHandle } from './ui/startCheck.ts';
 import { PlaceFinder } from './game/place.ts';
 import { buildPlaceIndex, searchPlaces, type PlaceIndex } from './game/placeSearch.ts';
@@ -751,7 +752,7 @@ async function boot(): Promise<void> {
       // Écran de préparation affiché tout de suite, avant tout calcul ; il reste jusqu'à la première image de la sortie.
       const overlay = rideOverlay();
       // Capteurs à vérifier pendant que la sortie se prépare (voir beginStartCheck).
-      beginStartCheck(overlay, s, extras);
+      beginStartCheck(overlay, s, extras, scene.engine);
       // Changement d'itinéraire : monde reconstruit sur place (sans attendre l'ancien), la musique continue.
       if (routeKey(s) !== scene.route.id) {
         void nextPaint()
@@ -1008,6 +1009,8 @@ async function boot(): Promise<void> {
       garage = { view, yaw, ...(zoom && zoom !== 1 ? { far: zoom } : {}), ...(bikeOnly ? { bikeOnly } : {}) };
       return showGarage(garageLook ?? menu.currentLook());
     }
+    // Sortie du garage (Bêta) : photo du coureur pour « Prêt à rouler ? » prise tout de suite, en cache (ui/startRider.ts).
+    if (garage && V3_STYLE) warmRiderPortrait({ renderer: scene.engine.renderer, look: settings.look, environment: scene.engine.scene.environment });
     garage = null;
     garageLook = null;
     atelier.set(null);
@@ -1065,7 +1068,7 @@ async function boot(): Promise<void> {
     // Départ relancé par le jeu (nouvelle sortie, qualité changée) : écran des capteurs pendant la préparation.
     // Départ automatique d'un outil ou d'un banc (?autostart seul) : pas d'écran.
     const overlay = takeStartCheckNext() ? rideOverlay() : undefined;
-    if (overlay) beginStartCheck(overlay, settings, {}, true);
+    if (overlay) beginStartCheck(overlay, settings, {}, scene.engine, true);
     await withWorld(getLang() === 'fr' ? 'Préparation de la sortie…' : 'Preparing the ride…');
     void startRide(scene, settings, devices.source(), {}, overlay);
   } else {
@@ -1153,7 +1156,7 @@ function takeStartCheckNext(): boolean {
   }
 }
 
-function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode?: string; tutorial?: boolean; publicRoom?: boolean; nearFriend?: string }, relaunched = false): void {
+function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode?: string; tutorial?: boolean; publicRoom?: boolean; nearFriend?: string }, engine: Engine, relaunched = false): void {
   startCheck?.close();
   startCheck = null;
   const panel = devicePanel;
@@ -1171,6 +1174,8 @@ function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode
       url.searchParams.delete('autostart');
       location.href = url.toString();
     },
+    // Style Bêta : le coureur du joueur, debout mains sur les hanches, à gauche des blocs (photographié une fois, voir startRider.ts).
+    ...(V3_STYLE ? { portrait: (closed: () => boolean) => riderPortrait({ renderer: engine.renderer, look: s.look, environment: engine.scene.environment, cancelled: closed }) } : {}),
   });
 }
 

@@ -8,6 +8,19 @@
 .sc-transport button { appearance: none; border: 0; border-radius: 9px; padding: 8px 14px; font: 700 14px var(--font, system-ui); color: #c3cddb; background: transparent; cursor: pointer; }
 .sc-transport button.on { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
 
+/*
+ * Portrait du coureur (style Bêta) à gauche des blocs : place gardée dès l'ouverture (les blocs ne sautent pas),
+ * image en fondu quand elle est prête, ombre au sol. Masqué quand l'écran est trop étroit pour trois colonnes.
+ */
+.sc.has-rider .sc-box { max-width: 1440px; }
+.sc-main { display: flex; align-items: stretch; gap: clamp(12px, 2vw, 32px); }
+.sc-main > .sc-grid { flex: 1 1 auto; min-width: 0; }
+.sc-rider { position: relative; flex: 0 0 clamp(170px, 15vw, 240px); margin: -40px 0 0; pointer-events: none; }
+.sc-rider::after { content: ''; position: absolute; left: 14%; right: 14%; bottom: -6px; height: 22px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.55), transparent); opacity: 0; transition: opacity 0.5s; }
+.sc-rider img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; opacity: 0; transform: translateY(8px); transition: opacity 0.5s, transform 0.5s; }
+.sc-rider.is-ready img { opacity: 1; transform: none; }
+.sc-rider.is-ready::after { opacity: 1; }
+
 .sc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 1.4vw, 18px); }
 .sc-tile { appearance: none; position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'ico role' 'ico dev' 'val val' 'state act'; align-items: center; gap: 4px 16px; min-height: clamp(150px, 22vh, 210px); padding: 18px 20px 16px; text-align: left; color: inherit; font: inherit; cursor: pointer; border-radius: 20px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(24, 32, 46, 0.92), rgba(12, 17, 26, 0.9)); transition: border-color 0.15s, transform 0.15s; }
 .sc-tile:hover:not([aria-disabled='true']) { transform: translateY(-2px); border-color: rgba(255, 210, 63, 0.7); }
@@ -63,6 +76,10 @@
 .sc-go:hover:not(:disabled) { background: var(--ar-accent, #ffd23f); filter: brightness(1.08); }
 .sc-go:disabled { background: rgba(255, 255, 255, 0.12); color: #8d98a6; box-shadow: none; cursor: not-allowed; }
 
+@media (max-width: 1100px) {
+  .sc-rider { display: none; }
+  .sc.has-rider .sc-box { max-width: 1180px; }
+}
 @media (max-width: 900px) {
   .sc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sc-ico { width: 60px; height: 60px; border-radius: 16px; }
@@ -74,6 +91,6 @@
   .sc-go { flex: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sc-tile, .sc-bar i { transition: none; }
+  .sc-tile, .sc-bar i, .sc-rider img, .sc-rider::after { transition: none; }
   .sc-tile.is-searching .sc-state i { animation: none; }
 }
