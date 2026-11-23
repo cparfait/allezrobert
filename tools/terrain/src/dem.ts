@@ -105,6 +105,143 @@ export function inpaint(a: Float32Array, mask: Uint8Array, n: number): void {
   }
 }
 
+/** Fondu du recalage du RGE ALTI sur le LiDAR HD, depuis la limite de couverture (m). */
+export const SEAM_FADE_M = 150;
+/** Marge lue autour d'un bloc pour le recalage (m) : fondu + lissages, pour que deux blocs voisins donnent la même valeur sur leur bord commun. */
+export const SEAM_MARGIN_M = 200;
+
+function smoothstep01(t: number): number {
+  const c = t < 0 ? 0 : t > 1 ? 1 : t;
+  return c * c * (3 - 2 * c);
+}
+
+/** Moyenne glissante (carré de côté 2r + 1) de `v` là où `w` = 1, NaN là où aucun pixel ne compte. */
+function boxMean(v: Float32Array, w: Uint8Array, W: number, r: number): Float32Array {
+  const S = new Float64Array((W + 1) * (W + 1));
+  const C = new Float64Array((W + 1) * (W + 1));
+  for (let j = 0; j < W; j++) {
+    let rs = 0;
+    let rc = 0;
+    for (let i = 0; i < W; i++) {
+      const k = j * W + i;
+      if (w[k]) {
+        rs += v[k]!;
+        rc++;
+      }
+      const o = (j + 1) * (W + 1) + i + 1;
+      S[o] = S[o - W - 1]! + rs;
+      C[o] = C[o - W - 1]! + rc;
+    }
+  }
+  const out = new Float32Array(W * W);
+  for (let j = 0; j < W; j++) {
+    const j0 = Math.max(0, j - r);
+    const j1 = Math.min(W, j + r + 1);
+    for (let i = 0; i < W; i++) {
+      const i0 = Math.max(0, i - r);
+      const i1 = Math.min(W, i + r + 1);
+      const a = j1 * (W + 1) + i1;
+      const b = j0 * (W + 1) + i1;
+      const c = j1 * (W + 1) + i0;
+      const d = j0 * (W + 1) + i0;
+      const n = C[a]! - C[b]! - C[c]! + C[d]!;
+      out[j * W + i] = n > 0 ? (S[a]! - S[b]! - S[c]! + S[d]!) / n : Number.NaN;
+    }
+  }
+  return out;
+}
+
+/**
+ * Fusion LiDAR HD + RGE ALTI sans marche à la limite de couverture. Le RGE ALTI diffère du LiDAR de quelques
+ * décimètres (jusqu'à 1 à 2 m) : bouché tel quel, il laissait une marche le long de la limite, à travers champs et
+ * routes. Ici, l'écart LiDAR − RGE ALTI est mesuré le long de la limite (moyenne locale), reporté sur les pixels
+ * bouchés depuis le pixel LiDAR le plus proche, puis effacé en fondu sur `fadeM` mètres, et lissé.
+ * `lidar` et `alti` : fenêtre carrée de `W` pixels de `res` mètres. Renvoie la fusion et le masque des pixels
+ * restés sans valeur (ni LiDAR ni RGE ALTI) ; `lidar` n'est pas modifié.
+ */
+export function seamBlend(
+  lidar: Float32Array,
+  alti: Float32Array,
+  W: number,
+  res: number,
+  fadeM = SEAM_FADE_M,
+): { merged: Float32Array; mask: Uint8Array; filled: number; corrected: number; medianOffset: number } {
+  const N = W * W;
+  const maskL = invalidMask(lidar, W);
+  const maskA = invalidMask(alti, W);
+  const merged = new Float32Array(lidar);
+  const mask = new Uint8Array(N);
+  // 1. écart LiDAR − RGE ALTI, moyenné sur ~12 m (bruit, haies, fossés)
+  const both = new Uint8Array(N);
+  const diff = new Float32Array(N);
+  const offs: number[] = [];
+  for (let k = 0; k < N; k++)
+    if (!maskL[k] && !maskA[k]) {
+      both[k] = 1;
+      diff[k] = lidar[k]! - alti[k]!;
+    }
+  const oS = boxMean(diff, both, W, Math.max(2, Math.round(12 / res)));
+  // 2. écart du pixel LiDAR le plus proche (chanfrein 1 / √2, deux passes), distance en pixels
+  const dist = new Float32Array(N).fill(Infinity);
+  const near = new Float32Array(N);
+  for (let k = 0; k < N; k++)
+    if (!maskL[k] && Number.isFinite(oS[k]!)) {
+      dist[k] = 0;
+      near[k] = oS[k]!;
+    }
+  const D2 = Math.SQRT2;
+  const relax = (k: number, kk: number, w: number) => {
+    const d = dist[kk]! + w;
+    if (d < dist[k]!) {
+      dist[k] = d;
+      near[k] = near[kk]!;
+    }
+  };
+  for (let j = 0; j < W; j++)
+    for (let i = 0; i < W; i++) {
+      const k = j * W + i;
+      if (i > 0) relax(k, k - 1, 1);
+      if (j > 0) {
+        relax(k, k - W, 1);
+        if (i > 0) relax(k, k - W - 1, D2);
+        if (i < W - 1) relax(k, k - W + 1, D2);
+      }
+    }
+  for (let j = W - 1; j >= 0; j--)
+    for (let i = W - 1; i >= 0; i--) {
+      const k = j * W + i;
+      if (i < W - 1) relax(k, k + 1, 1);
+      if (j < W - 1) {
+        relax(k, k + W, 1);
+        if (i < W - 1) relax(k, k + W + 1, D2);
+        if (i > 0) relax(k, k + W - 1, D2);
+      }
+    }
+  // 3. correction : écart mesuré côté LiDAR, écart du plus proche en fondu côté RGE ALTI ; lissée sur ~10 m
+  const corr = new Float32Array(N);
+  const any = new Uint8Array(N).fill(1);
+  for (let k = 0; k < N; k++) {
+    if (!maskL[k]) corr[k] = Number.isFinite(oS[k]!) ? oS[k]! : 0;
+    else if (Number.isFinite(dist[k]!)) corr[k] = near[k]! * (1 - smoothstep01((dist[k]! * res) / fadeM));
+  }
+  const r2 = Math.max(1, Math.round(10 / res));
+  const smooth = boxMean(boxMean(corr, any, W, r2), any, W, r2);
+  let filled = 0;
+  let corrected = 0;
+  for (let k = 0; k < N; k++) {
+    if (!maskL[k]) continue;
+    if (!maskA[k]) {
+      const c = smooth[k]!;
+      merged[k] = alti[k]! + c;
+      filled++;
+      if (Math.abs(c) > 0.02) corrected++;
+    } else mask[k] = 1;
+  }
+  for (let k = 0; k < N; k++) if (both[k] && dist[k] === 0 && (k % 97 === 0)) offs.push(diff[k]!);
+  offs.sort((a, b) => a - b);
+  return { merged, mask, filled, corrected, medianOffset: offs.length ? offs[offs.length >> 1]! : 0 };
+}
+
 function wmsUrl(layer: string, xmin: number, ymin: number, xmax: number, ymax: number, w: number, h: number): string {
   return (
     `${WMS}?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=${layer}&STYLES=&CRS=EPSG:2154` +
@@ -126,7 +263,7 @@ export class Dem {
   private missing = new Set<string>();
   private maxBlocks: number;
   private useCounter = 0;
-  stats = { downloaded: 0, fromCache: 0, filledFromRgeAlti: 0 };
+  stats = { downloaded: 0, fromCache: 0, filledFromRgeAlti: 0, seamBlocks: 0, seamUniform: 0 };
 
   constructor(label: string, res: number, blockSize: number, maxBlocks = 220) {
     this.label = label;
@@ -141,20 +278,98 @@ export class Dem {
     return cachePath(`dem/${this.label}-${this.res}m${seaMode ? '-sea' : ''}`, `${bx}_${by}`, '.f32');
   }
 
-  private async fetchLayer(layer: string, bx: number, by: number): Promise<Float32Array> {
-    const n = this.samples;
+  /**
+   * Recalage du RGE ALTI sur le LiDAR (`seamBlend`), avec TERRAIN_DEM_SEAM=1 : blocs refaits dans un dossier à part
+   * (`…-seam`), l'ancien cache n'est ni lu pour eux ni modifié. Un bloc dont la fenêtre est entièrement LiDAR (ou
+   * entièrement RGE ALTI) n'a pas de limite : un simple marqueur `.same` renvoie à l'ancien fichier.
+   */
+  readonly seam = process.env.TERRAIN_DEM_SEAM === '1';
+
+  private seamFile(bx: number, by: number): string {
+    return cachePath(`dem/${this.label}-${this.res}m${seaMode ? '-sea' : ''}-seam`, `${bx}_${by}`, '.f32');
+  }
+
+  /** Fichier à lire pour un bloc : le bloc recalé s'il existe, sinon l'ancien bloc fusionné. */
+  private blockFile(bx: number, by: number): string {
+    if (this.seam) {
+      const s = this.seamFile(bx, by);
+      if (cachedBlockState(s, this.samples) === 'ok') return s;
+    }
+    return this.mergedFile(bx, by);
+  }
+
+  /**
+   * Fenêtre de la couche autour du bloc : `margin` pixels de plus de chaque côté, pas de `step` pixels (même treillis
+   * que les blocs : deux blocs voisins lisent les mêmes échantillons sur leur partie commune).
+   */
+  private async fetchWindow(layer: string, bx: number, by: number, margin = 0, step = 1): Promise<{ data: Float32Array; w: number }> {
     const r = this.res;
-    const x0 = bx * this.blockSize;
-    const yTop = (by + 1) * this.blockSize;
-    const url = wmsUrl(layer, x0 - r / 2, yTop - (n - 0.5) * r, x0 + (n - 0.5) * r, yTop + r / 2, n, n);
+    const rs = r * step;
+    const w = Math.ceil((this.samples - 1 + 2 * margin) / step) + 1;
+    const xs = bx * this.blockSize - margin * r;
+    const yTop = (by + 1) * this.blockSize + margin * r;
+    const url = wmsUrl(layer, xs - rs / 2, yTop - (w - 0.5) * rs, xs + (w - 0.5) * rs, yTop + rs / 2, w, w);
     // seul le bloc fusionné est conservé en cache (évite de doubler l'espace disque)
     const buf = await fetchWithRetry(url, {
       timeoutMs: 180000,
-      validate: (b, ct) => (b.length === n * n * 4 ? null : `taille ${b.length} (${ct}) : ${b.subarray(0, 120).toString()}`),
+      validate: (b, ct) => (b.length === w * w * 4 ? null : `taille ${b.length} (${ct}) : ${b.subarray(0, 120).toString()}`),
     });
+    const data = new Float32Array(w * w);
+    for (let i = 0; i < w * w; i++) data[i] = buf.readFloatLE(i * 4);
+    return { data, w };
+  }
+
+  private async fetchLayer(layer: string, bx: number, by: number): Promise<Float32Array> {
+    return (await this.fetchWindow(layer, bx, by)).data;
+  }
+
+  /** Bloc recalé (TERRAIN_DEM_SEAM=1). */
+  private async ensureSeamBlock(bx: number, by: number): Promise<void> {
+    const n = this.samples;
+    const sf = this.seamFile(bx, by);
+    const marker = sf.replace(/\.f32$/, '.same');
+    const merged = this.mergedFile(bx, by);
+    if (cachedBlockState(sf, n) === 'ok' || (fs.existsSync(marker) && cachedBlockState(merged, n) === 'ok')) {
+      this.stats.fromCache++;
+      return;
+    }
+    const m = Math.ceil(SEAM_MARGIN_M / this.res);
+    // Sonde grossière (8 m) de la couverture LiDAR sur la fenêtre : uniforme → pas de limite, ancien bloc gardé.
+    const probe = await this.fetchWindow(LAYER_LIDAR, bx, by, m, Math.max(1, Math.round(8 / this.res)));
+    let valid = 0;
+    for (const v of probe.data) if (isValid(v)) valid++;
+    if (valid === 0 || valid === probe.data.length) {
+      if (cachedBlockState(merged, n) !== 'ok') await this.ensureMergedBlock(bx, by);
+      writeAtomic(marker, Buffer.from('même bloc que sans recalage\n'));
+      this.stats.seamUniform++;
+      return;
+    }
+    const L = await this.fetchWindow(LAYER_LIDAR, bx, by, m);
+    const A = await this.fetchWindow(LAYER_RGEALTI, bx, by, m);
+    const W = L.w;
+    const res = seamBlend(L.data, A.data, W, this.res);
     const out = new Float32Array(n * n);
-    for (let i = 0; i < n * n; i++) out[i] = buf.readFloatLE(i * 4);
-    return out;
+    const mask = new Uint8Array(n * n);
+    for (let j = 0; j < n; j++)
+      for (let i = 0; i < n; i++) {
+        const k = (j + m) * W + i + m;
+        let v = res.merged[k]!;
+        let bad = res.mask[k]!;
+        // vraie absence dans les deux sources : la mer (mondes côtiers)
+        if (bad && seaMode && !isValid(L.data[k]!) && !isValid(A.data[k]!)) {
+          v = SEA_FLOOR_M;
+          bad = 0;
+        }
+        out[j * n + i] = v;
+        mask[j * n + i] = bad;
+      }
+    inpaint(out, mask, n);
+    writeAtomic(sf, Buffer.from(out.buffer, out.byteOffset, out.byteLength));
+    this.blocks.delete(`${bx}_${by}`);
+    this.stats.downloaded++;
+    this.stats.seamBlocks++;
+    this.stats.filledFromRgeAlti += res.filled;
+    this.missing.delete(`${bx}_${by}`);
   }
 
   /** Télécharge si besoin les blocs couvrant l'emprise L93 donnée. */
@@ -172,6 +387,11 @@ export class Dem {
   }
 
   async ensureBlock(bx: number, by: number): Promise<void> {
+    if (this.seam) return this.ensureSeamBlock(bx, by);
+    return this.ensureMergedBlock(bx, by);
+  }
+
+  private async ensureMergedBlock(bx: number, by: number): Promise<void> {
     const merged = this.mergedFile(bx, by);
     const n = this.samples;
     const state = cachedBlockState(merged, n);
@@ -214,7 +434,7 @@ export class Dem {
     const k = `${bx}_${by}`;
     if (this.blocks.has(k)) return true;
     if (this.missing.has(k)) return false;
-    const ok = cachedBlockState(this.mergedFile(bx, by), this.samples) === 'ok';
+    const ok = cachedBlockState(this.blockFile(bx, by), this.samples) === 'ok';
     if (!ok) this.missing.add(k);
     return ok;
   }
@@ -227,7 +447,7 @@ export class Dem {
       return b.data;
     }
     if (!this.hasBlock(bx, by)) return null;
-    const buf = fs.readFileSync(this.mergedFile(bx, by));
+    const buf = fs.readFileSync(this.blockFile(bx, by));
     const data = new Float32Array(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
     if (this.blocks.size >= this.maxBlocks) {
       let oldK = '';
