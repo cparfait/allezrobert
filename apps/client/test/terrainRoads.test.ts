@@ -53,3 +53,34 @@ describe('clampUnderRoads', () => {
     expect(h(0, 10)).toBeLessThan(98.4);
   });
 });
+
+describe('clampUnderRoads, bord de tuile', () => {
+  /** Tuile de 80 m (grille de 10 m) au coin (x0, 0) : sol plat à 100 m, routes `roads`. */
+  const tileAt = (x0: number, roads: number[][]) =>
+    ({ tx: x0 / 80, tz: 0, x0, z0: 0, size: 80, features: { roads: roads.map((p, i) => ({ id: `r${x0}_${i}`, kind: 'tertiary', width: 5, pts3: p })), buildings: [] } }) as unknown as LoadedTile;
+  const mesh = (tile: LoadedTile, neighbours: LoadedTile[]) => {
+    const seg = 8;
+    const row = seg + 1;
+    const pos = new Float32Array(row * row * 3);
+    for (let k = 0; k < row * row; k++) pos[k * 3 + 1] = 100;
+    clampUnderRoads(pos, tile, seg, (80 / seg) * Math.SQRT2 + 0.1, () => Number.NaN, neighbours);
+    return (i: number, j: number) => pos[(j * row + i) * 3 + 1] as number;
+  };
+
+  it('route qui longe le bord dans la tuile voisine : les deux tuiles donnent le même sol sur leur bord commun', () => {
+    // Route à 99 m, à 3 m du bord x = 80, dans la tuile de droite seulement.
+    const right = tileAt(80, [[83, 99, 0, 83, 99, 80]]);
+    const left = tileAt(0, []);
+    const l = mesh(left, [right]);
+    const r = mesh(right, [left]);
+    for (let j = 0; j <= 8; j++) expect(l(8, j)).toBeCloseTo(r(0, j), 5);
+    // Le sommet du bord porte un triangle sous la chaussée de la voisine : abaissé sous la route.
+    expect(l(8, 4)).toBeLessThan(99);
+  });
+
+  it('sans les voisines, le sommet du bord est quand même abaissé par une route qui passe juste de l autre côté', () => {
+    // Route de la tuile de gauche, à 2 m du bord : la maille de la voisine (hors tuile) touche aussi le sommet du bord.
+    const left = tileAt(0, [[78, 99, 0, 78, 99, 80]]);
+    expect(mesh(left, [])(8, 4)).toBeLessThan(99);
+  });
+});

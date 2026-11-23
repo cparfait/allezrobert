@@ -708,11 +708,24 @@ export class TerrainManager {
     // Une maille en diagonale : portée au-delà de l'emprise des sommets dont les triangles la couvrent.
     const fp = this.footprint && this.footprint.near(tile.x0 + s / 2, tile.z0 + s / 2, s * 0.75 + 20) ? this.footprint : null;
     const reach = (s / seg) * Math.SQRT2 + 0.1;
-    // Sol sur l'axe de l'itinéraire (grille de la tuile), pour reconnaître les tunnels.
+    // Tuiles voisines déjà chargées (routes proches du bord, sol de leur axe) : même sol des deux côtés du bord.
+    const neighbours: LoadedTile[] = [];
+    for (let dz = -1; dz <= 1; dz++)
+      for (let dx = -1; dx <= 1; dx++) {
+        const nb = dx || dz ? this.tiles.get(`${tile.tx + dx}_${tile.tz + dz}`)?.tile : undefined;
+        if (nb) neighbours.push(nb);
+      }
+    // Sol sur l'axe de l'itinéraire (grille de la tuile, ou de la voisine au-delà du bord), pour reconnaître les tunnels.
     const axisGround = (x: number, z: number) => {
       const u = (x - tile.x0) / s;
       const v = (z - tile.z0) / s;
-      return u >= 0 && u <= 1 && v >= 0 && v <= 1 ? sampleH(u, v) : Number.NaN;
+      if (u >= 0 && u <= 1 && v >= 0 && v <= 1) return sampleH(u, v);
+      for (const nb of neighbours) {
+        const nu = (x - nb.x0) / nb.size;
+        const nv = (z - nb.z0) / nb.size;
+        if (nu >= 0 && nu <= 1 && nv >= 0 && nv <= 1) return gridHeight(nb, nu, nv);
+      }
+      return Number.NaN;
     };
     for (let j = 0; j <= seg; j++)
       for (let i = 0; i <= seg; i++) {
@@ -729,7 +742,7 @@ export class TerrainManager {
     // Style jeu vidéo : sol abaissé sous toutes les routes de la tuile (réseau OSM, itinéraire des mondes
     // ouverts), comme sous le ruban de l'itinéraire. Sans orthophoto pour peindre la route, les facettes du
     // maillage (plus grossier que la tranchée creusée par le générateur) se voyaient en vert sur la chaussée.
-    clampUnderRoads(pos, tile, seg, reach, axisGround);
+    clampUnderRoads(pos, tile, seg, reach, axisGround, neighbours);
     // Tableaux typés et normales tirées des hauteurs voisines (grille régulière) : `computeVertexNormals`
     // de three.js, générique, prenait ≈ 75 ms par tuile en qualité haute (saccade au changement de détail).
     const border: number[] = [];
@@ -1253,6 +1266,8 @@ const ROAD_TUNNEL_AXIS = 2.5;
 const ROAD_TUNNEL_COVER = 5;
 /** Sous un trottoir (bordure de 12 cm, voir sidewalks.ts), le sol peut monter jusqu'à ceci au-dessus de la chaussée. */
 const SIDEWALK_GROUND_M = 0.06;
+/** Routes des tuiles voisines prises en compte jusqu'à cette distance du bord (talus de 14 m + trottoirs + maille). */
+const NEIGHBOUR_ROAD_MARGIN_M = 40;
 
 /**
  * Abaisse les sommets de la grille (positions locales, centrées sur la tuile) qui portent un triangle
@@ -1260,7 +1275,15 @@ const SIDEWALK_GROUND_M = 0.06;
  * de son axe, le sol passe juste sous la route à cet endroit. Seuls les sommets du rectangle englobant
  * de chaque tronçon sont visités.
  */
-export function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number, reach: number, axisGround: (x: number, z: number) => number): void {
+export function clampUnderRoads(
+  pos: Float32Array,
+  tile: LoadedTile,
+  seg: number,
+  reach: number,
+  axisGround: (x: number, z: number) => number,
+  /** Tuiles voisines déjà chargées : leurs routes proches du bord comptent aussi (même sol des deux côtés). */
+  neighbours: readonly LoadedTile[] = [],
+): void {
   const s = tile.size;
   const step = s / seg;
   const row = seg + 1;
@@ -1341,10 +1364,13 @@ export function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number
       const bx = p[k + 3] as number, bz = p[k + 5] as number;
       const w = Math.max(wRoad, wWide(k));
       reachMax = Math.max(reachMax, w);
-      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - w - tile.x0) / step) - 1);
-      const i1 = Math.min(seg - 1, Math.floor((Math.max(ax, bx) + w - tile.x0) / step) + 1);
-      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - w - tile.z0) / step) - 1);
-      const j1 = Math.min(seg - 1, Math.floor((Math.max(az, bz) + w - tile.z0) / step) + 1);
+      // Mailles d'une rangée de plus de chaque côté de la tuile (−1 et seg) : un sommet du bord porte aussi les
+      // triangles de la tuile voisine. Sans elles, il n'était abaissé que du côté où la route passait sous ses
+      // triangles, et les deux tuiles ne donnaient pas le même sol sur leur bord commun (marche jusqu'à 4 m).
+      const i0 = Math.max(-1, Math.floor((Math.min(ax, bx) - w - tile.x0) / step) - 1);
+      const i1 = Math.min(seg, Math.floor((Math.max(ax, bx) + w - tile.x0) / step) + 1);
+      const j0 = Math.max(-1, Math.floor((Math.min(az, bz) - w - tile.z0) / step) - 1);
+      const j1 = Math.min(seg, Math.floor((Math.max(az, bz) + w - tile.z0) / step) + 1);
       for (let j = j0; j <= j1; j++)
         for (let i = i0; i <= i1; i++) {
           const x0 = tile.x0 + i * step, z0 = tile.z0 + j * step;
@@ -1364,7 +1390,10 @@ export function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number
             if (near > w && !triangleNearSegment(tx, tz, ax, az, bx, bz, w)) continue;
             const road = w === wRoad || near <= wRoad || (dc <= wRoad + R && triangleNearSegment(tx, tz, ax, az, bx, bz, wRoad));
             for (let v = 0; v < 3; v++) {
-              const idx = (j + (tri[v * 2 + 1] as number)) * row + i + (tri[v * 2] as number);
+              const vi = i + (tri[v * 2] as number);
+              const vj = j + (tri[v * 2 + 1] as number);
+              if (vi < 0 || vj < 0 || vi > seg || vj > seg) continue;
+              const idx = vj * row + vi;
               if (stamp[idx] !== id) {
                 stamp[idx] = id;
                 hitK0[idx] = k;
@@ -1401,11 +1430,46 @@ export function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number
     }
     return out;
   };
-  const roads = tile.features.roads.filter((r) => r.pts3 && !r.tunnel && (r.pts3 as number[]).length >= 6);
-  const built = builtCells(tile.features.buildings);
+  const usable = (r: (typeof tile.features.roads)[number]) => !!r.pts3 && !r.tunnel && (r.pts3 as number[]).length >= 6;
+  // Routes de la tuile, puis celles des tuiles voisines chargées qui passent à moins de NEIGHBOUR_ROAD_MARGIN_M de
+  // son bord : leur talus et leurs trottoirs débordent sur cette tuile-ci, et les deux tuiles doivent donner le même
+  // sol sur leur bord commun. Chaque route garde les bâtiments de sa propre tuile pour reconnaître la ville (comme
+  // les trottoirs dessinés, sidewalks.ts).
+  const owned: Array<{ road: (typeof tile.features.roads)[number]; built: Map<number, number[]> }> = [];
+  const ownBuilt = builtCells(tile.features.buildings);
+  for (const r of tile.features.roads) if (usable(r)) owned.push({ road: r, built: ownBuilt });
+  const M = NEIGHBOUR_ROAD_MARGIN_M;
+  for (const nb of neighbours) {
+    let nbBuilt: Map<number, number[]> | null = null;
+    for (const r of nb.features.roads) {
+      if (!usable(r)) continue;
+      const p = r.pts3 as number[];
+      // Seulement les morceaux dont un segment entre dans la marge (une grande rue de Paris en a des centaines ailleurs).
+      const inMargin = (k: number) =>
+        Math.max(p[k] as number, p[k + 3] as number) > tile.x0 - M &&
+        Math.min(p[k] as number, p[k + 3] as number) < tile.x0 + s + M &&
+        Math.max(p[k + 2] as number, p[k + 5] as number) > tile.z0 - M &&
+        Math.min(p[k + 2] as number, p[k + 5] as number) < tile.z0 + s + M;
+      for (let k = 0; k + 5 < p.length; ) {
+        if (!inMargin(k)) {
+          k += 3;
+          continue;
+        }
+        let e = k;
+        while (e + 8 < p.length && inMargin(e + 3)) e += 3;
+        nbBuilt ??= builtCells(nb.features.buildings);
+        // Segments k … e, avec leur point voisin de chaque côté (sommets d'un virage vus comme dans la tuile voisine).
+        const a = Math.max(0, k - 3);
+        const b = Math.min(p.length, e + 9);
+        owned.push({ road: a === 0 && b === p.length ? r : { ...r, pts3: p.slice(a, b) }, built: nbBuilt });
+        k = e + 3;
+      }
+    }
+  }
+  const roads = owned.map((o) => o.road);
   const halfOf = (r: (typeof roads)[number]) => Math.max(r.width, 2.5) / 2 + 0.6;
   // En ville (bâtiment à moins de 16 à 32 m du milieu du segment, indice k / 3) : place pour des trottoirs.
-  const town = roads.map((r) => {
+  const town = owned.map(({ road: r, built }) => {
     const p = r.pts3 as number[];
     const out: boolean[] = [];
     for (let k = 0; k + 5 < p.length; k += 3) out.push(isBuiltUp(built, ((p[k] as number) + (p[k + 3] as number)) / 2, ((p[k + 2] as number) + (p[k + 5] as number)) / 2));
@@ -1475,6 +1539,24 @@ export function clampUnderRoads(pos: Float32Array, tile: LoadedTile, seg: number
     }
     pos[kk] = Math.min(pos[kk] as number, (Number.isFinite(under) ? under : any) - ROAD_TERRAIN_BELOW);
   }
+}
+
+/** Altitude bilinéaire de la grille brute d'une tuile en (u, v) ∈ [0, 1]². */
+function gridHeight(t: LoadedTile, u: number, v: number): number {
+  const fx = u * t.n;
+  const fz = v * t.n;
+  const i = Math.min(Math.floor(fx), t.n - 1);
+  const j = Math.min(Math.floor(fz), t.n - 1);
+  const a = fx - i;
+  const b = fz - j;
+  const w = t.n + 1;
+  const h = t.heights;
+  return (
+    (h[j * w + i] as number) * (1 - a) * (1 - b) +
+    (h[j * w + i + 1] as number) * a * (1 - b) +
+    (h[(j + 1) * w + i] as number) * (1 - a) * b +
+    (h[(j + 1) * w + i + 1] as number) * a * b
+  );
 }
 
 /** Distance (plan x, z) du point (px, pz) au segment (a, b). */
