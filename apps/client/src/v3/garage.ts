@@ -1,6 +1,6 @@
 import { getV3Catalog, type V3Glow, type V3Part, getV3Clips, getV3Colors, getV3Gear, type V3SockHeight, readV3Equipment, V3_HAIR_COLORS, saveV3Equipment, V3_POSES, type V3Bike, type V3Body, type V3Color, type V3Equipment, type V3Gear, mountedWheel, wheelsFor, type V3Wheel, resolvedBody, riderBmi, itemFits } from './visuals.ts';
 import { addWardrobe, createHueControl, onScreen, V3_LOCK, whenVisible } from './wardrobe.ts';
-import { bikeLevel, gearLevel, playerLevel, wheelLevel } from './levels.ts';
+import { bikeLevel, playerLevel, wheelLevel } from './levels.ts';
 import { V3_ICON } from './icons.ts';
 import { COSMETICS, DEFAULT_BIKE, DEFAULT_TRAINER } from '@allezrobert/shared';
 import { saveV3BikeSetup, v3BikeEffect } from './physics.ts';
@@ -516,15 +516,18 @@ export function createV3Garage(actions: V3GarageActions) {
   const HELMET_COSTUME = /GarminUnbound|HelmetBowl|80sHelmet|Neokyo|BigSpin|OnBoarding/i;
   // Tenue au hasard (dé général et dé de la tenue) : maillot, casque, gants, chaussettes et chaussures, lunettes deux fois sur trois.
   async function randomKit(): Promise<void> {
-    const all = await getV3Gear();
-    const level = playerLevel();
-    const items = all.filter(item => v3Shown('gear', item.id) && gearLevel(item, all) <= level);
+    // Toute la tenue, verrouillée comprise (choix de l'utilisateur du 23/11) : au niveau 1, il n'y avait ni lunettes ni
+    // gants, une seule paire de chaussures et deux de chaussettes, et le dé semblait ne rien changer.
+    const items = (await getV3Gear()).filter(item => v3Shown('gear', item.id));
     const sex = sexNow();
     const kit = { ...equipment.kit };
     for (const type of ['CYCLING_JERSEY', 'HEAD_GEAR', 'GLASSES', 'GLOVES', 'SOCKS', 'CYCLING_SHOES']) {
       // Casque : un vrai casque de vélo (ni casquette, bandeau ou écouteurs, ni déguisement comme le T-Rex de Garmin Unbound).
-      const choice = pick(items.filter(item => item.type === type && itemFits(item, sex) && !/^none$/i.test(item.variant)
-        && (type !== 'HEAD_GEAR' || (item.hairGeom === undefined && !HELMET_COSTUME.test(item.variant)))));
+      const pool = items.filter(item => item.type === type && itemFits(item, sex) && !/^none$/i.test(item.variant)
+        && (type !== 'HEAD_GEAR' || (item.hairGeom === undefined && !HELMET_COSTUME.test(item.variant))));
+      // Toujours une autre pièce que celle portée.
+      const others = pool.filter(item => item.id !== equipment.kit?.[type]?.id);
+      const choice = pick(others.length ? others : pool);
       if (choice && (type !== 'GLASSES' || Math.random() < 2 / 3)) kit[type] = { id: choice.id, color: Math.floor(Math.random() * Math.max(1, choice.colors.length)) };
       else delete kit[type];
     }
