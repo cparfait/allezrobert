@@ -16,7 +16,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { decodeRoute, OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
+import { decodeRoute, encodeRoute, OpenPath, RoadNet, type RoadGraphData, type RoadGraphEdge, type RouteData, type RouteSegment, type WorldMeta } from '@allezrobert/shared';
 import { startOnRoad } from './open-start.ts';
 import { PLACES_FILE, placesOf } from './places.ts';
 import { ATTRIBUTION, ATTRIBUTION_ORTHO, CORRIDOR_TILES, GARMIN_DIR, LOD_HI, LOD_LO, ORIGIN_L93, OUT_DIR, PRIVACY_RADIUS_M, QUALITY, TILE_SIZE_M, WORLD, worldEnrich, type LonLat, type OpenTour } from './config.ts';
@@ -27,6 +27,7 @@ import { Dem, DemStack, setSeaMode } from './dem.ts';
 import { tileRect, wgs84ToWorld, worldToL93, type Rect } from './frame.ts';
 import { simplify3 } from './geom.ts';
 import { RoadGraph, type Edge } from './graph.ts';
+import { markSidepaths } from './loop.ts';
 import { writeHorizon } from './horizon.ts';
 import { setOffline } from './net.ts';
 import { txCopyDir, txFile, writeAtomic, writeBuildMarker } from './safe-fs.ts';
@@ -116,7 +117,9 @@ async function main(): Promise<void> {
   const osm = buildOsmWorld(els);
   log(`   ${els.length} éléments → ${osm.roads.length} voies, ${osm.buildings.length} bâtiments, ${osm.areas.length} surfaces, ${osm.lines.length} lignes, ${osm.pois.length} lieux`);
   const g = new RoadGraph(osm.roads, (r) => !['steps', 'elevator', 'corridor', 'bus_guideway'].includes(r.kind));
-  log(`   graphe OSM : ${g.edges.length} arêtes, ${g.adj.size} nœuds`);
+  // pistes cyclables le long d'une route : les tours prennent la route (piste seulement sans route à côté)
+  const sidepaths = markSidepaths(g);
+  log(`   graphe OSM : ${g.edges.length} arêtes, ${g.adj.size} nœuds, ${sidepaths} pistes cyclables le long d’une route (tours sur la route)`);
 
   // 1 bis. itinéraires publiés gardés (monde garmin ou montée) : recalés sur le graphe
   const prevMeta: WorldMeta | null = KEEP ? (JSON.parse(fs.readFileSync(path.join(OUT_DIR, 'world.json'), 'utf8')) as WorldMeta) : null;
@@ -169,8 +172,35 @@ async function main(): Promise<void> {
         `(${[...by].map(([k, n]) => `${k} ${n}`).join(', ')})`,
     );
   }
-  const r3 = buildRoads3d(g, dem, kept, { routeEdgeProfiles: true, ...(deckHeights ? { deckHeights } : {}) });
+  const railBridges = osm.lines.filter((l) => l.cat === 'railway' && l.bridge && !l.tunnel);
+  const r3 = buildRoads3d(g, dem, kept, { routeEdgeProfiles: true, railBridges, ...(deckHeights ? { deckHeights } : {}) });
   log(`   ${r3.roads.length} tronçons, ${r3.carve.length} couloirs creusés`);
+  const up = r3.underpasses;
+  log(`   passages sous un pont : ${up.lowered} routes abaissées (jusqu’à ${up.maxLowerM.toFixed(1)} m)${up.skipped ? `, ${up.skipped} laissées (plus de 6 m)` : ''}`);
+  // itinéraires gardés abaissés sous un pont : fichier réécrit (même format), dénivelé et pentes recalculés
+  for (const k of kept) {
+    if (!r3.routesLowered.has(k.route.id)) continue;
+    const ref = prevMeta!.routes.find((x) => x.id === k.route.id)!;
+    const file = path.join(OUT_DIR, ref.file);
+    const r = k.route;
+    const hs = r.points.map((p) => p.y);
+    const step = r.stepM ?? (r.points.length > 1 ? r.lengthM / (r.points.length - 1) : 2);
+    const yAt = (d: number) => hs[Math.max(0, Math.min(hs.length - 1, Math.round(d / step)))]!;
+    r.elevationGainM = r2(elevationGain(hs, r.loop));
+    if (r.minElevationM !== undefined) r.minElevationM = r2(Math.min(...hs));
+    if (r.maxElevationM !== undefined) r.maxElevationM = r2(Math.max(...hs));
+    if (r.maxGradePct !== undefined) {
+      const w = Math.max(1, Math.round(10 / step));
+      let mg = 0;
+      for (let i = 0; i + w < hs.length; i++) mg = Math.max(mg, (Math.abs(hs[i + w]! - hs[i]!) / (w * step)) * 100);
+      r.maxGradePct = r2(mg);
+    }
+    for (const sg of r.segments) if (sg.endM > sg.startM) sg.avgGrade = r2(((yAt(sg.endM) - yAt(sg.startM)) / (sg.endM - sg.startM)) * 100);
+    ref.elevationGainM = r.elevationGainM;
+    const compact = !Array.isArray((JSON.parse(fs.readFileSync(file, 'utf8')) as { points: unknown }).points);
+    writeAtomic(file, JSON.stringify(compact ? encodeRoute(r) : r));
+    log(`   itinéraire gardé ${r.name} abaissé sous un pont : D+ ${r.elevationGainM.toFixed(0)} m, pente max ${r.maxGradePct ?? '?'} %`);
+  }
 
   // 3 bis. données fines IGN sur toute l'emprise : arbres et haies (MNH LiDAR HD), bâtiments
   // BD TOPO (toits mesurés au MNS), nature et largeur des voies
@@ -343,7 +373,7 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
   // pistes pavées (secteurs de Paris–Roubaix : la Trouée d'Arenberg est un « track » en pavés) comprises
   const cobbledTrack = (e: Edge) => e.road.kind === 'track' && /^(sett|cobblestone)$/.test(e.road.surface);
   const anyTrack = (e: Edge) => !!tour.allowTracks && e.road.kind === 'track' && edgeIndex.has(e.id);
-  const usable = (e: Edge) => (edgeIndex.has(e.id) && e.road.paved && (/^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind) || cobbledTrack(e))) || anyTrack(e);
+  const usable = (e: Edge) => (edgeIndex.has(e.id) && e.road.paved && (/^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind) || cobbledTrack(e)) && !e.sidepath) || anyTrack(e);
   const cost = (e: Edge) => (!usable(e) ? Infinity : e.road.kind === 'track' && !cobbledTrack(e) ? e.len * 3 : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
   const place = (p: LonLat | string): [number, number] => {
     if (typeof p !== 'string') return toWorld(p);

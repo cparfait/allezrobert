@@ -47,7 +47,7 @@ import { routeViaEdges } from './climb.ts';
 import { resampleOpen, smooth1d, type Pt } from './geom.ts';
 import { loadRides, longestRun, rideStats, sensitivePoints, trimPrivate, type GpxPoint } from './gpx.ts';
 import { RoadGraph, type Edge } from './graph.ts';
-import { bikeable, busyWeight, cyclePolyline, enumerateCycles, scoreCycle, segmentBonus, type CycleScore, type LoopSearchOptions } from './loop.ts';
+import { bikeable, busyWeight, cyclePolyline, enumerateCycles, markSidepaths, scoreCycle, segmentBonus, type CycleScore, type LoopSearchOptions } from './loop.ts';
 import { matchRide } from './mapmatch.ts';
 import { setOffline } from './net.ts';
 import { preflight } from './preflight.ts';
@@ -385,6 +385,7 @@ async function main(): Promise<void> {
   log(`   ${els.length} éléments → ${osm.roads.length} voies, ${osm.buildings.length} bâtiments, ${osm.areas.length} surfaces, ${osm.lines.length} lignes, ${osm.pois.length} lieux`);
   const g = new RoadGraph(osm.roads, (r) => !['steps', 'elevator', 'corridor', 'bus_guideway'].includes(r.kind));
   log(`   graphe : ${g.edges.length} arêtes, ${g.adj.size} nœuds`);
+  log(`   ${markSidepaths(g)} pistes cyclables le long d’une route (les boucles prennent la route)`);
 
   // 3. MNT
   log('3. MNT IGN');

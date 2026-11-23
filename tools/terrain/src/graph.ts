@@ -18,6 +18,8 @@ export interface Edge {
   rides: number;
   /** Nombre total de passages. */
   passes: number;
+  /** Piste cyclable qui longe une route roulable (`markSidepaths`) : les boucles prennent la route. */
+  sidepath?: boolean;
 }
 
 export class RoadGraph {

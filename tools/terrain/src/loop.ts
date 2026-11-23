@@ -4,7 +4,7 @@
  * notation fine (côtes/sprints sur le profil lissé) des meilleurs candidats.
  */
 import { worldToL93 } from './frame.ts';
-import { cumulative, resampleClosed, signedArea, smooth1d, type Box, type Pt } from './geom.ts';
+import { cumulative, GridIndex, resampleClosed, resampleOpen, signedArea, smooth1d, type Box, type Pt } from './geom.ts';
 import { dijkstra, pathNodes, pathTo, type Edge, type RoadGraph } from './graph.ts';
 import type { DemStack } from './dem.ts';
 import { detectClimbs, detectSprints } from './profile.ts';
@@ -61,9 +61,50 @@ export function bikeable(e: Edge): boolean {
   if (!e.road.paved) return false;
   if (/^(motorway|trunk)(_link)?$/.test(k)) return false;
   if (['primary', 'secondary', 'tertiary', 'unclassified', 'residential', 'living_street', 'primary_link', 'secondary_link', 'tertiary_link'].includes(k)) return true;
-  if (k === 'cycleway') return true;
+  if (k === 'cycleway') return !e.sidepath;
   if (k === 'service') return e.rides > 0;
   return false;
+}
+
+/** Voies que les boucles préfèrent à une piste cyclable qui les longe. */
+const SIDEPATH_ROADS = /^(primary|secondary|tertiary|unclassified|residential|living_street|service)(_link)?$/;
+/** Distance (m) et part de la piste à moins de cette distance d'une route pour qu'elle la « longe ». */
+const SIDEPATH_DIST_M = 15;
+const SIDEPATH_SHARE = 0.6;
+
+/**
+ * Marque les pistes cyclables qui longent une route roulable (piste le long d'une départementale, OSM `cycleway`
+ * à part de la chaussée) : les boucles prennent la route, comme le coureur en jeu, et ne gardent la piste que là où
+ * il n'y a pas de route à côté (voie verte, piste le long d'une voie rapide interdite aux vélos). Renvoie leur nombre.
+ */
+export function markSidepaths(g: RoadGraph): number {
+  const index = new GridIndex<[Pt, Pt]>(50);
+  for (const e of g.edges) {
+    if (!SIDEPATH_ROADS.test(e.road.kind)) continue;
+    for (let i = 0; i + 1 < e.pts.length; i++) {
+      const a = e.pts[i]!, b = e.pts[i + 1]!;
+      index.insertBox({ minX: Math.min(a[0], b[0]), minZ: Math.min(a[1], b[1]), maxX: Math.max(a[0], b[0]), maxZ: Math.max(a[1], b[1]) }, [a, b]);
+    }
+  }
+  let n = 0;
+  for (const e of g.edges) {
+    if (e.road.kind !== 'cycleway' || e.len < 1) continue;
+    const pts = e.len > 5 ? resampleOpen(e.pts, 5) : e.pts;
+    let near = 0;
+    for (const p of pts) {
+      for (const [a, b] of index.query(p[0], p[1], SIDEPATH_DIST_M)) {
+        const dx = b[0] - a[0], dz = b[1] - a[1];
+        const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / (dx * dx + dz * dz || 1)));
+        if (Math.hypot(a[0] + dx * t - p[0], a[1] + dz * t - p[1]) <= SIDEPATH_DIST_M) {
+          near++;
+          break;
+        }
+      }
+    }
+    e.sidepath = near >= SIDEPATH_SHARE * pts.length;
+    if (e.sidepath) n++;
+  }
+  return n;
 }
 
 export function busyWeight(kind: string): number {

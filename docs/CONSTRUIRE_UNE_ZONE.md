@@ -181,6 +181,22 @@ Variables d'environnement : `TERRAIN_WORLD=<id>` (équivalent de `--world`), `TE
 utile si `C:` est plein), `TERRAIN_MIN_FREE_GB=<n>` (équivalent de `--min-free-gb`). `--routes-only`
 (script `build:routes`) ne concerne que les mondes `garmin`, pas les zones `open`.
 
+### Corrections appliquées à chaque construction
+
+Elles sont actives par défaut, dans l'outil graphique comme en ligne de commande :
+
+- **Limite de couverture LiDAR** (`dem.ts`, `seamBlend`) : là où le LiDAR HD manque, le RGE ALTI est recalé sur
+  lui le long de la limite, puis l'écart s'efface sur 150 m (plus de marche de 30 à 80 cm à travers champs et
+  routes). Les blocs recalés vont dans `dem/<niveau>-seam` du cache ; l'ancien cache n'est ni lu pour eux ni
+  modifié. `TERRAIN_DEM_SEAM=0` pour s'en passer.
+- **Passages sous les ponts** (`roads3d.ts`, `lowerUnderpasses`, `lowerRouteUnderpasses`) : le MNT interpolé sous
+  un tablier garde une bosse ; toute route qui passe sous un pont routier ou ferroviaire (itinéraires gardés
+  compris, fichier et statistiques réécrits ; montées de la chaîne `build-climb` aussi, avant leurs statistiques)
+  est abaissée pour laisser 4,2 m libres, avec des rampes à 6 %. Le journal donne le nombre de passages abaissés.
+- **Route plutôt que piste cyclable** (`loop.ts`, `markSidepaths`) : une piste cyclable qui longe une route
+  roulable n'est pas prise par les tours proposés ; elle ne l'est que sans route à côté (voie verte, piste le
+  long d'une voie rapide).
+
 ### Garde-fous d'une construction
 
 - **Place libre** : avant de commencer, la construction mesure la place sur le disque réel du cache

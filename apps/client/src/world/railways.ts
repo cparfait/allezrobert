@@ -10,6 +10,8 @@ import { fillDips, pinEnd, RAIL_DIP_WINDOW_M } from './railProfile.ts';
 
 /** Écartement des rails (m, entre axes des files de rails). */
 const GAUGE = 1.505;
+/** Sol plus bas que ceci sous la voie (m) : tablier au lieu du talus de ballast jusqu’au sol (passage creusé dessous). */
+const RAIL_DECK_GAP_M = 2.5;
 const CAR_LEN = 25.6;
 const CAR_PITCH = 26;
 const CARS = 8;
@@ -427,7 +429,9 @@ export class Railways {
         ballast.map(([o, h]) => {
           const q = p.clone().addScaledVector(side, o);
           const g = this.groundAt(q.x, q.z);
-          const deck = typeof bridge === 'boolean' ? bridge : bridge[i] === true;
+          // Sol à plus de 2,5 m sous la voie (route creusée sous un pont ferroviaire, au-delà du court tronçon OSM
+          // « pont ») : tablier, sans talus jusqu'au sol, qui fermait le passage comme un mur.
+          const deck = (typeof bridge === 'boolean' ? bridge : bridge[i] === true) || (Number.isFinite(g) && g < p.y - RAIL_DECK_GAP_M);
           q.y = h === 'ground' ? (deck || !Number.isFinite(g) ? p.y - 1.2 : Math.min(g, p.y - 0.32) - 0.25) : p.y + h;
           return q;
         }),

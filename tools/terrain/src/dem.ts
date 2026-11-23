@@ -279,11 +279,11 @@ export class Dem {
   }
 
   /**
-   * Recalage du RGE ALTI sur le LiDAR (`seamBlend`), avec TERRAIN_DEM_SEAM=1 : blocs refaits dans un dossier à part
+   * Recalage du RGE ALTI sur le LiDAR (`seamBlend`), actif par défaut (TERRAIN_DEM_SEAM=0 pour s'en passer) : blocs refaits dans un dossier à part
    * (`…-seam`), l'ancien cache n'est ni lu pour eux ni modifié. Un bloc dont la fenêtre est entièrement LiDAR (ou
    * entièrement RGE ALTI) n'a pas de limite : un simple marqueur `.same` renvoie à l'ancien fichier.
    */
-  readonly seam = process.env.TERRAIN_DEM_SEAM === '1';
+  readonly seam = process.env.TERRAIN_DEM_SEAM !== '0';
 
   private seamFile(bx: number, by: number): string {
     return cachePath(`dem/${this.label}-${this.res}m${seaMode ? '-sea' : ''}-seam`, `${bx}_${by}`, '.f32');
@@ -323,7 +323,7 @@ export class Dem {
     return (await this.fetchWindow(layer, bx, by)).data;
   }
 
-  /** Bloc recalé (TERRAIN_DEM_SEAM=1). */
+  /** Bloc recalé (par défaut ; TERRAIN_DEM_SEAM=0 pour l'ancien bloc fusionné). */
   private async ensureSeamBlock(bx: number, by: number): Promise<void> {
     const n = this.samples;
     const sf = this.seamFile(bx, by);

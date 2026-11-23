@@ -19,6 +19,7 @@ import { Dem, DemStack } from './dem.ts';
 import { distPointRect, tileId, tileRect, wgs84ToWorld, worldToL93, type Rect } from './frame.ts';
 import { cumulative, type Pt } from './geom.ts';
 import { RoadGraph, type Edge } from './graph.ts';
+import { edgeProfile, lowerRouteUnderpasses, overpassesOf } from './roads3d.ts';
 import { setOffline } from './net.ts';
 import { buildOsmWorld, parseNumber } from './osm.ts';
 import { fetchOsm, mountainClauses, type OsmNode } from './overpass.ts';
@@ -228,6 +229,23 @@ async function main(): Promise<void> {
   );
   const prof = smoothRoadProfile(rawH, step, false, PROFILE_SIGMA_M, PROFILE_MAX_GRADE_CHANGE);
   const hs = prof.h;
+  // passage sous un pont routier ou ferroviaire : la bosse du MNT sous le tablier retirée (4,2 m libres, rampes à 6 %),
+  // comme dans les mondes ouverts (roads3d.ts) ; avant les statistiques et le chrono de la montée
+  {
+    const onRoute = new Set(fin.edgeOf);
+    const nodeY = (nd: number) => {
+      const p = g.nodePos.get(nd)!;
+      const l = worldToL93(p[0], p[1]);
+      return dem.sample(l.e, l.n);
+    };
+    const decks = new Map<number, Array<[number, number, number]>>();
+    for (const e of g.edges) if (e.road.bridge && !onRoute.has(e.id)) decks.set(e.id, edgeProfile(e, dem, nodeY(e.a), nodeY(e.b)));
+    const ov = overpassesOf(g, decks, dem, osm.lines.filter((l) => l.cat === 'railway' && l.bridge && !l.tunnel));
+    const stats = { lowered: 0, maxLowerM: 0, skipped: 0 };
+    const routePts = pts.map((p, i) => ({ x: p[0], y: hs[i]!, z: p[1], d: i * step }));
+    if (lowerRouteUnderpasses(routePts, false, ov, stats)) routePts.forEach((p, i) => (hs[i] = p.y));
+    if (stats.lowered || stats.skipped) log(`   passages sous un pont : ${stats.lowered} abaissé(s) (jusqu’à ${stats.maxLowerM.toFixed(1)} m)${stats.skipped ? `, ${stats.skipped} laissé(s) (plus de 6 m)` : ''}`);
+  }
   // écart planimétrique lissage ↔ OSM (dans les lacets surtout)
   let maxPlanDev = 0;
   for (let i = 0; i < n; i += 1) maxPlanDev = Math.max(maxPlanDev, projectArc(raw.pts, pts[i]!, i * step - 60, i * step + 60).d);
