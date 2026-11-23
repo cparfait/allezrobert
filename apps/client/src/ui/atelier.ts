@@ -344,11 +344,11 @@ export class AtelierHost {
       this.studio().prewarm(this.v3?.riderSex() ?? 'male');
       this.studio().resume();
     }
-    // Vélo V3 chargé ou changé : home trainer recalé sur ses roues.
-    this.v3 ??= new V3Visual(this.avatar.v3Mount(), () => { this.frames = Math.max(this.frames, 2); if (this.trainer) this.fitTrainer(); }, error => this.v3Panel?.report(error));
+    const v3 = this.ensureV3();
+    if (!v3) return;
     // Garage Beta fermé : plus d'essai en cours, c'est la tenue enregistrée qui compte.
     if (!st.v3Picker) this.v3Shown = undefined;
-    this.v3.set(st.look, this.v3Shown);
+    v3.set(st.look, this.v3Shown);
   }
 
   constructor(private readonly engine: Engine) {
@@ -713,6 +713,14 @@ export class AtelierHost {
    * shaders en coulisse, pour que la première ouverture du garage ou de l'aperçu du tutoriel soit
    * immédiate (pièce et coureur restent gardés ensuite). `onProgress(fait, total)` suit la compilation.
    */
+  /** Coureur et vélo V3 du garage (style Bêta), créés une seule fois. */
+  private ensureV3(): V3Visual | undefined {
+    if (!V3_STYLE || !(this.avatar instanceof GltfRiderAvatar)) return undefined;
+    // Vélo V3 chargé ou changé : home trainer recalé sur ses roues.
+    this.v3 ??= new V3Visual(this.avatar.v3Mount(), () => { this.frames = Math.max(this.frames, 2); if (this.trainer) this.fitTrainer(); }, error => this.v3Panel?.report(error));
+    return this.v3;
+  }
+
   async prepare(look: AvatarLook, onProgress?: (done: number, total: number) => void): Promise<void> {
     this.build();
     if (!this.avatar) {
@@ -720,6 +728,9 @@ export class AtelierHost {
       this.bikeRoot.add(this.avatar.root);
       this.lookKey = JSON.stringify(look);
     }
+    // Bêta : coureur, vélo et tenue V3 chargés dès le lancement (sans attendre), pour qu'ils soient déjà là à la
+    // première entrée au garage ; set() reprend ensuite le même coureur sans rien recharger.
+    if (!this.state) this.ensureV3()?.set(look);
     if (this.scenePass) await compilePass(this.engine.renderer, this.scenePass, onProgress);
   }
 
