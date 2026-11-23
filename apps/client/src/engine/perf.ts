@@ -91,7 +91,8 @@ export class PerfOverlay {
       document.body.appendChild(el);
       this.el = el;
     }
-    if (this.el) this.el.style.display = this.visible ? 'block' : 'none';
+    // Masqué tant qu'aucune mesure n'est écrite (écrans sans rendu 3D) : sinon il reste un petit pavé noir vide.
+    if (this.el) this.el.style.display = this.visible && this.el.textContent ? 'block' : 'none';
     this.samples.length = 0;
     this.cpu.length = 0;
     this.spikes.length = 0;
@@ -179,5 +180,6 @@ export class PerfOverlay {
       ...(this.spikes.length ? this.spikes.map((k) => `  il y a ${Math.round((performance.now() - k.at) / 1000)} s  ${k.text}`) : ['  aucune']),
       `F3 masquer · Maj+F3 mesure GPU (relance) · Alt+1 AO · Alt+2 bloom · Alt+3 TAA`,
     ].join('\n');
+    this.el.style.display = 'block';
   }
 }
