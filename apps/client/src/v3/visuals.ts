@@ -431,15 +431,89 @@ function collarColor(rider: RiderVisual): Color | undefined {
   return color;
 }
 
-/** Teinte de peau du coureur : pixel médian de la texture du visage porté (planche FLESH). */
+/**
+ * Teinte de peau du coureur pour le V du maillot ouvert : prise sur le cou lui-même (devant, juste au-dessus du col),
+ * dans les triangles des pièces FLESH visibles de la tête portée, teinte la plus fréquente. L'ancienne mesure (pixel
+ * clair de toute la planche du visage) tombait sur le blanc des yeux, les dents ou le fond de la planche : V gris pâle.
+ */
 const skinTones = new WeakMap<object, Color>();
 function skinTone(rider: RiderVisual): Color {
+  const neck = neckTone(rider);
+  if (neck) return neck;
+  return atlasSkinTone(rider);
+}
+
+/** Cou devant, pose de repos (mètres) : du haut du V du col au menton. */
+const NECK_ZONE = { bottom: 1.42, top: 1.53, half: 0.045 };
+function neckTone(rider: RiderVisual): Color | undefined {
+  if (typeof document === 'undefined') return;
+  const meshes: Mesh[] = [];
+  for (const { node } of rider.groups) {
+    if (!node.visible || !/^LOD0_/.test(node.name)) continue;
+    node.traverse(child => {
+      const mesh = child as Mesh;
+      if (mesh.isMesh && !Array.isArray(mesh.material) && /^FLESH/i.test((mesh.material as Material).name)) meshes.push(mesh);
+    });
+  }
+  const material = meshes[0]?.material as MeshStandardMaterial | undefined;
+  const image = material?.map?.image as (CanvasImageSource & { width: number }) | undefined;
+  if (!material || !image?.width) return;
+  const known = skinTones.get(image);
+  if (known) return known.clone().multiply(material.color);
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return;
+  ctx.drawImage(image, 0, 0, size, size);
+  const data = ctx.getImageData(0, 0, size, size).data;
+  const buckets = new Map<number, { n: number; r: number; g: number; b: number }>();
+  const WEIGHTS = [[1 / 3, 1 / 3, 1 / 3], [0.6, 0.2, 0.2], [0.2, 0.6, 0.2], [0.2, 0.2, 0.6]] as const;
+  for (const mesh of meshes) {
+    if ((mesh.material as MeshStandardMaterial).map?.image !== image) continue;
+    const position = mesh.geometry.getAttribute('position');
+    const uv = mesh.geometry.getAttribute('uv');
+    if (!position || !uv) continue;
+    const inNeck = (i: number) => {
+      const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
+      return x >= 0 && Math.abs(z) <= NECK_ZONE.half && y >= NECK_ZONE.bottom && y <= NECK_ZONE.top;
+    };
+    const index = mesh.geometry.getIndex();
+    const vertex = (k: number) => (index ? index.getX(k) : k);
+    const count = index ? index.count : position.count;
+    for (let k = 0; k + 2 < count; k += 3) {
+      const a = vertex(k), b = vertex(k + 1), c = vertex(k + 2);
+      if (!inNeck(a) || !inNeck(b) || !inNeck(c)) continue;
+      for (const [wa, wb, wc] of WEIGHTS) {
+        const u0 = uv.getX(a) * wa + uv.getX(b) * wb + uv.getX(c) * wc;
+        const v0 = uv.getY(a) * wa + uv.getY(b) * wb + uv.getY(c) * wc;
+        const u = u0 - Math.floor(u0), v = v0 - Math.floor(v0);
+        const at = (Math.min(size - 1, Math.floor(v * size)) * size + Math.min(size - 1, Math.floor(u * size))) * 4;
+        if (data[at + 3]! < 200) continue;
+        const r = data[at]!, g = data[at + 1]!, bl = data[at + 2]!;
+        const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (bl >> 4);
+        const bucket = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+        bucket.n++; bucket.r += r; bucket.g += g; bucket.b += bl;
+        buckets.set(key, bucket);
+      }
+    }
+  }
+  if (!buckets.size) return;
+  const best = [...buckets.values()].reduce((x, y) => (y.n > x.n ? y : x));
+  const tone = new Color().setRGB(best.r / best.n / 255, best.g / best.n / 255, best.b / best.n / 255, SRGBColorSpace);
+  skinTones.set(image, tone);
+  return tone.clone().multiply(material.color);
+}
+
+const atlasTones = new WeakMap<object, Color>();
+/** Repli : pixel clair de la planche du visage d'origine (sans géométrie de cou exploitable). */
+function atlasSkinTone(rider: RiderVisual): Color {
   const fallback = new Color(0.78, 0.58, 0.46);
   const flesh = rider.originalMaterials.find(({ material }) => /^FLESH$/i.test(material.name))?.material.map
     ?? rider.originalMaterials.find(({ material }) => /^FLESH/i.test(material.name))?.material.map;
   const image = flesh?.image as (CanvasImageSource & { width: number }) | undefined;
   if (!image?.width || typeof document === 'undefined') return fallback;
-  const known = skinTones.get(image);
+  const known = atlasTones.get(image);
   if (known) return known;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 32;
@@ -456,7 +530,7 @@ function skinTone(rider: RiderVisual): Color {
   pixels.sort((a, b) => a[0] - b[0]);
   const [, r, g, b] = pixels[Math.floor(pixels.length * 0.8)]!;
   const tone = new Color().setRGB(r / 255, g / 255, b / 255, SRGBColorSpace);
-  skinTones.set(image, tone);
+  atlasTones.set(image, tone);
   return tone;
 }
 
