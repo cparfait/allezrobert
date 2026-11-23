@@ -113,6 +113,8 @@ function launchChrome(url: string, log: string): ChildProcess {
     '--disable-renderer-backgrounding',
     '--disable-backgrounding-occluded-windows',
     '--window-size=1920,1080',
+    // Film muet : pas de son du jeu pendant le tournage, même avec --headed.
+    '--mute-audio',
     '--enable-logging=stderr',
     '--v=0',
     ...(arg('headed') ? [] : ['--headless=new']),
