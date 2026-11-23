@@ -892,7 +892,10 @@ export function createV3Garage(actions: V3GarageActions) {
     const catalog = await getV3Catalog();
     const level = playerLevel();
     const list = catalog.bikes.filter(row => v3Shown('bike', row.id) && bikeLevel(row, catalog.bikes) <= level);
-    const bike = pick(usual ? list.filter(row => ['route', 'gravel', 'chrono', 'vtt'].includes(row.type)) : list);
+    const pool = usual ? list.filter(row => ['route', 'gravel', 'chrono', 'vtt'].includes(row.type)) : list;
+    // Toujours un autre vélo que celui monté (peu de vélos au début : sinon le dé semblait sans effet).
+    const others = pool.filter(row => row.id !== equipment.bike);
+    const bike = pick(others.length ? others : pool);
     if (!bike) return;
     const { colors: options } = await getV3Colors(bike.id).catch(() => ({ colors: [] as V3Color[] }));
     const offered = wheelsFor(bike.type, catalog.wheels ?? []).filter(wheel => v3Shown('wheel', wheel.id) && wheel.kind === (bike.type === 'gravel' ? 'gravel' : 'route')
@@ -905,7 +908,10 @@ export function createV3Garage(actions: V3GarageActions) {
   }
   /** Home trainer au hasard parmi ceux du jeu (dé général). */
   function randomTrainer(): void {
-    const trainer = pick(trainerOptions.map(([id]) => id).filter((id): id is string => !!id));
+    // Toujours un autre home trainer que celui installé.
+    const all = trainerOptions.map(([id]) => id).filter((id): id is string => !!id);
+    const others = all.filter(id => id !== equipment.trainer);
+    const trainer = pick(others.length ? others : all);
     if (!trainer) return;
     apply({ ...equipment, trainer });
     showTrainer();
