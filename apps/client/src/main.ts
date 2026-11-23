@@ -944,7 +944,12 @@ async function boot(): Promise<void> {
     })()
       .catch(() => undefined)
       // Garage chargé (ou impossible à charger : le bouton ne doit pas manquer pour autant) : « Rouler » apparaît à l'accueil.
-      .then(() => menu.setGarageReady()));
+      .then(() => {
+        menu.setGarageReady();
+        // Bêta : photo du coureur pour « Prêt à rouler ? » prise dès l'ouverture du jeu, en cache (ui/startRider.ts) ;
+        // refaite à la sortie du garage si la tenue a changé.
+        if (V3_STYLE) warmRiderPortrait({ renderer: scene.engine.renderer, look: settings.look, environment: scene.engine.scene.environment });
+      }));
   const whenAtelierReady = (build: () => boolean): void => {
     // Atelier déjà affiché une fois : tout est prêt, changement immédiat.
     if (atelierBuilt) {
