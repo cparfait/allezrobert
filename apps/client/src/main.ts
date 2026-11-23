@@ -534,6 +534,8 @@ async function boot(): Promise<void> {
   // Spotify déconnecté entre-temps : la musique du jeu reprend sa place.
   if (!spotify.connected) music.yieldToExternal(false);
   music.unlockOnGesture();
+  // Application de bureau : nouvelle version proposée avant tout téléchargement ou mise en cache (on attend la réponse).
+  await offerDesktopUpdate();
   // Application Windows : zones du disque, ressources du jeu à jour, profil sauvegardé, F11, veille rendue à Windows.
   await prepareDesktop();
   // Zone du mode en ligne (Longchamp) installée d'office au premier lancement : jouable ensuite sans connexion.
@@ -1069,7 +1071,6 @@ async function boot(): Promise<void> {
   bootDone();
   // Île de Robert : installée en tâche de fond une fois le menu affiché (application de bureau).
   void installBackgroundZones();
-  void offerDesktopUpdate();
   // Historique local (SQLite dans l'appli de bureau) : ouverture et import des anciennes données.
   void rideHistory.ready(settings.ftpWatts).catch((e) => console.warn('Historique indisponible', e));
   if (autostart) {

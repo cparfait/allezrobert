@@ -35,13 +35,21 @@ interface UpdateInfo {
   notes?: string;
 }
 
-/** Cherche une nouvelle version de l'application (une fois par lancement) et propose de l'installer. */
+/**
+ * Cherche une nouvelle version de l'application, au tout début du démarrage (avant le téléchargement des ressources
+ * et la préparation du jeu : inutile de mettre en cache celles d'une version qu'on va remplacer), et propose de
+ * l'installer. La promesse se résout quand le démarrage peut continuer : pas de nouvelle version, recherche
+ * impossible ou trop longue (hors ligne), ou « Plus tard ». « Installer et redémarrer » ne la résout pas : l'application
+ * redémarre ; en cas d'échec, « Plus tard » reste possible.
+ */
 export async function offerDesktopUpdate(): Promise<void> {
   if (!inDesktop || import.meta.env.DEV) return;
-  const info = await invoke<UpdateInfo | null>('update_check').catch((e) => {
+  const check = invoke<UpdateInfo | null>('update_check').catch((e) => {
     console.info('Recherche de mise à jour impossible', e);
     return null;
   });
+  // Sans réponse en quelques secondes (réseau lent ou absent) : le jeu démarre, sans proposition.
+  const info = await Promise.race([check, new Promise<null>((r) => setTimeout(() => r(null), 6000))]);
   if (!info) return;
   const L = fr();
   const el = notice(
@@ -49,20 +57,25 @@ export async function offerDesktopUpdate(): Promise<void> {
      <button class="btn small primary" data-up-go>${L ? 'Installer et redémarrer' : 'Install and restart'}</button><button class="btn small" data-up-later>${L ? 'Plus tard' : 'Later'}</button>`,
     0,
   );
-  el.querySelector('[data-up-later]')?.addEventListener('click', () => el.remove());
-  el.querySelector('[data-up-go]')?.addEventListener('click', () => {
-    el.querySelectorAll('button').forEach((b) => (b.disabled = true));
-    const label = el.querySelector('span') as HTMLElement;
-    label.textContent = L ? 'Téléchargement de la mise à jour…' : 'Downloading the update…';
-    void listen<{ done: number; total?: number }>('update://progress', (p) => {
-      label.textContent = `${L ? 'Téléchargement' : 'Downloading'} ${p.total ? `${Math.floor((p.done / p.total) * 100)} %` : formatBytes(p.done, L)}`;
-    }).then((off) =>
-      invoke('update_install').catch((err) => {
-        off();
-        label.textContent = `${L ? 'Mise à jour impossible' : 'Update failed'} : ${String(err)}`;
-        el.querySelectorAll('button').forEach((b) => (b.disabled = false));
-      }),
-    );
+  await new Promise<void>((resolve) => {
+    el.querySelector('[data-up-later]')?.addEventListener('click', () => {
+      el.remove();
+      resolve();
+    });
+    el.querySelector('[data-up-go]')?.addEventListener('click', () => {
+      el.querySelectorAll('button').forEach((b) => (b.disabled = true));
+      const label = el.querySelector('span') as HTMLElement;
+      label.textContent = L ? 'Téléchargement de la mise à jour…' : 'Downloading the update…';
+      void listen<{ done: number; total?: number }>('update://progress', (p) => {
+        label.textContent = `${L ? 'Téléchargement' : 'Downloading'} ${p.total ? `${Math.floor((p.done / p.total) * 100)} %` : formatBytes(p.done, L)}`;
+      }).then((off) =>
+        invoke('update_install').catch((err) => {
+          off();
+          label.textContent = `${L ? 'Mise à jour impossible' : 'Update failed'} : ${String(err)}`;
+          el.querySelectorAll('button').forEach((b) => (b.disabled = false));
+        }),
+      );
+    });
   });
 }
 
