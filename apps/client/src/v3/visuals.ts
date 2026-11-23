@@ -255,6 +255,9 @@ export function clipForBike(wanted: string, type: string | undefined, exists: (n
   };
   // Posture déjà propre à un type de vélo (choisie dans « Variantes ») : gardée telle quelle.
   if (/Mountain|_Buffalo|Concept|_TT|Recumbent|Handcycle/i.test(wanted)) return wanted;
+  // Pose debout à l'arrêt (CyclistStandingIdle01, portrait de « Prêt à rouler ? ») : hors du vélo, la même pour tous ;
+  // sans cela, « Standing » la faisait prendre pour la danseuse du vélo (sprint du handbike, du couché…).
+  if (/Idle/i.test(wanted)) return wanted;
   const found = (variants[type ?? ''] ?? {})[kind]?.find(exists);
   return found ?? wanted;
 }

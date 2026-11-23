@@ -17,6 +17,13 @@ describe('postures V3 en sortie', () => {
     expect(clipForBike('cyclistSprint', 'route', exists)).toBe('cyclistSprint');
   });
 
+  it('garde la pose debout à l\'arrêt quel que soit le vélo (portrait du départ)', () => {
+    const withStanding = (name: string) => exists(name) || /StandingHoodsMountain|SprintRecumbent|SprintHandcycle/.test(name);
+    for (const type of ['vtt', 'couché', 'handbike', 'chrono', 'route']) {
+      expect(clipForBike('CyclistStandingIdle01', type, withStanding)).toBe('CyclistStandingIdle01');
+    }
+  });
+
   it('pied à terre, départ et arrivée selon le vélo', () => {
     expect(transitionClip('idle', 'vtt', exists)).toBe('CyclistFootDownIdleMountain');
     expect(transitionClip('idle', 'chrono', exists)).toBe('cyclistFootDownIdle');
