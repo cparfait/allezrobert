@@ -7,12 +7,25 @@ import { pipelineStats } from './pipelineStats.ts';
 const PERF_KEY = 'ar.perf';
 
 /**
- * ?perf=1 (ou Maj+F3, gardé dans ar.perf) ouvre le panneau dès le départ et active les mesures GPU (nécessite le
- * démarrage avec ce réglage : Maj+F3 relance le jeu).
+ * ?perf=1 (ou Maj+F3, gardé dans ar.perf) active les mesures GPU (nécessite le démarrage avec ce réglage : Maj+F3
+ * relance le jeu). Le panneau ne s'ouvre seul qu'avec ?perf=1 ou juste après Maj+F3 (voir openAtStart).
  */
 export function perfRequested(): boolean {
   try {
     return new URLSearchParams(location.search).has('perf') || localStorage.getItem(PERF_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Relance demandée par Maj+F3 : le panneau s'ouvre à ce démarrage-là seulement. */
+const PERF_OPEN_KEY = 'ar.perf.open';
+function openAtStart(): boolean {
+  try {
+    if (new URLSearchParams(location.search).has('perf')) return true;
+    const once = sessionStorage.getItem(PERF_OPEN_KEY) === '1';
+    sessionStorage.removeItem(PERF_OPEN_KEY);
+    return once;
   } catch {
     return false;
   }
@@ -64,7 +77,11 @@ export class PerfOverlay {
         e.preventDefault();
         try {
           if (localStorage.getItem(PERF_KEY) === '1') localStorage.removeItem(PERF_KEY);
-          else localStorage.setItem(PERF_KEY, '1');
+          else {
+            localStorage.setItem(PERF_KEY, '1');
+            // Panneau ouvert à la relance qui suit, une seule fois.
+            sessionStorage.setItem(PERF_OPEN_KEY, '1');
+          }
         } catch { /* stockage indisponible */ }
         location.reload();
       } else if (e.code === 'F3') {
@@ -80,7 +97,9 @@ export class PerfOverlay {
         this.cpu.length = 0;
       }
     });
-    if (this.tracking) this.toggle();
+    // Ouvert au départ seulement avec ?perf=1 ou juste après Maj+F3 : la mesure GPU gardée dans ar.perf
+    // n'ouvre plus le panneau à chaque lancement (F3 l'affiche).
+    if (this.tracking && openAtStart()) this.toggle();
   }
 
   toggle(): void {
