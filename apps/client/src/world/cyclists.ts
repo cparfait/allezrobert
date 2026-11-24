@@ -113,6 +113,11 @@ export class AmbientCyclists {
   private readonly path: boolean;
   private serial = 0;
 
+  /** Racines des cyclistes affichés (fondu des coureurs proches, game/nearFade.ts). */
+  *roots(): Iterable<THREE.Object3D> {
+    for (const u of this.units) for (const m of u.members) yield m.avatar.root;
+  }
+
   /** Couloir praticable : la chaussée réelle, ou celle du pilote de collision (façades comprises). */
   private corridor: RouteBuildingCollision = sharedRoadCorridor();
 
@@ -217,12 +222,12 @@ export class AmbientCyclists {
       params: paramsFromBike(mass, DEFAULT_BIKE),
       speed: 6,
       lateral: this.laneOf(sens),
+      latScale: 1,
       cadence: 85,
       length,
       id: `amb${this.units.length}`,
       level: li,
       massKg: mass,
-      latScale: 1,
       color: firstJersey,
       kmBase: kmRange[0] + this.r() * (kmRange[1] - kmRange[0]),
       travelledM: 0,
@@ -249,11 +254,6 @@ export class AmbientCyclists {
     return out;
   }
 
-  /** Un cycliste vient en face entre `distM - 8` et `distM + rangeM` : la voie de gauche n'est pas libre pour doubler. */
-  oncomingAhead(distM: number, rangeM: number): boolean {
-    for (const c of this.units) {
-      if (c.sens > 0) continue;
-      for (const m of c.members) {
   /**
    * Quelqu'un de ces cyclistes arrive en face de qui roule dans le sens `dir` (repère de l'itinéraire) à `distM` :
    * entre 8 m derrière et `rangeM` devant. Pour le joueur, qui reste alors sur sa moitié de la chaussée.
@@ -299,6 +299,11 @@ export class AmbientCyclists {
     return [lo, hi];
   }
 
+  /** Un cycliste vient en face entre `distM - 8` et `distM + rangeM` : la voie de gauche n'est pas libre pour doubler. */
+  oncomingAhead(distM: number, rangeM: number): boolean {
+    for (const c of this.units) {
+      if (c.sens > 0) continue;
+      for (const m of c.members) {
         const d = c.d + m.off - distM;
         if (d > -8 && d < rangeM) return true;
       }
@@ -313,12 +318,12 @@ export class AmbientCyclists {
    * @param player distance et décalage du joueur
    * @param camera pour les niveaux de détail (animation et ombres seulement près de la caméra)
    * @param others autres coureurs qui vont dans le sens du joueur (équipiers IA) : on les double et on les croise sans les traverser
+   * @param playerDir sens du joueur sur l'itinéraire (−1 après un demi-tour) : à contresens, il arrive en face de ceux de son sens d'origine
    * @returns l'aspiration dont profite le joueur derrière un cycliste qui va dans son sens
    */
   update(dt: number, player: { distM: number; lateral: number; speedMs: number }, camera: THREE.Camera, others: ReadonlyArray<{ distM: number; lateral: number; speedMs: number }> = [], playerDir: 1 | -1 = 1): number {
     this.animFrame++;
     const L = this.track.length;
-   * @param playerDir sens du joueur sur l'itinéraire (−1 après un demi-tour) : à contresens, il arrive en face de ceux de son sens d'origine
     const loop = this.track.route.loop;
     let draft = 0;
     // Le joueur et les équipiers IA : tous sont à éviter ou à doubler de la même façon.
@@ -381,11 +386,6 @@ export class AmbientCyclists {
           break avoid;
         }
       }
-      // Ressort amorti à vitesse plafonnée (lateralSpring.ts) : écarts sans à-coup, plus vifs pour éviter quelqu'un.
-      let motion = this.latMotion.get(c);
-      if (!motion) this.latMotion.set(c, (motion = { v: 0 }));
-      const tuning = rate >= 4 ? LATERAL_URGENT : LATERAL_CRUISE;
-      const latBefore = c.lateral;
       // Chacun sa moitié de chaussée (lanes.ts) : ceux d'en face toujours, ceux de notre sens quand quelqu'un arrive
       // en face (pas de dépassement ni de duo qui déborde au milieu). Duo côte à côte resserré si la moitié est étroite.
       const b = this.corridor.steeringBounds(this.track, c.d, c.speed, c.sens, this.bounds);
@@ -398,6 +398,11 @@ export class AmbientCyclists {
         lateralTarget = Math.max(ownLo, Math.min(ownHi, lateralTarget));
         if (c.lateral < ownLo - 0.05 || c.lateral > ownHi + 0.05) rate = 4;
       }
+      // Ressort amorti à vitesse plafonnée (lateralSpring.ts) : écarts sans à-coup, plus vifs pour éviter quelqu'un.
+      let motion = this.latMotion.get(c);
+      if (!motion) this.latMotion.set(c, (motion = { v: 0 }));
+      const tuning = rate >= 4 ? LATERAL_URGENT : LATERAL_CRUISE;
+      const latBefore = c.lateral;
       c.lateral = LATERAL_SPRING ? stepLateral(motion, c.lateral, lateralTarget, dt, tuning) : c.lateral + (lateralTarget - c.lateral) * Math.min(1, dt * rate);
       // Rester sur la chaussée réelle du tronçon (pistes et rues étroites), membres côte à côte compris ; ceux d'en face
       // jamais sur la moitié du joueur (ceux de notre sens y reviennent par le ressort, sans saut).

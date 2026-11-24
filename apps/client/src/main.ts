@@ -24,6 +24,7 @@ import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
+import { updateNearFade } from './game/nearFade.ts';
 import { separateRiders, type Body } from './game/collision.ts';
 import { WorkoutController, ftpTestProtocolOf, isFtpTestKind } from './game/workout.ts';
 import { showFtpResult, type FtpResultInput } from './ui/ftpResult.ts';
@@ -2884,6 +2885,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
     // Pendant un demi-tour, la caméra reste d'abord en place puis pivote doucement (voir camPos / camDir).
     rig.update(dt, { position: camTurn ? camPos : pos, dir: camTurn ? camDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, buzz: buzzLevel(ride.surface), uturn: camTurn, subject: shownPos, ...(eyeOk ? { eye, hands } : {}) });
+    // Coureurs collés à la caméra ou entre elle et mon coureur : estompés (game/nearFade.ts), caméra à jour.
+    updateNearFade(dt, engine.camera, rig.mode === 'free' ? null : shownPos, (function* () {
+      for (const r of peloton.riders) yield r.avatar.root;
+      if (mp) yield* mp.roots();
+      if (cyclists) yield* cyclists.roots();
+    })());
     lap('poussière, caméra');
     // Les tuiles se chargent autour de la caméra libre, où qu'elle aille ; sinon autour du coureur.
     world.update(dt, rig.mode === 'free' ? engine.camera.position : pos);

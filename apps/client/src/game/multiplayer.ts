@@ -117,6 +117,11 @@ export class Multiplayer {
   /** Compteur pour revoir de temps en temps les maillages V3 des coureurs distants (keepSkinsDrawn). */
   private cullFrame = 0;
   private collision?: RouteBuildingCollision;
+
+  /** Racines des autres joueurs affichés (fondu des coureurs proches, nearFade.ts). */
+  *roots(): Iterable<THREE.Object3D> {
+    for (const rem of this.remotes.values()) yield rem.avatar.root;
+  }
   private collisionPrediction?: CollisionPrediction;
   private readonly predictedSelf: RouteObstaclePose = { distM: 0, lateral: 0, speedMs: 0 };
 
