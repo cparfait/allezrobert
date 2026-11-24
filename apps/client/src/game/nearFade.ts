@@ -31,6 +31,10 @@ const BODY_Y = 0.95;
 const SUBJECT_Y = 1.1;
 /** Au-delà de cette distance derrière le plan de la caméra (m), un coureur est hors de l'image. */
 const BEHIND_M = 0.4;
+/** Superposition à mon coureur : demi-axes de l'ellipse (m, le long de la route et de côté) et part estompée à fond. */
+const OVERLAP_LONG_M = 1.7;
+const OVERLAP_SIDE_M = 0.6;
+const OVERLAP_FULL = 0.55;
 
 const smooth = (a: number, b: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
@@ -62,6 +66,18 @@ export function fadeTarget(cam: THREE.Vector3Like, subject: THREE.Vector3Like | 
         const px = rx - sx * t, py = ry - sy * t, pz = rz - sz * t;
         k = Math.min(k, smooth(LINE_FULL, LINE_NONE, Math.hypot(px, py, pz)));
       }
+    }
+  }
+  // Coureur superposé au mien (je le traverse en le dépassant, collision.ts `passThrough`) : estompé. Ellipse au sol
+  // autour de mon coureur, longue d'un vélo devant et derrière, étroite de côté (un voisin côte à côte reste net).
+  if (subject && forward) {
+    const fl = Math.hypot(forward.x, forward.z);
+    if (fl > 1e-3) {
+      const fx = forward.x / fl, fz = forward.z / fl;
+      const dx = rider.x - subject.x, dz = rider.z - subject.z;
+      const along = dx * fx + dz * fz;
+      const side = dx * fz - dz * fx;
+      k = Math.min(k, smooth(OVERLAP_FULL, 1, Math.hypot(along / OVERLAP_LONG_M, side / OVERLAP_SIDE_M)));
     }
   }
   return FADE_MIN + (1 - FADE_MIN) * k;

@@ -26,6 +26,8 @@ import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
 import { updateNearFade } from './game/nearFade.ts';
 import { aiEffortTag, energyPercent } from '@allezrobert/shared';
+/** Le joueur traverse en fondu les coureurs qu'il rattrape (?traverser=0 : ils s'écartent comme avant). */
+const PASS_THROUGH = new URLSearchParams(location.search).get('traverser') !== '0';
 import { separateRiders, type Body } from './game/collision.ts';
 import { WorkoutController, ftpTestProtocolOf, isFtpTestKind } from './game/workout.ts';
 import { showFtpResult, type FtpResultInput } from './ui/ftpResult.ts';
@@ -2660,7 +2662,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         const mobile = peloton.riders.filter((r) => !r.uturn.active && !peloton.isParked(r));
         // Le joueur garde sa ligne : ce sont les IA qui s'écartent (ou qui sont retenues), jamais lui qui est déporté.
         const beforeD = ride.state.distM, beforeLateral = ride.lateral;
-        const me: Body = { distM: beforeD, lateral: beforeLateral, speedMs: ride.state.speedMs, priority: true };
+        // Celui que je rattrape, je le traverse (estompé, game/nearFade.ts) au lieu de le faire s'écarter d'un bond
+        // ou d'être retenu derrière lui ; ?traverser=0 pour revenir à l'ancien comportement.
+        const me: Body = { distM: beforeD, lateral: beforeLateral, speedMs: ride.state.speedMs, priority: true, passThrough: PASS_THROUGH };
         // Chaussée réelle du tronçon (et façades en pilote) : la séparation ne pousse pas une IA au-delà.
         const ais: Body[] = mobile.map((r) => {
           const b = (pilotCollision ?? sharedRoadCorridor()).steeringBounds(track, r.state.distM, r.state.speedMs, 1, aiBounds);

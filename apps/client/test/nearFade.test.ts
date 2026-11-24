@@ -29,6 +29,14 @@ describe('fondu des coureurs proches : opacité voulue', () => {
     // Juste à côté de la caméra, centre à peine derrière elle : il déborde dans l’image, toujours estompé.
     expect(fadeTarget(cam, me, v(0.8, 2.2, -4.1), fwd)).toBeLessThan(0.5);
   });
+  it('coureur que je traverse (superposé au mien) : estompé ; voisin côte à côte : net', () => {
+    const fwd = { x: 0, y: -0.35, z: 0.94 };
+    // `me` est le point visé (buste) ; le centre d'un coureur superposé est à la même place, un peu plus bas.
+    expect(fadeTarget(cam, me, v(0.1, 0.95, 0.8), fwd)).toBeCloseTo(FADE_MIN);
+    expect(fadeTarget(cam, me, v(0.1, 0.95, -0.5), fwd)).toBeCloseTo(FADE_MIN);
+    expect(fadeTarget(cam, me, v(0.75, 0.95, 0.2), fwd)).toBe(1);
+    expect(fadeTarget(cam, me, v(0, 0.95, 2.5), fwd)).toBe(1);
+  });
   it('sans cible (caméra libre) : seule la distance compte', () => {
     expect(fadeTarget(cam, null, v(0, 1.6, -2.2))).toBeGreaterThan(FADE_MIN + 0.15);
     expect(fadeTarget(cam, null, v(0, 2.3, -3.8))).toBeCloseTo(FADE_MIN);
