@@ -92,4 +92,24 @@ describe('TeammateUTurn — demi-tour des équipiers', () => {
     const ctl = new TeammateUTurn();
     for (let i = 0; i < 200; i++) expect(ctl.update({ leadM: 400, groupSpeedMs: 9, distM: 0, speedMs: 9, lateralM: 1, blocked: true }, 0.1).active).toBe(false);
   });
+
+  it('à contresens (retour, freinage), reste sur sa moitié, même si le virage finit près de l’axe', () => {
+    for (const turnSpeedMs of [0.6, 0.8, 1.9]) {
+      for (const halfRoadM of [0.9, 1.2, 2.6, 4]) {
+        const ctl = new TeammateUTurn({ halfRoadM, turnSpeedMs });
+        let group = 1000, dist = 1150, speed = 10, lateral = 1;
+        for (let t = 0; t < 120; t += 0.1) {
+          group += 9 * 0.1;
+          const out = ctl.update({ leadM: dist - group, groupSpeedMs: 9, distM: dist, speedMs: speed, lateralM: lateral }, 0.1);
+          if (out.active) {
+            dist = out.distM;
+            speed = out.speedMs;
+            lateral = out.lateralM;
+            if (out.phase === 'back' || out.phase === 'brakeBack') expect(out.lateralM).toBeLessThanOrEqual(-0.5 + 1e-9);
+          } else dist += speed * 0.1;
+        }
+        expect(ctl.count).toBeGreaterThan(0);
+      }
+    }
+  });
 });

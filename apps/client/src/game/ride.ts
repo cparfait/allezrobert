@@ -25,6 +25,8 @@ import {
   TrainerGradeSmoother,
   NormalizedPowerAccumulator,
   PILOT_LATERAL_SPEED_MS,
+  clampToOwnHalf,
+  oncomingLookM,
   sharedRoadCorridor,
   type RouteBuildingCollision,
   type RouteObstaclePose,
@@ -96,6 +98,13 @@ export class RideSession {
   private collision?: RouteBuildingCollision;
   private readonly bounds = { left: 0, right: 0 };
   private lateralIntent = 0;
+  /**
+   * Quelqu'un arrive en face de qui roule dans le sens `dir` à `distM` (entre 8 m derrière et `rangeM` devant) :
+   * équipier IA ou cycliste à contresens, autre joueur dans l'autre sens. Branché par le jeu.
+   */
+  oncoming: ((distM: number, dir: 1 | -1, rangeM: number) => boolean) | null = null;
+  /** Quelqu'un arrive en face (dernier pas) : la direction est bornée à sa moitié de chaussée (lanes.ts). */
+  facing = false;
   pose: 'seated' | 'standing' | 'coasting' = 'seated';
   inputs: RideInputs = { watts: 0, cadence: 0, steer: 0 };
   paused = false;
@@ -390,13 +399,17 @@ export class RideSession {
     }
     // Direction dans le repère du tracé. La consigne reste distincte de la pose au contact.
     const half = roadHalfM(track.route.roadWidthM);
+    // Quelqu'un arrive en face : on ne passe pas sur sa moitié ; déjà dessus, on la quitte à la vitesse de la direction.
+    this.facing = !!this.oncoming?.(this.state.distM, this.dir, oncomingLookM(this.state.speedMs));
     if (this.collision) {
       const prevLateral = this.lateral;
       const step = PILOT_LATERAL_SPEED_MS * dt;
       this.lateralIntent = THREE.MathUtils.clamp(this.lateralIntent + steer * this.dir * step, -half, half);
+      if (this.facing) this.lateralIntent = clampToOwnHalf(this.lateralIntent, this.dir, -half, half);
       // Rester sur la chaussée et contourner les façades à venir ; la consigne reprend ensuite.
       const bounds = this.collision.steeringBounds(track, this.state.distM, this.state.speedMs, this.dir, this.bounds);
-      const target = THREE.MathUtils.clamp(this.lateralIntent, -bounds.left, bounds.right);
+      let target = THREE.MathUtils.clamp(this.lateralIntent, -bounds.left, bounds.right);
+      if (this.facing) target = clampToOwnHalf(target, this.dir, -bounds.left, bounds.right);
       this.lateral += THREE.MathUtils.clamp(target - this.lateral, -step, step);
       this.lateral = THREE.MathUtils.clamp(this.lateral, -bounds.left, bounds.right);
       this.constrainPosition(prevDist, prevLateral, dt);
@@ -412,8 +425,10 @@ export class RideSession {
       // réelle du tronçon (rétrécissements anticipés), puis regagne cette voie quand la route s'élargit.
       const step = CLASSIC_LATERAL_SPEED_MS * dt;
       this.lateralIntent = THREE.MathUtils.clamp(this.lateralIntent + steer * this.dir * step, -half, half);
+      if (this.facing) this.lateralIntent = clampToOwnHalf(this.lateralIntent, this.dir, -half, half);
       const bounds = sharedRoadCorridor().steeringBounds(track, this.state.distM, this.state.speedMs, this.dir, this.bounds);
-      const target = THREE.MathUtils.clamp(this.lateralIntent, -bounds.left, bounds.right);
+      let target = THREE.MathUtils.clamp(this.lateralIntent, -bounds.left, bounds.right);
+      if (this.facing) target = clampToOwnHalf(target, this.dir, -bounds.left, bounds.right);
       this.lateralM += THREE.MathUtils.clamp(target - this.lateralM, -step, step);
       this.lateralM = THREE.MathUtils.clamp(this.lateralM, -bounds.left, bounds.right);
     }

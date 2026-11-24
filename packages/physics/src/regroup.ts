@@ -14,6 +14,8 @@
  * la route : 0 = dans le sens de marche, π = à contresens.
  */
 
+import { keepRightM } from './lanes.ts';
+
 export type UTurnPhase = 'pack' | 'brake' | 'turn' | 'back' | 'brakeBack' | 'turnBack';
 
 export interface UTurnConfig {
@@ -221,6 +223,8 @@ export class TeammateUTurn {
       default:
         break;
     }
+    // À contresens (retour, freinage avant le second virage) : jamais sur la moitié de ceux qui vont dans le sens de marche.
+    if (this.phase === 'back' || this.phase === 'brakeBack') this.lateral = Math.min(this.lateral, -keepRightM(half));
 
     // Actif pendant tout le pas, y compris celui qui termine le second virage (la main revient
     // à l'IA au pas suivant, en phase « pack »).

@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
-import { draftReductionSingle, paramsFromBike, rightLaneM, sharedRoadCorridor, steadyStateSpeed, type LaneBody, type RouteBuildingCollision, type RiderPhysicsParams } from '@allezrobert/physics';
+import { KEEP_RIGHT_M, draftReductionSingle, facingWithin, oncomingLookM, paramsFromBike, rightLaneM, sharedRoadCorridor, steadyStateSpeed, type LaneBody, type RouteBuildingCollision, type RiderPhysicsParams } from '@allezrobert/physics';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { brakeForCorners, cornerGrip } from '../game/cornerBrake.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
@@ -52,6 +52,8 @@ interface Unit {
   params: RiderPhysicsParams;
   speed: number;
   lateral: number;
+  /** Écart des duos côte à côte (0 à 1 × `latOff`) : resserré quand sa moitié de chaussée est trop étroite pour deux. */
+  latScale: number;
   cadence: number;
   /** Longueur du groupe (m), pour ne pas le faire apparaître à vue. */
   length: number;
@@ -220,6 +222,7 @@ export class AmbientCyclists {
       id: `amb${this.units.length}`,
       level: li,
       massKg: mass,
+      latScale: 1,
       color: firstJersey,
       kmBase: kmRange[0] + this.r() * (kmRange[1] - kmRange[0]),
       travelledM: 0,
@@ -241,7 +244,7 @@ export class AmbientCyclists {
     out.length = 0;
     for (const c of this.units) {
       if (c.sens < 0) continue;
-      c.members.forEach((m, k) => out.push({ id: `${c.id}.${k}`, distM: c.d + m.off, lateralM: c.lateral + m.latOff, speedMs: c.speed }));
+      c.members.forEach((m, k) => out.push({ id: `${c.id}.${k}`, distM: c.d + m.off, lateralM: c.lateral + m.latOff * c.latScale, speedMs: c.speed }));
     }
     return out;
   }
@@ -251,6 +254,51 @@ export class AmbientCyclists {
     for (const c of this.units) {
       if (c.sens > 0) continue;
       for (const m of c.members) {
+  /**
+   * Quelqu'un de ces cyclistes arrive en face de qui roule dans le sens `dir` (repère de l'itinéraire) à `distM` :
+   * entre 8 m derrière et `rangeM` devant. Pour le joueur, qui reste alors sur sa moitié de la chaussée.
+   */
+  approaching(distM: number, dir: 1 | -1, rangeM: number): boolean {
+    for (const c of this.units) {
+      if (c.sens === dir) continue;
+      for (const m of c.members) if (facingWithin((c.d + m.off - distM) * dir, rangeM)) return true;
+    }
+    return false;
+  }
+
+  /** Un cycliste de notre sens voit arriver en face un cycliste d'ambiance ou le joueur à contresens. */
+  private facingFor(c: Unit, player: { distM: number }, playerDir: 1 | -1): boolean {
+    if (c.sens < 0) return true;
+    const range = oncomingLookM(c.speed);
+    if (playerDir < 0 && facingWithin(player.distM - c.d, range)) return true;
+    for (const o of this.units) {
+      if (o.sens > 0) continue;
+      for (const m of o.members) if (facingWithin(o.d + m.off - c.d, range)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Plage permise au décalage du groupe : chaussée réelle `b`, membres côte à côte compris, puis, si `own`,
+   * sa moitié de chaussée (lanes.ts). Si la chaussée ne laisse pas la marge, au plus près de son bord (la chaussée prime).
+   */
+  private range(c: Unit, b: { left: number; right: number }, own: boolean): [number, number] {
+    let lo = -b.left, hi = b.right;
+    for (const m of c.members) {
+      lo = Math.max(lo, -b.left - m.latOff * c.latScale);
+      hi = Math.min(hi, b.right - m.latOff * c.latScale);
+    }
+    if (lo > hi) return [(lo + hi) / 2, (lo + hi) / 2];
+    const loC = lo, hiC = hi;
+    if (own)
+      for (const m of c.members) {
+        if (c.sens < 0) hi = Math.min(hi, -KEEP_RIGHT_M - m.latOff * c.latScale);
+        else lo = Math.max(lo, KEEP_RIGHT_M - m.latOff * c.latScale);
+      }
+    if (lo > hi) return c.sens < 0 ? [loC, loC] : [hiC, hiC];
+    return [lo, hi];
+  }
+
         const d = c.d + m.off - distM;
         if (d > -8 && d < rangeM) return true;
       }
@@ -267,9 +315,10 @@ export class AmbientCyclists {
    * @param others autres coureurs qui vont dans le sens du joueur (équipiers IA) : on les double et on les croise sans les traverser
    * @returns l'aspiration dont profite le joueur derrière un cycliste qui va dans son sens
    */
-  update(dt: number, player: { distM: number; lateral: number; speedMs: number }, camera: THREE.Camera, others: ReadonlyArray<{ distM: number; lateral: number; speedMs: number }> = []): number {
+  update(dt: number, player: { distM: number; lateral: number; speedMs: number }, camera: THREE.Camera, others: ReadonlyArray<{ distM: number; lateral: number; speedMs: number }> = [], playerDir: 1 | -1 = 1): number {
     this.animFrame++;
     const L = this.track.length;
+   * @param playerDir sens du joueur sur l'itinéraire (−1 après un demi-tour) : à contresens, il arrive en face de ceux de son sens d'origine
     const loop = this.track.route.loop;
     let draft = 0;
     // Le joueur et les équipiers IA : tous sont à éviter ou à doubler de la même façon.
@@ -318,16 +367,16 @@ export class AmbientCyclists {
         for (const m of c.members) {
           const gap = c.d + m.off - p.distM;
           if (Math.abs(gap) > (c.sens < 0 ? 30 : 14)) continue;
-          const cur = c.lateral + m.latOff - p.lateral;
+          const cur = c.lateral + m.latOff * c.latScale - p.lateral;
           const sep = c.sens < 0 ? 1.4 : 1.0;
           if (Math.abs(cur) >= sep) continue;
           let dir = cur >= 0 ? 1 : -1;
-          let t = p.lateral + dir * sep - m.latOff;
-          if (Math.abs(t + m.latOff) > edge) {
+          let t = p.lateral + dir * sep - m.latOff * c.latScale;
+          if (Math.abs(t + m.latOff * c.latScale) > edge) {
             dir = -dir;
-            t = p.lateral + dir * sep - m.latOff;
+            t = p.lateral + dir * sep - m.latOff * c.latScale;
           }
-          lateralTarget = Math.max(-edge - m.latOff, Math.min(edge - m.latOff, t));
+          lateralTarget = Math.max(-edge - m.latOff * c.latScale, Math.min(edge - m.latOff * c.latScale, t));
           rate = 4;
           break avoid;
         }
@@ -337,15 +386,23 @@ export class AmbientCyclists {
       if (!motion) this.latMotion.set(c, (motion = { v: 0 }));
       const tuning = rate >= 4 ? LATERAL_URGENT : LATERAL_CRUISE;
       const latBefore = c.lateral;
-      c.lateral = LATERAL_SPRING ? stepLateral(motion, c.lateral, lateralTarget, dt, tuning) : c.lateral + (lateralTarget - c.lateral) * Math.min(1, dt * rate);
-      // Rester sur la chaussée réelle du tronçon (pistes et rues étroites), membres côte à côte compris.
+      // Chacun sa moitié de chaussée (lanes.ts) : ceux d'en face toujours, ceux de notre sens quand quelqu'un arrive
+      // en face (pas de dépassement ni de duo qui déborde au milieu). Duo côte à côte resserré si la moitié est étroite.
       const b = this.corridor.steeringBounds(this.track, c.d, c.speed, c.sens, this.bounds);
-      let lo = -b.left, hi = b.right;
-      for (const m of c.members) {
-        lo = Math.max(lo, -b.left - m.latOff);
-        hi = Math.min(hi, b.right - m.latOff);
+      const own = this.facingFor(c, player, playerDir);
+      const room = (c.sens < 0 ? b.left : b.right) - KEEP_RIGHT_M;
+      const scaleGoal = own ? Math.min(1, Math.max(0, room)) : 1;
+      c.latScale += (scaleGoal - c.latScale) * Math.min(1, dt * 2);
+      const [ownLo, ownHi] = this.range(c, b, own);
+      if (lateralTarget < ownLo || lateralTarget > ownHi) {
+        lateralTarget = Math.max(ownLo, Math.min(ownHi, lateralTarget));
+        if (c.lateral < ownLo - 0.05 || c.lateral > ownHi + 0.05) rate = 4;
       }
-      c.lateral = lo <= hi ? Math.max(lo, Math.min(hi, c.lateral)) : (lo + hi) / 2;
+      c.lateral = LATERAL_SPRING ? stepLateral(motion, c.lateral, lateralTarget, dt, tuning) : c.lateral + (lateralTarget - c.lateral) * Math.min(1, dt * rate);
+      // Rester sur la chaussée réelle du tronçon (pistes et rues étroites), membres côte à côte compris ; ceux d'en face
+      // jamais sur la moitié du joueur (ceux de notre sens y reviennent par le ressort, sans saut).
+      const [lo, hi] = this.range(c, b, c.sens < 0);
+      c.lateral = Math.max(lo, Math.min(hi, c.lateral));
       syncLateral(motion, latBefore, c.lateral, dt, tuning);
       // Freinage avant les virages serrés, comme le joueur (cornerBrake.ts).
       c.speed = brakeForCorners(this.track, c.d, c.sens, c.speed, CORNER_GRIP, dt);
@@ -357,7 +414,7 @@ export class AmbientCyclists {
       for (const m of c.members) {
         const dm = c.d + m.off;
         const outside = !loop && (dm < 0 || dm > L);
-        const p = this.track.positionAt(loop ? ((dm % L) + L) % L : Math.min(Math.max(dm, 0), L), c.lateral + m.latOff, this.sample);
+        const p = this.track.positionAt(loop ? ((dm % L) + L) % L : Math.min(Math.max(dm, 0), L), c.lateral + m.latOff * c.latScale, this.sample);
         const a = m.avatar;
         const ground = this.heightAt ? Math.max(p.y, this.heightAt(p.x, p.z)) : p.y;
         const yaw = Math.atan2(p.dirX, p.dirZ) + (c.sens < 0 ? Math.PI : 0);
@@ -391,7 +448,7 @@ export class AmbientCyclists {
         if (a.root.visible && (this.animFrame + m.cadenceOff + 3) % 10 === 0) updateRiderMerge(a.root, this.animFrame);
         if (c.sens > 0 && !outside) {
           const gap = dm - player.distM - 1.75;
-          draft = Math.max(draft, draftReductionSingle(gap, c.lateral + m.latOff - player.lateral));
+          draft = Math.max(draft, draftReductionSingle(gap, c.lateral + m.latOff * c.latScale - player.lateral));
         }
       }
     }

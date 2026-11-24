@@ -33,7 +33,11 @@ import {
   createRiderState,
   poseCdaFactor,
   separateRiders,
+  aheadAlongM,
+  clampToOwnHalf,
+  facingWithin,
   keepRightM,
+  oncomingLookM,
   FOOT_DOWN_SPEED_MS,
   effectiveMass,
   paramsFromBike,
@@ -171,6 +175,8 @@ export class SimRider {
   shareHr: boolean;
   lateralM = 0;
   lateralTarget = 0;
+  /** Quelqu'un arrive en face (dernier pas) : borné à sa moitié de chaussée. */
+  facing = false;
   /** Sens de marche : -1 après un demi-tour (distM mesurée sur l'itinéraire inversé). */
   dir: 1 | -1 = 1;
   lastTurnMs = -Infinity;
@@ -956,12 +962,17 @@ export class RideSimulation {
     }
 
     // 5. Latéral (vers la consigne), puis collisions : les IA ne se traversent ni entre elles ni les humains.
+    const mixed = riders.some((x) => x.dir !== 1);
     for (const r of riders) {
       let target = r.lateralTarget;
       const maxStep = LATERAL_SPEED_MS * dt;
       // Rester sur la chaussée réelle du tronçon (et, en pilote, contourner les façades à venir) : même calcul que le client.
       const bounds = this.corridor.steeringBounds(this.trackOf(r), r.state.distM, r.state.speedMs, r.dir, this.bounds);
       target = Math.max(-bounds.left, Math.min(bounds.right, target));
+      // Quelqu'un arrive en face : chacun sa moitié de chaussée (lanes.ts), à droite dans son repère ; on y revient
+      // à la vitesse de la direction. Le client fait de même pour son joueur (ride.ts).
+      r.facing = mixed && this.facing(r, riders);
+      if (r.facing) target = clampToOwnHalf(target, 1, -bounds.left, bounds.right);
       const dl = target - r.lateralM;
       r.lateralM += Math.abs(dl) <= maxStep ? dl : Math.sign(dl) * maxStep;
       r.lateralM = Math.max(-bounds.left, Math.min(bounds.right, r.lateralM));
@@ -1150,6 +1161,14 @@ export class RideSimulation {
     return Math.min(Math.max(base + offset, keepRightM(half)), half);
   }
 
+  /** Un coureur de l'autre sens arrive en face de `r` (entre 8 m derrière et la portée de lanes.ts devant). */
+  private facing(r: SimRider, riders: readonly SimRider[]): boolean {
+    const L = this.track.length;
+    const range = oncomingLookM(r.state.speedMs);
+    const self = this.forwardPos(r);
+    return riders.some((o) => o.dir !== r.dir && facingWithin(aheadAlongM(self, this.forwardPos(o), r.dir, this.route.loop ? L : undefined), range));
+  }
+
   /** Les IA ne traversent personne : celle qui arrive de derrière s'écarte ou est retenue ; les humains gardent leur ligne. */
   private separateAi(riders: SimRider[], dt: number): void {
     const list: SimRider[] = [];
@@ -1159,7 +1178,10 @@ export class RideSimulation {
       list.push(r);
       // Chaussée réelle du tronçon (et façades en pilote) : la séparation ne pousse pas une IA au-delà.
       const b = this.corridor.steeringBounds(this.trackOf(r), r.state.distM, r.state.speedMs, r.dir, this.bounds);
-      bodies.push({ distM: r.state.distM, lateral: r.lateralM, speedMs: r.state.speedMs, minLateral: -b.left, maxLateral: b.right, ...(r.kind === 'ai' ? {} : { fixed: true }) });
+      // Quelqu'un en face : la séparation ne repousse pas sur sa moitié une IA déjà revenue sur la sienne.
+      const own = clampToOwnHalf(-b.left, 1, -b.left, b.right);
+      const minLateral = r.facing && r.lateralM >= own ? own : -b.left;
+      bodies.push({ distM: r.state.distM, lateral: r.lateralM, speedMs: r.state.speedMs, minLateral, maxLateral: b.right, ...(r.kind === 'ai' ? {} : { fixed: true }) });
     }
     separateRiders(bodies, this.halfRoad(), dt);
     list.forEach((r, i) => {

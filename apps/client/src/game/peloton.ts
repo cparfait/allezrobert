@@ -9,7 +9,7 @@ import { SMALL_PARTS_CULL, cullSmallParts } from './smallParts.ts';
 import { castsShadow, detailGroup, lightColorOf } from './riderDetail.ts';
 import { LATERAL_CRUISE, LATERAL_PASSING, LATERAL_SPRING, stepLateral, syncLateral, type LateralMotion } from './lateralSpring.ts';
 import * as THREE from 'three/webgpu';
-import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, keepRightM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
+import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, aheadAlongM, clampToOwnHalf, facingWithin, keepRightM, oncomingLookM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { brakeForCorners, cornerGrip } from './cornerBrake.ts';
@@ -23,6 +23,8 @@ import type { V3Visual } from '../v3/visuals.ts';
 
 /** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
 const CORNER_GRIP = cornerGrip(0);
+/** Vitesse latérale (m/s) d'une IA qui regagne sa moitié de chaussée quand le joueur arrive en face (à contresens). */
+const RETURN_LATERAL_MS = 1.5;
 
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
 const PROFILES: AiProfileName[] = ['rouleur', 'diesel', 'puncheur', 'sprinter'];
@@ -378,7 +380,7 @@ export class Peloton {
     this.draft.setCrosswind(this.crossWindMs);
     // Joueur à contresens (demi-tour pour aller chercher quelqu'un) : le groupe continue à son
     // allure, sans l'attendre ni l'abriter ; tout reprend quand il refait demi-tour.
-    if (player.reversed) return this.rideOn(dt);
+    if (player.reversed) return this.rideOn(dt, player);
     this.time += dt;
     // Allure : % de FTP imposé (équipiers) ou W/kg du joueur lissé sur ~20 s (le groupe roule « avec » lui).
     const target = this.paceFtpPct !== null && player.ftpWatts ? (player.ftpWatts * this.paceFtpPct) / Math.max(player.massKg, 1) : player.watts / Math.max(player.massKg, 1);
@@ -435,6 +437,11 @@ export class Peloton {
         r.state.speedMs = turn.speedMs;
         r.state.accelMs2 = 0;
         r.lateral = turn.lateralM;
+        // À contresens (retour vers le groupe) : sur sa moitié de la chaussée réelle, jamais sur celle du joueur.
+        if (turn.phase === 'back' || turn.phase === 'brakeBack') {
+          const b = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, r.state.distM, r.state.speedMs, -1, this.bounds);
+          r.lateral = clampToOwnHalf(r.lateral, -1, -b.left, b.right);
+        }
         if (this.collision) r.lateral = this.collision.apply(this.track, beforeD, beforeLateral, r.state, r.lateral, half, dt);
         r.heading = turn.headingRad;
         // À contresens, la pente ressentie est l'opposée de celle de l'itinéraire.
@@ -502,7 +509,8 @@ export class Peloton {
       // Hystérésis : une fois abandonné, le dépassement ne reprend que lorsque plus personne n'arrive à moins de
       // 120 m (sinon, au seuil, le coureur déboîtait et se rabattait d'une image à l'autre et scintillait).
       const held = this.passHeld.has(r);
-      const comingClose = !!this.oncoming?.(r.state.distM, held ? 120 : 60);
+      const look = oncomingLookM(r.state.speedMs);
+      const comingClose = this.facing(r.state.distM, held ? Math.max(120, look * 1.5) : Math.max(60, look));
       if (comingClose && plan.passing) this.passHeld.add(r);
       else if (!comingClose) this.passHeld.delete(r);
       const abortPass = plan.lateralM !== null && plan.passing && this.passHeld.has(r);
@@ -510,6 +518,8 @@ export class Peloton {
       // Rester sur la chaussée réelle du tronçon (et, en pilote, contourner les façades à venir).
       const bounds = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, r.state.distM, r.state.speedMs, 1, this.bounds);
       targetLat = THREE.MathUtils.clamp(targetLat, -bounds.left, bounds.right);
+      // Quelqu'un arrive en face : jamais sur sa moitié (lanes.ts), on se rabat sans à-coup.
+      if (comingClose) targetLat = clampToOwnHalf(targetLat, 1, -bounds.left, bounds.right);
       // Ressort amorti à vitesse plafonnée : déboîter et se rabattre sans à-coup (lateralSpring.ts).
       let motion = this.latMotion.get(r);
       if (!motion) this.latMotion.set(r, (motion = { v: 0 }));
@@ -549,8 +559,26 @@ export class Peloton {
     return this.riders.some((x) => x.uturn.active && x.state.distM > distM - 8 && x.state.distM < distM + 80);
   }
 
+  /**
+   * Un équipier arrive en face de qui roule dans le sens `dir` à `distM` (entre 8 m derrière et `rangeM` devant) :
+   * pour le joueur dans le sens de marche, l'équipier qui revient à contresens ; à contresens, le groupe.
+   */
+  approaching(distM: number, dir: 1 | -1, rangeM: number): boolean {
+    return this.riders.some((x) => {
+      const back = x.uturn.phase === 'back' || x.uturn.phase === 'brakeBack';
+      if (dir > 0 ? !back : x.uturn.active || this.parked.has(x)) return false;
+      return facingWithin(aheadAlongM(distM, x.state.distM, dir), rangeM);
+    });
+  }
+
+  /** Quelqu'un arrive en face entre 8 m derrière et `rangeM` devant `distM` (cycliste, véhicule, équipier qui revient). */
+  private facing(distM: number, rangeM: number): boolean {
+    if (this.oncoming?.(distM, rangeM)) return true;
+    return this.riders.some((x) => (x.uturn.phase === 'back' || x.uturn.phase === 'brakeBack') && facingWithin(x.state.distM - distM, rangeM));
+  }
+
   /** Le groupe roule seul, à l'allure courante (joueur à contresens). */
-  private rideOn(dt: number): number {
+  private rideOn(dt: number, player: { distM: number; lateral: number; speedMs: number }): number {
     this.time += dt;
     this.stepFlicks(dt);
     const all = this.riders.map((r) => ({ distM: r.state.distM, lateralM: r.lateral, speedMs: r.state.speedMs }));
@@ -587,6 +615,12 @@ export class Peloton {
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
       // Freinage avant les virages serrés, comme le joueur (cornerBrake.ts).
       r.state.speedMs = brakeForCorners(this.track, r.state.distM, Math.cos(r.heading) < 0 ? -1 : 1, r.state.speedMs, CORNER_GRIP, dt);
+      // Le joueur arrive en face : l'IA (même en plein dépassement) regagne sa moitié de la chaussée, sans à-coup.
+      if (!r.uturn.active && facingWithin(aheadAlongM(r.state.distM, player.distM, 1), oncomingLookM(r.state.speedMs + player.speedMs))) {
+        const b = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, r.state.distM, r.state.speedMs, 1, this.bounds);
+        const target = clampToOwnHalf(r.lateral, 1, -b.left, b.right);
+        r.lateral += THREE.MathUtils.clamp(target - r.lateral, -RETURN_LATERAL_MS * dt, RETURN_LATERAL_MS * dt);
+      }
     });
     return 0;
   }

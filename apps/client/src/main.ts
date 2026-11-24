@@ -68,7 +68,7 @@ import { fetchRealWeather } from './game/realWeather.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
 import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
-import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPilotBuildingCollision, paramsFromBike, roadHalfM, sharedRoadCorridor, stepTargetWatts, type FtpTestProtocol } from '@allezrobert/physics';
+import { COLLISION_PILOT_ROUTE, COLLISION_PILOT_WORLD, EQUALIZED_BIKE, createPilotBuildingCollision, facingWithin, paramsFromBike, roadHalfM, sharedRoadCorridor, stepTargetWatts, type FtpTestProtocol } from '@allezrobert/physics';
 import { awardTrophies } from './game/trophies.ts';
 import { roadSurfaceAt, windShelterAt } from './world/conditions.ts';
 import { OpenNavigator } from './game/open.ts';
@@ -2474,6 +2474,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let hudAcc = 0;
   let remoteRiders: InterpolatedRider[] = [];
   let prevHeading = Number.NaN;
+  // Chacun sa moitié de chaussée : le joueur ne passe pas sur celle de qui arrive en face (équipier, cycliste,
+  // véhicule, autre joueur dans l'autre sens) ; voir lanes.ts.
+  ride.oncoming = (d, dir, range) =>
+    peloton.approaching(d, dir, range) ||
+    (cyclists?.approaching(d, dir, range) ?? false) ||
+    (dir > 0 && (traffic?.oncomingAhead(d, range) ?? false)) ||
+    remoteRiders.some((r) => r.dir === -dir && facingWithin((r.unwrappedM - d) * dir, range));
   let bank = 0;
   // Monde ouvert : roues posées sur la chaussée du réseau (écart lissé au profil de l'itinéraire, et tangage).
   let roadDy = 0;
@@ -2676,7 +2683,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       // Abri derrière un tracteur ou une camionnette qui roule dans le même sens.
       if (traffic && ride.dir > 0) ride.draft = Math.max(ride.draft, traffic.draftFor(ride.state.distM, ride.lateral));
       if (cyclists) {
-        const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera, peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })));
+        const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera, peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })), ride.dir);
         if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
       }
     } else if (summitShown && !mp) {
