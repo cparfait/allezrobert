@@ -584,6 +584,17 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 .riders .nb-sub .nb-verdict { font-size: 11px; padding: 0 5px; }
 .riders .nb-grp { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25); }
 .riders .nb-sub { display: flex; align-items: center; gap: 6px; color: var(--ar-muted); font-size: 11.5px; }
+/* Énergie des IA (W′) : jauge courte et état notable (attaque, poursuite, cramé). */
+.riders .nb-en { flex: none; display: inline-block; width: 34px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.14); overflow: hidden; }
+.riders .nb-en b { display: block; height: 100%; border-radius: 3px; transition: width .4s ease; }
+.riders .nb-en.hi b { background: #4ade80; }
+.riders .nb-en.mid b { background: #fbbf24; }
+.riders .nb-en.lo b { background: #f87171; }
+.riders .nb-eff { flex: none; font-style: normal; font-size: 10px; font-weight: 800; padding: 0 5px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.riders .nb-eff.attack { background: rgba(244,114,182,.22); color: #f9a8d4; }
+.riders .nb-eff.chase { background: rgba(96,165,250,.22); color: #93c5fd; }
+.riders .nb-eff.cracked { background: rgba(248,113,113,.22); color: #fca5a5; }
+.riders .rd-sub .nb-en, .riders .rd-sub .nb-eff { margin-right: 5px; vertical-align: middle; }
 
 /*
  * ───────────── HUD compact (style low poly ; hud.ts : HUD_LAYOUT, compactLayout) ─────────────

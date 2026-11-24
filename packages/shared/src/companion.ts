@@ -120,6 +120,26 @@ export interface PairRider {
   me?: boolean;
   ai?: boolean;
   online?: boolean;
+  /** IA : réserve d'énergie (W′, 0–100 %) ; une IA qui attaque trop finit « cramée ». */
+  energy?: number;
+  /** IA : ce qu'elle fait de notable (attaque, poursuite, cramée), absent quand elle roule normalement. */
+  effort?: AiEffortTag;
+}
+
+/** État notable d'une IA, montré à côté de son énergie (jeu et compagnon). */
+export type AiEffortTag = 'attack' | 'chase' | 'cracked';
+
+/**
+ * État d'une IA (`AiState` de @allezrobert/physics : follow, pull, pullOff, attack, chase, recover, cracked) → ce qui
+ * vaut d'être montré. Rouler dans les roues, relayer ou récupérer : rien.
+ */
+export function aiEffortTag(state: string): AiEffortTag | undefined {
+  return state === 'attack' || state === 'chase' || state === 'cracked' ? state : undefined;
+}
+
+/** Réserve W′ (fraction 0–1) → pourcentage entier affiché (0–100). */
+export function energyPercent(fraction: number): number {
+  return Number.isFinite(fraction) ? Math.round(Math.min(1, Math.max(0, fraction)) * 100) : 0;
 }
 
 /** État du jeu vu par le téléphone. */

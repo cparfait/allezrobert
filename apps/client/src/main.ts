@@ -25,6 +25,7 @@ import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
 import { updateNearFade } from './game/nearFade.ts';
+import { aiEffortTag, energyPercent } from '@allezrobert/shared';
 import { separateRiders, type Body } from './game/collision.ts';
 import { WorkoutController, ftpTestProtocolOf, isFtpTestKind } from './game/workout.ts';
 import { showFtpResult, type FtpResultInput } from './ui/ftpResult.ts';
@@ -2991,7 +2992,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
               : []),
             ...peloton.riders.map((r) => {
               const p = track.sample(r.state.distM);
-              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, km: r.state.distM / 1000, watts: r.watts, wkg: r.watts / r.massKg, nationality: r.nationality, level: levelOfFtpWkg(r.ftp / r.massKg), cadence: r.cadence, group: true };
+              return { id: r.id, name: r.name, distM: r.state.distM, x: p.x, z: p.z, me: false, isAI: true, isGuest: false, color: r.color, km: r.state.distM / 1000, watts: r.watts, wkg: r.watts / r.massKg, nationality: r.nationality, level: levelOfFtpWkg(r.ftp / r.massKg), cadence: r.cadence, group: true, energy: energyPercent(r.ai.wPrime.fraction), ...(aiEffortTag(r.ai.state) ? { effort: aiEffortTag(r.ai.state)! } : {}) };
             }),
           ],
           ...(ride.segment
@@ -3155,7 +3156,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const me = { id: mp?.net.selfId || 'me', name: s.name, gapM: 0, wkg: ride.watts3s() / s.massKg, color: s.look.jersey, me: true };
     const others = [
       ...remoteRiders.map((r) => ({ id: r.id, name: r.name, gapM: r.unwrappedM - d, wkg: r.watts / (mp?.net.roster.get(r.id)?.massKg ?? 75), color: r.avatar.jersey, ai: r.isAI, online: !r.isAI })),
-      ...peloton.riders.map((r) => ({ id: r.id, name: r.name, gapM: r.state.distM - d, wkg: r.watts / r.massKg, color: r.color, ai: true })),
+      ...peloton.riders.map((r) => {
+        const effort = aiEffortTag(r.ai.state);
+        return { id: r.id, name: r.name, gapM: r.state.distM - d, wkg: r.watts / r.massKg, color: r.color, ai: true, energy: energyPercent(r.ai.wPrime.fraction), ...(effort ? { effort } : {}) };
+      }),
     ];
     // Les 11 plus proches, dans l'ordre de la course.
     const riders = [me, ...others.sort((a, b) => Math.abs(a.gapM) - Math.abs(b.gapM)).slice(0, 11)].sort((a, b) => b.gapM - a.gapM);

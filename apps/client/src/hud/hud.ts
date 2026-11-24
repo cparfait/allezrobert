@@ -1,4 +1,4 @@
-import { climbCategory, climbCategoryLabel, countryName, type RoadGraphData, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
+import { climbCategory, climbCategoryLabel, countryName, type AiEffortTag, type RoadGraphData, type RouteSegment, type RouteTrack } from '@allezrobert/shared';
 import { flagSvg } from '../ui/flagSvg.ts';
 import { cadenceLabel } from './riderLevel.ts';
 import { getLang, strings, t } from '../i18n/index.ts';
@@ -68,6 +68,10 @@ const S = strings(
     finish: 'Arrivée',
     west: 'O',
     nearby: 'À proximité',
+    energy: 'Énergie',
+    effAttack: 'Attaque',
+    effChase: 'Poursuit',
+    effCracked: 'Cramé',
     canFollow: 'À suivre',
     tooStrong: 'Trop fort',
     slower: 'Plus lent',
@@ -157,6 +161,10 @@ const S = strings(
     finish: 'Finish',
     west: 'W',
     nearby: 'Nearby',
+    energy: 'Energy',
+    effAttack: 'Attack',
+    effChase: 'Chasing',
+    effCracked: 'Cracked',
     canFollow: 'Can follow',
     tooStrong: 'Too strong',
     slower: 'Slower',
@@ -304,6 +312,21 @@ export interface HudRider {
   cadence?: number;
   /** Membre de mon groupe (équipiers IA) : pastille et liseré bleus dans « À proximité ». */
   group?: boolean;
+  /** IA : réserve d'énergie (W′, 0–100 %), jauge dans « À proximité ». */
+  energy?: number;
+  /** IA : attaque, poursuite ou défaillance en cours. */
+  effort?: AiEffortTag;
+}
+
+const EFFORT_LABEL = { attack: 'effAttack', chase: 'effChase', cracked: 'effCracked' } as const;
+
+/** Jauge d'énergie d'une IA (verte, orange, rouge) et ce qu'elle fait de notable ; rien pour les autres coureurs. */
+function energyHtml(r: HudRider): string {
+  if (r.energy === undefined) return '';
+  const e = Math.max(0, Math.min(100, Math.round(r.energy)));
+  const tone = e > 60 ? 'hi' : e > 30 ? 'mid' : 'lo';
+  const tag = r.effort ? `<em class="nb-eff ${r.effort}">${S(EFFORT_LABEL[r.effort])}</em>` : '';
+  return `${tag}<i class="nb-en ${tone}" title="${S('energy')} ${e} %"><b style="width:${e}%"></b></i>`;
 }
 
 /** Niveau en barres (1 à 4) pour « À proximité » : loisir, régulier, sportif, pro ; 0 si inconnu. */
@@ -1705,9 +1728,10 @@ export class Hud {
           .filter(Boolean)
           .join(' · ');
         const flag = flagSvg(r.nationality, 13);
+        const energy = energyHtml(r);
         const name = shortName(r.name).replace(/[<>&]/g, '');
         const title = [r.me ? t('you') : r.isAI ? t('ai') : r.isGuest ? t('guest') : '', lvlName].filter(Boolean).join(' · ');
-        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${S('friend')}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${S('myGroup')}"></i>` : ''}${verdict}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, getLang())}">${flag}</span>` : ''}</b><small class="nb-sub num">${sub}</small></span></div>`;
+        return `<div class="row nb ${r.me ? 'me' : ''}${r.group ? ' grp' : ''}" title="${title}"><span class="nb-l"><i class="nb-lvl l${lvl}" title="${lvlName}"><b></b><b></b><b></b><b></b></i><b class="nb-gap num">${time}</b></span><span class="nb-r"><b class="nb-n">${r.friend ? `<em class="rd-friend" title="${S('friend')}">★</em>` : ''}${rideOn}${r.group ? `<i class="nb-grp" title="${S('myGroup')}"></i>` : ''}${verdict}<span class="nb-name">${name}${r.speaking ? ' 🔊' : ''}</span>${flag ? `<span class="rd-flag" title="${countryName(r.nationality, getLang())}">${flag}</span>` : ''}</b><small class="nb-sub num">${energy}${sub}</small></span></div>`;
       })
       .join('');
     return head + rows;
@@ -1738,7 +1762,7 @@ export class Hud {
         const kmTxt = r.km !== undefined ? `${r.km.toFixed(1).replace('.', dec())} km` : '';
         const subLine = [sub, r.ambient ? '' : levelName(r.level), cadenceLabel(r.cadence), kmTxt].filter(Boolean).join(' · ');
         const wkg = r.wkg !== undefined ? `${r.wkg.toFixed(1).replace('.', dec())} W/kg` : '';
-        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b>${subLine ? `<small class="rd-sub">${subLine}</small>` : ''}</span><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u>${wkg ? `<small>${wkg}</small>` : ''}</span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
+        return `<div class="row ${r.me ? 'me' : ''}"><i class="rd-dot" style="background:${r.color}"></i><span class="rd-name"><b class="rd-n">${friend}${flag ? `<span class="rd-flag">${flag}</span>` : ''}${r.name.replace(/[<>&]/g, '')}${r.speaking ? ' 🔊' : ''}${rideOn}</b>${subLine || r.energy !== undefined ? `<small class="rd-sub">${energyHtml(r)}${subLine}</small>` : ''}</span><span class="num rd-w">${r.watts !== undefined ? Math.round(r.watts) : '—'}<u>W</u>${wkg ? `<small>${wkg}</small>` : ''}</span><span class="num rd-gap">${r.me ? '' : time}</span></div>`;
       })
       .join('');
     return head + rows;

@@ -287,6 +287,22 @@ input[type='range'] { width: 100%; accent-color: var(--accent); height: 30px; }
 .grp-me { position: absolute; left: 50%; top: 3px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: #ffd23f; }
 #c-grp-dots i { position: absolute; top: 5px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 1px solid rgba(0,0,0,.5); }
 .grp-scale { display: flex; justify-content: space-between; font-size: 11px; opacity: .65; margin-top: 4px; }
+/* Équipiers IA : énergie (W′) et état notable. */
+.grp-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.grp-list:empty { display: none; }
+.gl-row { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto auto 64px 38px; align-items: center; gap: 8px; font-size: 14px; }
+.gl-dot { width: 10px; height: 10px; border-radius: 50%; }
+.gl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.gl-gap, .gl-pct { font-variant-numeric: tabular-nums; font-size: 12.5px; color: #c3cddb; text-align: right; }
+.gl-en { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.14); overflow: hidden; }
+.gl-en b { display: block; height: 100%; border-radius: 4px; transition: width .4s ease; }
+.gl-en.hi b { background: #4ade80; }
+.gl-en.mid b { background: #fbbf24; }
+.gl-en.lo b { background: #f87171; }
+.gl-eff { font-style: normal; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.gl-eff.attack { background: rgba(244,114,182,.22); color: #f9a8d4; }
+.gl-eff.chase { background: rgba(96,165,250,.22); color: #93c5fd; }
+.gl-eff.cracked { background: rgba(248,113,113,.22); color: #fca5a5; }
 h2 small { font-weight: 500; opacity: .7; margin-left: 6px; }
 
 /* Proposition d'installation (PWA). */

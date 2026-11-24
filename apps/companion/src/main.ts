@@ -773,7 +773,7 @@ function ctrlHtml(): string {
     </div>
     ${
       st.team
-        ? `<div class="cg"><h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div></div>`
+        ? `<div class="cg"><h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div><div class="grp-list" id="c-grp-list"></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div></div>`
         : ''
     }
   </section>`;
@@ -847,6 +847,22 @@ function updateCtrl(st: PairState): void {
       .filter((r) => !r.me && Math.abs(r.gapM) <= 30)
       .map((r) => `<i style="left:${(50 + (r.gapM / 30) * 50).toFixed(1)}%;background:${esc(r.color)}" title="${esc(r.name)}"></i>`)
       .join('');
+    // Équipiers IA : énergie (W′) et ce qu'ils font de notable, du premier au dernier (façon NCT Ride).
+    const list = document.getElementById('c-grp-list');
+    if (list) {
+      const eff = { attack: t.effAttack, chase: t.effChase, cracked: t.effCracked } as const;
+      list.innerHTML = (st.riders ?? [])
+        .filter((r) => r.ai && r.energy !== undefined)
+        .sort((a, b) => b.gapM - a.gapM)
+        .slice(0, 8)
+        .map((r) => {
+          const e = Math.max(0, Math.min(100, Math.round(r.energy ?? 0)));
+          const tone = e > 60 ? 'hi' : e > 30 ? 'mid' : 'lo';
+          const gap = `${r.gapM >= 0 ? '+' : '−'}${Math.round(Math.abs(r.gapM))} m`;
+          return `<div class="gl-row"><i class="gl-dot" style="background:${esc(r.color)}"></i><span class="gl-name">${esc(r.name)}</span>${r.effort ? `<em class="gl-eff ${r.effort}">${esc(eff[r.effort])}</em>` : '<i class="gl-eff"></i>'}<span class="gl-gap">${gap}</span><i class="gl-en ${tone}" title="${esc(t.energy)} ${e} %"><b style="width:${e}%"></b></i><span class="gl-pct">${e} %</span></div>`;
+        })
+        .join('');
+    }
     const gp = document.getElementById('c-grp-pace');
     if (gp) gp.textContent = st.groupPacePct ? `${st.groupPacePct} % FTP` : '';
   }
