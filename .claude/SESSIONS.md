@@ -584,7 +584,7 @@ Quand le chantier est commité ou abandonné, supprimer l'entrée (ou passer l'�
 - Chantier : météo de Paris sur l'île, sortie virtuelle à l'export, route du port et nouveaux parcours (régénération de `apps/client/public/worlds/ile-de-robert`, demandée par l'utilisateur), décor de Saint-Robert, de l'Anneau et de Kerbrou
 - Fichiers réservés : `tools/island/`, `apps/client/public/worlds/ile-de-robert/` et l'entrée de l'île dans `worlds/index.json` ; nouveau `game/virtualRide.ts` + test, `ui/ridepanels.ts` (titre, GPX), une ligne de `apps/server/src/integrations/uploads.ts`, trois endroits de `main.ts` (import, titre du brouillon, météo) ; `world/robertville.ts` et nouveaux fichiers de décor Poly ; `docs/SUIVI_MONDE_POLY.md`, `docs/ILE_DE_ROBERT.md`
 - Aussi touchés : `world/` `polySites.ts`, `polyHarbour.ts` (nouveaux), `roadsideLife.ts`, `network.ts` (walkHeightAt), `world.ts`, `traffic.ts`, `polyRoads.ts`, `robertvilleBuildings.ts`, `lowPolyProps.ts` (poubelles), `ui/islandAtlas.ts` et `.css` ; ville du joueur : nouveaux `game/communes.ts`, `ui/cityPicker.ts` et `.css`, `test/communes.test.ts`, `public/geo/communes-fr.txt`, `tools/communes/`, une ligne de `ui/settings.ts`, deux endroits de `ui/menu.ts` (Profil), `game/realWeather.ts` (heure locale) et son test, `data/komIndex.json`
-- État : codé et vérifié en Poly, types et tests OK ; île régénérée installée (ancienne sauvegardée dans `ile-de-robert-avant-port`) ; rien de commité ; serveur arrêté
+- État : troisième lot commité (950e8d53), quatrième lot commité (2878f2c2, poussé) ; fichiers libérés, serveur arrêté
 - Mis à jour : 2026-11-25
 
 ## Compteurs masqués au départ d'une course (demande de l'utilisateur du 2026-11-25)
