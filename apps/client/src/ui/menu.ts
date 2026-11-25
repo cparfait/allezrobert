@@ -42,7 +42,7 @@ import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts
 import { roadEffectHtml } from './roadEffect.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
 import type { AtelierState } from './atelier.ts';
-import { WORLD_LIST } from '../world/worlds.ts';
+import { ROBERT_ISLAND, WORLD_LIST, worldAvailableInStyle } from '../world/worlds.ts';
 import { OUTFITS } from './outfits.ts';
 import type { GarageView } from './poster.ts';
 import { FriendsPanel } from './friends.ts';
@@ -53,6 +53,7 @@ import { joinSettings } from './friendsLogic.ts';
 import { RoutePlanner } from './routePlanner.ts';
 import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
+import { IslandAtlas } from './islandAtlas.ts';
 import { bindStartPicker, loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
 import { canMoveStart, canReverse, reversedOf, routeKey, snapStartM, startedOf } from '../game/direction.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
@@ -1879,6 +1880,7 @@ export class MainMenu {
   private loadingZone = '';
   /** Carte de France de la fenêtre « Zones ». */
   private readonly franceMap = new FranceMap();
+  private readonly islandAtlas = new IslandAtlas();
   /** Itinéraire sur la carte d'une zone ouverte (fenêtre « Parcours ») : graphe donné par `planner.setOpen`. */
   readonly planner = new RoutePlanner();
   onWorld?: (id: string) => void;
@@ -2756,6 +2758,14 @@ export class MainMenu {
   /** Fenêtre centrée : liste des zones (avec leurs packs) ou des parcours de la zone. */
   private pickerHtml(): string {
     if (!this.picker) return '';
+    if ((this.picker === 'zones' || this.picker === 'zone') && GRAPHIC_STYLE === 'lowpoly' && this.worldId === ROBERT_ISLAND) {
+      const visible = new Set(this.routeIds);
+      return this.islandAtlas.html({
+        lang: getLang(), routes: this.routeStore.index.filter((r) => visible.has(r.id)),
+        allowFree: this.openWorld && this.s.mode !== 'race', allowDraw: this.openWorld,
+        packAction: this.packAction(ROBERT_ISLAND),
+      });
+    }
     // Zone ouverte choisie : sa carte, où l'on trace son itinéraire (ou roulage libre).
     if (this.picker === 'map') {
       const w = WORLD_LIST.find((x) => x.id === this.worldId);
@@ -2937,8 +2947,9 @@ export class MainMenu {
         else delete index[z];
       }
     }
-    const zoneIds = Object.keys(index).sort((a, b) => (a === this.worldId ? -1 : b === this.worldId ? 1 : this.zoneLabel(a).localeCompare(this.zoneLabel(b), lang)));
-    const filter = this.komZone && index[this.komZone] ? this.komZone : '';
+    const zoneIds = Object.keys(index).filter((id) => worldAvailableInStyle(id, GRAPHIC_STYLE))
+      .sort((a, b) => (a === this.worldId ? -1 : b === this.worldId ? 1 : this.zoneLabel(a).localeCompare(this.zoneLabel(b), lang)));
+    const filter = zoneIds.includes(this.komZone) ? this.komZone : '';
     const rows = zoneIds
       .filter((z) => !filter || z === filter)
       .flatMap((z) => (index[z] ?? []).map((c) => ({ zone: z, ...c, rec: readKomRecord(c.routeId, c.segId, { zone: z, lenM: c.lengthM }) })))
@@ -4616,8 +4627,9 @@ export class MainMenu {
         this.render();
       }),
     );
+    this.islandAtlas.bind(this.root, this.routeStore, getLang());
     // Carte de France : une zone choisie ouvre ses choix (parcours, libre, à dessiner).
-    if (this.picker === 'zones') {
+    if (this.picker === 'zones' && !this.root.querySelector('[data-island-atlas]')) {
       const openZone = (id: string): void => {
         if (id === this.worldId) {
           this.picker = 'zone';

@@ -1,0 +1,129 @@
+.ia-overlay {
+  background: rgb(10 19 23 / 80%);
+}
+
+.mm-picker.ia-dialog {
+  --ia-bg: #102023;
+  --ia-panel: #152726;
+  --ia-fg: #f0f2e6;
+  --ia-muted: #a7b9af;
+  --ia-line: #304442;
+  --ia-accent: #ffd76d;
+  width: min(1260px, 96vw) !important;
+  max-height: min(92dvh, 880px);
+  padding: 0 !important;
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(270px, 1fr);
+  gap: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  color: var(--ia-fg);
+  background: var(--ia-bg);
+  border: 1px solid #42534d;
+  border-radius: 18px;
+  box-shadow: 0 22px 78px rgb(0 7 8 / 52%);
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+}
+
+.ia-map-panel { min-width: 0; padding: 27px 27px 20px; }
+.ia-heading { margin: 0 0 20px; }
+.ia-mode { color: #a4c4b1; font-size: .7rem; line-height: 1; font-weight: 750; letter-spacing: .16em; }
+.mm-picker .ia-heading h2 { margin: 7px 0 0; color: var(--ia-fg); font-size: 3.1rem; line-height: 1; font-weight: 760; letter-spacing: -.068em; }
+
+.ia-view {
+  position: relative;
+  isolation: isolate;
+  aspect-ratio: 1520 / 1040;
+  overflow: hidden;
+  border: 1px solid #344d4d;
+  border-radius: 11px;
+  background: #10242b;
+}
+.ia-plane { position: absolute; inset: 0; transform-origin: left top; transition: transform .28s cubic-bezier(.2, .7, .2, 1); }
+.ia-plane img, .ia-trace { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ia-trace { pointer-events: none; }
+.ia-marker {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 27px;
+  padding: 3px 7px 3px 2px;
+  border: 0;
+  background: transparent;
+  color: #f0f3df;
+  font: 670 .76rem/1.1 Inter, 'Segoe UI', system-ui, sans-serif;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px #0d1e20, 0 0 5px #111f20;
+  translate: -5px -50%;
+  transform: scale(var(--ia-inverse-scale, 1));
+  transform-origin: 5px center;
+}
+.ia-marker::before { content: ''; width: 5px; height: 5px; box-sizing: content-box; flex: none; border-radius: 50%; border: 1px solid #e9f0d6; background: #253f3b; }
+button.ia-marker { cursor: pointer; }
+button.ia-marker:hover, .ia-marker[aria-pressed='true'] { color: var(--ia-accent); }
+.ia-marker[aria-pressed='true']::before { background: var(--ia-accent); box-shadow: 0 0 0 3px #183436bd; }
+.ia-marker-static { color: #c7d1ba; pointer-events: none; }
+
+.ia-compass { position: absolute; top: 13px; right: 15px; display: grid; justify-items: center; gap: 2px; color: #e5ebd8; font-weight: 750; font-size: .67rem; }
+.ia-compass span { color: #a8c9b8; font-size: .73rem; }
+.ia-map-tools { position: absolute; right: 12px; bottom: 12px; }
+.ia-map-tools button { border: 1px solid #68827b; border-radius: 7px; padding: 7px 9px; color: #f1f2e3; background: #152d31; font-size: .73rem; font-weight: 670; cursor: pointer; }
+.ia-map-tools button:hover, .ia-map-tools button[aria-pressed='true'] { background: #2b4b46; }
+.ia-map-tools button:disabled { opacity: .5; cursor: default; }
+.ia-scale { position: absolute; left: 15px; bottom: 13px; width: 13.16%; color: #c9dad0; border-bottom: 1px solid #a8c3b8; font-size: .67rem; font-variant-numeric: tabular-nums; }
+
+.ia-legend { min-height: 18px; display: flex; flex-wrap: wrap; align-items: center; gap: 7px 16px; margin-top: 13px; color: var(--ia-muted); font-size: .73rem; }
+.ia-line-key, .ia-start-key { display: inline-flex; gap: 7px; align-items: center; }
+.ia-line-key::before { content: ''; width: 15px; border-top: 3px solid var(--ia-accent); border-radius: 3px; }
+.ia-start-key::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #e8eed8; }
+.ia-load { margin-inline-start: auto; }
+
+.ia-side { min-width: 0; display: flex; flex-direction: column; padding: 26px 24px 20px; border-inline-start: 1px solid var(--ia-line); background: var(--ia-panel); }
+.ia-side-head { align-items: center; min-height: 35px; margin: 0 0 13px; }
+.ia-side-head h3 { margin: 0; color: var(--ia-fg); font-size: 1.34rem; font-weight: 740; letter-spacing: -.035em; }
+.ia-side-head .mm-x { position: static; margin: 0; width: 35px; height: 35px; border: 1px solid #526762; background: #243936; color: var(--ia-fg); border-radius: 9px; }
+.ia-side-head .mm-x:hover { background: #37524d; }
+.ia-routes { position: relative; flex: 1 1 0; min-height: 204px; overflow: auto; overscroll-behavior: contain; scrollbar-color: #58736a #1b2d2b; }
+.ia-route { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; text-align: left; align-items: center; gap: 10px; min-height: 51px; padding: 8px 9px; border: 1px solid transparent; border-block-end-color: var(--ia-line); border-radius: 0; background: transparent; color: var(--ia-fg); font: inherit; cursor: pointer; }
+.ia-route:hover { background: #203733; }
+.ia-route[aria-pressed='true'] { border-color: #8e7846; border-radius: 8px; background: #333729; color: #fbdea4; }
+.ia-route-mark { width: 8px; height: 8px; box-sizing: border-box; border: 1px solid #81988a; border-radius: 100%; }
+.ia-route[aria-pressed='true'] .ia-route-mark { border-color: var(--ia-accent); background: var(--ia-accent); }
+.ia-route-main, .ia-route-metric { min-width: 0; display: grid; gap: 3px; }
+.ia-route-main b { font-size: .83rem; line-height: 1.2; font-weight: 680; }
+.ia-route-main small, .ia-route-metric small, .ia-empty { color: var(--ia-muted); font-size: .7rem; }
+.ia-route-metric { justify-items: end; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ia-route-metric b { font-size: .76rem; line-height: 1.18; font-weight: 720; }
+
+.ia-selection { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 10px; padding: 14px 0 12px; }
+.ia-profile { display: block; grid-column: 1 / -1; width: 100%; height: 38px; border-bottom: 1px solid #576052; }
+.ia-pick { min-height: 42px; padding: 7px 9px; border: 1px solid #eed599; border-radius: 8px; color: #1e241a; background: var(--ia-accent); font: 750 .8rem/1.2 Inter, 'Segoe UI', system-ui, sans-serif; cursor: pointer; }
+.ia-pick:hover { background: #ffe294; }
+.ia-detail, .ia-actions > button:not(.mm-pack) { padding: 6px 0; border: 0; color: #c5d6cb; background: transparent; font: 620 .73rem/1.2 Inter, 'Segoe UI', system-ui, sans-serif; cursor: pointer; }
+.ia-detail:hover, .ia-actions > button:not(.mm-pack):hover { color: var(--ia-fg); text-decoration: underline; }
+.ia-actions { min-height: 31px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: auto; padding-top: 8px; border-top: 1px solid var(--ia-line); }
+.ia-actions .mm-pack { color: var(--ia-muted); font-size: .68rem; }
+.ia-dialog button:focus-visible { outline: 2px solid #f7e6a8; outline-offset: 2px; }
+
+@media (max-width: 850px) {
+  .mm-picker.ia-dialog { grid-template-columns: minmax(0, 1fr); position: relative; }
+  .ia-map-panel { padding: 20px 17px 12px; }
+  .mm-picker .ia-heading h2 { font-size: 2.55rem; }
+  .ia-side { padding: 13px 17px 15px; border-inline-start: 0; border-top: 1px solid var(--ia-line); }
+  .ia-side-head .mm-x { position: absolute; top: 16px; right: 17px; }
+  .ia-routes { max-height: 15rem; flex-basis: auto; min-height: 0; }
+}
+
+@media (max-width: 520px) {
+  .mm-picker .ia-heading h2 { font-size: 2.1rem; }
+  .ia-heading { padding-right: 40px; margin-bottom: 13px; }
+  .ia-routes { max-height: 9.25rem; }
+  .ia-marker { min-height: 26px; font-size: .64rem; }
+  .ia-marker-static { display: none; }
+  .ia-map-tools button { font-size: .65rem; padding: 5px 6px; }
+  .ia-map-tools, .ia-scale { bottom: 7px; }
+  .ia-compass { top: 8px; right: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) { .ia-plane { transition: none; } }

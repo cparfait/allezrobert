@@ -33,6 +33,8 @@ valeurs publiées utilisées pour valider les montées (longueur, dénivelé, pe
 
 ## Modèles 3D, textures, sons
 
+Le décor et les maisons de Robertville (`apps/client/src/world/robertville.ts` et `robertvilleBuildings.ts`), le public Poly (`crowdLowPoly.ts`) et les enseignes parodiques (`polySponsors.ts`) sont des créations originales du jeu. Les accessoires, les bâtiments et les personnages sont construits à l’exécution. Les affiches sont dessinées sur canevas avec des noms, palettes et graphismes propres au jeu. `tools/island/src/map.ts` dessine `carte.png` et `vignette.png` à partir des données fictives de l’île. Ces éléments relèvent de la licence du code du jeu.
+
 Le style V3 utilise des vélos, personnages, animations, matériaux et objets issus de l’installation locale de Zwift et d’exports d’étude. `tools/v3_assets.py` écrit les fichiers convertis dans `out/v3/`.
 
 Tour Eiffel low-poly (`apps/client/src/world/parisEiffel.ts`) — géométrie procédurale originale créée pour Allez Robert avec assistance de Codex. Gabarit en mètres d'après les [chiffres officiels de la Tour Eiffel](https://www.toureiffel.paris/fr/le-monument/chiffres-cle). Emplacement et orientation calés sur les emprises de la tuile `idf-paris/0_5` (© IGN — BD TOPO®, Licence Ouverte Etalab 2.0). Palette et lecture du treillis inspirées visuellement de [Petit Paris](https://petitparis.app/). Code du projet. Affichage dans le Paris low-poly.

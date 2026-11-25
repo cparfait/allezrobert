@@ -1,6 +1,24 @@
+import type { GraphicStyle } from '../engine/style.ts';
+
+export const ROBERT_ISLAND = 'ile-de-robert';
+
+/** Le mode Poly propose l'île fictive. Les styles Réel et Bêta proposent les zones françaises. */
+export function worldAvailableInStyle(id: string, style: GraphicStyle): boolean {
+  return (id === ROBERT_ISLAND) === (style === 'lowpoly');
+}
+
+/** Une zone fictive a son propre repère. Seules les zones françaises se raccordent entre elles. */
+export function worldIdsForStyle(requested: string, style: GraphicStyle): [string, ...string[]] {
+  const [first, ...neighbors] = requested.split('+').filter(Boolean);
+  if (first === 'dev') return [first];
+  if (style === 'lowpoly') return [ROBERT_ISLAND];
+  if (!first || !worldAvailableInStyle(first, style)) return ['longchamp'];
+  return [first, ...neighbors.filter((id) => id !== ROBERT_ISLAND)];
+}
+
 /** Mondes générés par tools/terrain (dossiers public/worlds/<id>/), dans l'ordre du menu. */
 export const WORLD_LIST: Array<{ id: string; name: { fr: string; en: string }; hint: { fr: string; en: string } }> = [
-  { id: 'ile-de-robert', name: { fr: "L'île de Robert", en: "Robert's Island" }, hint: { fr: "Monde imaginaire : l'Anneau, la mer, le col du Phare", en: 'Imaginary world: the Ring, the sea, the Lighthouse pass' } },
+  { id: ROBERT_ISLAND, name: { fr: "L'île de Robert", en: "Robert's Island" }, hint: { fr: "Monde imaginaire : l'Anneau, la mer, le col du Phare", en: 'Imaginary world: the Ring, the sea, the Lighthouse pass' } },
   { id: 'longchamp', name: { fr: 'Longchamp', en: 'Longchamp' }, hint: { fr: 'L’anneau du bois de Boulogne', en: 'The Bois de Boulogne loop' } },
   { id: 'chevreuse', name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' }, hint: { fr: 'Saclay, Chevreuse, Rambouillet', en: 'Saclay, Chevreuse, Rambouillet' } },
   { id: 'vincennes', name: { fr: 'Vincennes', en: 'Vincennes' }, hint: { fr: 'Le tour de l’hippodrome', en: 'The racecourse loop' } },

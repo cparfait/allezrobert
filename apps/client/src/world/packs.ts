@@ -1,5 +1,7 @@
 import type { WorldCatalogue, WorldPackManifest } from '@allezrobert/shared';
 import { DOWNLOADS_HOST, inDesktop, invoke, listen } from '../platform/desktop.ts';
+import { GRAPHIC_STYLE } from '../engine/style.ts';
+import { worldAvailableInStyle } from './worlds.ts';
 
 /**
  * Packs de cartes : chaque zone (monde) se télécharge d'un bloc depuis le menu et reste sur
@@ -111,6 +113,7 @@ let catalogue: Promise<WorldCatalogue | null> | null = null;
 export function loadCatalogue(): Promise<WorldCatalogue | null> {
   catalogue ??= fetch('/worlds/index.json')
     .then((r) => (r.ok && (r.headers.get('content-type') ?? '').includes('json') ? (r.json() as Promise<WorldCatalogue>) : null))
+    .then((data) => data && { ...data, zones: data.zones.filter(({ id }) => worldAvailableInStyle(id, GRAPHIC_STYLE)) })
     .catch(() => null);
   return catalogue;
 }

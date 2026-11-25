@@ -4,9 +4,12 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { RouteTrack } from '@allezrobert/shared';
 import { rng } from '../engine/noise.ts';
 import { LOW_POLY } from '../engine/style.ts';
+import { loadSettings } from '../ui/settings.ts';
 import { signDesigns, type SignDesign } from './crowdSigns.ts';
 import { lowPolyCrowdMaterial, lowPolyPersonGeometry, lowPolySignGeometry, lowPolySignMaterial } from './crowdLowPoly.ts';
 import { loadSpectators, spectatorGeometry, spectatorLodGeometry, spectatorMaterial } from './crowdRealistic.ts';
+import type { Season } from './environment.ts';
+import { POLY_SPONSOR_COLS, POLY_SPONSOR_COUNT, POLY_SPONSOR_ROWS, polySponsorAtlas, polySponsorUv } from './polySponsors.ts';
 
 /** Spectateur : corps, tête et bras levés (attribut `part` : 0 corps, 1 tête, 2 bras). */
 function personGeometry(): THREE.BufferGeometry {
@@ -119,6 +122,11 @@ const HIDE_M = 1500;
 const LOD_M = 50;
 const LOD_BACK_M = 40;
 const CROWD_LOD = typeof location === 'undefined' || new URLSearchParams(location.search).get('crowdLod') !== '0';
+
+function crowdSeason(): Season {
+  const season = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('season');
+  return season === 'spring' || season === 'summer' || season === 'autumn' || season === 'winter' ? season : loadSettings().season;
+}
 
 export interface CrowdOptions {
   /** Prénom du coureur, écrit sur certaines pancartes. */
@@ -294,8 +302,10 @@ function barrierMaterial(cell: ReturnType<typeof vec2>): THREE.MeshStandardNodeM
   // ces pixels prenaient la teinte et le reflet du métal (paillettes, couleurs délavées).
   const cloth01 = attribute<'float'>('part').greaterThan(0.5);
   // Coin de la case de l'atlas, par instance (attribut calculé sur le processeur).
-  const adUv = uv().mul(vec2(1 / ADS_COLS, 1 / ADS_ROWS)).add(cell);
-  const print = texture(adsAtlas(), adUv).rgb;
+  const cols = LOW_POLY ? POLY_SPONSOR_COLS : ADS_COLS;
+  const rows = LOW_POLY ? POLY_SPONSOR_ROWS : ADS_ROWS;
+  const adUv = uv().mul(vec2(1 / cols, 1 / rows)).add(cell);
+  const print = texture(LOW_POLY ? polySponsorAtlas() : adsAtlas(), adUv).rgb;
   const cloth = frontFacing.select(print, vec3(0.82, 0.82, 0.8));
   mat.colorNode = cloth01.select(cloth, vec3(0.4, 0.42, 0.44));
   // Bâche imprimée en vinyle : couleurs vives même à l'ombre ou à contre-jour.
@@ -381,6 +391,7 @@ export class Crowd {
     const m = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const half = track.route.roadWidthM / 2;
+    const roadHalf = LOW_POLY ? (d: number) => track.widthAt(d) / 2 : () => half;
     const up = new THREE.Vector3(0, 1, 0);
     // Pancartes : 10 cases pour les KOM, 6 pour les sprints.
     const name = opts.riderName ?? 'Robert';
@@ -415,7 +426,7 @@ export class Crowd {
         let lat = lateral;
         do {
           lat -= side * 0.5;
-          if (Math.abs(lat) < half + 0.9) return;
+          if (Math.abs(lat) < roadHalf(dd) + 0.9) return;
           p = track.positionAt(dd, lat);
         } while (opts.inBuilding(p.x, p.z));
       }
@@ -448,10 +459,11 @@ export class Crowd {
       for (let d = seg.startM; d < seg.endM; d += (seg.arch ? 2.4 : kom ? 3.25 : 4) / density) {
         for (const side of [-1, 1]) {
           if (r() < (seg.arch ? 0.15 : kom ? 0.35 : 0.5)) continue;
-          const lateral = side * (half + 1.6 + r() * 3);
+          const width = roadHalf(d);
+          const lateral = side * (width + 1.6 + r() * 3);
           // Premier rang, dans les 150 derniers mètres (KOM) : une pancarte de temps en temps.
-          const front = Math.abs(lateral) < half + 3;
-          put(d + r() * 2, lateral, kom, front && seg.endM - d < (kom ? 150 : 120) ? 0.32 : 0);
+          const front = Math.abs(lateral) < width + 3;
+          put(d + r() * 2, lateral, kom, front && seg.endM - d < (kom ? 150 : 120) ? 0.32 : 0, LOW_POLY ? 0.45 : 0);
         }
       }
     }
@@ -468,7 +480,7 @@ export class Crowd {
         for (const side of [-1, 1])
           for (let row = 0; row < rows; row++) {
             if (r() < 0.12) continue;
-            const lateral = side * (half + BARRIER_GAP + 0.55 + row * 0.7 + (r() - 0.5) * 0.25);
+            const lateral = side * (roadHalf(d) + BARRIER_GAP + 0.55 + row * 0.7 + (r() - 0.5) * 0.25);
             put(d + (r() - 0.5) * 0.8, lateral, false, row === 0 ? 0.08 + 0.17 * c : 0, 0.35);
           }
         d += (2.6 - 1.7 * c) / density;
@@ -477,7 +489,7 @@ export class Crowd {
       const bq = new THREE.Quaternion();
       for (let d = Math.max(0, len - FINISH_BARRIER_M); d + BARRIER_LEN <= len - 0.5; d += BARRIER_LEN + 0.05)
         for (const side of [-1, 1]) {
-          const p = track.positionAt(d + BARRIER_LEN / 2, side * (half + BARRIER_GAP));
+          const p = track.positionAt(d + BARRIER_LEN / 2, side * (roadHalf(d + BARRIER_LEN / 2) + BARRIER_GAP));
           const ground = groundAt(p.x, p.z);
           const y = (Number.isFinite(ground) ? ground : p.y) - 0.02;
           // Bâche imprimée (−z local) tournée vers la chaussée.
@@ -487,8 +499,9 @@ export class Crowd {
         }
     }
     // Style jeu vidéo : spectateurs à facettes, animés seulement à l'approche du coureur (crowdLowPoly.ts).
-    const mat = LOW_POLY ? lowPolyCrowdMaterial(padded(spots, 4), padded(still, 1), this.rider) : realCrowdMaterial(still);
-    this.mesh = new THREE.InstancedMesh(LOW_POLY ? lowPolyPersonGeometry() : personGeometry(), mat, Math.max(mats.length, 1));
+    const season = LOW_POLY ? crowdSeason() : 'summer';
+    const mat = LOW_POLY ? lowPolyCrowdMaterial(padded(spots, 4), padded(still, 1), this.rider, season) : realCrowdMaterial(still);
+    this.mesh = new THREE.InstancedMesh(LOW_POLY ? lowPolyPersonGeometry(season) : personGeometry(), mat, Math.max(mats.length, 1));
     mats.forEach((mm, i) => this.mesh.setMatrixAt(i, mm));
     this.mesh.count = mats.length;
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -563,7 +576,7 @@ export class Crowd {
       });
       const cell = instancedBufferAttribute(new THREE.InstancedBufferAttribute(offsets, 2)) as unknown as ReturnType<typeof vec2>;
       const smat = LOW_POLY ? lowPolySignMaterial(atlas, cell, ATLAS_COLS, ATLAS_ROWS, new Float32Array(signSpots), this.rider) : realSignMaterial(atlas, cell);
-      const signs = new THREE.InstancedMesh(LOW_POLY ? lowPolySignGeometry(SIGN_W, SIGN_H) : signGeometry(), smat, signMats.length);
+      const signs = new THREE.InstancedMesh(LOW_POLY ? lowPolySignGeometry(SIGN_W * 0.85, SIGN_H * 0.85) : signGeometry(), smat, signMats.length);
       signMats.forEach((mm, i) => signs.setMatrixAt(i, mm));
       signs.instanceMatrix.needsUpdate = true;
       signs.computeBoundingSphere();
@@ -579,9 +592,15 @@ export class Crowd {
       // marques dans le désordre (pas de 3, premier avec leur nombre).
       const offsets = new Float32Array(barrierMats.length * 2);
       for (let i = 0; i < barrierMats.length; i++) {
-        const ad = (Math.floor(i / 6) * 3) % ADS.length;
-        offsets[i * 2] = (ad % ADS_COLS) / ADS_COLS;
-        offsets[i * 2 + 1] = 1 - (Math.floor(ad / ADS_COLS) + 1) / ADS_ROWS;
+        if (LOW_POLY) {
+          // Deux bâches voisines par marque. De l'autre côté, la série débute huit marques plus loin.
+          const sponsor = (Math.floor(i / 4) * 5 + (i % 2) * (POLY_SPONSOR_COUNT / 2)) % POLY_SPONSOR_COUNT;
+          offsets.set(polySponsorUv(sponsor), i * 2);
+        } else {
+          const ad = (Math.floor(i / 6) * 3) % ADS.length;
+          offsets[i * 2] = (ad % ADS_COLS) / ADS_COLS;
+          offsets[i * 2 + 1] = 1 - (Math.floor(ad / ADS_COLS) + 1) / ADS_ROWS;
+        }
       }
       const adCell = instancedBufferAttribute(new THREE.InstancedBufferAttribute(offsets, 2)) as unknown as ReturnType<typeof vec2>;
       const barriers = new THREE.InstancedMesh(barrierGeometry(), barrierMaterial(adCell), barrierMats.length);

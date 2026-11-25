@@ -154,7 +154,7 @@ export class World {
         const t = this.terrain.getTile(...this.terrain.tileCoord(x, z));
         return t && this.vegReady.has(t.id) ? t : undefined;
       };
-      this.life = new RoadsideLife(track, groundAt, lifeTile, lifeDensity(q), (a, b, c, d) => this.treesIn(a, b, c, d));
+      this.life = new RoadsideLife(track, groundAt, lifeTile, lifeDensity(q), (a, b, c, d) => this.treesIn(a, b, c, d), envState.season);
       scene.add(this.life.group);
       this.people = new RoadsidePeople(this.life, groundAt, lifeDensity(q).people);
       scene.add(this.people.group);
@@ -287,6 +287,7 @@ export class World {
     this.grass.setSeason(season);
     this.water.setSeason(season);
     this.horizon?.setSeason(season);
+    this.life?.setSeason(season);
   }
 
   setQuality(q: QualitySettings): void {

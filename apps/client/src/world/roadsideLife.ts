@@ -3,10 +3,12 @@ import { abs, attribute, cos, float, floor, length, mix, mod, positionLocal, sin
 import { baseRouteId, type RouteTrack, type TrackSample } from '@allezrobert/shared';
 import { polygonArea, rng } from '../engine/noise.ts';
 import type { SoundSource } from '../audio/spatial.ts';
+import type { Season } from './environment.ts';
 import type { LoadedTile } from './types.ts';
 import { LandProbe, MeshBuilder, dist2Seg, flatVertexMaterial, segmentsIn } from './lowPolyKit.ts';
 import { lifeTemplates, type LifeTemplates } from './lowPolyProps.ts';
 import { FarmAnimals, farmAnimalsReady, loadFarmAnimals, type AnimalSpec } from './farmAnimals.ts';
+import { RobertvilleScenery, isRobertville } from './robertville.ts';
 
 /**
  * Abords de la route façon jeu vidéo (style low poly, voir engine/style.ts) : clôtures blanches ou en
@@ -240,6 +242,7 @@ export class RoadsideLife {
   private readonly chunks = new Map<number, Chunk>();
   private readonly list: Chunk[] = [];
   private readonly staticMat = flatVertexMaterial(0.9);
+  private readonly robertville: RobertvilleScenery;
   private readonly wetMat = wetMaterial();
   private readonly wireMat = new THREE.LineBasicNodeMaterial({ vertexColors: true });
   private readonly animalMat = animalMaterial();
@@ -270,11 +273,13 @@ export class RoadsideLife {
     tileAt: (x: number, z: number) => LoadedTile | undefined,
     density: LifeDensity,
     private readonly treesIn?: (minX: number, minZ: number, maxX: number, maxZ: number) => number[],
+    season: Season = 'summer',
   ) {
     this.track = track;
     this.probe = new LandProbe(tileAt, heightAt);
+    this.robertville = new RobertvilleScenery(this.probe, this.staticMat, season);
     this.density = density;
-    this.group.add(this.farm.group);
+    this.group.add(this.farm.group, this.robertville.group);
     // Animaux animés : dès que les modèles sont chargés, les tronçons déjà peuplés (avec des troupeaux en
     // blocs) sont refaits, pour que les premiers troupeaux soient animés eux aussi.
     void loadFarmAnimals().then((ok) => {
@@ -307,11 +312,16 @@ export class RoadsideLife {
     this.density = d;
   }
 
+  setSeason(season: Season): void {
+    this.robertville.setSeason(season);
+  }
+
   /** Peuple les tronçons proches de `focus` (terrain chargé), oublie les lointains, anime les manèges. */
   update(dt: number, focus: THREE.Vector3): void {
     (focusU.value as THREE.Vector3).copy(focus);
     this.animateHerds(dt, focus);
     this.farm.update(dt, focus);
+    this.robertville.update(focus.x, focus.z, this.density.props);
     const lengthChanged = this.centresLength !== this.track.length;
     // Revu tous les 15 m parcourus, ou à chaque image tant qu'un tronçon proche attend son terrain.
     if (!this.pending && !lengthChanged && this.last.distanceToSquared(focus) < 225) return;
@@ -464,6 +474,8 @@ export class RoadsideLife {
     const useFarm = farmAnimalsReady();
     const r = rng(k * 7919 + 13);
     const s = this.s;
+    const mid = (d0 + d1) / 2;
+    const promenade = track.surfaceAt(mid) === 'wood' && isRobertville(probe, sig[2]!, sig[3]!);
     const halfAt = (d: number) => track.widthAt(d) / 2;
     const tmpC = new THREE.Color();
     const line: LineFn = (ax, ay, az, bx, by, bz, c) => {
@@ -591,7 +603,7 @@ export class RoadsideLife {
       // haie : seule (sans clôture) ou doublant une clôture en bois
       const hedge = pr() < (type === 0 ? 0.45 : type === 2 ? 0.25 : 0.08) * Math.min(1, 0.4 + props);
       const hr = rng(k * 131 + (side > 0 ? 17 : 5));
-      if (type) {
+      if (type && !promenade) {
         const col = type === 1 ? WHITE : WOOD;
         let px = 0;
         let py = 0;
@@ -619,7 +631,7 @@ export class RoadsideLife {
           has = true;
         }
       }
-      if (hedge) {
+      if (hedge && !promenade) {
         for (let d = d0; d < d1; d += 1.7) {
           track.positionAt(d, side * (halfAt(d) + (type ? 3.4 : 2.7) + hr() * 0.3), s);
           const y = ground(s.x, s.z);
@@ -634,7 +646,7 @@ export class RoadsideLife {
     // ── Poteaux électriques : un côté par tranche de 600 m, tous les 45 m, câbles entre deux poteaux ──
     const poleSide = rng(Math.floor(d0 / 600) * 17 + 5)() < 0.5 ? -1 : 1;
     const poleOn = rng(Math.floor(d0 / 600) * 23 + 9)() < 0.75;
-    if (poleOn) {
+    if (poleOn && !promenade) {
       const first = Math.ceil(d0 / 45) * 45;
       for (let d = first; d < d1; d += 45) {
         if (inSpan(d, 4)) continue;
@@ -762,7 +774,7 @@ export class RoadsideLife {
 
     // ── Troupeaux dans les prés, derrière les clôtures ; abreuvoir ; manège de chevaux ──
     let herd: Herd | null = null;
-    if (r() < 0.55) {
+    if (r() < 0.55 && !promenade) {
       const side = r() < 0.5 ? -1 : 1;
       const kind: HerdKind = r() < 0.45 ? 'cow' : r() < 0.7 ? 'sheep' : 'horse';
       const dh = d0 + r() * (d1 - d0);
@@ -1361,6 +1373,7 @@ export class RoadsideLife {
   private polePoint(d: number, side: number): [number, number, number, number, number] | null {
     if (d > this.track.length) return null;
     const p = this.track.positionAt(d, side * (this.track.widthAt(d) / 2 + 5.5), this.s2);
+    if (this.track.surfaceAt(d) === 'wood' && isRobertville(this.probe, p.x, p.z)) return null;
     const y = this.probe.heightAt(p.x, p.z);
     const pr = this.probe;
     if (!Number.isFinite(y) || !pr.read(p.x, p.z) || pr.forest > 0.5 || pr.water > 0.2 || pr.road > 0.25 || pr.urban > 0.6 || pr.buildingNear(p.x, p.z, 3)) return null;
@@ -1368,6 +1381,7 @@ export class RoadsideLife {
   }
 
   dispose(): void {
+    this.robertville.dispose();
     this.disposed = true;
     for (const k of [...this.chunks.keys()]) this.drop(k);
     this.farm.dispose();

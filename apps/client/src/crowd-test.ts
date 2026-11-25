@@ -20,6 +20,7 @@ const ROAD_W = 6;
 const track = {
   length: 600,
   route: { roadWidthM: ROAD_W, loop: true, segments: [{ kind: 'kom', startM: 0, endM: 400, name: 'Essai' }] },
+  widthAt: () => ROAD_W,
   positionAt: (d: number, lateral: number) => ({ x: lateral, y: 0, z: -d, dirX: 0, dirZ: -1, grade: 0, d }),
 } as unknown as RouteTrack;
 

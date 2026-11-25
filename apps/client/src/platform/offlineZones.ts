@@ -1,11 +1,13 @@
 import { bootLabel, bootStep } from '../ui/splash.ts';
+import { GRAPHIC_STYLE } from '../engine/style.ts';
 import { declinedPacks, formatBytes, installPack, installedPacks, loadCatalogue } from '../world/packs.ts';
+import { ROBERT_ISLAND, worldAvailableInStyle } from '../world/worlds.ts';
 import { inDesktop, invoke } from './desktop.ts';
 
 /**
  * Zones installées d'office par l'application de bureau, pour pouvoir rouler sans connexion :
  * - Longchamp, la zone du mode en ligne : installée au premier lancement, avant le menu ;
- * - l'Île de Robert : installée ensuite en tâche de fond, sans bloquer le menu.
+ * - l'Île de Robert : installée ensuite en tâche de fond en mode Poly, sans bloquer le menu.
  * Elles passent par `installPack`, comme une zone téléchargée à la main : même dossier, même état dans
  * Réglages → Zones hors ligne, mêmes mises à jour, même suppression. Une zone supprimée par le joueur n'est pas
  * réinstallée (`declinedPacks`). Rien de tout cela dans un navigateur.
@@ -13,7 +15,7 @@ import { inDesktop, invoke } from './desktop.ts';
 export const DEFAULT_ZONES: ReadonlyArray<{ id: string; name: string; when: 'boot' | 'background'; bytes: number }> = [
   // Tailles de repli (octets) si le catalogue ne les donne pas.
   { id: 'longchamp', name: 'Longchamp', when: 'boot', bytes: 70_000_000 },
-  { id: 'ile-de-robert', name: 'Île de Robert', when: 'background', bytes: 400_000_000 },
+  { id: ROBERT_ISLAND, name: 'Île de Robert', when: 'background', bytes: 400_000_000 },
 ];
 
 /** Place gardée libre après l'installation d'une zone d'office (octets). */
@@ -111,6 +113,7 @@ async function install(id: string, onProgress: (done: number, total: number) => 
 export async function installBootZones(): Promise<void> {
   if (!inDesktop) return;
   for (const zone of DEFAULT_ZONES.filter((z) => z.when === 'boot')) {
+    if (!worldAvailableInStyle(zone.id, GRAPHIC_STYLE)) continue;
     const { decision } = await decide(zone);
     if (decision !== 'install') continue;
     bootStep(18, `Installation de ${zone.name}…`);
@@ -155,6 +158,7 @@ export async function installBackgroundZones(): Promise<void> {
   if (!inDesktop || background || autostart()) return;
   const fr = typeof document === 'undefined' || document.documentElement.lang !== 'en';
   for (const zone of DEFAULT_ZONES.filter((z) => z.when === 'background')) {
+    if (!worldAvailableInStyle(zone.id, GRAPHIC_STYLE)) continue;
     const { decision, bytes } = await decide(zone);
     if (decision !== 'install') {
       if (decision === 'disk-full') console.warn(`Zone ${zone.id} non installée : il faut ${formatBytes(bytes + DISK_MARGIN_BYTES, true)} libres`);

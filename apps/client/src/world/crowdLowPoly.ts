@@ -1,24 +1,26 @@
 import * as THREE from 'three/webgpu';
 import { attribute, positionLocal, time, sin, cos, vec2, vec3, float, mix, instanceIndex, hash, varying, uv, texture, frontFacing, smoothstep, instancedBufferAttribute } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import type { Season } from './environment.ts';
 
 /**
- * Public en style jeu vidéo (low poly) : spectateurs en prismes à facettes (tronc hexagonal, tête
- * cubique, casquette pour certains), pancartes en planches de couleur. Calmes quand le coureur est loin,
- * ils s'animent à son approche (sauts, bras levés agités, pancartes brandies) puis se calment après son
+ * Public en style jeu vidéo (low poly) : silhouettes à facettes, vêtements de saison et pancartes.
+ * Calmes quand le coureur est loin, ils s'animent à son approche, puis se calment après son
  * passage : activation par instance tirée de la distance au coureur (un uniforme mis à jour par image).
  *
  * Repère d'un spectateur : y = 0 aux pieds, le visage vers −z (la rotation d'instance tourne +z vers
  * l'extérieur de la route, voir crowd.ts). Attributs : `part` (couleur : 0 maillot, 1 peau, 2 manche,
- * 3 cuisse, 4 casquette, 5 cheveux, 6 cheveux longs, 7 chaise, 8 tibia) et `limb` (−1 bras gauche, +1 bras droit, 0 sinon).
+ * 3 cuisse, 4 couvre-chef, 5 cheveux, 6 cheveux longs, 7 chaise, 8 tibia, 9 avant-bras, 10 chaussures)
+ * et `limb` (−1 bras gauche, +1 bras droit, 0 sinon).
  */
 
 /** Distance (m) en deçà de laquelle le public est pleinement animé, et au-delà de laquelle il est calme. */
-const ACTIVE_NEAR = 60;
-const ACTIVE_FAR = 100;
+const ACTIVE_NEAR = 12;
+const ACTIVE_FAR = 40;
 /** Épaule (repère du spectateur) : pivot des bras. */
 const SHOULDER_X = 0.25;
 const SHOULDER_Y = 1.4;
+const ELBOW_Y = SHOULDER_Y - 0.224;
 
 function tagged(g: THREE.BufferGeometry, part: number, limb = 0): THREE.BufferGeometry {
   const ng = g.index ? g.toNonIndexed() : g;
@@ -29,9 +31,10 @@ function tagged(g: THREE.BufferGeometry, part: number, limb = 0): THREE.BufferGe
   return ng;
 }
 
-/** Spectateur à facettes : ≈ 144 triangles (contre ≈ 370 pour les capsules du style réaliste). */
-export function lowPolyPersonGeometry(): THREE.BufferGeometry {
+export function lowPolyPersonGeometry(season: Season = 'summer'): THREE.BufferGeometry {
   const box = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y, z);
+  const bundled = season === 'winter';
+  const torsoWidth = bundled ? 1.09 : 1;
   const parts: THREE.BufferGeometry[] = [
     // jambes (pantalon), tronc hexagonal plus large aux épaules (maillot)
     // jambes en deux (cuisse part 3, tibia part 8) : les spectateurs assis plient le genou
@@ -39,12 +42,12 @@ export function lowPolyPersonGeometry(): THREE.BufferGeometry {
     tagged(box(0.13, 0.41, 0.16, -0.09, 0.615, 0), 3),
     tagged(box(0.13, 0.41, 0.16, 0.09, 0.205, 0), 8),
     tagged(box(0.13, 0.41, 0.16, -0.09, 0.205, 0), 8),
-    tagged(new THREE.CylinderGeometry(0.23, 0.18, 0.62, 6, 1).rotateY(Math.PI / 6).translate(0, 1.11, 0), 0),
-    // tête cubique, cheveux en dalle, casquette (calotte + visière vers l'avant, −z)
-    tagged(box(0.24, 0.26, 0.24, 0, 1.58, 0), 1),
-    tagged(box(0.26, 0.08, 0.26, 0, 1.7, 0.005), 5),
-    tagged(box(0.27, 0.1, 0.27, 0, 1.72, 0), 4),
-    tagged(box(0.22, 0.03, 0.13, 0, 1.685, -0.195), 4),
+    tagged(new THREE.CylinderGeometry(0.23, 0.18, 0.6, 6, 1).rotateY(Math.PI / 6).scale(torsoWidth, 1, 0.73 * torsoWidth).translate(0, 1.11, 0), 0),
+    tagged(new THREE.CylinderGeometry(0.065, 0.073, 0.13, 6).translate(0, 1.432, 0), 1),
+    tagged(new THREE.SphereGeometry(1, 8, 4).scale(0.117, 0.147, 0.109).translate(0, 1.575, 0), 1),
+    tagged(new THREE.SphereGeometry(1, 8, 3, 0, Math.PI * 2, 0, 1.54).scale(0.124, 0.151, 0.116).translate(0, 1.58, 0.012), 5),
+    tagged(new THREE.SphereGeometry(1, 8, 3, 0, Math.PI * 2, 0, 1.55).scale(0.136, bundled ? 0.133 : 0.093, 0.126).translate(0, bundled ? 1.61 : 1.65, 0), 4),
+    tagged(box(0.15, 0.022, bundled ? 0.13 : 0.1, 0, bundled ? 1.61 : 1.645, bundled ? -0.038 : -0.13), 4),
     // cheveux longs (part 6, spectatrices) : nappe dans le dos (+z, l'avant est −z) et mèches sur les joues
     tagged(box(0.27, 0.34, 0.07, 0, 1.5, 0.135), 6),
     tagged(box(0.04, 0.22, 0.14, 0.13, 1.56, 0.05), 6),
@@ -57,10 +60,12 @@ export function lowPolyPersonGeometry(): THREE.BufferGeometry {
     tagged(box(0.03, 0.86, 0.03, 0.21, 0.43, 0.25), 7),
     tagged(box(0.03, 0.86, 0.03, -0.21, 0.43, 0.25), 7),
   ];
-  // Bras pendants (repos) : manche et main, pivot à l'épaule ; levés dans le shader.
+  // Des manches et des avant-bras séparés permettent d'habiller le même geste selon la saison.
   for (const s of [1, -1]) {
-    parts.push(tagged(box(0.085, 0.46, 0.1, s * SHOULDER_X, SHOULDER_Y - 0.25, 0), 2, s));
-    parts.push(tagged(box(0.08, 0.1, 0.09, s * SHOULDER_X, SHOULDER_Y - 0.54, 0), 1, s));
+    parts.push(tagged(box(0.138, 0.088, 0.245, s * 0.09, 0.045, -0.028), 10));
+    parts.push(tagged(new THREE.CylinderGeometry(0.054 * torsoWidth, 0.042 * torsoWidth, 0.225, 6).translate(s * SHOULDER_X, SHOULDER_Y - 0.112, 0), 2, s));
+    parts.push(tagged(new THREE.CylinderGeometry(0.042 * torsoWidth, 0.033 * torsoWidth, 0.225, 6).translate(s * SHOULDER_X, ELBOW_Y - 0.112, 0), 9, s));
+    parts.push(tagged(new THREE.DodecahedronGeometry(1, 0).scale(0.044, 0.055, 0.041).translate(s * SHOULDER_X, SHOULDER_Y - 0.492, 0), 1, s));
   }
   return mergeGeometries(parts) as THREE.BufferGeometry;
 }
@@ -78,12 +83,19 @@ function rgb(hex: string): THREE.Node<'vec3'> {
   return vec3(k.r, k.g, k.b);
 }
 
-const SHIRTS = ['#e63946', '#ffd23f', '#2a9d8f', '#f4f4f4', '#1f6feb', '#ff7f11', '#8ac926', '#c04cd0', '#00b4d8', '#ff5d8f'];
+const TOPS: Record<Season, string[]> = {
+  spring: ['#29ad78', '#d85db5', '#3b70dc', '#f0d84c', '#ee7259', '#36b6c6', '#a4c64f', '#853d67'],
+  summer: ['#f2dc42', '#18a9da', '#3057d6', '#f9a356', '#ed4163', '#ed752f', '#37c3ad', '#c44b9d'],
+  autumn: ['#dd6f32', '#efb43b', '#36895b', '#977347', '#405ad1', '#c74b62', '#9856be', '#d98154'],
+  winter: ['#4a69b9', '#159f93', '#8047b4', '#efca48', '#284487', '#ce425c', '#4b91da', '#477b57'],
+};
 const TROUSERS = ['#2c4a7a', '#2a2a30', '#8a7a5a', '#3d5a3a', '#e8e4da'];
 const SKIN = ['#f3cfa8', '#e8b48a', '#c98b5e', '#8d5a3a'];
 const HAIR = ['#2a1d14', '#5a3a22', '#a8743c', '#d9c08a', '#8a8a8a'];
 const CHAIRS = ['#2a6fdb', '#e63946', '#3d8b3d', '#f2f2f2', '#2a2a2a'];
 const CAPS = ['#e63946', '#ffffff', '#1f6feb', '#ffd23f', '#2a9d8f', '#111111'];
+const BEANIES = ['#e36547', '#f0ca53', '#427bd0', '#31a689', '#9957bc'];
+const SHOES = ['#282e34', '#4a423e', '#b4aaa0', '#e5e0d6'];
 
 /**
  * Activation d'une instance (0 calme, 1 en liesse) d'après la distance horizontale de son point
@@ -98,7 +110,7 @@ function activation(spot: THREE.Node<'vec2'>, rider: THREE.UniformNode<'vec2', T
  * (les déplacements calculés dans le repère du spectateur y sont tournés : `positionLocal` inclut déjà la
  * transformation d'instance) ; `still` = 1 pour les porteurs de pancarte (bras levés, sans saut).
  */
-export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, rider: THREE.UniformNode<'vec2', THREE.Vector2>): THREE.MeshStandardNodeMaterial {
+export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, rider: THREE.UniformNode<'vec2', THREE.Vector2>, season: Season = 'summer'): THREE.MeshStandardNodeMaterial {
   const mat = new THREE.MeshStandardNodeMaterial();
   mat.flatShading = true;
   const part = attribute<'float'>('part');
@@ -109,37 +121,44 @@ export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, ri
   const h = hash(instanceIndex);
   const h2 = hash(instanceIndex.add(31));
   const h3 = hash(instanceIndex.add(77));
+  const mood = hash(instanceIndex.add(101));
   const act = activation(sp.xy, rider);
-  const move = act.mul(float(1).sub(holder));
-  // Bras : angle depuis la verticale basse. Calme : le long du corps ; en liesse : levés en V et agités
-  // (déphasés par spectateur) ; porteurs de pancarte : levés, immobiles.
-  const wave = sin(time.mul(float(8).add(h.mul(3))).add(h.mul(10)));
-  const cheer = float(2.45).add(wave.mul(0.3));
-  const alpha = mix(mix(float(0.12), cheer, move), float(2.75), holder).mul(limb.abs());
+  // Une partie regarde la course, les autres saluent d'un bras ou lèvent les deux.
+  const greeting = mood.greaterThan(0.31).and(limb.mul(h3.greaterThan(0.5).select(float(1), float(-1))).greaterThan(0));
+  const gesture = mood.greaterThan(0.77).or(greeting).select(float(1), float(0));
+  const wave = sin(time.mul(float(4.2).add(h.mul(3))).add(h.mul(18)).add(limb.mul(0.5)));
+  const cheer = mix(float(1.75), float(2.48), mood).add(wave.mul(0.17));
+  const alpha = mix(mix(float(0.13), cheer, act.mul(gesture)), mix(float(2.3), float(2.7), act), holder).mul(limb.abs());
   const ang = alpha.mul(limb);
   const rx = raw.x.sub(limb.mul(SHOULDER_X));
-  const ry = raw.y.sub(SHOULDER_Y);
+  const lowerArm = limb.abs().greaterThan(0).and(part.equal(9).or(part.equal(1)));
+  const bend = lowerArm.select(float(0.08).add(act.mul(gesture).mul(0.32)).add(holder.mul(0.1)), float(0));
+  const fromElbow = raw.y.sub(ELBOW_Y);
+  const bentY = fromElbow.mul(cos(bend)).sub(raw.z.mul(sin(bend))).add(ELBOW_Y);
+  const bentZ = fromElbow.mul(sin(bend)).add(raw.z.mul(cos(bend)));
+  const ry = bentY.sub(SHOULDER_Y);
   const ca = cos(ang);
   const sa = sin(ang);
-  const armDelta = vec2(rx.mul(ca).sub(ry.mul(sa)).sub(rx), rx.mul(sa).add(ry.mul(ca)).sub(ry));
-  // Casquette pour 4 spectateurs sur 10 : sinon ramenée au centre de la tête (triangles dégénérés).
+  const armDelta = vec3(rx.mul(ca).sub(ry.mul(sa)).sub(rx), rx.mul(sa).add(ry.mul(ca)).add(SHOULDER_Y).sub(raw.y), bentZ.sub(raw.z));
+  // Les bonnets sont plus courants en hiver que les casquettes en été.
+  const hatChance = season === 'winter' ? 0.82 : season === 'autumn' ? 0.55 : 0.38;
   const isCap = part.equal(4).select(float(1), float(0));
-  const noCap = h3.greaterThan(0.4).select(float(1), float(0)).mul(isCap);
+  const noCap = h3.greaterThan(hatChance).select(float(1), float(0)).mul(isCap);
   // Cheveux longs pour ≈ 45 % des spectateurs sans casquette (femmes, pour l'instant) ; sinon repliés.
-  const longHair = h3.greaterThan(0.4).and(hash(instanceIndex.add(43)).lessThan(0.45)).select(float(1), float(0));
+  const longHair = hash(instanceIndex.add(43)).lessThan(0.37).select(float(1), float(0));
   const noHair = part.equal(6).select(float(1), float(0)).mul(float(1).sub(longHair));
   // Assis sur une chaise pliante (1 sur 4, pas les porteurs de pancarte) : cuisses à l'horizontale vers
   // l'avant (−z), tibias verticaux, corps abaissé de 0,37 m ; enfants (1 sur 5, debout) à 62 % de la taille.
   const seated = hash(instanceIndex.add(59)).lessThan(0.25).select(float(1), float(0)).mul(float(1).sub(holder));
-  const kid = hash(instanceIndex.add(71)).lessThan(0.2).select(float(1), float(0)).mul(float(1).sub(seated));
+  const kid = hash(instanceIndex.add(71)).lessThan(0.16).select(float(1), float(0)).mul(float(1).sub(seated)).mul(float(1).sub(holder));
   const isThigh = part.equal(3).select(float(1), float(0));
-  const isShin = part.equal(8).select(float(1), float(0));
+  const isShin = part.equal(8).or(part.equal(10)).select(float(1), float(0));
   const isChair = part.equal(7).select(float(1), float(0));
   const thigh = vec3(raw.x, float(0.82).sub(raw.z), raw.y.sub(0.82)).sub(raw);
   const shin = vec3(0, 0.41, -0.41);
   const sit = thigh.mul(isThigh).add(shin.mul(isShin)).add(vec3(0, -0.37, 0).mul(float(1).sub(isChair)));
   const hideChair = vec3(0, 0.3, 0).sub(raw).mul(isChair).mul(float(1).sub(seated));
-  let dObj = vec3(armDelta.x, armDelta.y, 0).add(vec3(0, 1.6, 0).sub(raw).mul(noCap.add(noHair))).add(sit.mul(seated)).add(hideChair);
+  let dObj = armDelta.add(vec3(0, 1.6, 0).sub(raw).mul(noCap.add(noHair))).add(sit.mul(seated)).add(hideChair);
   // enfant : tout le corps réduit depuis les pieds
   dObj = dObj.add(raw.add(dObj).mul(-0.38).mul(kid));
   // Repère du spectateur → repère d'instance (rotation autour de y).
@@ -149,11 +168,13 @@ export function lowPolyCrowdMaterial(spot: Float32Array, still: Float32Array, ri
   // Pas de saut (le public ne monte ni ne descend) : léger balancement d'un pied sur l'autre, sur le côté.
   const sway = sin(time.mul(1.3).add(h.mul(20))).mul(0.012);
   mat.positionNode = positionLocal.add(dInst).add(vec3(sway.mul(c), 0, sway.mul(s).negate()));
-  const shirt = pick(h, SHIRTS);
+  const shirt = pick(h, TOPS[season]);
   const skin = pick(h2, SKIN);
   const hair = pick(hash(instanceIndex.add(17)), HAIR);
   const trousers = pick(hash(instanceIndex.add(5)), TROUSERS);
-  const cols: THREE.Node<'vec3'>[] = [shirt, skin, shirt.mul(0.85), trousers, pick(hash(instanceIndex.add(11)), CAPS), hair, hair, pick(hash(instanceIndex.add(23)), CHAIRS), trousers];
+  const sleeve = season === 'winter' || season === 'autumn' ? shirt.mul(0.91) : skin;
+  const hat = pick(hash(instanceIndex.add(11)), season === 'winter' ? BEANIES : CAPS);
+  const cols: THREE.Node<'vec3'>[] = [shirt, skin, shirt.mul(0.85), trousers, hat, hair, hair, pick(hash(instanceIndex.add(23)), CHAIRS), trousers, sleeve, pick(h3, SHOES)];
   let col = cols[0] as THREE.Node<'vec3'>;
   for (let i = 1; i < cols.length; i++) col = part.equal(i).select(cols[i] as THREE.Node<'vec3'>, col);
   mat.colorNode = varying(col);
@@ -195,7 +216,7 @@ export function lowPolySignMaterial(atlas: THREE.Texture, cell: THREE.Node<'vec2
   const sp = instancedBufferAttribute(new THREE.InstancedBufferAttribute(spot, 2)) as unknown as THREE.Node<'vec2'>;
   const act = activation(sp, rider);
   // brandies sur le côté seulement, sans va-et-vient vertical
-  const sway = sin(time.mul(3.2).add(sh.mul(9))).mul(0.08).mul(act);
+  const sway = sin(time.mul(2.5).add(sh.mul(9))).mul(0.035).mul(act);
   smat.positionNode = positionLocal.add(vec3(sway, 0, 0));
   return smat;
 }

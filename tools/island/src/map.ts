@@ -2,10 +2,10 @@
  * Carte de l'île vue du ciel (PNG), relue depuis les fichiers du monde : relief ombré, mer, bois, champs,
  * routes par catégorie, bâtiments, et en option un itinéraire en surimpression.
  *
- *   npx tsx tools/island/src/map.ts [--route <id>] [--out docs/screenshots/ile-carte.png] [--px 20] [--style flat]
+ *   npx tsx tools/island/src/map.ts [--route <id>] [--out docs/screenshots/ile-carte.png] [--px 20]
  *
- * `--style flat` : carte d'affiche pour le menu (vignette de la zone) : aplats sans relief ombré, mer sombre
- * accordée à l'interface, bois et lacs en aplats, seules les grandes routes tracées en clair.
+ * L'atlas est utilisé pour la carte en jeu et la vignette. `--style flat` masque les voies secondaires
+ * et `--style relief` conserve la vue de diagnostic avec les catégories de routes et de parcelles.
  */
 import { decodeRoute } from '../../../packages/shared/src/routeCodec.ts';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -23,7 +23,9 @@ const DIR = resolve(import.meta.dirname, '../../../apps/client/public/worlds/ile
 const PX = Number(opt('px', '20'));
 const OUTF = resolve(opt('out', 'docs/screenshots/ile-carte.png'));
 const ROUTE = opt('route', '');
-const FLAT = opt('style', '') === 'flat';
+const STYLE = opt('style', 'atlas');
+const ATLAS = STYLE !== 'relief';
+const FLAT = STYLE === 'flat';
 
 const meta = JSON.parse(readFileSync(join(DIR, 'world.json'), 'utf8')) as WorldMeta;
 // --center x,z --span m : zoom sur une zone (sinon toute l'île).
@@ -61,19 +63,39 @@ for (const t of meta.tiles) {
 }
 
 const mix = (a: number[], c: number[], t: number) => a.map((v, k) => v + (c[k]! - v) * t);
+const SEA = [13, 33, 41];
+const SHALLOWS = [23, 60, 67];
+const LOWLAND = [66, 106, 94];
+const UPLAND = [116, 126, 105];
+const ROCK = [157, 153, 132];
+const COAST = [146, 177, 152];
+const CONTOUR = [157, 184, 155];
+const shadeBy = (slope: number) => Math.min(1.1, Math.max(0.85, 1 + slope * 0.58));
 for (let Z = 0; Z < H; Z++)
   for (let X = 0; X < W; X++) {
-    const h = elev[Z * W + X]!;
+    const at = Z * W + X;
+    const h = elev[at]!;
     let col: number[];
-    if (FLAT) {
-      // Aplats : mer nuit, haut-fond un ton plus clair, liseré de sable, puis trois tons de terre et les sommets.
-      if (!(h > 0.05)) col = h > -6 ? [34, 64, 96] : h > -18 ? [24, 46, 74] : [16, 30, 50];
-      else if (h < 4) col = [236, 219, 172];
-      else if (h < 90) col = [126, 178, 108];
-      else if (h < 220) col = [150, 186, 116];
-      else if (h < 400) col = [184, 178, 138];
-      else col = [226, 224, 214];
-      img.set(col, (Z * W + X) * 3);
+    if (ATLAS) {
+      const previous = elev[Z * W + Math.max(0, X - 1)]!;
+      const above = elev[Math.max(0, Z - 1) * W + X]!;
+      if (!(h > 0.05)) {
+        // Isobathes et grille très discrètes au large. Les fonds sont teintés par bandes, sans halo côtier.
+        const depth = h > -5 ? 0.75 : h > -11 ? 0.42 : h > -22 ? 0.22 : 0;
+        const grid = (X % Math.max(1, Math.round(2000 / PX)) === 0 || Z % Math.max(1, Math.round(2000 / PX)) === 0) && !FLAT;
+        col = mix(SEA, SHALLOWS, depth + (grid ? 0.1 : 0));
+      } else if (previous <= 0.05 || above <= 0.05) {
+        col = COAST;
+      } else {
+        const level = Math.floor(h / 50);
+        col = h <= 350 ? mix(LOWLAND, UPLAND, h / 350) : mix(UPLAND, ROCK, Math.min(1, (h - 350) / 450));
+        const grade = (previous + above - 2 * h) / PX;
+        col = col.map((v) => v * shadeBy(grade));
+        if (!FLAT && level > 0 && (Math.floor(previous / 50) !== level || Math.floor(above / 50) !== level)) {
+          col = mix(col, CONTOUR, level % 4 === 0 ? 0.37 : 0.19);
+        }
+      }
+      img.set(col, at * 3);
       continue;
     }
     if (!(h > 0.05)) col = mix([150, 200, 225], [40, 90, 150], Math.min(1, Math.max(0, -h / 25)));
@@ -114,7 +136,7 @@ function fill(rings: number[][], c: number[], a: number): void {
     for (let t = 0; t + 1 < xs.length; t += 2) for (let x = xs[t]!; x < xs[t + 1]!; x += PX) put(x, z, c, a);
   }
 }
-function line(pts: number[], stride: number, c: number[], w = 1, widthM = 0): void {
+function line(pts: number[], stride: number, c: number[], w = 1, widthM = 0, alpha = 1): void {
   if (widthM && PX < 4) w = Math.max(1, Math.round(widthM / PX));
   for (let k = 0; k + stride < pts.length; k += stride) {
     const ax = pts[k]!;
@@ -125,7 +147,7 @@ function line(pts: number[], stride: number, c: number[], w = 1, widthM = 0): vo
     for (let s = 0; s <= L; s += PX / 2) {
       const x = ax + ((bx - ax) * s) / Math.max(L, 1e-6);
       const z = az + ((bz - az) * s) / Math.max(L, 1e-6);
-      for (let dx = -(w - 1); dx <= w - 1; dx++) for (let dz = -(w - 1); dz <= w - 1; dz++) put(x + dx * PX * 0.5, z + dz * PX * 0.5, c);
+      for (let dx = -(w - 1); dx <= w - 1; dx++) for (let dz = -(w - 1); dz <= w - 1; dz++) put(x + dx * PX * 0.5, z + dz * PX * 0.5, c, alpha);
     }
   }
 }
@@ -134,13 +156,20 @@ const FIELD: Record<string, number[]> = { farmland: [222, 196, 110], meadow: [15
 const LAND: Record<string, number[]> = { retail: [200, 190, 180], pitch: [90, 170, 90], cemetery: [140, 160, 130], farmyard: [190, 170, 140], golf: [110, 200, 110], park: [120, 190, 110] };
 const ROAD: Record<string, [number[], number]> = { secondary: [[200, 60, 40], 2], tertiary: [[240, 170, 40], 2], residential: [[90, 90, 90], 1], unclassified: [[255, 255, 255], 1], cycleway: [[30, 140, 60], 1], track: [[140, 90, 40], 1] };
 const tiles: WorldTile[] = meta.tiles.filter(inView).map((t) => JSON.parse(readFileSync(join(DIR, 'tiles', `${t.id}.json`), 'utf8')) as WorldTile);
-if (FLAT) {
-  for (const t of tiles) for (const f of t.forests) fill(f.rings, f.kind === 'conifer' ? [52, 110, 78] : [72, 138, 84], 1);
-  for (const t of tiles) for (const w of t.water) fill(w.rings, [64, 132, 196], 1);
-  // Grandes routes seulement : liseré sombre puis trait crème ; les rues et chemins brouilleraient la vignette.
+if (ATLAS) {
+  for (const t of tiles) for (const f of t.forests) fill(f.rings, f.kind === 'conifer' ? [38, 72, 64] : [43, 86, 72], 0.46);
+  for (const t of tiles) for (const w of t.water) fill(w.rings, [29, 65, 75], 1);
+  if (!FLAT) {
+    for (const t of tiles) for (const w of t.waterways) line(w.pts, 2, [104, 163, 168], 1, 0, 0.36);
+    for (const t of tiles) for (const r of t.roads) {
+      if (r.kind === 'cycleway' || r.kind === 'track') line(r.pts, 3, [102, 167, 146], 1, 0, 0.44);
+      else if (r.kind === 'residential' || r.kind === 'unclassified') line(r.pts, 3, [165, 183, 160], 1, 0, 0.28);
+    }
+  }
+  // Le réseau principal reste visible sous le trajet sélectionné, dessiné par l'interface.
   const major = (kind: string) => kind === 'secondary' || kind === 'tertiary';
-  for (const t of tiles) for (const r of t.roads) if (major(r.kind)) line(r.pts, 3, [40, 60, 52], 3);
-  for (const t of tiles) for (const r of t.roads) if (major(r.kind)) line(r.pts, 3, [255, 244, 214], 2);
+  for (const t of tiles) for (const r of t.roads) if (major(r.kind)) line(r.pts, 3, [27, 62, 57], 2);
+  for (const t of tiles) for (const r of t.roads) if (major(r.kind)) line(r.pts, 3, [203, 208, 171], 1, 0, r.kind === 'secondary' ? 0.8 : 0.59);
 } else {
 for (const t of tiles) for (const f of t.fields) fill(f.rings, FIELD[f.kind] ?? [180, 180, 120], 0.45);
 for (const t of tiles) for (const f of t.forests) fill(f.rings, f.kind === 'conifer' ? [40, 90, 60] : [60, 120, 55], 0.75);
@@ -154,7 +183,7 @@ for (const t of tiles) for (const bd of t.buildings) put(bd.pts[0]!, bd.pts[1]!,
 }
 if (ROUTE && existsSync(join(DIR, 'routes', `${ROUTE}.json`))) {
   const r = decodeRoute<RouteData>(JSON.parse(readFileSync(join(DIR, 'routes', `${ROUTE}.json`), 'utf8')));
-  line(r.points.flatMap((p) => [p.x, p.z]), 2, [20, 60, 230], 2);
+  line(r.points.flatMap((p) => [p.x, p.z]), 2, ATLAS ? [255, 211, 99] : [20, 60, 230], 3);
 }
 
 // PNG.

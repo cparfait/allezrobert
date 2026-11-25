@@ -1,3 +1,6 @@
+import { GRAPHIC_STYLE } from '../engine/style.ts';
+import { ROBERT_ISLAND, worldAvailableInStyle } from './worlds.ts';
+
 /**
  * Place des zones sur la carte de France du menu : centre de la zone en Lambert-93 (m), type
  * (monde ouvert ou parcours fixés) et nom de secours tant que la zone n'est pas encore dans
@@ -20,9 +23,9 @@ export interface ZoneSpot {
 const PDD = { fr: 'Puy-de-Dôme', en: 'Puy-de-Dôme' };
 const IDF = { fr: 'Île-de-France', en: 'Île-de-France' };
 
-export const ZONE_SPOTS: ZoneSpot[] = [
+const WORLD_SPOTS: ZoneSpot[] = [
   // Île imaginaire : hors de la carte de France, à côté (vignette = carte de l'île).
-  { id: 'ile-de-robert', x: 150000, y: 6815000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: "L'île de Robert", en: "Robert's Island" }, image: '/worlds/ile-de-robert/vignette.png' },
+  { id: ROBERT_ISLAND, x: 150000, y: 6815000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: "L'île de Robert", en: "Robert's Island" }, image: '/worlds/ile-de-robert/vignette.png' },
   { id: 'chevreuse', x: 625500, y: 6843500, open: true, region: IDF, name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' } },
   { id: 'longchamp', x: 646000, y: 6861500, open: true, region: IDF, name: { fr: 'Longchamp', en: 'Longchamp' } },
   { id: 'vincennes', x: 662000, y: 6857500, open: true, region: IDF, name: { fr: 'Vincennes', en: 'Vincennes' } },
@@ -109,3 +112,5 @@ export const ZONE_SPOTS: ZoneSpot[] = [
   { id: 'alpe-dhuez', x: 940000, y: 6446500, open: true, region: { fr: 'Isère · Oisans', en: 'Isère · Oisans' }, name: { fr: "Alpe d'Huez", en: "Alpe d'Huez" } },
   { id: 'mont-ventoux', x: 880000, y: 6341000, open: true, region: { fr: 'Vaucluse', en: 'Vaucluse' }, name: { fr: 'Mont Ventoux', en: 'Mont Ventoux' } },
 ];
+
+export const ZONE_SPOTS = WORLD_SPOTS.filter(({ id }) => worldAvailableInStyle(id, GRAPHIC_STYLE));
