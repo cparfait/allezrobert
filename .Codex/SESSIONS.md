@@ -183,3 +183,20 @@ Extension publicites Poly : apps/client/src/world/polySponsors.ts, raccords dans
 - Réservations : tools/island/src/map.ts et ses sorties carte.png et vignette.png ; menu.ts uniquement imports et sections du sélecteur de zone, nouveau ui/islandAtlas.ts et .css ; world/worlds.ts, platform/offlineZones.ts, test/worldStyle.test.ts ; world/buildings.ts uniquement l’adaptation de l’enregistrement de la maison avant son maillage, nouveau world/robertvilleBuildings.ts et son test ; docs/SUIVI_MONDE_POLY.md et la ligne procédurale Robertville de ASSETS_LICENSES.md. Essais dans out/robertville-atlas/.
 - État : en cours. Lecture des tuiles existantes, seules les deux cartes sont régénérées. Aucun relevé GPU.
 - État final : atlas Poly, fond topographique et sept familles de maisons intégrés localement. Carte vérifiée en Chromium sur ordinateur et mobile, bâti vérifié sur deux tuiles dans un aperçu WebGL isolé, TypeScript et cinq tests ciblés réussis. Captures dans out/robertville-atlas/. Fichiers libérés.
+
+
+## Reformulation de la provenance V3
+
+- Chantier : corriger et commiter la phrase sur les exports d’étude.
+- Fichier réservé : ASSETS_LICENSES.md (première phrase du paragraphe V3 uniquement).
+- État : en cours.
+- Correction commitée dans 7792255e. Fichier libéré.
+
+
+## Choix du matériel Bêta et ancienne moto
+
+- Chantier : appliquer le choix du joueur au départ du chrono en Bêta et supprimer l’ancien modèle de moto à la demande de l’utilisateur.
+- Fichiers réservés : apps/client/src/main.ts (appel de v3WithHeadgear pour le joueur uniquement), apps/client/public/models/vehicles/race-moto.glb (hors Git).
+- État : en cours.
+- Correctif appliqué localement, 25 tests ciblés réussis. Ancien modèle hors Git supprimé et deux modèles actifs vérifiés. Fichiers libérés.
+- Lot Bêta commité dans 65b3a76d. Vérification TypeScript réussie.
