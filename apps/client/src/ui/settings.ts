@@ -85,8 +85,14 @@ export interface Settings {
   raceLaps: number;
   /** Course locale : en ligne (départ groupé) ou contre-la-montre (départs décalés, sans aspiration). */
   raceFormat?: 'road' | 'tt' | 'tour';
-  /** Tour à étapes : nombre d'étapes d'un nouveau tour (2–7). */
+  /** Tour à étapes : réglages du prochain tour (nombre d'étapes 2–7, tracé, chronos, longueur des étapes, coureurs IA). */
   tourStages?: number;
+  tourTrack?: 'cities' | 'loop';
+  tourTt?: 'none' | 'prologue' | 'two';
+  tourLength?: 'short' | 'medium' | 'long';
+  tourRiders?: number;
+  /** Tracé tiré au sort (étapes de ville en ville). */
+  tourSeed?: number;
   /** Sortie créée : même vélo pour tous (absent : oui en course, non en groupe). */
   equalEquipment?: boolean;
   /** Blocs du HUD masqués en sortie (identifiants de HUD_BLOCKS) : selon le matériel du coureur. */

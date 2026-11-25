@@ -23,7 +23,11 @@ import { compositeId, neighbourZones, PARIS_CITY_ZONES } from '../world/composit
 import { t, setLang, getLang, strings, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
 import { nowHour, saveSettings, seasonOfDate } from './settings.ts';
-import { currentStage, loadTour, saveTour, standings, tourDone } from '../game/stageRace.ts';
+import { dropTour, loadTour, newTour, nextStage, saveTour, type Tour, type TourStage } from '../game/stageRace.ts';
+import { clampStages, loopRef, parseStageRouteId, planStages, type TourOptions } from '../game/tourPlan.ts';
+import { buildCityRoute, cityStages, parseCityRouteId } from '../game/tourRoutes.ts';
+import { TOUR_RIDERS_MAX, TOUR_RIDERS_MIN, tourGoLabel, tourMenuHtml, tourOngoing } from './tourMenu.ts';
+import { showTourPanel } from './tourPanel.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { musicSource, setMusicSource } from '../audio/musicSource.ts';
@@ -56,7 +60,7 @@ import { FranceMap, type MapZone } from './franceMap.ts';
 import { IslandAtlas } from './islandAtlas.ts';
 import { bindCityPicker, cityPickerHtml } from './cityPicker.ts';
 import { bindStartPicker, loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
-import { canMoveStart, canReverse, reversedOf, routeKey, snapStartM, startedOf } from '../game/direction.ts';
+import { findRoute, canMoveStart, canReverse, reversedOf, routeKey, snapStartM, startedOf } from '../game/direction.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
 
 // Vignettes des mondes imaginaires (à côté de la carte de France) : chargées dès le menu, prêtes à l'ouverture.
@@ -126,13 +130,10 @@ const S = strings(
     aiLevel: 'Niveau des IA',
     raceFormat: 'Format',
     raceFormatHint: 'Contre-la-montre : départs toutes les 30 s, tu pars en dernier, sans aspiration.',
+    raceFormatTour: 'Plusieurs étapes, une quand tu veux : le tour est gardé.',
     formatRoad: 'En ligne',
     formatTt: 'Contre-la-montre',
     formatTour: 'Tour à étapes',
-    tourStages: 'Étapes',
-    tourStagesHint: 'Prologue chrono puis courses en ligne ; une étape quand tu veux, le tour est gardé.',
-    tourOngoing: 'Tour en cours',
-    tourAbandon: 'Abandonner le tour',
     theirPowerAsA: 'Leur puissance, en part de ta FTP.',
     targetAverageSpeed: 'Vitesse moyenne visée',
     aiRidersPaceThemselves: 'Les IA règlent leur effort pour la tenir ; l’organisateur peut l’augmenter en route.',
@@ -492,13 +493,10 @@ const S = strings(
     aiLevel: 'AI level',
     raceFormat: 'Format',
     raceFormatHint: 'Time trial: starts every 30 s, you go last, no drafting.',
+    raceFormatTour: 'Several stages, one whenever you like: the race is saved.',
     formatRoad: 'Road race',
     formatTt: 'Time trial',
     formatTour: 'Stage race',
-    tourStages: 'Stages',
-    tourStagesHint: 'Prologue time trial then road stages; one stage whenever you like, the race is saved.',
-    tourOngoing: 'Stage race in progress',
-    tourAbandon: 'Abandon the race',
     theirPowerAsA: 'Their power, as a share of your FTP.',
     targetAverageSpeed: 'Target average speed',
     aiRidersPaceThemselves: 'AI riders pace themselves to hold it; the host can raise it on the road.',
@@ -1596,6 +1594,13 @@ export class MainMenu {
    */
   private checkRoute(): void {
     const ids = this.routeIds;
+    // Tour à étapes : l'étape lancée (parfois un morceau de boucle, hors de l'index) reste choisie.
+    if (this.tourMode()) {
+      const base = this.tourLoopId();
+      if (base) this.needRoute(base);
+      const stage = loadTour(this.worldId);
+      if (stage && nextStage(stage)?.routeId === this.s.routeId) return;
+    }
     if (!this.s.routeId || !ids.includes(this.s.routeId)) this.s.routeId = ids[0] ?? '';
     this.needRoute(this.s.routeId);
   }
@@ -1820,7 +1825,8 @@ export class MainMenu {
   /** Graphe routier de la zone arrivé (chargé à la demande) : la carte du planificateur est redessinée. */
   refreshMap(): void {
     // Seulement si une carte du planificateur est à l'écran : refaire l'écran ailleurs ferait perdre une saisie en cours.
-    if (this.root.querySelector('.rp-roads')) this.render();
+    // Tour à étapes : ses étapes de ville en ville attendent ce graphe.
+    if (this.root.querySelector('.rp-roads, .tm')) this.render();
   }
 
   /** Nouveau monde chargé sur place : parcours, identifiant, monde ouvert ; l'écran est refait. */
@@ -2232,17 +2238,109 @@ export class MainMenu {
     );
   }
 
-  /** Tour à étapes : tour en cours (étape, maillot jaune) et abandon, sinon nombre d'étapes du prochain tour. */
-  private tourHtml(): string {
-    const tour = loadTour();
-    if (tour && !tourDone(tour)) {
-      const k = currentStage(tour);
-      const leader = tour.results.length ? standings(tour).gc[0]?.name : null;
-      const L = fr();
-      const next = tour.stages[k] === 'tt' ? (L ? 'contre-la-montre' : 'time trial') : L ? 'course en ligne' : 'road stage';
-      return `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('tourOngoing')} : ${esc(tour.name)}</b><small>${L ? `Étape ${k + 1}/${tour.stages.length} (${next})` : `Stage ${k + 1}/${tour.stages.length} (${next})`}${leader ? ` · 🟡 ${esc(leader)}` : ''}</small></div><button type="button" class="ab-btn" id="m-tourabandon">${S('tourAbandon')}</button></div>`;
+  // ————————————————————————————————————————————— Tour à étapes
+
+  /** « Abandonner le tour » cliqué une fois. */
+  private tourAbandonAsk = false;
+
+  private tourMode(): boolean {
+    return this.s.mode === 'race' && this.s.raceFormat === 'tour';
+  }
+
+  private tourOptions(): TourOptions {
+    const s = this.s;
+    return { track: s.tourTrack === 'loop' ? 'loop' : 'cities', stages: clampStages(s.tourStages ?? 4), tt: s.tourTt ?? 'prologue', length: s.tourLength ?? 'medium' };
+  }
+
+  private tourRiders(): number {
+    return Math.max(TOUR_RIDERS_MIN, Math.min(TOUR_RIDERS_MAX, Math.round(this.s.tourRiders ?? 15)));
+  }
+
+  /** Grande boucle de la zone, à charger pour ses étapes et son profil. */
+  private tourLoopId(): string | undefined {
+    const refs = this.routeStore.index.filter((r) => !this.routeBroken.has(r.id));
+    return loopRef(refs)?.id;
+  }
+
+  private tourName(): string {
+    if (this.worldId === ROBERT_ISLAND) return fr() ? 'Tour de l’Île' : 'Tour of the Island';
+    return `${fr() ? 'Tour' : 'Stage race'} · ${this.zoneLabel(this.worldId)}`;
+  }
+
+  /** Étapes de ville en ville déjà calculées (dernier réglage demandé) ; `stages` nul : zone sans assez de villes. */
+  private cityPlan: { key: string; stages: TourStage[] | null } | null = null;
+  private cityPlanAsked = '';
+
+  /** Étapes d'un nouveau tour avec les réglages courants ; `null` : la boucle ou le réseau routier se charge. */
+  private tourPlan(): TourStage[] | null {
+    const o = this.tourOptions();
+    const refs = this.routeStore.index.filter((r) => !this.routeBroken.has(r.id));
+    const base = this.tourLoopId();
+    if (o.track === 'cities' && this.openWorld) {
+      const road = this.planner.network;
+      if (!road) return null;
+      const seed = this.s.tourSeed ?? 0;
+      const key = [this.worldId, o.stages, o.tt, o.length, seed, road.net.data.edges.length].join('|');
+      if (this.cityPlan?.key !== key) {
+        // Calcul d'une fraction de seconde (une ou deux secondes à Paris) : l'écran se dessine d'abord.
+        if (this.cityPlanAsked !== key) {
+          this.cityPlanAsked = key;
+          setTimeout(() => {
+            if (this.cityPlanAsked !== key) return;
+            this.cityPlan = { key, stages: cityStages(road.net, road.places, { stages: o.stages, tt: o.tt, length: o.length, seed }) };
+            this.cityPlanAsked = '';
+            if (this.root.querySelector('.tm')) this.render();
+          }, 30);
+        }
+        return null;
+      }
+      if (this.cityPlan.stages) return this.cityPlan.stages;
     }
-    return `<div class="mm-opt"><div class="mm-opt-l"><b>${S('tourStages')}</b><small>${S('tourStagesHint')}</small></div>${this.stepper('m-tourstages', 2, 7, this.s.tourStages ?? 3)}</div>`;
+    return planStages(o, refs, base ? this.routeStore.get(base) : undefined);
+  }
+
+  /** Tracé d'une étape (profil et carte du menu), s'il est déjà là. */
+  private tourStageRoute(id: string): RouteData | undefined {
+    if (parseCityRouteId(id)) {
+      const road = this.planner.network;
+      return (road && buildCityRoute(road.net, road.places, id)) ?? undefined;
+    }
+    const cut = parseStageRouteId(id);
+    if (!cut) return this.routeStore.get(id);
+    const whole = this.routeStore.get(cut.baseId);
+    return whole && findRoute([whole], id);
+  }
+
+  /** Menu du tour : réglages d'un nouveau tour, ou tour en cours. */
+  private tourHtml(): string {
+    const base = this.tourLoopId();
+    const tour = loadTour(this.worldId);
+    return `${tourMenuHtml({
+      name: this.tourName(),
+      tour,
+      plan: tourOngoing(tour) ? tour.stages : this.tourPlan(),
+      routeOf: (id) => this.tourStageRoute(id),
+      loopM: base ? (this.routeStore.index.find((r) => r.id === base)?.lengthM ?? 0) : 0,
+      cities: this.openWorld && !(this.cityPlan && this.cityPlan.stages === null && this.cityPlan.key.startsWith(`${this.worldId}|`)),
+      options: this.tourOptions(),
+      roadBike: (bikeSetupFor(loadProgress().equipped).tyre ?? 'road') === 'road',
+      abandonAsk: this.tourAbandonAsk,
+      seg: (id, cur, opts) => this.seg(id, cur, opts),
+      stepper: (id, min, max, v) => this.stepper(id, min, max, v),
+      aiLevelSeg: () => this.aiLevelSeg(),
+      riders: this.tourRiders(),
+    })}${GRAPHIC_STYLE === 'lowpoly' || tourOngoing(tour) ? '' : `<button class="ab-btn mm-change" data-picker="zones">${fr() ? 'Changer de zone' : 'Change area'}</button>`}`;
+  }
+
+  /** Étape à courir : celle du tour en cours, ou la première d'un nouveau tour, créé ici. */
+  private tourStage(): TourStage | undefined {
+    const saved = loadTour(this.worldId);
+    if (tourOngoing(saved)) return nextStage(saved);
+    const stages = this.tourPlan();
+    if (!stages?.length) return undefined;
+    const tour: Tour = newTour({ name: this.tourName(), worldId: this.worldId, stages, aiCount: this.tourRiders(), aiLevel: this.s.aiLevel ?? 1 }, this.s.name);
+    saveTour(tour);
+    return stages[0];
   }
 
   private seg(id: string, current: string, opts: Array<[string, string]>): string {
@@ -2452,7 +2550,7 @@ export class MainMenu {
       <div id="m-friendbar"></div>
       <footer class="mm-foot">
         <div class="mm-status" id="m-status"></div>
-        ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${t('ride')}</button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
+        ${this.tab === 'ride' ? `<button id="m-start" class="mm-go">${this.tourMode() ? tourGoLabel(loadTour(this.worldId)) : t('ride')}</button>` : `<button class="mm-go ghost" data-tab="ride">← ${t('ride')}</button>`}
       </footer>
     </div>`;
     if (V3_STYLE) this.onV3Garage?.(this.root.querySelector('[data-v3-garage]'), this.root.querySelector('[data-v3-top]'));
@@ -2553,7 +2651,14 @@ export class MainMenu {
       <hr class="mm-sep" />
       ${this.weatherHtml()}
       ${
-        s.mode === 'group' || s.mode === 'race'
+        s.mode === 'race'
+          ? `<div class="mm-card"><div class="mm-opt mm-opt-first mm-opt-col"><div class="mm-opt-l"><b>${S('raceFormat')}</b><small>${S(s.raceFormat === 'tour' ? 'raceFormatTour' : 'raceFormatHint')}</small></div>${this.seg('m-raceformat', s.raceFormat ?? 'road', [['road', S('formatRoad')], ['tt', S('formatTt')], ['tour', S('formatTour')]])}</div></div>`
+          : ''
+      }
+      ${
+        this.tourMode()
+          ? this.tourHtml()
+          : s.mode === 'group' || s.mode === 'race'
           ? `<div class="mm-card">
               <h3 class="mm-card-t">${S('joinARide')}</h3>
               <p class="mm-card-d">${S('gotACodeFrom')}</p>
@@ -2571,7 +2676,7 @@ export class MainMenu {
               <div class="mm-opt"><div class="mm-opt-l"><b>${S('aiRiders')}</b><small>${S('eachHasItsOwn')}</small></div>${this.stepper('m-ai', 0, 40, s.aiRiders)}</div>
               ${
                 s.mode === 'race'
-                  ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('aiLevel')}</b><small>${S('theirPowerAsA')}</small></div>${this.aiLevelSeg()}</div><div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('raceFormat')}</b><small>${S('raceFormatHint')}</small></div>${this.seg('m-raceformat', s.raceFormat ?? 'road', [['road', S('formatRoad')], ['tt', S('formatTt')], ['tour', S('formatTour')]])}</div>${s.raceFormat === 'tour' ? this.tourHtml() : ''}`
+                  ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('aiLevel')}</b><small>${S('theirPowerAsA')}</small></div>${this.aiLevelSeg()}</div>`
                   : `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('targetAverageSpeed')}</b><small>${S('aiRidersPaceThemselves')}</small></div>${this.seg('m-target', String(s.groupTargetKmh), [
                       ['0', S('free')],
                       ...[22, 25, 28, 30, 32, 35].map((v): [string, string] => [String(v), `${v} km/h`]),
@@ -2591,7 +2696,7 @@ export class MainMenu {
       ${
         s.mode === 'ftpTest'
           ? this.ftpTestHtml()
-          : s.mode === 'challenge'
+          : s.mode === 'challenge' || this.tourMode()
             ? ''
             : `<h3 class="ab-section mm-where">${S('whereToRide')}</h3>${this.pickersHtml(r)}`
       }
@@ -4378,8 +4483,16 @@ export class MainMenu {
     if (this.s.realTime) this.s.hour = nowHour();
     const laps = Number((this.root.querySelector('#m-laps') as HTMLInputElement | null)?.value);
     if (Number.isFinite(laps) && laps >= 1) this.s.raceLaps = Math.min(20, Math.round(laps));
-    const stages = Number((this.root.querySelector('#m-tourstages') as HTMLInputElement | null)?.value);
-    if (Number.isFinite(stages) && stages >= 2) this.s.tourStages = Math.min(7, Math.round(stages));
+    if (this.tourMode()) {
+      const stage = this.tourStage();
+      // Boucle encore en chargement ou zone sans parcours : le menu le dit, rien ne part.
+      if (!stage) return;
+      this.s.routeId = stage.routeId;
+      this.s.reverse = false;
+      this.s.startM = 0;
+      this.launch(this.s, {});
+      return;
+    }
     this.launch(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}), ...more });
   }
 
@@ -5479,13 +5592,39 @@ export class MainMenu {
       changed();
       this.render();
     });
-    on<HTMLInputElement>('m-tourstages', 'change', (el) => {
-      s.tourStages = Math.min(7, Math.max(2, Math.round(Number(el.value) || 3)));
+    const tourSet = (id: string, set: (v: string) => void) =>
+      on<HTMLInputElement>(id, 'change', (el) => {
+        set(el.value);
+        changed();
+        this.render();
+      });
+    tourSet('m-tourstages', (v) => (s.tourStages = clampStages(Number(v))));
+    tourSet('m-tourtrack', (v) => (s.tourTrack = v === 'loop' ? 'loop' : 'cities'));
+    on('m-tourseed', 'click', () => {
+      s.tourSeed = (s.tourSeed ?? 0) + 1;
+      changed();
+      this.render();
+    });
+    tourSet('m-tourlength', (v) => (s.tourLength = v === 'short' || v === 'long' ? v : 'medium'));
+    tourSet('m-tourtt', (v) => (s.tourTt = v === 'none' || v === 'two' ? v : 'prologue'));
+    on<HTMLInputElement>('m-tourriders', 'change', (el) => {
+      s.tourRiders = Math.max(TOUR_RIDERS_MIN, Math.min(TOUR_RIDERS_MAX, Math.round(Number(el.value) || TOUR_RIDERS_MIN)));
       changed();
     });
-    this.root.querySelector('#m-tourabandon')?.addEventListener('click', () => {
-      saveTour(null);
+    const askAbandon = (ask: boolean) => {
+      this.tourAbandonAsk = ask;
       this.render();
+    };
+    on('m-tourask', 'click', () => askAbandon(true));
+    on('m-tourkeep', 'click', () => askAbandon(false));
+    on('m-tourabandon', 'click', () => {
+      dropTour(this.worldId);
+      askAbandon(false);
+    });
+    on('m-tourstandings', 'click', () => {
+      const tour = loadTour(this.worldId);
+      const last = tour?.results.at(-1);
+      if (tour && last) void showTourPanel(tour, last);
     });
     on<HTMLSelectElement>('m-ailevel', 'change', (el) => {
       s.aiLevel = Number(el.value);

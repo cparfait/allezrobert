@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addStage, currentStage, fmtTime, newTour, stagePlan, stageResult, standings, tourDone, tourLeaders } from '../src/game/stageRace.ts';
+import { addStage, currentStage, dropTour, enrol, fmtTime, loadTour, newTour, nextStage, saveTour, stageResult, standings, tourDone, tourLeaders, type StageKind } from '../src/game/stageRace.ts';
 
 const ais = [
   { id: 'ai-0', name: 'Jean DUPONT' },
@@ -8,14 +8,26 @@ const ais = [
   { id: 'ai-3', name: 'Emma MAES' },
 ];
 
+const tourOf = (kinds: StageKind[]) =>
+  newTour({ name: 'Tour de l’Île', worldId: 'ile-de-robert', stages: kinds.map((kind, i) => ({ kind, routeId: `r${i}`, name: `Étape ${i + 1}`, nameEn: `Stage ${i + 1}`, lengthM: 10_000, gainM: 50, laps: 1 })), aiCount: 4, aiLevel: 1 }, 'Robert');
+
 describe('tour à étapes', () => {
-  it('plan : prologue chrono, étapes en ligne, second chrono dès 5 étapes', () => {
-    expect(stagePlan(3)).toEqual(['tt', 'road', 'road']);
-    expect(stagePlan(5)).toEqual(['tt', 'road', 'road', 'tt', 'road']);
+  it('tour gardé par zone, coureurs engagés une seule fois', () => {
+    const mem = new Map<string, string>();
+    const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
+    const t = enrol(tourOf(['tt', 'road']), ais);
+    expect(t.riders).toHaveLength(5);
+    expect(enrol(t, ais.slice(0, 1))).toBe(t);
+    saveTour(t, store);
+    expect(loadTour('ile-de-robert', store)).toEqual(t);
+    expect(loadTour('limagne', store)).toBeNull();
+    expect(nextStage(t)?.kind).toBe('tt');
+    dropTour('ile-de-robert', store);
+    expect(loadTour('ile-de-robert', store)).toBeNull();
   });
 
   it('classements : temps cumulés et bonifications, points, montagne, équipes', () => {
-    let t = newTour(2, ais, 'Robert');
+    let t = enrol(tourOf(['tt', 'road']), ais);
     const tt = stageResult('tt', 'Prologue', { segs: [], finish: [{ id: 'ai-0', t: 300 }, { id: 'ai-1', t: 310 }], pending: [{ id: 'ai-2', remainingM: 100, speedMs: 10, t: 320 }, { id: 'ai-3', remainingM: 0, speedMs: 10, t: 330 }] }, 305);
     expect(tt.order).toEqual(['ai-0', 'me', 'ai-1', 'ai-2', 'ai-3']);
     t = addStage(t, tt, [{ id: 'ai-0', wPrime: 0.1 }]);
@@ -29,6 +41,7 @@ describe('tour à étapes', () => {
     );
     t = addStage(t, road, []);
     expect(tourDone(t)).toBe(true);
+    expect(nextStage(t)).toBeUndefined();
     const st = standings(t);
     // ai-0 : 300 + 1000 − 10 = 1290 ; moi : 305 + 1000,5 − 4 = 1301,5.
     expect(st.gc[0]).toMatchObject({ id: 'ai-0', value: 1290 });

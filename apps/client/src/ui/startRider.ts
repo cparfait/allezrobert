@@ -1,13 +1,17 @@
 /**
- * Portrait du joueur pour l'écran « Prêt à rouler ? » (style Bêta) : son coureur V3, avec sa tenue et son apparence
- * du garage, debout, mains sur les hanches : pose « debout à l'arrêt » (CyclistStandingIdle01).
+ * Portrait du joueur pour l'écran « Prêt à rouler ? » : son coureur, avec sa tenue et son apparence du garage, debout,
+ * mains sur les hanches, sans vélo. Bêta : coureur V3, pose « debout à l'arrêt » (CyclistStandingIdle01) ; Réel et Poly :
+ * le coureur du style, pose calculée (riderStand.ts).
  * Photographié une fois hors écran par le moteur du jeu (comme les vignettes du vestiaire, v3/thumbnails.ts), puis
  * montré en image : rien ne tourne en continu pendant le chargement.
  */
 import * as THREE from 'three/webgpu';
 import type { AvatarLook } from '@allezrobert/shared';
 import { isCompiling } from '../engine/renderer.ts';
+import { LOW_POLY, V3_STYLE } from '../engine/style.ts';
+import { GltfRiderAvatar } from '../rider/gltfAvatar.ts';
 import { V3Visual, readV3Equipment } from '../v3/visuals.ts';
+import { standingRider } from './riderStand.ts';
 
 const HEAD = 15;
 /** Avant du visage (os des yeux), pour trouver vers où regarde le coureur. */
@@ -50,10 +54,10 @@ function jointsOf(root: THREE.Object3D): Map<number, THREE.Object3D> {
 let cached: { key: string; blob: Promise<Blob | null> } | undefined;
 
 function portraitBlob(o: PortraitOptions): Promise<Blob | null> {
-  const key = JSON.stringify([o.look, readV3Equipment()]);
+  const key = JSON.stringify([o.look, V3_STYLE ? readV3Equipment() : null]);
   if (cached?.key === key) return cached.blob;
   const blob = shoot(o).catch((e: unknown) => {
-    console.warn('Portrait V3', e);
+    console.warn('Portrait du coureur', e);
     return null;
   });
   const entry = { key, blob };
@@ -80,6 +84,57 @@ export async function riderPortrait(o: PortraitOptions): Promise<string | null> 
   return URL.createObjectURL(blob);
 }
 
+/** Coureur debout dans la scène : sens du regard, pieds et haut de la tête. */
+interface Pose {
+  ahead: THREE.Vector3;
+  feet: THREE.Vector3;
+  top: number;
+}
+
+/** Réel et Poly : coureur du style, posé debout (riderStand.ts). */
+async function stylePose(holder: THREE.Group, look: AvatarLook): Promise<Pose | null> {
+  // Départ relancé par le jeu : l'écran s'ouvre pendant que les modèles du coureur se chargent.
+  const t0 = performance.now();
+  while (!LOW_POLY && !GltfRiderAvatar.ready) {
+    if (performance.now() - t0 > 30_000) return null;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  const rider = standingRider(look);
+  if (!rider) return null;
+  holder.add(rider.root);
+  return { ahead: rider.ahead, feet: new THREE.Vector3(0, rider.feetY, 0), top: rider.topY };
+}
+
+/** Bêta : debout à l'arrêt, mains sur les hanches (première image du clip), sans vélo. */
+async function v3Pose(visual: V3Visual, holder: THREE.Group, scene: THREE.Scene, look: AvatarLook): Promise<Pose | null> {
+  visual.set(look);
+  const t0 = performance.now();
+  while (!visual.settled) {
+    if (performance.now() - t0 > 30_000) return null;
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  visual.update(0, 0, 0, 'seated', { clip: 'CyclistStandingIdle01', helmet: true });
+  const v3Group = holder.children[0];
+  if (!v3Group) return null;
+  let riderRoot: THREE.Object3D | undefined;
+  for (const child of v3Group.children) {
+    let hasBones = false;
+    child.traverse((n) => {
+      if (/^os_0+$/.test(n.name)) hasBones = true;
+    });
+    if (hasBones) riderRoot = child;
+    else child.visible = false;
+  }
+  if (!riderRoot) return null;
+  scene.updateMatrixWorld(true);
+  const joints = jointsOf(riderRoot);
+  const head = joints.get(HEAD);
+  const eyes = FACE.map((id) => joints.get(id)).filter((b): b is THREE.Object3D => !!b);
+  if (!head || eyes.length < 2) return null;
+  const ahead = world(eyes[0] as THREE.Object3D).add(world(eyes[1] as THREE.Object3D)).multiplyScalar(0.5).sub(world(head)).setY(0).normalize();
+  return { ahead, feet: world(joints.get(0) ?? riderRoot), top: world(head).y + 0.2 };
+}
+
 /** Prise de la photo (voir riderPortrait). Pas d'abandon : la photo partagée sert aussi à la prochaine ouverture. */
 async function shoot(o: Omit<PortraitOptions, 'cancelled'>): Promise<Blob | null> {
   const scene = new THREE.Scene();
@@ -92,42 +147,17 @@ async function shoot(o: Omit<PortraitOptions, 'cancelled'>): Promise<Blob | null
   scene.add(key, rim, fill);
   const holder = new THREE.Group();
   scene.add(holder);
-  const visual = new V3Visual({ parent: holder, level: () => 0, replace: () => undefined }, () => undefined, (e) => console.warn('Portrait V3', e));
+  const visual = V3_STYLE ? new V3Visual({ parent: holder, level: () => 0, replace: () => undefined }, () => undefined, (e) => console.warn('Portrait V3', e)) : null;
   const target = new THREE.RenderTarget(PORTRAIT_W, PORTRAIT_H, { type: THREE.HalfFloatType, samples: 4 });
   try {
-    visual.set(o.look);
-    const t0 = performance.now();
-    while (!visual.settled) {
-      if (performance.now() - t0 > 30_000) return null;
-      await new Promise((r) => setTimeout(r, 120));
-    }
-    // Debout à l'arrêt, mains sur les hanches (première image du clip), sans vélo.
-    visual.update(0, 0, 0, 'seated', { clip: 'CyclistStandingIdle01', helmet: true });
-    const v3Group = holder.children[0];
-    if (!v3Group) return null;
-    let riderRoot: THREE.Object3D | undefined;
-    for (const child of v3Group.children) {
-      let hasBones = false;
-      child.traverse((n) => {
-        if (/^os_0+$/.test(n.name)) hasBones = true;
-      });
-      if (hasBones) riderRoot = child;
-      else child.visible = false;
-    }
-    if (!riderRoot) return null;
-    scene.updateMatrixWorld(true);
-    const joints = jointsOf(riderRoot);
-    const head = joints.get(HEAD);
-    const eyes = FACE.map((id) => joints.get(id)).filter((b): b is THREE.Object3D => !!b);
-    if (!head || eyes.length < 2) return null;
-    const ahead = world(eyes[0] as THREE.Object3D).add(world(eyes[1] as THREE.Object3D)).multiplyScalar(0.5).sub(world(head)).setY(0).normalize();
     const up = new THREE.Vector3(0, 1, 0);
+    const pose = visual ? await v3Pose(visual, holder, scene, o.look) : await stylePose(holder, o.look);
+    if (!pose) return null;
+    const { ahead, feet, top } = pose;
     const right = ahead.clone().cross(up).normalize();
 
     // Cadrage : de trois quarts, le coureur tourné vers sa gauche (vers les cartes, à droite de l'écran).
     // Sur la tête, pas sur la boîte du modèle : ses maillages ont une boîte élargie exprès (wideRiderBounds).
-    const feet = world(joints.get(0) ?? riderRoot);
-    const top = world(head).y + 0.2;
     const height = top - feet.y + 0.08;
     const center = new THREE.Vector3(feet.x, feet.y + height / 2 - 0.03, feet.z);
     const cam = new THREE.PerspectiveCamera(22, PORTRAIT_W / PORTRAIT_H, 0.1, 50);
@@ -177,7 +207,7 @@ async function shoot(o: Omit<PortraitOptions, 'cancelled'>): Promise<Blob | null
     context.putImageData(image, 0, 0);
     return await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/png'));
   } finally {
-    visual.dispose();
+    visual?.dispose();
     target.dispose();
   }
 }

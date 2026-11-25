@@ -6,6 +6,7 @@
  */
 import { forwardRouteId, parseStartedRouteId, reversedRouteId, reverseRoute, rotateRoute, startIndex, type RoutePoint, type RouteData } from '@allezrobert/shared';
 import { ITINERARY_PREFIX } from '../ui/routePlanner.ts';
+import { parseStageRouteId, sliceRoute } from './tourPlan.ts';
 
 const cache = new WeakMap<RouteData, RouteData>();
 const rotated = new WeakMap<RouteData, Map<number, RouteData>>();
@@ -55,6 +56,12 @@ export function routeKey(s: { routeId: string; reverse?: boolean; startM?: numbe
 export function findRoute(routes: readonly RouteData[], id: string): RouteData | undefined {
   const hit = routes.find((r) => r.id === id);
   if (hit) return hit;
+  // Étape d'un tour : morceau d'une boucle de la zone.
+  const stage = parseStageRouteId(id);
+  if (stage) {
+    const whole = routes.find((r) => r.id === stage.baseId);
+    return whole ? sliceRoute(whole, stage.fromM, stage.toM) : undefined;
+  }
   const started = parseStartedRouteId(id);
   if (started) {
     const dir = findRoute(routes, started.id);

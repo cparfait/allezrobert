@@ -1,4 +1,5 @@
 import { climbCategory } from '@allezrobert/shared';
+import type { StageKind, TourStage } from './tourPlan.ts';
 
 /**
  * Tour à étapes local (idée NCT Ride) : plusieurs étapes jouées un jour puis un autre (sauvegardé tant que le tour
@@ -7,13 +8,14 @@ import { climbCategory } from '@allezrobert/shared';
  *  - points (arrivées et sprints intermédiaires) — maillot vert ;
  *  - montagne (sommets, barème selon la catégorie de la côte) — maillot à pois ;
  *  - équipes (somme des trois meilleurs temps de chaque équipe à chaque étape).
+ * Les étapes viennent de game/tourPlan.ts (grande boucle découpée ou parcours de la zone) ; un tour par zone.
  * Les IA gardent leur fatigue d'une étape à l'autre : celle qui s'est vidée part moins fraîche le lendemain.
  *
  * Module pur (sans DOM ni jeu), testé ; le jeu fournit les relevés de course (Peloton.raceLog) et l'affiche
  * (ui/tourPanel.ts).
  */
 
-export type StageKind = 'tt' | 'road';
+export type { StageKind, TourStage } from './tourPlan.ts';
 
 export interface TourRider {
   id: string;
@@ -35,9 +37,15 @@ export interface StageResult {
 }
 
 export interface Tour {
-  version: 1;
+  version: 2;
   name: string;
-  stages: StageKind[];
+  /** Zone où il se court. */
+  worldId: string;
+  stages: TourStage[];
+  /** Coureurs IA engagés et leur niveau (part de la FTP du joueur), les mêmes à chaque étape. */
+  aiCount: number;
+  aiLevel: number;
+  /** Le joueur seul jusqu'au premier départ (`enrol`). */
   riders: TourRider[];
   results: StageResult[];
   /** Fatigue accumulée des IA (0–0,12) : leur FTP du jour est multipliée par 1 − fatigue. */
@@ -48,26 +56,31 @@ export interface Tour {
 /** Équipes fictives (le joueur et un équipier sur quatre courent pour « Allez Robert »). */
 export const TOUR_TEAMS = ['Allez Robert', 'Bocage Vélo', 'Falaises Cyclisme', 'Plaine Sport'] as const;
 
-/** Plan des étapes : prologue contre-la-montre, courses en ligne, un second chrono à l'avant-dernière dès 5 étapes. */
-export function stagePlan(n: number): StageKind[] {
-  const k = Math.max(2, Math.min(7, Math.round(n)));
-  return Array.from({ length: k }, (_, i) => (i === 0 || (k >= 5 && i === k - 2) ? 'tt' : 'road'));
-}
-
-export function newTour(n: number, ais: ReadonlyArray<{ id: string; name: string }>, myName: string, name = 'Tour de Normandie'): Tour {
+export function newTour(o: { name: string; worldId: string; stages: TourStage[]; aiCount: number; aiLevel: number }, myName: string): Tour {
   return {
-    version: 1,
-    name,
-    stages: stagePlan(n),
-    riders: [{ id: 'me', name: myName, team: TOUR_TEAMS[0], me: true }, ...ais.map((a, i) => ({ id: a.id, name: a.name, team: TOUR_TEAMS[i % TOUR_TEAMS.length] as string }))],
+    version: 2,
+    name: o.name,
+    worldId: o.worldId,
+    stages: o.stages,
+    aiCount: o.aiCount,
+    aiLevel: o.aiLevel,
+    riders: [{ id: 'me', name: myName, team: TOUR_TEAMS[0], me: true }],
     results: [],
     fatigue: {},
     startedAt: new Date().toISOString(),
   };
 }
 
+/** Engage les coureurs IA au premier départ (les mêmes jusqu'au bout). */
+export function enrol(t: Tour, ais: ReadonlyArray<{ id: string; name: string }>): Tour {
+  if (t.riders.length > 1) return t;
+  return { ...t, riders: [...t.riders, ...ais.map((a, i) => ({ id: a.id, name: a.name, team: TOUR_TEAMS[i % TOUR_TEAMS.length] as string }))] };
+}
+
 export const currentStage = (t: Tour): number => t.results.length;
 export const tourDone = (t: Tour): boolean => t.results.length >= t.stages.length;
+/** Étape à courir ; aucune si le tour est fini. */
+export const nextStage = (t: Tour): TourStage | undefined => t.stages[currentStage(t)];
 
 const FINISH_POINTS = [25, 20, 16, 14, 12, 10, 8, 6, 4, 2];
 const TT_POINTS = [10, 8, 6, 4, 2];
@@ -168,7 +181,8 @@ export function stageResult(
     route,
     times,
     order,
-    marks: log.segs.map((s) => ({ kind: s.kind, name: s.name, ...(s.kind === 'kom' ? { cat: markCategory(s.avgGrade, s.lengthM) } : {}), order: [...s.order] })),
+    // Contre-la-montre : pas de sprint intermédiaire.
+    marks: log.segs.filter((s) => kind === 'road' || s.kind === 'kom').map((s) => ({ kind: s.kind, name: s.name, ...(s.kind === 'kom' ? { cat: markCategory(s.avgGrade, s.lengthM) } : {}), order: [...s.order] })),
   };
 }
 
@@ -179,23 +193,31 @@ export function addStage(t: Tour, result: StageResult, fatigue: ReadonlyArray<{ 
   return { ...t, results: [...t.results, result], fatigue: f };
 }
 
-const KEY = 'ar.tour.v1';
+const KEY = 'ar.tour.v2.';
 
-export function loadTour(store: Pick<Storage, 'getItem'> = localStorage): Tour | null {
+/** Tour de la zone, en cours ou terminé. */
+export function loadTour(worldId: string, store: Pick<Storage, 'getItem'> = localStorage): Tour | null {
   try {
-    const t = JSON.parse(store.getItem(KEY) ?? 'null') as Tour | null;
-    return t && t.version === 1 && Array.isArray(t.stages) ? t : null;
+    const t = JSON.parse(store.getItem(KEY + worldId) ?? 'null') as Tour | null;
+    return t && t.version === 2 && Array.isArray(t.stages) && t.stages.length > 0 && Array.isArray(t.results) ? t : null;
   } catch {
     return null;
   }
 }
 
-export function saveTour(t: Tour | null, store: Pick<Storage, 'setItem' | 'removeItem'> = localStorage): void {
+export function saveTour(t: Tour, store: Pick<Storage, 'setItem'> = localStorage): void {
   try {
-    if (t) store.setItem(KEY, JSON.stringify(t));
-    else store.removeItem(KEY);
+    store.setItem(KEY + t.worldId, JSON.stringify(t));
   } catch {
     // Stockage indisponible : le tour ne sera pas gardé.
+  }
+}
+
+export function dropTour(worldId: string, store: Pick<Storage, 'removeItem'> = localStorage): void {
+  try {
+    store.removeItem(KEY + worldId);
+  } catch {
+    // Stockage indisponible : rien à effacer.
   }
 }
 

@@ -604,3 +604,10 @@ Quand le chantier est commité ou abandonné, supprimer l'entrée (ou passer l'�
 - Fichiers (sections) : nouveaux `apps/client/src/rider/footDown.ts` + test ; `update` de `rider/gltfAvatar.ts` et `rider/lowPolyRider.ts` ; lignes `setFootDown` de `main.ts`, `game/peloton.ts`, `game/multiplayer.ts`
 - État : codé, types et tests OK, vu en Réel et Poly ; commité (voir git log « pied à terre »), non poussé, fichiers libérés
 - Mis à jour : 2026-11-25
+
+## Tour à étapes « Tour de l'Île » et menu de réglages du tour (demande de l'utilisateur du 2026-11-25)
+- Chantier : étapes découpées dans la boucle du Tour de l'Île (ou parcours de la zone), menu propre au tour dans l'onglet Rouler
+- Fichiers réservés : `apps/client/src/game/stageRace.ts`, `test/stageRace.test.ts`, nouveaux `game/tourPlan.ts`, `test/tourPlan.test.ts`, `ui/tourMenu.ts` et `.css`, `ui/tourPanel.ts` ; sections seulement : `game/direction.ts` (`findRoute`), `world/routeStore.ts` (`loadRouteForKey`), `ui/settings.ts` (réglages du tour), `ui/menu.ts` (`tourHtml`, carte Course de `rideHtml`, `checkRoute`, `start`), `game/peloton.ts` (`park`, `ttTimes`, `noteFinish`), `ui/summit.ts`, `main.ts` (lignes du tour et de `isTtRide`, `teardown`, `reachSummit`). Les changements non commités de `menu.ts` (atlas, garage) ne sont pas à cette session. Aucun fichier de `worlds/`.
+- État : codé, types et tests client OK, vu en Poly (menu, départ, trois arrivées, abandon) et en Réel (menu) ; non commité. IA : temps d'arrivée noté quand elles se rangent avant la ligne d'un parcours non bouclé (elles ne la franchissaient jamais). Serveur arrêté.
+- Mis à jour : 2026-11-25
+- Suite (25/11) : étapes de ville en ville calculées sur le graphe de la zone (aucun fichier de `worlds/` ni de `tools/island/`) : nouveaux `apps/client/src/game/tourRoutes.ts`, `test/tourRoutes.test.ts` ; sections de `ui/routePlanner.ts` (accès au graphe), `ui/menu.ts` (tour, `refreshMap`), `main.ts` (étape reconstruite au chargement), `ui/settings.ts`. Codé, types et tests client OK, essayé en Poly, non commité.

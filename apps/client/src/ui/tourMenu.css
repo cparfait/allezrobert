@@ -1,0 +1,44 @@
+/* Menu du tour à étapes (tourMenu.ts) : réglages, profil découpé, liste des étapes. */
+.mm-panel .mm-card .mm-card-t.tm-t { font-size: 20px; }
+.tm-rank { margin: 10px 0 0; font-size: 15px; font-weight: 700; color: var(--ar-fg, #f5f7fa); }
+.tm-wait { margin: 12px 0 0; font-size: 14px; color: #c3cddb; }
+.tm-plan { margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.tm-plan h4 { margin: 0; font-size: 16px; font-weight: 800; color: var(--ar-fg, #f5f7fa); }
+.tm-profile { display: block; width: 100%; height: 74px; margin-top: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); }
+.tm-profile path { fill: rgba(255, 255, 255, 0.26); }
+.tm-profile path.odd { fill: rgba(255, 255, 255, 0.4); }
+.tm-profile path.tt { fill: rgba(96, 165, 250, 0.75); }
+.tm-profile path.done { fill: rgba(34, 197, 94, 0.55); }
+.tm-profile path.now { fill: var(--ar-accent, #ffd23f); }
+.tm-profile line { stroke: rgba(10, 14, 22, 0.75); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.tm-stages { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.tm-stages li { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 14px; border: 2px solid transparent; background: rgba(255, 255, 255, 0.05); }
+.tm-stages li > i { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.1); font: 800 16px var(--mono, ui-monospace, monospace); font-style: normal; color: var(--ar-fg, #f5f7fa); }
+.tm-stages li.tt > i { background: rgba(96, 165, 250, 0.25); color: #bfdbfe; }
+.tm-stages li.done > i { background: rgba(34, 197, 94, 0.2); color: #86efac; }
+.tm-stages li.now { border-color: var(--ar-accent, #ffd23f); }
+.tm-stages li.now > i { background: var(--ar-accent, #ffd23f); color: #0a0e16; }
+.tm-stages div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tm-stages b { font-size: 15px; font-weight: 800; color: var(--ar-fg, #f5f7fa); }
+.tm-stages small { font-size: 13.5px; color: #c3cddb; }
+.tm-stages em { flex: none; max-width: 42%; font-size: 13.5px; font-style: normal; font-weight: 700; text-align: right; color: #c3cddb; }
+.tm-stages li.now em { color: #ffe37a; }
+.tm-btns { display: flex; gap: 10px; margin-top: 12px; }
+.tm-btns .ab-btn { flex: 1; }
+.tm-ask { margin-top: 14px; }
+.tm-ask b { font-size: 15px; color: var(--ar-fg, #f5f7fa); }
+.tm-btns .tm-danger { background: rgba(239, 68, 68, 0.35); }
+.tm-btns .tm-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.5); }
+.tm-plan-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tm-map { display: block; width: 100%; margin-top: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); }
+.tm-map path { fill: none; stroke: rgba(255, 255, 255, 0.5); stroke-width: 3.5; stroke-linejoin: round; stroke-linecap: round; }
+.tm-map path.odd { stroke: rgba(255, 255, 255, 0.8); }
+.tm-map path.tt { stroke: #60a5fa; }
+.tm-map path.done { stroke: #22c55e; }
+.tm-map path.now { stroke: var(--ar-accent, #ffd23f); stroke-width: 5; }
+.tm-map g circle { fill: #f5f7fa; }
+.tm-map g circle.end { fill: #0a0e16; stroke: #f5f7fa; stroke-width: 1.5; }
+.tm-map g.tt circle { fill: #60a5fa; }
+.tm-map g.done circle { fill: #22c55e; }
+.tm-map g.now circle { fill: var(--ar-accent, #ffd23f); }
+.tm-map text { font: 800 13px var(--mono, ui-monospace, monospace); text-anchor: middle; fill: #0a0e16; }

@@ -51,7 +51,7 @@ function esc(s: string): string {
  * Arrivée au sommet d'un itinéraire aller simple : temps, puissance moyenne, W/kg, VAM et chrono
  * de la montée (avec le record), par-dessus la scène figée ; puis bilan complet ou retour au menu.
  */
-export function showSummit(root: HTMLElement, data: { routeName: string; altitudeM: number; stats: SummitStats }, cb: SummitCallbacks): void {
+export function showSummit(root: HTMLElement, data: { routeName: string; altitudeM: number; stats: SummitStats; /** Arrivée d'étape qui n'est pas un sommet : sans ce mot ni la VAM. */ flat?: boolean }, cb: SummitCallbacks): void {
   const fr = getLang() === 'fr';
   const nf1 = (v: number) => v.toFixed(1).replace('.', S('dec'));
   const s = data.stats;
@@ -73,14 +73,14 @@ export function showSummit(root: HTMLElement, data: { routeName: string; altitud
   }
   root.innerHTML = `<div class="smt">
     <div class="smt-card">
-      <p class="smt-kicker">${S('summitFinish')}</p>
+      <p class="smt-kicker">${data.flat ? (fr ? 'Arrivée' : 'Finish') : S('summitFinish')}</p>
       <h1 class="ab-title">${esc(data.routeName)}</h1>
       <p class="smt-alt num">${thousands(data.altitudeM, fr)} m</p>
       <div class="smt-tiles">
         ${tile(S('time'), fmtTime(s.timeS))}
         ${tile(S('avgPower'), String(Math.round(s.avgWatts)), 'W')}
         ${tile('W/kg', nf1(s.wkg))}
-        ${tile('VAM', thousands(s.vam, fr), 'm/h')}
+        ${data.flat ? '' : tile('VAM', thousands(s.vam, fr), 'm/h')}
         ${tile(S('climbing'), thousands(s.elevationGainM, fr), 'm')}
       </div>
       ${komHtml}

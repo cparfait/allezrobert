@@ -228,6 +228,26 @@ export class RoadNetwork {
       const runner = float(1).sub(smoothstep(0.03, 0.05, abs(ax.sub(half.mul(0.55))))).mul(near).mul(0.22);
       const boards = mix(vec3(0.43, 0.29, 0.17).mul(tone), vec3(0.16, 0.1, 0.06), max(seam.mul(0.75), runner));
       col = mix(col, mix(boards, vec3(0.3, 0.19, 0.11), kerb), step(3.5, info.z));
+      if (ROAD_SHOULDER) {
+        // Rive des routes revêtues (25/11/2026) : l'enrobé ondule et le ruban est découpé à son bord, l'herbe commence
+        // aussitôt. Jamais sur un pont, en ville, sur un chemin ni aux carrefours (deux rubans s'y recouvrent). Les petits
+        // crans s'effacent au loin (scintillement).
+        const p = positionWorld.xz;
+        const pix = max(fwidth(across), fwidth(along));
+        const near = float(1).sub(smoothstep(0.03, 0.09, pix));
+        const wide = mx_noise_float(p.mul(0.14).add(53));
+        const mid = mx_noise_float(p.mul(0.75).add(11));
+        const fine = mx_noise_float(p.mul(3.1)).mul(near);
+        const fray = wide.mul(0.2).add(mid.mul(0.17)).add(fine.mul(0.07));
+        const sideLP = attribute<'vec2'>('side');
+        const free = step(info.z, 0.1);
+        // 0 en campagne, 1 en ville et aux carrefours : le bord rejoint peu à peu celui du ruban (pas de marche).
+        const straight = max(mix(sideLP.x, sideLP.y, step(0, across)), junction).min(1);
+        // Distance au bord de l'enrobé ; la ligne de rive reste toujours dessus.
+        const beyond = ax.sub(half.add(mix(fray.add(0.14).max(-0.02), float(0.62), straight)));
+        m.opacityNode = float(1).sub(step(0, beyond).mul(free));
+        m.alphaTest = 0.5;
+      }
     }
     // Bords fondus dans le bas-côté (pas d'arête nette sur l'herbe).
     col = col.mul(float(1).sub(this.wetness.mul(0.4).mul(float(1).sub(unpaved))));
@@ -705,6 +725,16 @@ function* buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street
           for (let j = 0; j < n; j++) if (Math.abs((s.along[j] as number) - (s.along[k] as number)) <= 3) nearJunction[j] = 1;
         }
       }
+      // Style jeu vidéo : en ville (bâti dense ou trottoir d'un côté ou de l'autre, 35 m autour), rive droite des deux côtés.
+      const inTown = new Uint8Array(n);
+      if (LOW_POLY && street && unpaved === 0) {
+        for (let k = 0; k < n; k++) {
+          const cx = ((s.left[k * 3] as number) + (s.right[k * 3] as number)) / 2;
+          const cz = ((s.left[k * 3 + 2] as number) + (s.right[k * 3 + 2] as number)) / 2;
+          if (!(wL[k] as number) && !(wR[k] as number) && !street.urban(cx, cz)) continue;
+          for (let j = 0; j < n; j++) if (Math.abs((s.along[j] as number) - (s.along[k] as number)) <= 35) inTown[j] = 1;
+        }
+      }
       for (let i = 0; i < n; i++) {
         pos.push(s.left[i * 3] as number, s.left[i * 3 + 1] as number, s.left[i * 3 + 2] as number);
         pos.push(s.right[i * 3] as number, s.right[i * 3 + 1] as number, s.right[i * 3 + 2] as number);
@@ -732,8 +762,8 @@ function* buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street
         decal.push(0, 0, 0, 0, 0, 0, 0, 0);
         dsize.push(0, 0, 0, 0);
         // Chaussée : caniveau pavé à gauche, à droite (là où il y a un trottoir), lu par le shader.
-        const gL = (wL[i] as number) > 0 ? 1 : 0;
-        const gR = (wR[i] as number) > 0 ? 1 : 0;
+        const gL = (wL[i] as number) > 0 || inTown[i] ? 1 : 0;
+        const gR = (wR[i] as number) > 0 || inTown[i] ? 1 : 0;
         side.push(gL, gR, gL, gR);
       }
       for (const k of ribbonIndex(pos.slice(base * 3), 3, 2, n, true)) index.push(base + k);
@@ -786,6 +816,8 @@ function* buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street
     g.setAttribute('decalSize', new THREE.Float32BufferAttribute(dsize, 2));
     g.setAttribute('side', new THREE.Float32BufferAttribute(side, 2));
   }
+  // Style jeu vidéo : trottoir de chaque côté (la rive y reste droite).
+  if (LOW_POLY && ROAD_SHOULDER) g.setAttribute('side', new THREE.Float32BufferAttribute(side, 2));
   g.setIndex(index);
   g.computeVertexNormals();
   g.computeBoundingSphere();

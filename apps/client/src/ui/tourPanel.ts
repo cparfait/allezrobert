@@ -1,7 +1,7 @@
 import './blocks.css';
 import './tourPanel.css';
 import { getLang } from '../i18n/index.ts';
-import { fmtTime, standings, tourDone, type StageResult, type Tour } from '../game/stageRace.ts';
+import { fmtTime, nextStage, standings, tourDone, type StageResult, type Tour } from '../game/stageRace.ts';
 
 /**
  * Écran de fin d'étape du tour (idée NCT Ride) : podium de l'étape, puis classements à onglets — étape, général
@@ -10,6 +10,7 @@ import { fmtTime, standings, tourDone, type StageResult, type Tour } from '../ga
  */
 
 const esc = (s: string) => s.replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c] as string);
+const nth = (n: number) => (n === 1 ? '1er' : `${n}e`);
 const JERSEY = { gc: '#ffd23f', points: '#3fa65a', kom: '#d63a2f', young: '#f2f2ee' } as const;
 
 function jerseySvg(color: string, dots = false): string {
@@ -57,18 +58,20 @@ export function showTourPanel(tour: Tour, stage: StageResult): Promise<void> {
   const leadersHtml = `<div class="tp-leaders">${leaders
     .map(([c, dots, label, r]) => `<div class="ab-tile ab-plain tp-lead${r?.me ? ' me' : ''}">${jerseySvg(c, dots)}<div><small>${label}</small><b>${r ? esc(r.name) : '—'}</b></div></div>`)
     .join('')}</div>`;
+  const next = nextStage(tour);
+  const nextHtml = next ? `${fr ? 'Étape suivante' : 'Next stage'} : ${esc(fr ? next.name : next.nameEn)}, ${(next.lengthM / 1000).toFixed(1).replace('.', fr ? ',' : '.')} km${next.kind === 'tt' ? (fr ? ' (contre-la-montre)' : ' (time trial)') : ''}. ${fr ? 'Aujourd’hui ou un autre jour.' : 'Today or another day.'}` : '';
   const root = document.createElement('div');
   root.className = 'tp-overlay';
   const myStage = stage.order.indexOf('me') + 1;
   const myGc = st.gc.findIndex((r) => r.me) + 1;
   root.innerHTML = `<div class="tp-card">
     <h1 class="ab-title">${esc(tour.name)} — ${final ? (fr ? 'classement final' : 'final standings') : `${fr ? 'étape' : 'stage'} ${n}/${tour.stages.length}`}</h1>
-    <p class="ab-sub">${stage.kind === 'tt' ? (fr ? 'Contre-la-montre' : 'Time trial') : fr ? 'Course en ligne' : 'Road stage'} · ${esc(stage.route)} · ${fr ? `tu es ${myStage}e de l’étape, ${myGc}e au général` : `you are ${myStage} on the stage, ${myGc} overall`}</p>
+    <p class="ab-sub">${stage.kind === 'tt' ? (fr ? 'Contre-la-montre' : 'Time trial') : fr ? 'Course en ligne' : 'Road stage'} · ${esc(stage.route)} · ${fr ? `tu es ${nth(myStage)} de l’étape, ${nth(myGc)} au général` : `you are ${myStage} on the stage, ${myGc} overall`}</p>
     ${podiumHtml}
     ${leadersHtml}
     <div class="tp-tabs" role="tablist">${tabs.map(([id, label], i) => `<button type="button" role="tab" class="tp-tab${i === (final ? 1 : 0) ? ' on' : ''}" data-tab="${id}">${label}</button>`).join('')}</div>
     ${tabs.map(([id, , rows], i) => `<div class="tp-pane" data-pane="${id}"${i === (final ? 1 : 0) ? '' : ' hidden'}><table class="tp-table">${rows}</table></div>`).join('')}
-    <div class="ab-foot"><span class="ab-sub">${final ? (fr ? 'Tour terminé : un nouveau tour repartira au prochain lancement.' : 'Tour finished: a new one starts next time.') : fr ? 'Étape suivante : choisis ton parcours et relance une course « Tour à étapes », aujourd’hui ou un autre jour.' : 'Next stage: pick a route and start a “Stage race” again, today or another day.'}</span><div class="ab-btns"><button type="button" class="ab-btn ab-go" data-close>${fr ? 'Continuer' : 'Continue'}</button></div></div>
+    <div class="ab-foot"><span class="ab-sub">${final ? (fr ? 'Tour terminé : règle le prochain dans l’onglet Rouler.' : 'Race finished: set up the next one in the Ride tab.') : nextHtml}</span><div class="ab-btns"><button type="button" class="ab-btn ab-go" data-close>${fr ? 'Continuer' : 'Continue'}</button></div></div>
   </div>`;
   document.body.appendChild(root);
   root.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) =>

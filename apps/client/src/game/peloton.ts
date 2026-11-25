@@ -283,10 +283,26 @@ export class Peloton {
     return { distM, lateral: -b.left + PARK_EDGE_M + (k % cols) * PARK_COL_M };
   }
 
+  /**
+   * Arrivée d'une IA sur un parcours non bouclé : elle se range avant la ligne, qu'elle ne franchit donc jamais. Son
+   * temps est celui qu'elle aurait fait en gardant sa vitesse sur les derniers mètres.
+   */
+  private noteFinish(r: PelotonRider): void {
+    const end = this.track.length;
+    const rem = Math.max(0, end - r.state.distM);
+    if (rem > PARK_ZONE_M + 5 || (!this.log && !this.tt)) return;
+    const t = this.time + (this.tt?.offsets.get(r) ?? 0) + rem / Math.max(4, r.state.speedMs);
+    this.logRider(r.id, r.name, end, t);
+    this.ttTimes(r, end, t);
+  }
+
   /** L'IA va à sa place d'arrivée et s'y arrête (roue libre, freinage doux) : le coureur V3 pose alors le pied à terre. */
   private park(r: PelotonRider, dt: number): void {
     let slot = this.parked.get(r);
-    if (!slot) this.parked.set(r, (slot = this.parkSlot(this.parked.size)));
+    if (!slot) {
+      this.noteFinish(r);
+      this.parked.set(r, (slot = this.parkSlot(this.parked.size)));
+    }
     const rem = slot.distM - r.state.distM;
     let v = 0;
     if (rem > 0.02) {
@@ -512,13 +528,12 @@ export class Peloton {
   }
 
   /** Contre-la-montre : temps d'une IA aux intermédiaires et à l'arrivée (une fois chacun). */
-  private ttTimes(r: PelotonRider): void {
+  private ttTimes(r: PelotonRider, distM = r.state.distM, t = this.time + (this.tt?.offsets.get(r) ?? 0)): void {
     const tt = this.tt;
     if (!tt) return;
     const k = tt.done.get(r) ?? 0;
     const marks = [...tt.splits, tt.lengthM];
-    if (k >= marks.length || r.state.distM - tt.startD < (marks[k] as number)) return;
-    const t = this.time + (tt.offsets.get(r) ?? 0);
+    if (k >= marks.length || distM - tt.startD < (marks[k] as number)) return;
     if (k < tt.splits.length) tt.splitTimes[k]?.push({ name: r.name, t });
     else tt.finish.push({ name: r.name, t });
     tt.done.set(r, k + 1);

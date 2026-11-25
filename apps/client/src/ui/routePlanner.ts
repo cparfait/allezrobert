@@ -129,6 +129,11 @@ export class RoutePlanner {
   private result: RouteData | null = null;
   private error = '';
 
+  /** Réseau routier et lieux de la zone affichée, une fois le graphe chargé (étapes de ville en ville des tours). */
+  get network(): { net: RoadNet; places: WorldPlace[] } | null {
+    return this.net && this.open && this.open.graph.edges.length ? { net: this.net, places: this.open.places ?? [] } : null;
+  }
+
   /** Graphe de la zone affichée (null : zone sans monde ouvert). Tout est remis à zéro s'il change. */
   setOpen(open: OpenMap | null): void {
     if (open?.graph === this.open?.graph) return;

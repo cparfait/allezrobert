@@ -2,7 +2,7 @@ import { busOn, getMix, setBusOn } from './audio/mix.ts';
 import './net/desktopAuth.ts';
 import './hud/hud.css';
 import * as THREE from 'three/webgpu';
-import { rideOnMessage, snapToRoad, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel, type PairState, type PhoneCommand, PAIR_SOUND_BUSES, type PairSoundBus, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
+import { RoadNet, rideOnMessage, snapToRoad, DEFAULT_LOOK, RouteTrack, decimateRoute, rankRouteId, ROAD_FEEL_TEXT, clampRoadFeel, roadFeelLevel, type PairState, type PhoneCommand, PAIR_SOUND_BUSES, type PairSoundBus, bikeOfLook, type AvatarLook, bikeSetupFor, weatherAt, weatherElapsedS, weatherSeed, worldToWgs84, type RideWeather, type RiderProfile, type RouteData } from '@allezrobert/shared';
 import { createEngine, onGpuLost, type Engine } from './engine/renderer.ts';
 import { QUALITY_PRESETS, withUrlOverrides, type QualitySettings } from './engine/quality.ts';
 import { detectHardwareQuality } from './engine/autoQuality.ts';
@@ -36,7 +36,7 @@ import { RaceGapsChip } from './ui/raceGaps.ts';
 import { hudHeldAtStart } from './hud/startHud.ts';
 import { StartRamp } from './world/startRamp.ts';
 import { awaitedStart, triggerStart, waitForStart } from './ui/startButton.ts';
-import { addStage, currentStage, loadTour, newTour, saveTour, stagePlan, stageResult, standings as standingsOf, tourDone, tourLeaders, type StageKind, type StageResult, type Tour } from './game/stageRace.ts';
+import { addStage, currentStage, enrol, loadTour, nextStage, saveTour, stageResult, standings as standingsOf, tourLeaders, type StageKind, type StageResult, type Tour } from './game/stageRace.ts';
 import { raceReport } from './game/raceReport.ts';
 import { v3WithHeadgear, ttMissing, withHeadgear, type GearKind } from './game/headgear.ts';
 import { askTtGear, rememberTtChoice, takeTtKeep } from './ui/ttGear.ts';
@@ -96,6 +96,7 @@ import { OpenNavigator } from './game/open.ts';
 import { TurnWarnings } from './game/turnWarnings.ts';
 import { ITINERARY_PREFIX } from './ui/routePlanner.ts';
 import { findRoute, routeKey } from './game/direction.ts';
+import { buildCityRoute, parseCityRouteId } from './game/tourRoutes.ts';
 import { fmtLapTime, postRideEfforts, RouteTimer } from './game/efforts.ts';
 import { waitBike } from './ui/waitBike.ts';
 import { openTuningPanel } from './dev/tuning.ts';
@@ -158,6 +159,19 @@ async function firstRoute(source: WorldSource): Promise<RouteData> {
   return source.routes.load(first.id);
 }
 
+/**
+ * Itinéraire d'une clé de sortie : de la zone (chargé à la demande), ou étape d'un tour de ville en ville, reconstruite
+ * sur le graphe routier (game/tourRoutes.ts). Introuvable : undefined.
+ */
+async function routeForKey(source: WorldSource, key: string): Promise<RouteData | undefined> {
+  if (parseCityRouteId(key)) {
+    if (!source.open || !(await openGraphReady(source))) return undefined;
+    return buildCityRoute(new RoadNet(source.open.graph), source.open.places ?? [], key) ?? undefined;
+  }
+  await loadRouteForKey(source.routes, key).catch((e: unknown) => console.warn('Itinéraire choisi indisponible', e));
+  return findRoute(source.routes.loaded(), key);
+}
+
 /** Charge le monde et l'itinéraire choisis (le monde reste affiché derrière le menu). */
 async function loadScene(settings: Settings): Promise<Scene3D> {
   const params = new URLSearchParams(location.search);
@@ -174,8 +188,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
   // Seul l'itinéraire choisi est lu ici ; les autres arrivent à la demande (routeStore.ts). Choix inconnu ou
   // fichier introuvable : l'itinéraire principal de la zone.
   const wanted = params.get('route') ?? routeKey(settings);
-  await loadRouteForKey(source.routes, wanted).catch((e: unknown) => console.warn('Itinéraire choisi indisponible, itinéraire principal à la place', e));
-  const route = findRoute(source.routes.loaded(), wanted) ?? (await firstRoute(source));
+  const route = (await routeForKey(source, wanted)) ?? (await firstRoute(source));
   const track = new RouteTrack(route);
   const world = new World(engine.scene, source, route, track, q, {
     hour: Number(params.get('hour') ?? settings.hour),
@@ -190,8 +203,7 @@ async function loadScene(settings: Settings): Promise<Scene3D> {
  * intégré continuent) : le monde est reconstruit pour le nouvel itinéraire.
  */
 async function switchRoute(scene: Scene3D, s: Settings, onTile?: (done: number, total: number) => void): Promise<void> {
-  await loadRouteForKey(scene.source.routes, routeKey(s)).catch((e: unknown) => console.warn('Itinéraire indisponible', e));
-  const route = findRoute(scene.source.routes.loaded(), routeKey(s));
+  const route = await routeForKey(scene.source, routeKey(s));
   if (!route) return;
   scene.world.dispose();
   scene.route = route;
@@ -755,7 +767,7 @@ async function boot(): Promise<void> {
       // Contre-la-montre sans matériel de chrono : proposé avant de charger la sortie (une fois par départ).
       if (!ttAsked) rememberTtChoice(false);
       const ttGear = V3_STYLE ? null : ttMissing(s.look);
-      if (!ttAsked && isTtRide(s, scene.engine.quality.aiRidersMax, !!extras.publicRoom) && (V3_STYLE || ttGear)) {
+      if (!ttAsked && isTtRide(s, scene.engine.quality.aiRidersMax, !!extras.publicRoom, scene.source.id, routeKey(s)) && (V3_STYLE || ttGear)) {
         void askTtGear(ttGear).then((choice) => {
           if (choice === 'cancel') return;
           if (choice === 'garage') return menu.show('garage');
@@ -981,9 +993,9 @@ async function boot(): Promise<void> {
       // Garage chargé (ou impossible à charger : le bouton ne doit pas manquer pour autant) : « Rouler » apparaît à l'accueil.
       .then(() => {
         menu.setGarageReady();
-        // Bêta : photo du coureur pour « Prêt à rouler ? » prise dès l'ouverture du jeu, en cache (ui/startRider.ts) ;
+        // Photo du coureur pour « Prêt à rouler ? » prise dès l'ouverture du jeu, en cache (ui/startRider.ts) ;
         // refaite à la sortie du garage si la tenue a changé.
-        if (V3_STYLE) warmRiderPortrait({ renderer: scene.engine.renderer, look: settings.look, environment: scene.engine.scene.environment });
+        warmRiderPortrait({ renderer: scene.engine.renderer, look: settings.look, environment: scene.engine.scene.environment });
       }));
   const whenAtelierReady = (build: () => boolean): void => {
     // Atelier déjà affiché une fois : tout est prêt, changement immédiat.
@@ -1052,8 +1064,8 @@ async function boot(): Promise<void> {
       garage = { view, yaw, ...(zoom && zoom !== 1 ? { far: zoom } : {}), ...(bikeOnly ? { bikeOnly } : {}) };
       return showGarage(garageLook ?? menu.currentLook());
     }
-    // Sortie du garage (Bêta) : photo du coureur pour « Prêt à rouler ? » prise tout de suite, en cache (ui/startRider.ts).
-    if (garage && V3_STYLE) warmRiderPortrait({ renderer: scene.engine.renderer, look: settings.look, environment: scene.engine.scene.environment });
+    // Sortie du garage : photo du coureur pour « Prêt à rouler ? » prise tout de suite, en cache (ui/startRider.ts).
+    if (garage) warmRiderPortrait({ renderer: scene.engine.renderer, look: settings.look, environment: scene.engine.scene.environment });
     garage = null;
     garageLook = null;
     atelier.set(null);
@@ -1216,8 +1228,8 @@ function beginStartCheck(overlay: HTMLElement, s: Settings, extras: { inviteCode
       url.searchParams.delete('autostart');
       location.href = url.toString();
     },
-    // Style Bêta : le coureur du joueur, debout mains sur les hanches, à gauche des blocs (photographié une fois, voir startRider.ts).
-    ...(V3_STYLE ? { portrait: (closed: () => boolean) => riderPortrait({ renderer: engine.renderer, look: s.look, environment: engine.scene.environment, cancelled: closed }) } : {}),
+    // Le coureur du joueur, debout mains sur les hanches, à gauche des blocs (photographié une fois, voir startRider.ts).
+    portrait: (closed: () => boolean) => riderPortrait({ renderer: engine.renderer, look: s.look, environment: engine.scene.environment, cancelled: closed }),
   });
 }
 
@@ -1228,11 +1240,18 @@ function collisionVersionMessage(reason = COLLISION_VERSION_ERROR): string {
 }
 
 /** Sortie jouée en contre-la-montre (format chrono ou étape chrono du tour, en local contre des IA, comme `timeTrial`). */
-function isTtRide(s: Settings, aiMax: number, publicRoom: boolean): boolean {
-  if (s.mode !== 'race' || publicRoom || Math.min(s.aiRiders, aiMax) <= 0) return false;
-  if (s.raceFormat !== 'tour') return s.raceFormat === 'tt';
-  const tour = loadTour();
-  return (tour && !tourDone(tour) ? tour.stages[currentStage(tour)] : stagePlan(s.tourStages ?? 3)[0]) === 'tt';
+function isTtRide(s: Settings, aiMax: number, publicRoom: boolean, worldId: string, routeId: string): boolean {
+  if (s.mode !== 'race' || publicRoom) return false;
+  if (s.raceFormat !== 'tour') return s.raceFormat === 'tt' && Math.min(s.aiRiders, aiMax) > 0;
+  const tour = tourToRide(s, worldId, routeId);
+  return !!tour && nextStage(tour)?.kind === 'tt';
+}
+
+/** Tour de la zone, si le parcours lancé est bien son étape à courir (sinon, une course ordinaire). */
+function tourToRide(s: Settings, worldId: string, routeId: string): Tour | null {
+  if (s.mode !== 'race' || s.raceFormat !== 'tour') return null;
+  const tour = loadTour(worldId);
+  return tour && nextStage(tour)?.routeId === routeId ? tour : null;
 }
 
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number }; publicRoom?: boolean; nearFriend?: string }, overlay?: HTMLElement): Promise<void> {
@@ -1307,13 +1326,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   });
   // Modèle du vélo (route, gravel, VTT) : celui du vélo équipé.
   // Tour à étapes : maillots distinctifs gagnés aux étapes précédentes (le mien, et ceux des IA plus bas).
-  const tourBefore = s.mode === 'race' && s.raceFormat === 'tour' ? loadTour() : null;
-  const tourJerseys = tourBefore && !tourDone(tourBefore) ? tourLeaders(tourBefore) : {};
+  const tourBefore = extras.publicRoom || nav ? null : tourToRide(s, source.id, track.route.id);
+  const tourJerseys = tourBefore ? tourLeaders(tourBefore) : {};
+  // Réglages de la course : ceux du tour (coureurs, niveau, tours de boucle de l'étape), sinon ceux du menu.
+  const raceLaps = tourBefore ? (nextStage(tourBefore)?.laps ?? 1) : s.raceLaps;
+  const raceAiLevel = tourBefore?.aiLevel ?? s.aiLevel ?? 1;
   const myLead = tourJerseys.me;
   // Couvre-chef et vélo selon la sortie (game/headgear.ts) : casque toujours ; en course, casque obligatoire ; en
   // contre-la-montre (format chrono ou étape chrono du tour, joué contre les IA comme `timeTrial`), casque et vélo de
   // chrono pour tous.
-  const ttStage = isTtRide(s, engine.quality.aiRidersMax, !!extras.publicRoom);
+  const ttStage = isTtRide(s, engine.quality.aiRidersMax, !!extras.publicRoom, source.id, track.route.id);
   /** « Partir comme ça » : le joueur roule le chrono avec son matériel (casque obligatoire, comme en course). */
   const ttKeep = takeTtKeep() && ttStage;
   const gearKind: GearKind = s.mode === 'race' ? (ttStage ? 'tt' : 'race') : 'ride';
@@ -1465,29 +1487,25 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Équipiers IA : en sortie libre, le nombre choisi dans Réglages › Sortie (0 par défaut, chaque IA coûte des images par
   // seconde) ; en repli d'une sortie de groupe / course (serveur injoignable), celui de la sortie. Séance, test FTP, défi,
   // monde ouvert et multijoueur : pas d'IA locale.
-  const wantedAi = s.mode === 'free' ? (s.soloAiRiders ?? 0) : s.aiRiders;
+  const wantedAi = s.mode === 'free' ? (s.soloAiRiders ?? 0) : (tourBefore?.aiCount ?? s.aiRiders);
   const aiCount = workout || mp || challenge || (s.mode !== 'free' && s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(wantedAi, 0), engine.quality.aiRidersMax);
   // Course : les IA sont réparties en équipes ; la mienne porte mon maillot (Réel, Poly et V3).
   const myV3Jersey = readV3Equipment();
   const raceTeams: RaceTeams | undefined =
     s.mode === 'race' ? { jersey: s.look.jersey, jerseyAccent: s.look.jerseyAccent, leaders: tourJerseys, ...(myV3Jersey.kit?.CYCLING_JERSEY ? { v3: { piece: myV3Jersey.kit.CYCLING_JERSEY, ...(myV3Jersey.zip !== undefined ? { zip: myV3Jersey.zip } : {}) } } : {}) } : undefined;
-  const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1), raceTeams, gearKind);
+  const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * raceAiLevel, raceTeams, gearKind);
   /** Contre-la-montre local (idée NCT Ride) : départs décalés de 30 s, le joueur part en dernier, sans aspiration. */
-  // Tour à étapes local (game/stageRace.ts) : étape en cours d'un tour sauvegardé, ou nouveau tour.
-  const tourMode = s.mode === 'race' && s.raceFormat === 'tour' && aiCount > 0;
+  // Tour à étapes local (game/stageRace.ts) : étape à courir du tour créé dans le menu (ui/tourMenu.ts).
   let tour: Tour | null = null;
-  if (tourMode) {
-    tour = loadTour();
-    if (!tour || tourDone(tour)) {
-      tour = newTour(s.tourStages ?? 3, peloton.riders.map((r) => ({ id: r.id, name: r.name })), s.name);
-      saveTour(tour);
-    }
+  if (tourBefore && aiCount > 0) {
+    tour = enrol(tourBefore, peloton.riders.map((r) => ({ id: r.id, name: r.name })));
+    saveTour(tour);
     // Fatigue des étapes précédentes : FTP du jour réduite.
     for (const [id, f] of Object.entries(tour.fatigue)) if (f > 0) peloton.setForm(id, 1 - f);
   }
-  const tourStageKind: StageKind | null = tour ? (tour.stages[currentStage(tour)] ?? 'road') : null;
+  const tourStageKind: StageKind | null = tour ? (nextStage(tour)?.kind ?? 'road') : null;
   const timeTrial = ((s.mode === 'race' && s.raceFormat === 'tt') || tourStageKind === 'tt') && aiCount > 0;
-  const raceLengthM = track.route.loop ? s.raceLaps * track.length : Math.max(500, track.length - startD);
+  const raceLengthM = track.route.loop ? raceLaps * track.length : Math.max(500, track.length - startD);
   /** Moto chrono (world/raceMoto.ts) : seulement en course avec des IA, pas en contre-la-montre (?moto=0 pour l'enlever). */
   const raceMoto = s.mode === 'race' && aiCount > 0 && !timeTrial && new URLSearchParams(location.search).get('moto') !== '0' ? new RaceMoto(engine.scene, track) : null;
   /** La moto passe de temps en temps ; les écarts restent affichés discrètement tant que la course est cassée. */
@@ -1495,7 +1513,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   /** Écarts à l'écran : en course, contre-la-montre compris (seul affichage des écarts en chrono, sans moto). */
   const raceGaps = s.mode === 'race' && aiCount > 0 ? new RaceGapsChip() : null;
   // Course hors ligne : les IA roulent à 82 % de leur propre FTP (niveau × FTP du joueur), pas à l'allure du joueur.
-  if (s.mode === 'race' && aiCount > 0) peloton.paceFtpPct = 0.82 * (s.aiLevel ?? 1);
+  if (s.mode === 'race' && aiCount > 0) peloton.paceFtpPct = 0.82 * raceAiLevel;
   if (timeTrial) peloton.setTimeTrial(startD, raceLengthM, 30);
   // Course locale : tout le monde sur la grille, sur la largeur de la route.
   else if (s.mode === 'race' && aiCount > 0) ride.lateral = peloton.placeOnGrid(startD);
@@ -1850,7 +1868,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const raceCrowd = (distM: number): number => {
     if (!raceVoice) return 0;
     const start = Math.max(0, 1 - ride.elapsedS / 45);
-    const lapsLeft = track.route.loop ? ride.lap >= s.raceLaps : true;
+    const lapsLeft = track.route.loop ? ride.lap >= raceLaps : true;
     const finish = lapsLeft ? crowdLevel(distM, [], track.length, track.route.loop) : 0;
     return Math.max(start, finish);
   };
@@ -2090,6 +2108,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // Côte qui finit au bout de la route : close avant la pause (sinon absente du bilan, du défi et des trophées).
     ride.closeSegmentAtFinish();
     ride.state.distM = track.length;
+    // Course finie au bout de la route (chrono, étape du tour) : classée avant la pause, qui arrête le relevé.
+    if (peloton.riders.length) directeurTalk(0);
     if (komSeg && komSeg.endM >= track.length - 5) challenge?.update(0, Math.max(track.length, komSeg.endM) - startD, ride.elapsedS);
     ride.state.speedMs = 0;
     ride.paused = true;
@@ -2107,7 +2127,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       massKg: s.massKg,
       ...(kom ? { kom: { name: kom.seg.name, timeS: kom.timeS, avgWatts: kom.avgWatts, climbM: track.sample(kom.seg.endM).y - track.sample(kom.seg.startM).y, recordS: readKomRecord(rankRouteId(track.route.id), kom.seg.id, { lenM: kom.seg.endM - kom.seg.startM })?.timeS ?? null } } : {}),
     });
-    showSummit(ui, { routeName: track.route.name, altitudeM: track.sample(track.length).y, stats }, {
+    const flat = !!tour && !track.route.segments.some((g) => g.kind === 'kom' && g.endM > track.length - 300);
+    showSummit(ui, { routeName: track.route.name, altitudeM: track.sample(track.length).y, stats, flat }, {
       onSummary: () => finish(),
       // XP, historique et records comptés comme à une fin normale, puis retour au menu.
       onMenu: () => {
@@ -2193,6 +2214,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const url = new URL(location.href);
     if (autostart) {
       url.searchParams.set('autostart', '1');
+      // Tour à étapes : on repart sur l'étape à courir (la suivante, ou la même si elle n'est pas finie).
+      const stage = tour && nextStage(tour);
+      if (stage) {
+        url.searchParams.set('route', stage.routeId);
+        s.routeId = stage.routeId;
+        saveSettings(s);
+      }
       // « Nouvelle sortie » : départ direct, mais avec l'écran des capteurs comme une sortie lancée du menu.
       markStartCheckNext();
     } else {
@@ -2959,7 +2987,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       }
     }
     lap('conditions');
-    banners.setLap(ride.lap, s.mode === 'race' ? s.raceLaps : undefined);
+    banners.setLap(ride.lap, s.mode === 'race' ? raceLaps : undefined);
     const prevD = ride.state.distM;
     // Ligne franchie en course : plus de pédalage, le coureur roule sur sa lancée.
     ride.update(dt, room?.finished ? coastInput : input, steer);

@@ -10,6 +10,7 @@ import type { VehicleSound } from '../audio/soundscape.ts';
 import { UNPAVED_SURFACES } from './dust.ts';
 import { buildLowPolyVehicle, pickLowPolyPaint, pickLowPolyTractor, pickLowPolyVariant, type LowPolyVariant } from './lowPolyVehicles.ts';
 import { buildDriver, loadDriverModels } from './vehicleDriver.ts';
+import { paintedMaterial, pickPaint } from './vehiclePaint.ts';
 import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
 import { ringDistance } from './polySites.ts';
 import { CAR_AXLE_M, roadPose, type RoadPose } from './roadHeight.ts';
@@ -33,8 +34,6 @@ interface ModelSpec {
   kind: VehicleKind;
   /** Plage de vitesse de croisière (m/s). */
   cruise: [number, number];
-  /** Repeint à chaque instance (matériau « paint » / « body ») ; sinon couleur d'origine. */
-  repaint: boolean;
   /** Fréquence relative dans la circulation. */
   weight: number;
   /** Exporté l'avant vers −z (sans `--flip` à l'export) : retourné au chargement. */
@@ -50,21 +49,18 @@ interface ModelSpec {
 const MODELS: ModelSpec[] = [
   // Vitesses de croisière (m/s) de routes de campagne et de bourgs : 36 à 68 km/h ; en virage, la vitesse est
   // en plus bornée par la courbure (Traffic.update, CORNER_ACCEL).
-  { file: 'citadine', kind: 'car', cruise: [10, 14], repaint: true, weight: 2, seat: [0.36, 0.52, -0.1] },
-  { file: 'berline', kind: 'car', cruise: [11, 16], repaint: true, weight: 3, seat: [0.36, 0.48, -0.1] },
-  { file: 'suv', kind: 'car', cruise: [11, 15], repaint: true, weight: 2, seat: [0.4, 0.55, -0.1] },
-  { file: 'porsche-911', kind: 'car', cruise: [13, 19], repaint: true, weight: 1, seat: [0.38, 0.3, -0.05] },
-  { file: 'nissan-silvia', kind: 'car', cruise: [12, 17], repaint: true, weight: 1.5, seat: [0.38, 0.33, 0.25], tint: ['Material.006'] },
-  { file: 'bmw-733i', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5, reversed: true },
-  { file: 'mercedes-c230', kind: 'car', cruise: [11, 16], repaint: false, weight: 1.5 },
-  { file: 'lamborghini-aventador', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, seat: [0.4, 0.18, -0.1], ownCabin: true },
-  { file: 'mclaren-720s', kind: 'car', cruise: [13, 19], repaint: true, weight: 0.8, reversed: true, seat: [0.38, 0.26, -0.1], ownCabin: true },
-  { file: 'utilitaire', kind: 'van', cruise: [10, 14], repaint: false, weight: 1.5, seat: [0.5, 1.15, 1.35], ownCabin: true },
-  { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], repaint: false, weight: 0, seat: [0, 1.5, -0.77], ownCabin: true },
+  { file: 'citadine', kind: 'car', cruise: [10, 14], weight: 2, seat: [0.36, 0.52, -0.1] },
+  { file: 'berline', kind: 'car', cruise: [11, 16], weight: 3, seat: [0.36, 0.48, -0.1] },
+  { file: 'suv', kind: 'car', cruise: [11, 15], weight: 2, seat: [0.4, 0.55, -0.1] },
+  { file: 'porsche-911', kind: 'car', cruise: [13, 19], weight: 1, seat: [0.38, 0.3, -0.05] },
+  { file: 'nissan-silvia', kind: 'car', cruise: [12, 17], weight: 1.5, seat: [0.38, 0.33, 0.25], tint: ['Material.006'] },
+  { file: 'bmw-733i', kind: 'car', cruise: [11, 16], weight: 1.5, reversed: true },
+  { file: 'mercedes-c230', kind: 'car', cruise: [11, 16], weight: 1.5 },
+  { file: 'lamborghini-aventador', kind: 'car', cruise: [13, 19], weight: 0.8, seat: [0.4, 0.18, -0.1], ownCabin: true },
+  { file: 'mclaren-720s', kind: 'car', cruise: [13, 19], weight: 0.8, reversed: true, seat: [0.38, 0.26, -0.1], ownCabin: true },
+  { file: 'utilitaire', kind: 'van', cruise: [10, 14], weight: 1.5, seat: [0.5, 1.15, 1.35], ownCabin: true },
+  { file: 'tractor', kind: 'tractor', cruise: [6.5, 8.5], weight: 0, seat: [0, 1.5, -0.77], ownCabin: true },
 ];
-
-/** Teintes courantes sur les routes françaises (gris, blanc, noir dominent). */
-const PAINTS = ['#d9dadb', '#f4f4f2', '#1b1c1e', '#6f7378', '#9da2a8', '#2b3a55', '#7b1e22', '#37502f', '#c2c6c9', '#173b6c', '#b5651d'];
 
 /** Au-delà, modèle lointain (m, multiplié par `Traffic.lodScale`). */
 const FAR_M = 45;
@@ -83,7 +79,22 @@ interface Template {
 const templates: Template[] = [];
 let loading: Promise<boolean> | null = null;
 
-/** Charge les modèles une fois (facultatif : sans eux, primitives). Style low poly : rien à télécharger. */
+/** Charge un modèle, en réessayant : un seul échec de réseau laissait des boîtes à la place de la voiture. */
+async function loadScene(loader: GLTFLoader, url: string): Promise<THREE.Group> {
+  for (let k = 0; ; k++) {
+    try {
+      return (await loader.loadAsync(url)).scene;
+    } catch (e) {
+      if (k >= 2) throw e;
+      await new Promise((r) => setTimeout(r, 500 * (k + 1)));
+    }
+  }
+}
+
+/**
+ * Charge les modèles une fois (facultatif : sans eux, primitives). Ceux qui manquent sont redemandés à l'appel suivant
+ * (départ d'une sortie). Style low poly : rien à télécharger.
+ */
 export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> {
   if (LOW_POLY) return (loading ??= Promise.resolve(true));
   loading ??= (async () => {
@@ -92,12 +103,9 @@ export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> 
     const ktx2 = await sharedKtx2Loader();
     if (ktx2) loader.setKTX2Loader(ktx2);
     const results = await Promise.allSettled(
-      MODELS.map(async (spec) => {
-        const near = (await loader.loadAsync(`${base}${spec.file}.glb`)).scene;
-        const far = await loader.loadAsync(`${base}${spec.file}.far.glb`).then(
-          (g) => g.scene,
-          () => null,
-        );
+      MODELS.filter((spec) => !templates.some((t) => t.spec === spec)).map(async (spec) => {
+        const near = await loadScene(loader, `${base}${spec.file}.glb`);
+        const far = await loadScene(loader, `${base}${spec.file}.far.glb`).catch(() => null);
         prepare(near, true);
         if (spec.tint) for (const root of far ? [near, far] : [near]) clearGlass(root, spec.tint);
         if (far) prepare(far, false);
@@ -134,6 +142,8 @@ export function loadVehicleModels(base = '/models/vehicles/'): Promise<boolean> 
     const failed = results.filter((r) => r.status === 'rejected');
     if (failed.length) console.warn(`Véhicules : ${failed.length} modèle(s) indisponible(s), repli sur les primitives`, failed[0]);
     await drivers;
+    // Chargement incomplet : le prochain appel redemande ce qui manque.
+    if (failed.length) loading = null;
     return templates.length > 0;
   })();
   return loading;
@@ -371,8 +381,8 @@ function turnAround(root: THREE.Object3D): void {
   }
 }
 
-/** Repeint les matériaux de carrosserie d'une copie (matériaux clonés, partagés entre ses niveaux). */
-function repaint(roots: THREE.Object3D[], color: string): void {
+/** Repeint les matériaux de carrosserie d'une copie (matériaux propres, partagés entre ses niveaux). */
+function repaint(file: string, roots: THREE.Object3D[], color: string): void {
   const cache = new Map<THREE.Material, THREE.Material>();
   for (const root of roots)
     root.traverse((o) => {
@@ -380,8 +390,7 @@ function repaint(roots: THREE.Object3D[], color: string): void {
       if (!mesh.isMesh || Array.isArray(mesh.material) || !isPaint(mesh.material)) return;
       let m = cache.get(mesh.material);
       if (!m) {
-        m = mesh.material.clone();
-        (m as THREE.MeshStandardMaterial).color.set(color);
+        m = paintedMaterial(file, mesh.material, color);
         cache.set(mesh.material, m);
       }
       mesh.material = m;
@@ -400,7 +409,7 @@ interface Built {
 function buildModel(t: Template, color: string, lodScale: number, rand: () => number = Math.random, seat = t.spec.seat): Built {
   const near = t.near.clone(true);
   const far = t.far?.clone(true) ?? null;
-  if (t.spec.repaint) repaint(far ? [near, far] : [near], color);
+  repaint(t.spec.file, far ? [near, far] : [near], color);
   const wheels: THREE.Object3D[] = [];
   for (const root of far ? [near, far] : [near]) root.traverse((o) => isWheel(o) && wheels.push(o));
   // Occupant : dans le modèle proche seulement (au-delà, on ne le distingue plus derrière les vitres).
@@ -503,7 +512,7 @@ export function vehicleShowcase(seat?: [number, number, number]): Array<{ name: 
   return MODELS.flatMap((spec) => {
     const t = templates.find((m) => m.spec === spec);
     if (!t) return [];
-    const b = buildModel(t, PAINTS[Math.floor(rand() * PAINTS.length)] as string, 1e6, rand, seat ?? spec.seat);
+    const b = buildModel(t, pickPaint(spec.file, rand), 1e6, rand, seat ?? spec.seat);
     return [{ name: spec.file, group: b.group, length: b.length }];
   });
 }
@@ -535,9 +544,15 @@ export class Traffic {
     const pool = templates.filter((t) => t.spec.weight > 0);
     const total = pool.reduce((s, t) => s + t.spec.weight, 0);
     let last: Template | undefined;
+    // Teintes déjà en circulation : deux voitures d'une même sortie n'ont pas la même couleur.
+    const taken = new Set<string>();
+    const paint = (t: Template): string => {
+      const color = pickPaint(t.spec.file, this.r, taken);
+      taken.add(color);
+      return color;
+    };
     let lastLow: LowPolyVariant | undefined;
     for (let i = 0; i < n; i++) {
-      const color = PAINTS[Math.floor(this.r() * PAINTS.length)] as string;
       let built: Built;
       if (LOW_POLY) {
         // Style jeu vidéo : variante à facettes (tracteur au même rang), sans répéter la précédente.
@@ -546,7 +561,7 @@ export class Traffic {
         built = buildLowPolyVehicle(variant, pickLowPolyPaint(variant, this.r), this.people);
       } else if (i === 1 && n >= 3) {
         const t = templates.find((m) => m.spec.kind === 'tractor');
-        built = t ? buildModel(t, color, lodScale, this.people) : buildPrimitive('tractor', color);
+        built = t ? buildModel(t, paint(t), lodScale, this.people) : buildPrimitive('tractor', pickPaint('tractor', this.r));
       } else if (pool.length) {
         let t: Template = pool[0] as Template;
         for (let k = 0; k < 4 && (k === 0 || t === last); k++) {
@@ -554,8 +569,8 @@ export class Traffic {
           t = pool.find((m) => (x -= m.spec.weight) < 0) ?? (pool[0] as Template);
         }
         last = t;
-        built = buildModel(t, color, lodScale, this.people);
-      } else built = buildPrimitive(i % 4 === 3 ? 'van' : 'car', color);
+        built = buildModel(t, paint(t), lodScale, this.people);
+      } else built = buildPrimitive(i % 4 === 3 ? 'van' : 'car', pickPaint('', this.r));
       const sens: 1 | -1 = i % 2 ? -1 : 1;
       const cruise = built.cruise[0] + this.r() * (built.cruise[1] - built.cruise[0]);
       const d = startD + (sens > 0 ? -150 : 300) - i * 180;

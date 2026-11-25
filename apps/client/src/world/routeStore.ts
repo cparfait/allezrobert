@@ -1,3 +1,4 @@
+import { parseStageRouteId } from '../game/tourPlan.ts';
 import { forwardRouteId, parseStartedRouteId, type RouteBike, type RouteData } from '@allezrobert/shared';
 
 /** Ce que l'index du monde (`world.json`) dit d'un itinéraire, sans télécharger son fichier. */
@@ -110,7 +111,7 @@ export function loadedRouteStore(routes: readonly RouteData[]): WorldRoutes {
  */
 export async function loadRouteForKey(routes: WorldRoutes, key: string): Promise<void> {
   const started = parseStartedRouteId(key)?.id;
-  const ids = [key, started, started ? forwardRouteId(started) : null, forwardRouteId(key)];
+  const ids = [key, parseStageRouteId(key)?.baseId, started, started ? forwardRouteId(started) : null, forwardRouteId(key)];
   for (const id of ids) {
     if (id && routes.index.some((r) => r.id === id)) {
       await routes.load(id);
