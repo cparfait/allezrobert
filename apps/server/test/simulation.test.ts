@@ -272,6 +272,20 @@ describe('RideSimulation — course contre les IA', () => {
     expect(a.states.has('attack')).toBe(true);
     expect(run().dist).toEqual(a.dist);
   });
+
+  it('peloton de 40 IA : les humains gardent leurs 20 places', () => {
+    const s = sim({ mode: 'race', aiRiders: 99 }, 'gros-peloton');
+    expect(s.options.aiRiders).toBe(40);
+    s.addRider({ id: 'h', name: 'Humain', kind: 'human', userId: 'u1', riderMassKg: 72, ftpWatts: 250 }, T0);
+    expect(s.addAiRiders(99, T0, 250)).toHaveLength(40);
+    expect(s.isFull).toBe(false);
+    for (let i = 2; i <= 20; i++) expect(s.addRider({ id: `h${i}`, name: `H${i}`, kind: 'human', userId: `u${i}`, riderMassKg: 72, ftpWatts: 250 }, T0)).not.toBeNull();
+    expect(s.isFull).toBe(true);
+    expect(s.riders).toHaveLength(60);
+    const now = ride(s, 30, T0, () => 230);
+    const roster = new Map<number, RosterEntry>(s.roster('h').map((e) => [e.n, e]));
+    expect(decodeSnapshot(encodeSnapshot(s.tick, now, s.rows()), roster).riders).toHaveLength(60);
+  });
 });
 
 describe('RideSimulation — IA : pas de collision, dépassement propre', () => {

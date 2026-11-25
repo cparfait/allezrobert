@@ -9,6 +9,8 @@ import type { RideWeather } from './weather.ts';
 
 export const NET_TICK_HZ = 10;
 export const MAX_RIDERS_PER_ROOM = 20;
+/** Coureurs IA d'une salle, en plus des humains (peloton de course). */
+export const MAX_AI_RIDERS = 40;
 
 /** Nom de la salle publique (monde ouvert) : une salle par zone, remplie puis dupliquée (`filterBy(['routeId'])`). */
 export const PUBLIC_ROOM = 'public';

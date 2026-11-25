@@ -2565,7 +2565,7 @@ export class MainMenu {
                   ? `<div class="mm-opt"><div class="mm-opt-l"><b>${S('laps')}</b><small>${S('theRaceEndsAfter')}</small></div>${this.stepper('m-laps', 1, 20, s.raceLaps)}</div>`
                   : ''
               }
-              <div class="mm-opt"><div class="mm-opt-l"><b>${S('aiRiders')}</b><small>${S('eachHasItsOwn')}</small></div>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
+              <div class="mm-opt"><div class="mm-opt-l"><b>${S('aiRiders')}</b><small>${S('eachHasItsOwn')}</small></div>${this.stepper('m-ai', 0, 40, s.aiRiders)}</div>
               ${
                 s.mode === 'race'
                   ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('aiLevel')}</b><small>${S('theirPowerAsA')}</small></div>${this.aiLevelSeg()}</div><div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('raceFormat')}</b><small>${S('raceFormatHint')}</small></div>${this.seg('m-raceformat', s.raceFormat ?? 'road', [['road', S('formatRoad')], ['tt', S('formatTt')], ['tour', S('formatTour')]])}</div>${s.raceFormat === 'tour' ? this.tourHtml() : ''}`

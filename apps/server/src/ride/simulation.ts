@@ -59,6 +59,7 @@ import {
 import {
   DEFAULT_BIKE,
   DEFAULT_LOOK,
+  MAX_AI_RIDERS,
   MAX_RIDERS_PER_ROOM,
   PRIME_POINTS,
   climbCategory,
@@ -121,7 +122,7 @@ export function resolveRideOptions(o: Partial<RideRoomOptions>, routeId: string)
     allowGuests: o.allowGuests ?? true,
     draftingStrength: clamp(o.draftingStrength, 0, 1, 1),
     trainerDifficulty: clamp(o.trainerDifficulty, 0, 1, 0.5),
-    aiRiders: Math.round(clamp(o.aiRiders, 0, MAX_RIDERS_PER_ROOM - 1, 0)),
+    aiRiders: Math.round(clamp(o.aiRiders, 0, MAX_AI_RIDERS, 0)),
     laps: Math.round(clamp(o.laps, 1, 50, 1)),
     aiPaceWkg: clamp(o.aiPaceWkg, 1, 6, 2.6),
     aiLevel: clamp(o.aiLevel, 0.6, 1.3, 1),
@@ -399,8 +400,9 @@ export class RideSimulation {
     return n;
   }
 
+  /** Places humaines prises (les IA, jusqu'à `MAX_AI_RIDERS`, ne comptent pas). */
   get isFull(): boolean {
-    return this.riders.length >= MAX_RIDERS_PER_ROOM;
+    return this.humanCount >= MAX_RIDERS_PER_ROOM;
   }
 
   /** Ajoute un coureur ; renvoie `null` si la salle est pleine. */
@@ -419,7 +421,7 @@ export class RideSimulation {
   /** Coureurs IA demandés par les options (appelé à la création de la salle). */
   addAiRiders(count: number, now: number, refFtp = 240): SimRider[] {
     const out: SimRider[] = [];
-    for (let i = 0; i < count && !this.isFull; i++) {
+    for (let i = 0; i < count && this.riders.length - this.humanCount < MAX_AI_RIDERS; i++) {
       const k = this.aiCount++;
       const massKg = Math.round(this.rng.range(60, 82));
       const hairStyle = [0, 1, 0, 2, 0, 0][k % 6]!;
