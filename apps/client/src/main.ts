@@ -1411,11 +1411,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const wantedAi = s.mode === 'free' ? (s.soloAiRiders ?? 0) : s.aiRiders;
   const aiCount = workout || mp || challenge || (s.mode !== 'free' && s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(wantedAi, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
-  /** Moto chrono (world/raceMoto.ts) : en sortie de groupe ou course avec des IA (?moto=0 pour l'enlever). */
-  const raceMoto = aiCount > 0 && new URLSearchParams(location.search).get('moto') !== '0' ? new RaceMoto(engine.scene, track) : null;
+  /** Moto chrono (world/raceMoto.ts) : seulement en course avec des IA, pas en contre-la-montre (?moto=0 pour l'enlever). */
+  const raceMoto = s.mode === 'race' && aiCount > 0 && new URLSearchParams(location.search).get('moto') !== '0' ? new RaceMoto(engine.scene, track) : null;
   /** La moto passe de temps en temps ; les écarts restent affichés discrètement tant que la course est cassée. */
   const motoSchedule = new MotoSchedule();
-  const raceGaps = aiCount > 0 ? new RaceGapsChip() : null;
+  /** Écarts à l'écran : en course, contre-la-montre compris (seul affichage des écarts en chrono, sans moto). */
+  const raceGaps = s.mode === 'race' && aiCount > 0 ? new RaceGapsChip() : null;
   // Course hors ligne : les IA roulent à 82 % de leur propre FTP (niveau × FTP du joueur), pas à l'allure du joueur.
   if (s.mode === 'race' && aiCount > 0) peloton.paceFtpPct = 0.82 * (s.aiLevel ?? 1);
   if (pilotCollision) peloton.enableBuildingCollisions(pilotCollision);
