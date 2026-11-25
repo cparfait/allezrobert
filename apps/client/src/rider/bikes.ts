@@ -10,6 +10,7 @@ import { LiveryMaterial } from './livery.ts';
 import { RimDecalMaterial, crankLetters, measureBand, polarLetters, type RimBand } from './rimDecal.ts';
 import { decalBoxes, frameMarks, wordmarkTexture } from './wordmarks.ts';
 import { buildAerobars } from './aerobars.ts';
+import { fitCockpit } from './cockpitFit.ts';
 
 /**
  * Vélos du catalogue assemblés à partir des modèles Blender (tools/blender/build_cyclist.py) :
@@ -397,6 +398,8 @@ async function loadLods(name: string): Promise<Lods> {
   const [a, b] = await Promise.all([loader.loadAsync(`${folder}${name}.glb`), loader.loadAsync(`${folder}${name}_lod1.glb`)]);
   splitBottles(a.scene);
   splitBottles(b.scene);
+  // Cintre avancé et baissé des vélos de route et de gravel (réaliste) ; chrono et VTT gardent le leur.
+  if (!LOW_POLY && name !== 'mtb' && name !== 'wheels') for (const lod of [a, b]) fitCockpit(lod.scene);
   return [a as GLTF, b as GLTF];
 }
 

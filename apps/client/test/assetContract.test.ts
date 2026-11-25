@@ -317,7 +317,7 @@ const AVATARS: AvatarSpec[] = [
     rig: 'mpfb',
     joints: ['Root', ...CORE_BONES],
     unweighted: ['Root', 'ball_l', 'ball_r'],
-    hand: [0.2, 0.976, 0.465],
+    hand: [0.2, 0.934, 0.515],
     handSym: 1e-3,
   },
   {
@@ -968,9 +968,9 @@ describe('écarts connus (documentés, non corrigés)', () => {
   });
 
   it('D5 — route et gravel : la paume visée par l\'avatar MPFB (HOOD_PALM) n\'est pas l\'ancre hand_* du GLB', () => {
-    // HOOD_PALM recopiée de rider/gltfAvatar.ts:396 (non exportée) ; l'avatar MPFB l'utilise à la place des ancres
+    // HOOD_PALM recopiée de rider/gltfAvatar.ts (non exportée, cintre décalé par cockpitFit.ts) ; l'avatar MPFB l'utilise à la place des ancres
     // sur route et gravel (aimHands) : une nouvelle géométrie de cintre serait ignorée par lui.
-    const HOOD_PALM: Vec3 = [0.2, 0.9, 0.565];
+    const HOOD_PALM: Vec3 = [0.2, 0.861, 0.603];
     const hand = at('bikes/climb.glb', 'hand_L');
     expect(Math.abs(hand[1] - HOOD_PALM[1]) + Math.abs(hand[2] - HOOD_PALM[2])).toBeGreaterThan(0.05);
     // Repli de bikeAnchors (bikes.ts:511) : même valeur que l'ancre route.

@@ -21,6 +21,7 @@ import { applyClothLook, clothTextures, isClothPart, loadClothTextures, makeClot
 import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } from './jerseyPattern.ts';
 import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
 import { aerobarAnchors } from './aerobars.ts';
+import { COCKPIT_SHIFT } from './cockpitFit.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyReady, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors, type FamilyKey } from './bikes.ts';
 import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixAnchor, roubaixOption, roubaixSeat, roubaixSizeForRider, setSaddleDrop, sitPointOf, solveSeatDrop, type RoubaixAssembly, type RoubaixBike } from './roubaix.ts';
 
@@ -249,7 +250,7 @@ const TUCK_HEAD = 0.35;
  * basse, mains en bas du cintre, avant-bras presque à l'horizontale ; très détendue à petite allure, mains en
  * haut du cintre, buste relevé (≈ 46° : au-delà, les bras tendus n'atteignent plus un cintre route).
  */
-const DROPS_BEND = 0.8;
+const DROPS_BEND = 0.38;
 /**
  * Assis sur les cocottes : petite bascule en plus de la pose du modèle, qui laissait le dos à ≈ 47° (hanche →
  * épaule, mesuré) au lieu des ≈ 41° validés ; épaules plus basses et plus en avant, coudes plus pliés (les bras
@@ -257,13 +258,15 @@ const DROPS_BEND = 0.8;
  * (build_tripo.py : buste et coudes de la référence).
  */
 const HOODS_BEND = 0.15;
-const AERO_BEND = 1.0;
+const AERO_BEND = 0.65;
 const RELAX_BEND = -0.06;
 /** Ischions sur la selle par rapport à l'os du bassin (mesuré : selle 6 cm sous lui et 6 cm derrière). */
 const SEAT_FROM_HIPS = { y: -0.06, z: -0.06 };
 /** Tête en position de course (rad par unité, > 0 : vers le bas) : basse, dans l'alignement du dos, regard sous la visière. */
 const RACE_HEAD = 0.12;
 /** Vitesses (m/s) : bas du cintre au-dessus de DROPS_IN, retour aux cocottes sous DROPS_OUT ; aéro en roue libre au-delà de AERO_FROM → AERO_FULL. */
+/** Danseuse : buste un peu plus penché qu'au repos (rad), bassin au-dessus du pédalier. */
+const STAND_TILT = 0.05;
 const DROPS_IN = AERO_SPEED;
 const DROPS_OUT = AERO_SPEED_OUT;
 const AERO_FROM = AERO_SPEED;
@@ -317,9 +320,9 @@ const RELAX_IN = 5.5;
 const RELAX_OUT = 6.5;
 const RELAX_EFFORT = 0.45;
 /** Relevé du cou (rad) d'une morphologie entièrement féminine : tête nettement plus en arrière. */
-const NECK_LIFT = -0.24;
+const NECK_LIFT = -0.12;
 /** Raccourcissement du cou (fraction) d'une morphologie entièrement féminine ; la tête garde sa taille. */
-const NECK_SHORTEN = 0.3;
+const NECK_SHORTEN = 0.1;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 const Y_AXIS = new THREE.Vector3(0, 1, 0);
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
@@ -427,16 +430,33 @@ interface Templates {
 const ELBOW_FLARE = 0.15;
 /** Position aéro (descente) : part de cet écart encore retirée, coudes rentrés le long du buste. */
 const AERO_ELBOW_IN = 0.8;
-const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565);
+/** Cintre avancé et baissé en réaliste (cockpitFit.ts) : les points d'appui ci-dessous le suivent. */
+const SHIFT = LOW_POLY ? new THREE.Vector3() : new THREE.Vector3(0, COCKPIT_SHIFT.y, COCKPIT_SHIFT.z);
+/** Paume avancée au milieu de la cocotte (m). */
+const PALM_ADVANCE = new THREE.Vector3(0, 0.006, 0.018);
+const HOOD_PALM = new THREE.Vector3(0.2, 0.9, 0.565).add(SHIFT).add(PALM_ADVANCE);
+/** Ancres des mains dans la pose de repos des modèles : MPFB reconstruit sur les cocottes décalées, autres modèles d'avant. */
+const REST_HAND = new THREE.Vector3(0.2, 0.958, 0.54);
+/** Paume par rapport à l'ancre de la main d'un vélo dédié (dessus de la cocotte). */
+const PALM_FROM_ANCHOR = new THREE.Vector3(0, -0.01, -0.022);
+/** Coude visé sur les cintres plus hauts ou plus proches (VTT, vélos dédiés), celui des vélos de route. */
+const REACH_ELBOW_DEG = 130;
+const MPFB_REST_HAND = new THREE.Vector3(0.2, 0.916, 0.59);
 /** VTT : milieu de la paume sur la poignée du cintre plat (bikeKits.ts : poignées à y 0,958, z 0,54, x de 0,165 à 0,3). */
 const MTB_PALM = new THREE.Vector3(0.235, 1.0, 0.535);
-/** Bas du cintre route : milieu de la paume sur la partie droite du crochet (ruban mesuré : bas à y 0,746, de z 0,49 à 0,56). */
-const DROP_PALM = new THREE.Vector3(0.215, 0.772, 0.532);
+/** Bas du cintre route : paume derrière le creux du crochet, sous le levier (creux à y 0,795, z 0,608), pas sur son extrémité. */
+const DROP_PALM = new THREE.Vector3(0.211, 0.826, 0.576).add(SHIFT);
 /** Haut du cintre : paume sur le cintre de part et d'autre de la potence (cintre à z ≈ 0,515, dessus ≈ 0,885 m). */
-const TOP_PALM = new THREE.Vector3(0.12, 0.895, 0.505);
+const TOP_PALM = new THREE.Vector3(0.12, 0.895, 0.505).add(SHIFT);
 /** Doigts refermés sur la cocotte (ou le prolongateur) : flexion par phalange (rad, axe X local) ; l'index, tendu au repos, plus. */
 const GRIP_CURL = 0.5;
 const GRIP_CURL_INDEX = 0.8;
+/** Pouce MPFB refermé le long du cintre (il pointait vers la roue) : vers l'extérieur et vers le bas, par phalange (rad, repère du coureur). */
+const THUMB_IN = [0.5, 0.25, 0];
+const THUMB_DOWN = [0.1, 0.2, 0.25];
+/** Bas du cintre : coudes écartés (l'avant-bras passe à l'extérieur du haut du cintre), poignet dans l'axe de l'avant-bras (part de 0 à 1). */
+const DROPS_ELBOW_OUT = 0.7;
+const DROPS_WRIST = 0.6;
 
 /** Modèles chargés par type d'avatar (le film mêle l'avatar MPFB de Robert et le modèle acheté). */
 const templates = new Map<AvatarKind, Templates>();
@@ -986,7 +1006,13 @@ function softenShoeCollars(scene: THREE.Object3D): void {
   }
 }
 
-function buildTemplates(riders: GLTF[]): Templates {
+/** Ancres des mains tenues par la pose de repos d'un modèle de coureur. */
+function restHands(kind: AvatarKind): Record<Side, THREE.Vector3> {
+  const p = kind === 'mpfb' ? MPFB_REST_HAND : REST_HAND;
+  return { L: p.clone(), R: p.clone().setX(-p.x) };
+}
+
+function buildTemplates(riders: GLTF[], kind: AvatarKind): Templates {
   for (const r of riders) extractIdentity(r.scene);
   for (const r of riders) {
     r.scene.updateMatrixWorld(true);
@@ -1086,7 +1112,7 @@ function buildTemplates(riders: GLTF[]): Templates {
   const uh = new THREE.Vector3(0, 1, 0).applyQuaternion(bones.head.modelQ).normalize();
   const fh = new THREE.Vector3(0, 0, 1).addScaledVector(uh, -uh.z).normalize();
   const eyeRest = uh.multiplyScalar(0.06).addScaledVector(fh, 0.11);
-  return { riders, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: bikeAnchors(PLAIN_BIKE_FAMILY).hands, wristFromPalm, textured, jerseyAxis: mpfb && !textured.size ? jerseyAxisOf(scene) : null, jersey };
+  return { riders, names, bones, armQ, armP, legs, arms, bb, crank, pedalRest, pedalPitch, ankleFlat, eyeRest, refHands: restHands(kind), wristFromPalm, textured, jerseyAxis: mpfb && !textured.size ? jerseyAxisOf(scene) : null, jersey };
 }
 
 /** Géométrie de la casquette par niveau de détail du modèle (null : modèle sans casque pour s'ajuster). */
@@ -1345,6 +1371,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private barTargets: { drop: Record<Side, THREE.Vector3>; top: Record<Side, THREE.Vector3>; elbow: Record<Side, THREE.Vector3> } | null = null;
   /** Bascule du buste qui pose les avant-bras sur le haut du cintre. */
   private forearmTuck = 0;
+  /** Bascule du buste (VTT, vélos dédiés) qui garde le coude de repos devant un cintre plus haut ou plus proche. */
+  private reachBend = 0;
   /** Prolongateurs de l'atelier : coudes (repose-coudes) et poignées, repère du modèle ; null sans prolongateurs. */
   private clip: { elbow: Record<Side, THREE.Vector3>; grip: Record<Side, THREE.Vector3> } | null = null;
   private clipTuck = 0;
@@ -1423,7 +1451,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
           const masks = kind === 'boutique' || kind === 'tripo' || kind === 'tripo-femme' ? loadTexturedMasks(`${baseUrl}avatar/${kind}/`) : null;
           const [riders, plain] = await Promise.all([Promise.all(FILES[kind].map((f) => loader.loadAsync(baseUrl + f))), loadBikeFamily(PLAIN_BIKE_FAMILY), skin, cloth, masks]);
           if (!plain) throw new Error(`vélo de base (${PLAIN_BIKE_FAMILY}) indisponible`);
-          templates.set(kind, buildTemplates(riders));
+          templates.set(kind, buildTemplates(riders, kind));
           return true;
         } catch (e) {
           console.warn(`Avatar glTF « ${kind} » indisponible, repli sur l’avatar procédural`, e);
@@ -1513,6 +1541,18 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const m = /^(index|middle|ring|pinky)_0[123]_[lr]$/.exec(o.name);
       if (m) o.quaternion.multiply(_q1.setFromAxisAngle(X_AXIS, m[1] === 'index' ? GRIP_CURL_INDEX : GRIP_CURL));
     });
+    if (kind === 'mpfb') {
+      rider0.updateMatrixWorld(true);
+      rider0.traverse((o) => {
+        const m = /^thumb_0([123])_([lr])$/.exec(o.name);
+        if (!m) return;
+        const i = Number(m[1]) - 1;
+        const side = m[2] === 'l' ? 1 : -1;
+        o.getWorldQuaternion(_q2);
+        _q1.setFromAxisAngle(Y_AXIS, side * (THUMB_IN[i] as number)).multiply(_q3.setFromAxisAngle(X_AXIS, THUMB_DOWN[i] as number));
+        o.quaternion.multiply(_q3.copy(_q2).invert().multiply(_q1).multiply(_q2));
+      });
+    }
     const level0 = new THREE.Group();
     level0.add(this.bikeSlots[0] as THREE.Group, rider0);
 
@@ -1646,7 +1686,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const rest = this.t.bones[c.end].modelP;
       const pad = anchors.pads?.[s];
       const grip = this.t.wristFromPalm?.[s];
-      if (grip && !anchors.pads) this.handTarget[s].set(s === 'L' ? palm.x : -palm.x, palm.y, palm.z).add(grip);
+      if (grip && !anchors.pads) {
+        // Vélos dédiés : cocottes propres à chaque taille de cadre ; familles : poste de pilotage commun.
+        if (this.mounted?.roubaix) this.handTarget[s].copy(anchors.hands[s]).add(PALM_FROM_ANCHOR).add(grip);
+        else this.handTarget[s].set(s === 'L' ? palm.x : -palm.x, palm.y, palm.z).add(grip);
+      }
       else this.handTarget[s].copy(rest).add(anchors.hands[s]).sub(this.t.refHands[s]);
       if (pad) {
         const sh = this.t.bones[c.upper].modelP;
@@ -1700,6 +1744,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.clip = null;
       this.clipTuck = 0;
     }
+    this.reachBend = this.kind === 'mpfb' && !anchors.pads && (this.bikeType === 'mtb' || !!this.mounted?.roubaix) ? this.solveReach() : 0;
     // Avant-bras sur le cintre : bascule calculée sans la hauteur de selle (le bassin la reprend).
     const elbows = this.barTargets?.elbow;
     this.forearmTuck = elbows ? this.solveTuck({ L: elbows.L.clone().setY(elbows.L.y - this.saddleLift), R: elbows.R.clone().setY(elbows.R.y - this.saddleLift) }) : 0;
@@ -1875,6 +1920,31 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     return best;
   }
 
+  /** Bascule (unité de `race`) qui plie le coude à REACH_ELBOW_DEG, bassin assis. */
+  private solveReach(): number {
+    const b = this.t.bones;
+    const c = this.t.arms.L;
+    const rest = Math.sqrt(c.l1 * c.l1 + c.l2 * c.l2 - 2 * c.l1 * c.l2 * Math.cos(THREE.MathUtils.degToRad(REACH_ELBOW_DEG)));
+    const seat = b.hips.modelP.clone().add(new THREE.Vector3(0, SEAT_FROM_HIPS.y, SEAT_FROM_HIPS.z));
+    const pivots: Array<[THREE.Vector3, number]> = [[b.chest.modelP, TUCK_CHEST], [b.spine.modelP, TUCK_SPINE], [seat, TUCK_HIPS]];
+    const sh = new THREE.Vector3();
+    let best = 0;
+    let bestErr = Infinity;
+    for (let a = -1; a <= 0.4; a += 0.01) {
+      sh.copy(b[c.upper].modelP);
+      for (const [o, k] of pivots) sh.sub(o).applyAxisAngle(X_AXIS, k * a).add(o);
+      if (this.fit) sh.add(this.fit.hips);
+      sh.y += this.saddleLift;
+      const err = Math.abs(sh.distanceTo(this.handTarget.L) - rest);
+      if (err < bestErr) {
+        bestErr = err;
+        best = a;
+      }
+    }
+    // Les cocottes ajoutent déjà HOODS_BEND (pas le cintre plat du VTT).
+    return this.bikeType === 'mtb' ? best : best - HOODS_BEND;
+  }
+
   /** Repère « modèle » (= groupe incliné) d'un os à partir de son parent et de sa rotation locale. */
   private fk(name: BoneName): void {
     const r = this.t.bones[name];
@@ -2021,9 +2091,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     // --- Bassin
     const hipsR = t.bones.hips;
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
-    const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + (this.kind === 'tripo' || this.kind === 'tripo-femme' ? 0 : HOODS_BEND) * hoods + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
+    const upright = this.reachBend * (1 - stand) * (1 - fd);
+    const race = upright + DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + (this.kind === 'tripo' || this.kind === 'tripo-femme' ? 0 : HOODS_BEND) * hoods + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
     const tuck = this.tuck * (1 - 0.6 * stand) * (1 - HORNS_UNTUCK * horns) + race;
-    const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck - FOOT_UPRIGHT * fd;
+    const tilt = STAND_TILT * stand - 0.05 * coast + TUCK_HIPS * tuck - FOOT_UPRIGHT * fd;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
@@ -2031,7 +2102,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     _v4.y += this.saddleLift;
     // Roubaix dédié : ischions sur le point d'assise du vélo (décalage depuis la selle du vélo de base).
     if (this.fit) _v4.add(this.fit.hips);
-    _v4.y += 0.02 * stand + 0.004 * Math.sin(2 * a) * (1 - stand) * (1 - coast) - 0.01 * Math.abs(Math.cos(a)) * stand;
+    _v4.y += 0.03 * stand + 0.004 * Math.sin(2 * a) * (1 - stand) * (1 - coast) - 0.01 * Math.abs(Math.cos(a)) * stand;
     _v4.z += 0.13 * stand;
     if (race !== 0) {
       // Bascule de course autour des ischions posés sur la selle (pas de l'os du bassin) : les fesses restent assises.
@@ -2125,6 +2196,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         pole.normalize();
       }
       const sx = s === 'L' ? 1 : -1;
+      if (drops > 0 && this.kind === 'mpfb') {
+        pole = _vPole.copy(pole);
+        pole.x += DROPS_ELBOW_OUT * sx * drops;
+        pole.normalize();
+      }
       if (hoodsAero > 0) {
         // Avant-bras à plat : coudes tirés vers l'arrière (un peu en dehors), mains sur les cocottes.
         pole = _vPole.copy(pole).lerp(_v1.set(0.3 * sx, -0.1, -1).normalize(), hoodsAero).normalize();
@@ -2158,6 +2234,13 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       }
       this.solveChain(c, this.target, pole);
       this.setModelQ(c.end, t.bones[c.end].modelQ);
+      if (dropHands > 0 && this.kind === 'mpfb' && this.celebrateBlend <= 0.01) {
+        // Poignet dans le plan de profil seulement : la main garde son écartement.
+        const rest = _v1.subVectors(t.bones[c.end].modelP, t.bones[c.lower].modelP);
+        const now = _v2.subVectors(this.mP[c.end], this.mP[c.lower]);
+        const bend = Math.atan2(now.z, now.y) - Math.atan2(rest.z, rest.y);
+        this.setModelQ(c.end, _q2.setFromAxisAngle(X_AXIS, Math.atan2(Math.sin(bend), Math.cos(bend)) * DROPS_WRIST * dropHands).multiply(t.bones[c.end].modelQ));
+      }
     }
 
     // --- Jambes : cheville calée sur la pédale.

@@ -96,22 +96,26 @@ REST_PITCH = 0.35            # talon levé (rad), comme les pédales de bike_fam
 BIND_PHASE = 0.0
 ANKLE_FLAT = Vector((0.0, 0.095, -0.13))  # cheville / axe de pédale, pied à plat
 HIP = Vector((0.0, 1.02, -0.215))          # centre des hanches, assis sur la selle
-HOOD = Vector((0.2, 0.958, 0.54))         # prise des mains sur les cocottes
+HOOD = Vector((0.2, 0.916, 0.59))         # prise des mains sur les cocottes (cintre décalé : client cockpitFit.ts, MPFB_REST_HAND)
 SOLE = 0.03                               # épaisseur semelle + cale
 
 # Profil du buste (pose_rider), relevé sur des photos de coureurs de profil (screen/) : dos arrondi,
 # raide au bassin, presque à plat aux épaules ; oreille à peu près à la hauteur du haut du dos.
-SPINE_SHAPE = {'pelvis': 3.0, 'spine_01': 2.0, 'spine_02': 0.0, 'spine_03': -6.0}  # ° autour de l'inclinaison
+SPINE_SHAPE = {'pelvis': 6.0, 'spine_01': 3.0, 'spine_02': -1.0, 'spine_03': -5.0}  # ° autour de l'inclinaison
 # Cou, épaules et coudes repris du coureur acheté (build_boutique.py), validés en jeu : cou plus
 # redressé (menton non écrasé), épaules avancées et basses (moins carrées), coudes vers l'arrière.
-NECK_DEG = 44.0                           # cou au-dessus de l'horizontale (°)
-SHOULDER_PROTRACT = 24.0                  # épaules avancées vers le guidon (°, clavicules)
+NECK_DEG = 46.0                           # cou au-dessus de l'horizontale (°)
+SHOULDER_PROTRACT = 17.0                  # épaules avancées vers le guidon (°, clavicules)
 SHOULDER_RAISE = -6.0                     # épaules un peu abaissées (°)
 HEAD_PITCH = 8.0                          # tête inclinée vers la route (°)
-ARM_REACH = 0.83                          # épaule → poignet / longueur du bras : coudes fléchis
+ARM_REACH = 0.86                          # épaule → poignet / longueur du bras : coudes fléchis
 BACK_DAMP = {'sex-': 1.0, 'muscle+': 0.7, 'age+': 0.7}  # atténuation de ces cibles sur le haut du dos (0 à 1)
 GLUTE_START = 0.06                        # saillie des fesses comptée à partir de 6 cm derrière l'os du bassin (m)
-GLUTE_FLAT = 0.6                          # part de cette saillie supprimée (0 à 1)
+GLUTE_FLAT = 0.35                          # part de cette saillie supprimée (0 à 1)
+GLUTE_LOBE = 0.007                        # galbe de chaque fesse (m), une fois la saillie d'ensemble réduite
+GLUTE_CLEFT = 0.007                       # sillon entre les fesses (m)
+HIP_NARROW = 0.008                        # côté des hanches rentré (m) : il bosselait de dos, cuisse levée
+LUMBAR_FILL = 0.026                       # creux lombaire comblé (m) : la base est modelée debout, à vélo la cambrure s'efface
 GLUTE_PELVIS = 0.0                        # part du poids de cuisse reportée sur le bassin pour le haut des fesses (0 à 1) ; 0 depuis le 28/10/2026 : à 1, le bas de la fesse suit le bassin penché et pointe vers l'arrière
 GLUTE_FOLD = 0.19                         # le report s'étend de la hanche jusqu'à ce point sous elle, pli fessier (m)
 GLUTE_SIDE = 0.24                         # demi-largeur où le report s'annule (m) : le côté de la hanche reste à la cuisse
@@ -124,8 +128,15 @@ NECK_KEY_SCALE = {'neckWidth-': 0.5}      # « neckWidth− » : moitié de l'am
 FEMALE_NECK = [('neck/neck-double-decr', 1.0), ('neck/neck-scale-depth-decr', 0.6), ('neck/neck-scale-horiz-decr', 0.4)]
 # Arrière du crâne de la base MPFB trop profond (forme de casque, tête nue) : ramené vers l'avant, hommes et femmes.
 SKULL_BACK = [('head/head-back-scale-depth-decr', 1.0)]
+# Morphologie de cycliste : l'humain moyen MPFB a 97,5 cm de hanches, 52 de cuisse et 37 de mollet (1,75 m) ; visé d'après des cyclistes entraînés
+# (doi 10.3390/app13010224 : hanches ≈ 87, cuisse 49-52, mollet 34-36) : ≈ 89, 49,5 et 35,5. Cibles MPFB (CC0) figées dans le maillage de base.
+CYCLIST_FIX = [('torso/measure-hips-circ-decr', 1.0), ('hip/hip-scale-horiz-decr', 0.2), ('legs/measure-thigh-circ-decr', 0.3),
+               ('legs/measure-calf-circ-decr', 0.15), ('torso/measure-bust-circ-decr', 0.2)]
+# Poids du squelette adoucis autour des articulations (os, rayon en m) : bosse de hanche cuisse levée, creux sous le bras.
+SOFT_JOINTS = [('thigh_l', 0.17), ('thigh_r', 0.17), ('upperarm_l', 0.13), ('upperarm_r', 0.13)]
+SOFT_PASSES = 12
 # Nuque creusée sous l'occiput (m) : la base masculine y fait une pente droite et bombée jusqu'au dos.
-NAPE_DEPTH = {'male': 0.014, 'female': 0.0}
+NAPE_DEPTH = {'male': 0.004, 'female': 0.0}
 ELBOW_POLE = Vector((0.36, 1.05, 0.30))   # direction des coudes (repère client, côté gauche)
 
 # Curseurs de forme (docs/AVATARS.md § 4) : nom → (cibles « + », cibles « − »), chemins relatifs
@@ -182,7 +193,7 @@ SLIDERS = {
 BASE_MACRO = {'gender': 1.0, 'age': 0.5, 'muscle': 0.55, 'weight': 0.5, 'proportions': 0.5, 'height': 0.5,
               'cupsize': 0.5, 'firmness': 0.5, 'race': {'asian': 0.33, 'caucasian': 0.34, 'african': 0.33}}
 MACRO_SLIDERS = {
-    'sex': {'-': {'gender': 0.0, 'cupsize': 0.75}},
+    'sex': {'-': {'gender': 0.0, 'cupsize': 0.45}},
     'age': {'+': {'age': 0.9}, '-': {'age': 0.37}},          # ≈ 77 ans / ≈ 19 ans (base 25 ans)
     'weight': {'+': {'weight': 0.9}, '-': {'weight': 0.15}},
     'muscle': {'+': {'muscle': 1.0}, '-': {'muscle': 0.15}},
@@ -443,6 +454,108 @@ def flatten_glutes(body, base_m):
     body.data.update()
 
 
+def shape_glutes(body, base_m):
+    """Fesses vues de dos : un galbe de chaque côté, un sillon au milieu, côtés des hanches rentrés ;
+    même déplacement dans toutes les cibles."""
+    pel = base_m['pelvis'][0].translation
+    mw = body.matrix_world
+    imw = mw.inverted()
+    blocks = list(body.data.shape_keys.key_blocks)
+    shifts = []
+    for v in blocks[0].data:
+        c = mw @ v.co
+        dz = c.z - (pel.z - 0.045)
+        if abs(dz) > 0.26:
+            shifts.append(None)
+            continue
+        x = abs(c.x)
+        back = smoothstep(0.0, 0.06, c.y - pel.y)                  # +Y : vers le dos
+        lobe = GLUTE_LOBE * math.exp(-((x - 0.075) / 0.04) ** 2 - (dz / 0.06) ** 2)
+        cleft = GLUTE_CLEFT * math.exp(-(x / 0.016) ** 2 - (dz / 0.07) ** 2)
+        hip = HIP_NARROW * smoothstep(0.10, 0.18, x) * math.exp(-((dz + 0.035) / 0.10) ** 2)
+        shifts.append(Vector((-math.copysign(hip, c.x), (lobe - cleft) * back, 0.0)))
+    for kb in blocks:
+        for d, sh in zip(kb.data, shifts):
+            if sh is not None:
+                d.co = d.co + imw.to_3x3() @ sh
+    body.data.update()
+
+
+def fill_lumbar(body, base_m, depth):
+    """Bas du dos sans cambrure : les sommets du dos entre le bassin et le haut des lombaires sont ressortis
+    au plus de `depth` (mesuré sur des photos de cyclistes de profil) ; même déplacement dans toutes les cibles."""
+    if depth <= 0:
+        return
+    lo = base_m['pelvis'][0].translation.z - 0.03
+    hi = base_m['spine_03'][0].translation.z + 0.02
+    axis_y = base_m['spine_01'][0].translation.y
+    mw = body.matrix_world
+    imw = mw.inverted()
+    blocks = list(body.data.shape_keys.key_blocks)
+    shifts = []
+    n = 0
+    for v in blocks[0].data:
+        c = mw @ v.co
+        t = (c.z - lo) / max(hi - lo, 1e-6)
+        if not 0.0 < t < 1.0:
+            shifts.append(None)
+            continue
+        prof = math.sin(math.pi * t ** 0.8) ** 2
+        back = smoothstep(-0.02, 0.05, c.y - axis_y)               # +Y : vers le dos, fondu sur les flancs
+        side = 1.0 - smoothstep(0.10, 0.19, abs(c.x))
+        w = prof * back * side
+        n += w > 0.05
+        shifts.append(Vector((0.0, depth * w, 0.0)) if w > 0 else None)
+    print(f'lombaires : {n} sommets, ressortis de {100 * depth:.1f} cm au plus')
+    for kb in blocks:
+        for d, sh in zip(kb.data, shifts):
+            if sh is not None:
+                d.co = d.co + imw.to_3x3() @ sh
+    body.data.update()
+
+
+def soften_joints(body, rig):
+    """Poids du squelette lissés de proche en proche autour des hanches et des épaules (SOFT_JOINTS) : le passage
+    d'un os à l'autre s'étale au lieu de faire un pli ou une bosse. Au-delà du rayon, poids inchangés."""
+    me = body.data
+    names = {g.index: g.name for g in body.vertex_groups if g.name in rig.data.bones}
+    w = [{g.group: g.weight for g in v.groups if g.group in names} for v in me.vertices]
+    near = [[] for _ in me.vertices]
+    for e in me.edges:
+        a, b = e.vertices
+        near[a].append(b)
+        near[b].append(a)
+    joints = [(rig.matrix_world @ rig.data.bones[n].head_local, r) for n, r in SOFT_JOINTS if n in rig.data.bones]
+    mw = body.matrix_world
+    soft = {}
+    for v in me.vertices:
+        c = mw @ v.co
+        k = max((1.0 - smoothstep(0.45 * r, r, (c - j).length)) for j, r in joints)
+        if k > 0.01 and near[v.index]:
+            soft[v.index] = k
+    for _ in range(SOFT_PASSES):
+        new = {}
+        for i, k in soft.items():
+            mean = {}
+            for n in near[i]:
+                for g, x in w[n].items():
+                    mean[g] = mean.get(g, 0.0) + x / len(near[i])
+            keys = set(mean) | set(w[i])
+            mix = {g: w[i].get(g, 0.0) * (1.0 - 0.6 * k) + mean.get(g, 0.0) * 0.6 * k for g in keys}
+            # Quatre os au plus par sommet (glTF).
+            top = sorted(mix.items(), key=lambda t: -t[1])[:4]
+            total = sum(x for _, x in top) or 1.0
+            new[i] = {g: x / total for g, x in top if x / total > 1e-3}
+        w = [new.get(i, x) for i, x in enumerate(w)] if new else w
+    for i in soft:
+        for g in list(me.vertices[i].groups):
+            if g.group in names and g.group not in w[i]:
+                body.vertex_groups[g.group].remove([i])
+        for g, x in w[i].items():
+            body.vertex_groups[g].add([i], x, 'REPLACE')
+    print(f'articulations : poids adoucis pour {len(soft)} sommets')
+
+
 def stabilize_glutes(body, rig):
     """Fessiers qui restent des fessiers : dans la base MPFB le haut de la fesse est surtout porté par
     la cuisse. À la flexion de hanche de la position de course (~100°) et à chaque coup de pédale, la
@@ -540,6 +653,8 @@ def build_base(HS, TS, LS):
     TS.bake_targets(body)
     targets_dir = LS.get_mpfb_data('targets')
     base_fix = [(p, w * args.skull) for p, w in SKULL_BACK if args.skull > 0]
+    if args.variant == 'male':
+        base_fix += CYCLIST_FIX
     if args.variant == 'female' and args.neck > 0:
         base_fix += [(p, w * args.neck) for p, w in FEMALE_NECK]
     if args.variant == 'female':
@@ -632,6 +747,8 @@ def build_base(HS, TS, LS):
         k.value = 0.0
     expression_shapes(body, TS, LS)
     flatten_glutes(body, base_m)
+    shape_glutes(body, base_m)
+    fill_lumbar(body, base_m, LUMBAR_FILL)
     hollow_nape(body, base_m, NAPE_DEPTH[args.variant])
     for m in list(body.modifiers):
         if m.type == 'MASK':
@@ -2505,6 +2622,7 @@ def main():
     assign_eyes(eyes, rig)
     lengthen_humerus(body, rig)
     stabilize_glutes(body, rig)
+    soften_joints(body, rig)
     for o in (eyes,):
         o.parent = rig
         if not any(m.type == 'ARMATURE' for m in o.modifiers):
