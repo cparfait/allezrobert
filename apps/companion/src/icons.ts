@@ -1,0 +1,63 @@
+/** Icônes au trait, lisibles de loin (les emoji changent d'un téléphone à l'autre). */
+const P = {
+  gauge: '<path d="M3.5 17a9 9 0 1 1 17 0"/><path d="m12 14 4-5"/><circle cx="12" cy="14.5" r="1.4"/>',
+  map: '<path d="M9 4 3.5 6.5v13L9 17l6 3 5.5-2.5v-13L15 7 9 4Z"/><path d="M9 4v13M15 7v13"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.8"/><rect x="13" y="4" width="7" height="7" rx="1.8"/><rect x="4" y="13" width="7" height="7" rx="1.8"/><rect x="13" y="13" width="7" height="7" rx="1.8"/>',
+  group: '<circle cx="8.5" cy="8.5" r="3.2"/><path d="M2.5 19c.5-4 3-5.5 6-5.5s5.5 1.5 6 5.5"/><path d="M15.5 5.7a3.2 3.2 0 0 1 0 5.8M17.5 14c2.3.6 3.7 2.2 4 5"/>',
+  music: '<path d="M9 18V5.5l11-2V16"/><circle cx="6.3" cy="18" r="2.7"/><circle cx="17.3" cy="16" r="2.7"/>',
+  home: '<path d="m3.5 11 8.5-7 8.5 7"/><path d="M6 9.5V20h12V9.5"/>',
+  gear: '<path d="M4 7h9M18 7h2M4 17h2M11 17h9"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="8.5" cy="17" r="2.5"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/>',
+  micOff: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M4 4l16 16"/>',
+  pause: '<path d="M8 6v12M16 6v12" stroke-width="4"/>',
+  play: '<path d="M7 4.5v15L19.5 12 7 4.5Z" fill="currentColor"/>',
+  prev: '<path d="M18.5 5v14L8 12l10.5-7Z" fill="currentColor"/><path d="M5.5 5v14"/>',
+  next: '<path d="M5.5 5v14L16 12 5.5 5Z" fill="currentColor"/><path d="M18.5 5v14"/>',
+  camera: '<rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="m15.5 10.5 6-3.5v10l-6-3.5"/>',
+  photo: '<path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h3L9 4.5h6L16.5 7h3A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-9Z"/><circle cx="12" cy="13" r="3.5"/>',
+  behind: '<path d="M12 4v10"/><path d="m7 10 5 5 5-5"/><path d="M4 20h16"/>',
+  fan: '<circle cx="12" cy="12" r="1.8"/><path d="M12 10.2C10 7 10.5 3.5 13.5 3.5s3.5 4 .2 7.7M13.7 12.9c3.6-.3 6.4 1.9 5 4.5s-5 1.2-6.4-3.5M10.4 12.9c-1.5 3.3-4.9 4.5-6.4 1.9s1-4.9 6.2-3.7"/>',
+  sound: '<path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4Z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18 6.5a7.8 7.8 0 0 1 0 11"/>',
+  mute: '<path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4Z"/><path d="m16 9.5 5 5M21 9.5l-5 5"/>',
+  screen: '<rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/>',
+  uturn: '<path d="M7 20V10a5 5 0 0 1 10 0v7"/><path d="m13 13.5 4 4 4-4"/>',
+  left: '<path d="M18 20v-5a5 5 0 0 0-5-5H5"/><path d="M10 4.5 4.5 10l5.5 5.5"/>',
+  right: '<path d="M6 20v-5a5 5 0 0 1 5-5h8"/><path d="m14 4.5 5.5 5.5-5.5 5.5"/>',
+  straight: '<path d="M12 20.5V4.5"/><path d="m6 10 6-6 6 6"/>',
+  flag: '<path d="M6 21V4"/><path d="M6 4.5h12l-3 4 3 4H6"/>',
+  close: '<path d="m6 6 12 12M18 6 6 18"/>',
+  minus: '<path d="M5 12h14"/>',
+  plus: '<path d="M5 12h14M12 5v14"/>',
+  thumb: '<path d="M7.5 11v9H4v-9h3.5Z"/><path d="M7.5 11 12 3.5c1.8 0 2.6 1.2 2.2 3l-.7 3h5a2 2 0 0 1 2 2.4l-1.2 6.4a2 2 0 0 1-2 1.7h-9.8"/>',
+  chat: '<path d="M4 5.5h16v11h-9l-4.5 3.7v-3.7H4v-11Z"/>',
+  keyboard: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01M8 14h8"/>',
+  mountain: '<path d="m2.5 19 7-12 4 6.5 2-3 6 8.5h-19Z"/>',
+  bolt: '<path d="M13 3 5 13.5h6L10 21l8.5-10.5h-6L13 3Z"/>',
+  ghost: '<path d="M5 20.5V11a7 7 0 0 1 14 0v9.5l-2.5-2-2.2 2-2.3-2-2.3 2-2.2-2-2.5 2Z"/><path d="M9.5 10.5h.01M14.5 10.5h.01"/>',
+  hud: '<rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M6.5 8h4M6.5 11h3M14 15.5h3.5"/>',
+  wait: '<rect x="4.5" y="4.5" width="15" height="15" rx="4"/><path d="M9.5 9v6M14.5 9v6"/>',
+  attack: '<path d="m13.5 5 7 7-7 7M4 5l7 7-7 7"/>',
+  pull: '<circle cx="5.5" cy="12" r="2.8"/><path d="M11.5 12h8.5"/><path d="m16 8 4.5 4-4.5 4"/>',
+  slow: '<path d="m10.5 5-7 7 7 7M20 5l-7 7 7 7"/>',
+  formation: '<circle cx="6" cy="8" r="1.9"/><circle cx="12" cy="8" r="1.9"/><circle cx="18" cy="8" r="1.9"/><circle cx="6" cy="16" r="1.9"/><circle cx="12" cy="16" r="1.9"/><circle cx="18" cy="16" r="1.9"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/>',
+  tree: '<path d="M12 21v-6M12 3 6 10h3l-4 5h14l-4-5h3l-6-7Z"/>',
+  wind: '<path d="M3 9h11a2.7 2.7 0 1 0-2.5-3.7M3 13h15a2.7 2.7 0 1 1-2.5 3.7M3 17h7"/>',
+  bike: '<circle cx="6" cy="16" r="3.7"/><circle cx="18" cy="16" r="3.7"/><path d="m6 16 3.5-7h6L18 16M9.5 9l3 7H6M15.5 9l-3 7M14.5 6h2"/>',
+  breath: '<path d="M4 8c2-2 4-2 6 0s4 2 6 0 3-2 4-1M4 13c2-2 4-2 6 0s4 2 6 0 3-2 4-1M4 18c2-2 4-2 6 0s4 2 6 0 3-2 4-1"/>',
+  crowd: '<path d="M4 10v4l3 .5 2 4.5h2l-1-4.3 8 3.3V6L7 9.5 4 10Z"/><path d="M20.5 10v4"/>',
+  car: '<path d="M3.5 16v-3l2-5h13l2 5v3h-17Z"/><circle cx="7.5" cy="17" r="1.8"/><circle cx="16.5" cy="17" r="1.8"/><path d="M5 12.5h14"/>',
+  off: '<path d="M12 3.5V12"/><path d="M7 6.5a7.5 7.5 0 1 0 10 0"/>',
+  heart: '<path d="M12 20S3.5 14.5 3.5 9A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8.5 2c0 5.5-8.5 11-8.5 11Z"/>',
+  list: '<path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/>',
+  whole: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+} as const;
+
+export type IconId = keyof typeof P;
+
+export const icon = (id: IconId): string => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[id]}</svg>`;
+
+/** Gros bouton-bloc : icône, nom et, au besoin, l'état en un mot (`<small>`, rempli ensuite). */
+export function tile(attrs: string, ic: IconId, name: string, o: { id?: string; sub?: string; cls?: string } = {}): string {
+  return `<button class="tile ${o.cls ?? ''}" ${o.id ? `id="${o.id}"` : ''} ${attrs}>${icon(ic)}<span class="tx"><b>${name}</b>${o.sub !== undefined ? `<small>${o.sub}</small>` : ''}</span></button>`;
+}

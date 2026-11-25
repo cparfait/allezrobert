@@ -1,112 +1,37 @@
 /**
- * Appli compagnon d'Allez Robert ! (PWA, sans framework), appairée au jeu par QR code : pas
- * de compte, marche en solo comme en groupe (salle « pair », voir
- * packages/shared/src/companion.ts).
+ * Appli compagnon d'Allez Robert ! (PWA, sans framework), appairée au jeu par QR code : pas de compte, marche en solo comme
+ * en groupe (salle « pair », voir packages/shared/src/companion.ts).
  *
- * Onglets : Compteur (champs façon compteur GPS, au choix, et profil des 3 km à venir),
- * Pilotage (vitesses, pause, caméra, photo, HUD, demi-tour, ventilateur, équipiers),
- * Musique, Chat (messages rapides, Ride On), Carte. Le choix aux carrefours (monde ouvert)
- * s'affiche par-dessus tous les onglets, avec vibration. À l'approche d'une montée, page façon
- * ClimbPro (Garmin Edge) à la place du compteur et de la carte : tronçons colorés par pente,
- * restant à grimper ; bandeau réduit sur les autres onglets. Plein écran, portrait ou paysage.
+ * Pensée pour servir en pédalant : le téléphone est sur le cintre ou sur un pied, on le touche d'un doigt humide sans s'arrêter
+ * de pousser. Règles de tous les écrans de sortie : rien à faire défiler, pas de curseur, pas de clavier, de grosses touches
+ * toujours à la même place, un appui = un effet visible, et les chiffres essentiels jamais cachés. Ce qui demande de lire ou
+ * d'écrire (réglages, chat, recherche) est dans des panneaux à part.
+ *
+ * Pages (barre du bas ou balayage) : Compteur, Carte, Actions, Groupe (s'il y a quelqu'un), Musique. Ce qui presse vient tout
+ * seul : carrefour, montée façon ClimbPro, séance, départ, pause.
  */
 import './style.css';
-import { Client, type Room } from '@colyseus/sdk';
-import { rideOnMessage, climbAhead, climbElevation, gradeColor, PAIR_FAN_MODES, PAIR_MSG, PAIR_SOUND_BUSES, PAIR_ROOM, PAIR_TOKEN_RE, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type PairFanMode, type PairSoundBus, type Climb, type ClimbAhead, type PairEvent, type PairMusicItem, type PairPlaceItem, type PairPresence, type PairRoute, type PairState, type PhoneCommand } from '@allezrobert/shared';
-import { detectLang, STRINGS, type Lang } from './i18n.ts';
+import { rideOnMessage, type PairEvent, type PairRoute, type PairState } from '@allezrobert/shared';
+import { trackClimb } from './climb.ts';
 import { climbsOf } from './climbs.ts';
-import { drawClimb, drawMap, drawProfile, RouteGeo } from './map.ts';
+import { goTab, held, press, TOUCHABLE } from './commands.ts';
+import { showToast } from './dom.ts';
+import { watchGestures } from './gestures.ts';
+import { connect, pairWith, type LinkHandlers } from './link.ts';
+import { neighbour, tabsFor } from './logic.ts';
+import { RouteGeo } from './map.ts';
+import { musicSearch, placeSearch, renderPanel, touchPanel, updatePanel } from './panels.ts';
 import { PhoneMic, type PhoneMicError } from './phoneMic.ts';
+import { refresh, render, updateMic, useMic } from './shell.ts';
+import { curTab, haptic, isStale, lang, link, S, send, t } from './state.ts';
+import { keepAwake, syncInstall, syncWake, watchInstall } from './wake.ts';
 
-type Tab = 'dash' | 'ctrl' | 'music' | 'chat' | 'map';
-type FieldId = keyof (typeof STRINGS)['fr']['fields'];
-type Metrics = NonNullable<PairState['metrics']>;
-
-const CAMERAS: CameraMode[] = ['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo'];
-const DEFAULT_FIELDS: FieldId[] = ['power3s', 'speed', 'cadence', 'hr', 'time', 'distance', 'grade'];
-const ALL_FIELDS = Object.keys(STRINGS.fr.fields) as FieldId[];
-
-/* ───────────── Appairage : ?pair=…(&server=…), mémorisé pour l'écran d'accueil ───────────── */
-
-const params = new URLSearchParams(location.search);
-{
-  const pair = params.get('pair');
-  if (pair && PAIR_TOKEN_RE.test(pair)) {
-    localStorage.setItem('ar-pair', pair);
-    const server = params.get('server');
-    if (server && /^https?:\/\/[^\s]+$/.test(server)) localStorage.setItem('ar-pair-server', server);
-    else localStorage.removeItem('ar-pair-server');
-    // Le jeton ne reste pas dans la barre d'adresse (captures d'écran, partage).
-    history.replaceState(null, '', location.pathname);
-  }
-}
-
-function serverEndpoint(): string {
-  return (
-    localStorage.getItem('ar-pair-server') ??
-    (import.meta.env.VITE_SERVER_URL as string | undefined) ??
-    (import.meta.env.DEV ? `http://${location.hostname}:2567` : `${location.origin}/colyseus`)
-  );
-}
-
-let lang: Lang = detectLang();
-let t = STRINGS[lang];
 const app = document.getElementById('app')!;
 
-const S = {
-  pair: localStorage.getItem('ar-pair'),
-  conn: 'connecting' as 'connecting' | 'connected' | 'down',
-  presence: { game: false, phones: 0 } as PairPresence,
-  st: null as PairState | null,
-  geo: null as RouteGeo | null,
-  tab: (localStorage.getItem('ar-cmp-tab') as Tab | null) ?? 'dash',
-  follow: true,
-  chat: [] as Array<{ who: string; text: string; sys?: boolean }>,
-  unread: 0,
-  fields: loadFields(),
-  /** Champ en cours de choix (indice), null hors du sélecteur. */
-  picking: null as number | null,
-  orient: 'any' as 'any' | 'landscape' | 'portrait',
-  /** Montées de la route reçue, montée en cours ou à moins de `CLIMB_APPROACH_M` du pied. */
-  climbs: [] as Climb[],
-  climb: null as ClimbAhead | null,
-  /** Page de la montée fermée par le coureur (jusqu'au sommet). */
-  climbHidden: false,
-  /** Le coureur remonte la route à l'envers (demi-tour) : pas de montées. */
-  backwards: false,
-  /** Dernière recherche Spotify : texte, état et résultats reçus du jeu. */
-  music: { query: '', state: 'idle' as 'idle' | 'loading' | 'done' | 'error', items: [] as PairMusicItem[], error: '' },
-  /** Dernière recherche de destination (parcours libre) : texte, état et résultats reçus du jeu. */
-  place: { query: '', state: 'idle' as 'idle' | 'loading' | 'done' | 'error', items: [] as PairPlaceItem[], error: '' },
-};
-/** La page de la montée s'ouvre 500 m avant le pied. */
-const CLIMB_APPROACH_M = 500;
-let room: Room | null = null;
+/* ───────────── Micro du téléphone ───────────── */
 
-function loadFields(): FieldId[] {
-  try {
-    const f = JSON.parse(localStorage.getItem('ar-cmp-fields') ?? 'null') as FieldId[] | null;
-    if (Array.isArray(f) && f.length === DEFAULT_FIELDS.length && f.every((x) => ALL_FIELDS.includes(x))) return f;
-  } catch {
-    /* champs par défaut */
-  }
-  return [...DEFAULT_FIELDS];
-}
-
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-}
-
-function haptic(p: number | number[] = 12): void {
-  navigator.vibrate?.(p);
-}
-
-function send(cmd: PhoneCommand): void {
-  room?.send(PAIR_MSG.cmd, cmd);
-}
-
-/** Micro du téléphone pour le chat vocal de la sortie (bouton 🎙 de la barre). */
 const mic = new PhoneMic(send);
+let micWelcomed = false;
 mic.onChange = (error?: PhoneMicError, detail?: string) => {
   updateMic();
   if (error) {
@@ -118,1236 +43,116 @@ mic.onChange = (error?: PhoneMicError, detail?: string) => {
     showToast(t.micLinked);
   }
 };
-let micWelcomed = false;
+useMic(mic);
 
-const nf = (v: number, d = 0) => v.toLocaleString(lang, { minimumFractionDigits: d, maximumFractionDigits: d });
-
-function fmtTime(s: number): string {
-  s = Math.max(0, Math.round(s));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = String(s % 60).padStart(2, '0');
-  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
-}
-
-/** Zone de puissance (Coggan, 7 zones) : numéro et couleur. */
-function zoneOf(watts: number, ftp: number): { n: number; color: string } {
-  const r = watts / Math.max(ftp, 1);
-  const zones: Array<[number, string]> = [
-    [0.55, '#7d8796'],
-    [0.75, '#3b82f6'],
-    [0.9, '#22c55e'],
-    [1.05, '#eab308'],
-    [1.2, '#f97316'],
-    [1.5, '#ef4444'],
-    [Infinity, '#a855f7'],
-  ];
-  const i = zones.findIndex(([max]) => r < max);
-  return { n: i + 1, color: zones[i]![1] };
-}
-
-/** Valeur, unité et couleur éventuelle d'un champ du compteur. */
-function field(id: FieldId, m: Metrics): { v: string; u: string; color?: string } {
-  switch (id) {
-    case 'power3s':
-      return { v: nf(m.watts3s), u: 'W', color: zoneOf(m.watts3s, m.ftp).color };
-    case 'power':
-      return { v: nf(m.watts), u: 'W', color: zoneOf(m.watts, m.ftp).color };
-    case 'avgPower':
-      return { v: nf(m.avgWatts), u: 'W' };
-    case 'np':
-      return { v: nf(m.np), u: 'W' };
-    case 'wkg':
-      return { v: nf(m.wkg, 1), u: 'W/kg' };
-    case 'ftpPct':
-      return { v: nf((m.watts3s / Math.max(m.ftp, 1)) * 100), u: '%', color: zoneOf(m.watts3s, m.ftp).color };
-    case 'zone': {
-      const z = zoneOf(m.watts3s, m.ftp);
-      return { v: `Z${z.n}`, u: '', color: z.color };
-    }
-    case 'speed':
-      return { v: nf(m.speedKmh, 1), u: 'km/h' };
-    case 'cadence':
-      return { v: nf(m.cadence), u: 'tr/min' };
-    case 'hr':
-      return { v: m.hr !== undefined ? nf(m.hr) : '–', u: 'bpm' };
-    case 'distance':
-      return { v: nf(m.distM / 1000, 2), u: 'km' };
-    case 'time':
-      return { v: fmtTime(m.elapsedS), u: '' };
-    case 'grade':
-      return { v: nf(m.gradePercent, 1), u: '%', ...(m.gradePercent > 8 ? { color: '#ef4444' } : m.gradePercent > 4 ? { color: '#f97316' } : {}) };
-    case 'elevGain':
-      return { v: nf(m.elevationGainM), u: 'm' };
-    case 'altitude':
-      return { v: nf(m.altitudeM), u: 'm' };
-    case 'lap':
-      return { v: String(m.lap), u: '' };
-    case 'gear':
-      // Rapport : seulement avec des manettes de vitesses appairées.
-      if (!S.st?.shifter) return { v: '–', u: '' };
-      return { v: m.gearLabel || String(m.gearIndex + 1), u: `${m.gearIndex + 1}/${m.gearCount}` };
-    case 'draft':
-      return { v: nf(m.draftPct), u: '%' };
-    case 'kcal':
-      return { v: nf(m.kcal), u: 'kcal' };
-    case 'balance':
-      return { v: m.balanceLeft !== undefined ? `${nf(m.balanceLeft)}/${nf(100 - m.balanceLeft)}` : '–', u: '%' };
-  }
-}
-
-/* ───────────── Connexion ───────────── */
-
-/** Identifiant stable de ce téléphone (gardé sur l'appareil) : le serveur ne le compte qu'une fois, même reconnecté. */
-function deviceId(): string {
-  try {
-    let id = localStorage.getItem('ar.companion.device');
-    if (!id) {
-      id = (crypto.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`).replace(/[^a-zA-Z0-9-]/g, '');
-      localStorage.setItem('ar.companion.device', id);
-    }
-    return id;
-  } catch {
-    return `anon-${Math.random().toString(36).slice(2, 12)}`;
-  }
-}
-
-let retry: ReturnType<typeof setTimeout> | undefined;
-/** Échecs de connexion d'affilée : le délai avant le prochain essai double à chaque fois (4 s, 8 s… 30 s au plus). */
-let retryFails = 0;
-const retryDelayMs = (): number => Math.min(30_000, 4000 * 2 ** Math.min(retryFails++, 3));
-
-function connect(): void {
-  if (!S.pair || room) return;
-  clearTimeout(retry);
-  S.conn = 'connecting';
-  renderBar();
-  void new Client(serverEndpoint())
-    .joinOrCreate(PAIR_ROOM, { pair: S.pair, role: 'phone', device: deviceId() })
-    .then((r) => {
-      room = r;
-      S.conn = 'connected';
-      const joinedAt = Date.now();
-      r.onMessage(PAIR_MSG.presence, (p: PairPresence) => {
-        const was = S.presence.game;
-        S.presence = p;
-        if (!p.game) {
-          S.st = null;
-          if (mic.linked) void mic.stop(false);
-          if (was) render();
-        }
-        syncWake();
-        renderBar();
-      });
-      r.onMessage(PAIR_MSG.state, (st: PairState) => onState(st));
-      r.onMessage(PAIR_MSG.route, (route: PairRoute) => {
-        S.geo = new RouteGeo(route);
-        S.climbs = climbsOf(S.geo);
-        refresh();
-      });
-      r.onMessage(PAIR_MSG.event, (ev: PairEvent) => onEvent(ev));
-      r.onLeave(() => {
-        room = null;
-        S.presence = { game: false, phones: 0 };
-        S.conn = 'down';
-        syncWake();
-        renderBar();
-        // Liaison tenue un moment puis perdue : nouvel essai rapide. Fermée aussitôt ouverte : délai croissant.
-        const held = Date.now() - joinedAt >= 5000;
-        if (held) retryFails = 0;
-        retry = setTimeout(connect, held ? 2000 : retryDelayMs());
-      });
-      renderBar();
-    })
-    .catch(() => {
-      S.conn = 'down';
-      renderBar();
-      retry = setTimeout(connect, retryDelayMs());
-    });
-}
-
-let junctionKey = '';
-let junctionLocked = false;
+/* ───────────── Messages du jeu ───────────── */
 
 function onState(st: PairState): void {
-  const prevPhase = S.st?.phase;
+  const before = S.st?.phase;
   S.st = st;
+  S.stAt = Date.now();
   mic.sync(st.phase === 'menu' ? undefined : st.voice);
-  // Carrefour qui approche : vibration à l'apparition, petite secousse quand le choix se fige.
-  const j = st.junction;
-  const key = j ? j.choices.map((c) => c.name + c.dir).join('|') : '';
-  if (j && key !== junctionKey) haptic([70, 50, 70]);
-  if (j?.locked && !junctionLocked) haptic(30);
-  junctionKey = key;
-  junctionLocked = !!j?.locked;
-  if (prevPhase !== st.phase && (prevPhase === 'menu' || st.phase === 'menu')) render();
-  else refresh();
-}
-
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
-
-function showToast(text: string): void {
-  const el = document.getElementById('toast');
-  if (!el) return;
-  el.textContent = text;
-  el.classList.add('on');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('on'), 3500);
-}
-
-function onEvent(ev: PairEvent): void {
-  if (ev.kind === 'voiceToken') return mic.onToken(ev);
-  if (ev.kind === 'phoneMic') {
-    haptic(15);
-    return void mic.setOn(ev.on);
+  trackClimb();
+  if ((before === 'menu') !== (st.phase === 'menu')) {
+    // Début ou fin de sortie : les panneaux se referment, la proposition d'installation s'efface ou revient.
+    if (S.panel && S.panel !== 'settings') {
+      S.panel = null;
+      renderPanel();
+    }
+    syncInstall();
   }
-  if (ev.kind === 'musicResults') {
-    S.music = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
-    if (S.tab === 'music') renderMusicResults();
-    return;
-  }
-  if (ev.kind === 'placeResults') {
-    // Une réponse à une recherche plus ancienne que la dernière demande est ignorée.
-    if (ev.query !== S.place.query) return;
-    S.place = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
-    if (S.tab === 'map') renderPlaceResults();
-    return;
-  }
-  if (ev.kind === 'chat') {
-    S.chat.push({ who: ev.who, text: ev.text });
-    haptic(20);
-  } else if (ev.kind === 'toast' || ev.kind === 'rideOn') {
-    const text = ev.kind === 'toast' ? ev.text : rideOnMessage(ev.from, lang);
-    S.chat.push({ who: '', text, sys: true });
-    showToast(text);
-  }
-  if (S.chat.length > 80) S.chat.splice(0, S.chat.length - 80);
-  if (S.tab !== 'chat' && ev.kind === 'chat') S.unread++;
-  if (S.tab === 'chat') renderChatLog();
-  else renderTabs();
-}
-
-/* ───────────── Rendu ───────────── */
-
-function render(): void {
-  document.documentElement.lang = lang;
-  if (!S.pair) {
-    app.innerHTML = `<main class="scan">
-      <div class="scan-box">
-        ${robertWait()}
-        <h1 class="ab-title">${esc(t.scanTitle)}</h1>
-        <p class="ab-sub">${esc(t.scanText)}</p>
-        <form data-form="pair"><input name="link" placeholder="${esc(t.scanPaste)}" autocomplete="off"/><button class="btn go">${esc(t.scanGo)}</button></form>
-        <button class="lang" data-act="lang">${lang === 'fr' ? 'English' : 'Français'}</button>
-      </div>
-    </main>`;
-    return;
-  }
-  app.innerHTML = `<div class="shell">
-    <header class="bar" id="bar"></header>
-    <div id="junction"></div>
-    <div id="climbmini"></div>
-    <div class="toast" id="toast"></div>
-    <main class="content" id="content"></main>
-    <nav class="tabs" id="tabs"></nav>
-    <div id="sheet"></div>
-  </div>`;
-  renderBar();
-  renderTabs();
-  renderContent();
-}
-
-function renderBar(): void {
-  const bar = document.getElementById('bar');
-  if (!bar) return;
-  const ok = S.conn === 'connected' && S.presence.game;
-  const label = S.conn === 'down' ? t.serverDown : S.conn === 'connecting' ? t.connecting : S.presence.game ? t.connected : t.offline;
-  const fs = !!document.fullscreenElement;
-  bar.innerHTML = `<i class="dot ${ok ? 'ok' : S.conn === 'connected' ? 'warn' : 'off'}"></i>
-    <div class="where"><b>${esc(S.st?.road || S.st?.routeName || 'Allez Robert !')}</b><span>${esc(label)}</span></div>
-    ${fs && 'orientation' in screen && 'lock' in (screen.orientation as object) ? `<button class="ico" data-act="rotate" title="${esc(t.rotate)}">⟳<small>${esc(t.orient[S.orient])}</small></button>` : ''}
-    <button class="ico mic" id="micbtn" data-act="mic" title="${esc(t.micTitle)}" hidden></button>
-    <button class="ico" data-act="fullscreen" title="${esc(t.fullscreen)}">${fs ? '🗗' : '⛶'}</button>
-    <button class="ico" data-act="lang">${lang === 'fr' ? 'EN' : 'FR'}</button>`;
-  updateMic();
-}
-
-/** Bouton 🎙 : visible quand la sortie a une voix (ou que le téléphone y est relié), avec l'état du micro. */
-function updateMic(): void {
-  const b = document.getElementById('micbtn');
-  if (!b) return;
-  const show = mic.linked || mic.state === 'connecting' || (!!S.st?.voice?.available && S.st.phase !== 'menu');
-  b.hidden = !show;
-  if (!show) return;
-  const label = mic.state === 'on' ? t.micOn : mic.state === 'connecting' ? t.micWait : mic.state === 'muted' ? t.micOff : t.mic;
-  const html = `${mic.state === 'muted' ? '🔇' : '🎙'}<small>${esc(label)}</small>`;
-  if (b.innerHTML !== html) b.innerHTML = html;
-  b.className = `ico mic ${mic.state}`;
-}
-
-function renderTabs(): void {
-  const nav = document.getElementById('tabs');
-  if (!nav) return;
-  const icons: Record<Tab, string> = { dash: '⏱', ctrl: '🎛', music: '♪', chat: '💬', map: '🗺' };
-  nav.innerHTML = (Object.keys(icons) as Tab[])
-    .map((k) => `<button class="${S.tab === k ? 'on' : ''}" data-tab="${k}"><i>${icons[k]}</i><span>${esc(t.tabs[k])}</span>${k === 'chat' && S.unread ? `<b class="badge">${S.unread}</b>` : ''}</button>`)
-    .join('');
-}
-
-/** Robert qui pédale (calques de l'illustration du jeu, animés en CSS), pour les écrans d'attente. */
-function robertWait(): string {
-  const l = (name: string, cls = '') => `<img src="${import.meta.env.BASE_URL}robert-velo/${name}.webp" alt=""${cls ? ` class="${cls}"` : ''}>`;
-  return `<div class="rb" aria-hidden="true"><div class="rb-bike">${l('base')}${l('leg', 'rb-leg')}<div class="rb-upper">${l('upper')}${l('arm', 'rb-arm')}</div></div></div>`;
-}
-
-/** État de la liaison des écrans d'attente : une seule mention (« Connecté », « Connexion… », « Hors ligne »). */
-function linkPill(): string {
-  const state = S.conn === 'connected' ? 'ok' : S.conn === 'down' ? 'bad' : 'warn';
-  const word = S.conn === 'connected' ? t.linkOk : S.conn === 'down' ? t.linkDown : t.linkWait;
-  return `<p class="st-pill is-${state}"><span class="ab-state"><i></i>${esc(word)}</span></p>`;
-}
-
-function waitingHtml(): string {
-  const gameUp = S.conn === 'connected' && S.presence.game && !!S.st;
-  const tiles = linkPill();
-  if (S.conn !== 'connected') return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitConnTitle)}</h1><p class="ab-sub">${esc(S.conn === 'down' ? t.serverDown : t.connecting)}</p>${tiles}</div>`;
-  if (!gameUp) return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitGameTitle)}</h1><p class="ab-sub">${esc(t.waitingGame)}</p>${tiles}<button class="btn ghost small" data-act="unpair">${esc(t.unpair)}</button></div>`;
-  return `<div class="empty">${robertWait()}<h1 class="ab-title">${esc(t.waitMenuTitle)}</h1><p class="ab-sub">${esc(t.menu)}</p>${tiles}</div>`;
-}
-
-/** Squelette de l'onglet courant (les valeurs sont remplies par `refresh`). */
-function renderContent(): void {
-  const c = document.getElementById('content');
-  if (!c) return;
-  c.dataset.tab = S.tab;
-  const inRide = !!S.st && S.st.phase !== 'menu';
-  if (S.tab === 'music') c.innerHTML = musicHtml();
-  else if (S.tab === 'chat') {
-    S.unread = 0;
-    c.innerHTML = chatHtml();
-    renderChatLog();
-  } else if (!inRide) c.innerHTML = waitingHtml();
-  else if (climbPageWanted()) {
-    c.dataset.tab = 'climb';
-    c.innerHTML = climbPageHtml();
-  } else if (S.tab === 'dash') c.innerHTML = `<section class="dash" id="dash"></section><section class="extra" id="extra"></section><section class="extra" id="climbstrip"></section><section class="climb"><span>${esc(t.climb)}</span><canvas id="profile"></canvas></section>`;
-  else if (S.tab === 'ctrl') c.innerHTML = ctrlHtml();
-  else if (S.tab === 'map')
-    c.innerHTML = `${destHtml()}<section class="mapbox"><canvas id="map"></canvas><button class="chip" data-act="follow">${esc(S.follow ? t.whole : t.follow)}</button><button class="chip chip-left" id="map-screen" data-act="map-screen" hidden></button></section><section class="mapprof"><canvas id="mapprofile"></canvas></section>`;
   refresh();
 }
 
-/** Mise à jour des valeurs, à chaque état reçu (~4 Hz). */
-function refresh(): void {
-  renderBarLite();
-  renderJunction();
-  if (updateClimb()) return;
-  const st = S.st;
-  if (S.tab === 'music') return updateMusic();
-  if (S.tab === 'chat') return updateChatControls();
-  if (!st || st.phase === 'menu' || !st.metrics) return;
-  const m = st.metrics;
-  if (document.getElementById('cp')) updateClimbPage(m);
-  else if (S.tab === 'dash') {
-    const dash = document.getElementById('dash');
-    if (!dash) return renderContent();
-    // Champs construits une fois, valeurs mises à jour sur place (un bouton remplacé sous le doigt perdrait le toucher).
-    if (dash.childElementCount !== S.fields.length)
-      dash.innerHTML = S.fields.map((_, i) => `<button class="fld ${i === 0 ? 'big' : ''}" data-field="${i}"><span class="lbl"></span><b class="val"></b><small></small></button>`).join('');
-    S.fields.forEach((id, i) => {
-      const el = dash.children[i] as HTMLElement;
-      const f = field(id, m);
-      (el.children[0] as HTMLElement).textContent = t.fields[id];
-      (el.children[1] as HTMLElement).textContent = f.v;
-      (el.children[2] as HTMLElement).textContent = f.u;
-      if (f.color) el.style.setProperty('--zc', f.color);
-      else el.style.removeProperty('--zc');
-    });
-    const extra = document.getElementById('extra');
-    if (extra) {
-      // Réécrit seulement quand le HTML change (l'état arrive 4 fois par seconde).
-      const html = extraHtml(st);
-      if (extra.dataset.h !== html) {
-        extra.innerHTML = html;
-        extra.dataset.h = html;
+function onRoute(route: PairRoute): void {
+  S.geo = new RouteGeo(route);
+  S.climbs = climbsOf(S.geo);
+  refresh();
+}
+
+function onEvent(ev: PairEvent): void {
+  switch (ev.kind) {
+    case 'voiceToken':
+      return mic.onToken(ev);
+    case 'phoneMic':
+      haptic(15);
+      return void mic.setOn(ev.on);
+    case 'musicResults':
+      if (ev.query !== S.music.query) return;
+      S.music = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
+      return updatePanel();
+    case 'placeResults':
+      // Une réponse à une recherche plus ancienne que la dernière demande est ignorée.
+      if (ev.query !== S.place.query) return;
+      S.place = { query: ev.query, state: ev.error ? 'error' : 'done', items: ev.items, error: ev.error ?? '' };
+      return updatePanel();
+    case 'chat':
+      S.chat.push({ who: ev.who, text: ev.text });
+      haptic(20);
+      if (S.panel !== 'chat') {
+        S.unread++;
+        showToast(ev.text, ev.who);
       }
+      break;
+    case 'toast':
+    case 'rideOn': {
+      const text = ev.kind === 'toast' ? ev.text : rideOnMessage(ev.from, lang);
+      S.chat.push({ who: '', text, sys: true });
+      showToast(text);
+      break;
     }
-    const strip = document.getElementById('climbstrip');
-    if (strip) {
-      // Reconstruit seulement quand le texte change (le bouton reste sous le doigt).
-      const html = climbStripHtml(m);
-      if (strip.dataset.h !== html) {
-        strip.innerHTML = html;
-        strip.dataset.h = html;
-      }
-    }
-    const prof = document.getElementById('profile') as HTMLCanvasElement | null;
-    if (prof && S.geo) {
-      const from = m.routeM - 300;
-      drawProfile(prof, S.geo, m.routeM, S.geo.route.loop ? from : Math.max(from, S.geo.startD), S.geo.route.loop ? from + 3300 : Math.min(from + 3300, Math.max(S.geo.endD, m.routeM + 100)));
-    }
-  } else if (S.tab === 'ctrl') updateCtrl(st);
-  else if (S.tab === 'map' && S.geo) {
-    const canvas = document.getElementById('map') as HTMLCanvasElement | null;
-    updateDest(st);
-    // Carte complète à l'écran du jeu : bouton présent seulement si la sortie en a une.
-    const scr = document.getElementById('map-screen');
-    if (scr) {
-      const label = st.mapOpen ? t.mapOnScreenClose : t.mapOnScreen;
-      if (scr.textContent !== label) scr.textContent = label;
-      scr.hidden = st.mapOpen === undefined;
-    }
-    if (canvas) drawMap(canvas, S.geo, { routeM: m.routeM, ...(st.pos ? { pos: st.pos } : {}), riders: st.riders ?? [], follow: S.follow, ...(st.open && st.destination ? { destination: st.destination } : {}) });
-    const prof = document.getElementById('mapprofile') as HTMLCanvasElement | null;
-    if (prof) drawProfile(prof, S.geo, m.routeM, S.geo.startD, S.geo.route.loop ? S.geo.route.lengthM : S.geo.endD);
   }
+  if (S.chat.length > 80) S.chat.splice(0, S.chat.length - 80);
+  refresh();
 }
 
-/** Nom de la route dans la barre, sans tout reconstruire. */
-function renderBarLite(): void {
-  const b = document.querySelector('#bar .where b');
-  if (b) b.textContent = S.st?.road || S.st?.routeName || 'Allez Robert !';
-  updateMic();
-}
-
-function extraHtml(st: PairState): string {
-  let h = '';
-  const m = st.metrics!;
-  if (st.workout) {
-    const w = st.workout;
-    h += `<div class="strip wk"><b>${esc(t.workout)}</b><span>${w.targetWatts !== null ? `${nf(w.targetWatts)} W ${esc(t.target)}` : esc(w.name)}</span><span>${fmtTime(w.stepRemainingS)} ${esc(t.stepLeft)}</span>${w.next ? `<span class="mut">${esc(t.next)} ${esc(w.next)}</span>` : ''}</div>`;
-  }
-  if (st.segment) {
-    const s = st.segment;
-    h += `<div class="strip seg ${esc(s.kind)}"><b>${s.kind === 'kom' ? '⛰' : s.kind === 'sprint' ? '⚡' : '🏁'} ${esc(s.name)}</b><span>${fmtTime(s.elapsedS)}</span><i class="bar"><i style="width:${Math.round(s.progress * 100)}%"></i></i></div>`;
-  }
-  // Barre des rapports : seulement avec des manettes de vitesses appairées.
-  if (st.shifter) h += `<div class="gears" aria-label="${esc(t.gear)}">${Array.from({ length: m.gearCount }, (_, i) => `<i class="${i === m.gearIndex ? 'on' : i < m.gearIndex ? 'lo' : ''}"></i>`).join('')}</div>`;
-  return h;
-}
-
-function renderJunction(): void {
-  const el = document.getElementById('junction');
-  if (!el) return;
-  const j = S.st?.phase === 'ride' ? S.st.junction : null;
-  if (!j || j.inM > 450) {
-    if (el.innerHTML) el.innerHTML = '';
-    el.dataset.key = '';
-    return;
-  }
-  const arrow = { left: '↰', straight: '↑', right: '↱', back: '↶' } as const;
-  const dist = `${t.inM(Math.max(0, Math.round(j.inM / 10) * 10))}${j.locked ? ` · ${t.locked}` : ''}`;
-  // Reconstruit seulement quand le choix change ; la distance est mise à jour sur place.
-  const key = `${lang}|${j.selected}|${j.locked}|${j.choices.map((c) => c.name + c.dir).join('|')}`;
-  if (el.dataset.key === key) {
-    const span = el.querySelector('.jn-head span');
-    if (span) span.textContent = dist;
-    return;
-  }
-  el.dataset.key = key;
-  el.innerHTML = `<div class="jn ${j.locked ? 'locked' : ''}">
-    <div class="jn-head"><b>${esc(t.junction)}</b><span>${esc(dist)}</span></div>
-    <div class="jn-choices">${j.choices
-      .map((c, i) => {
-        const dir = (c.dir in arrow ? c.dir : 'straight') as keyof typeof arrow;
-        return `<button class="${i === j.selected ? 'on' : ''}" data-turn="${i}" ${j.locked ? 'disabled' : ''}><i>${arrow[dir]}</i><b>${esc(t.dirs[dir])}</b><span>${esc(c.name)}${c.unpaved ? ` · 🌾 ${esc(t.unpaved)}` : ''}</span></button>`;
-      })
-      .join('')}</div>
-  </div>`;
-}
-
-/* ───────────── Montées (façon ClimbPro) ───────────── */
-
-/** Distance lisible : « 350 m », « 2,35 km ». */
-function fmtDist(m: number, d = 2): string {
-  m = Math.max(0, m);
-  return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${nf(m / 1000, d)} km`;
-}
-
-/** Page de la montée affichée à la place du compteur ou de la carte ? */
-function climbPageWanted(): boolean {
-  return !!S.climb && !S.climbHidden && (S.tab === 'dash' || S.tab === 'map') && !!S.st && S.st.phase !== 'menu';
-}
-
-/** Barre des tronçons colorés, avec la position du coureur. */
-function climbBarHtml(c: Climb, pos: number | null): string {
-  return `<i class="cbar">${c.segments.map((s) => `<i style="flex:${s.to - s.from};background:${gradeColor(s.grade)}"></i>`).join('')}${
-    pos !== null ? `<b style="left:${Math.min(100, (Math.max(pos, 0) / c.lengthM) * 100).toFixed(1)}%"></b>` : ''
-  }</i>`;
-}
-
-/** Résumé d'une montée : « 3,2 km · 6,4 % moy. · max 9,1 % · +205 m ». */
-function climbSummary(c: Climb): string {
-  const ge = c.openEnd ? '≥ ' : '';
-  return `${ge}${nf(c.lengthM / 1000, 1)} km · ${nf(c.avgGrade, 1)} % ${t.climbAvg} · ${t.climbMax} ${nf(c.maxGrade, 1)} % · ${ge}+${nf(c.gainM)} m`;
-}
-
-/** Sommet de la montée suivie (m sur la route), départ du chrono au pied. */
-let climbEnd: number | null = null;
-let climbT0: { elapsedS: number; elev: number } | null = null;
-let lastRouteM: number | null = null;
-
-/**
- * Montée en cours ou proche : vibration à l'approche, bilan au sommet, page affichée ou retirée,
- * bandeau des autres onglets. Renvoie vrai si le contenu a été reconstruit (déjà rafraîchi).
- */
-function updateClimb(): boolean {
-  const st = S.st;
-  const m = st && st.phase !== 'menu' ? st.metrics : undefined;
-  if (m && lastRouteM !== null) {
-    // Sens de marche, d'après l'évolution de la position (les sauts de tour de boucle sont ignorés).
-    const dm = m.routeM - lastRouteM;
-    if (dm < -1 && dm > -500) S.backwards = true;
-    else if (dm > 1 && dm < 500) S.backwards = false;
-  }
-  lastRouteM = m ? m.routeM : null;
-  const a = m && S.geo && !S.backwards ? climbAhead(S.climbs, m.routeM, { loop: S.geo.route.loop, lengthM: S.geo.route.lengthM }) : null;
-  S.climb = a && a.pos >= -CLIMB_APPROACH_M ? a : null;
-  const start = S.climb && m ? m.routeM - S.climb.pos : null;
-  // Changement de montée (ou plus de montée) : la précédente a-t-elle été gravie ?
-  if (climbEnd !== null && (start === null || start > climbEnd - 1)) {
-    if (m && m.routeM >= climbEnd - 30 && climbT0) {
-      const dt = m.elapsedS - climbT0.elapsedS;
-      const gain = Math.max(0, m.altitudeM - climbT0.elev);
-      const vam = dt > 0 ? Math.round((gain * 3600) / dt) : 0;
-      haptic([40, 30, 40, 30, 160]);
-      showToast(`⛰ ${t.climbSummit} ${fmtTime(dt)} · +${nf(gain)} m · VAM ${nf(vam)} m/h`);
-    }
-    S.climbHidden = false;
-    climbT0 = null;
-  }
-  if (start !== null && (climbEnd === null || start > climbEnd - 1)) haptic([60, 40, 60, 40, 60]);
-  if (S.climb && m && S.climb.pos >= 0 && !climbT0) climbT0 = { elapsedS: m.elapsedS, elev: m.altitudeM };
-  climbEnd = start !== null ? start + S.climb!.climb.lengthM : null;
-  renderClimbMini();
-  const c = document.getElementById('content');
-  if (c && m && (c.dataset.tab === 'climb') !== climbPageWanted()) {
-    renderContent();
-    return true;
-  }
-  return false;
-}
-
-function climbPageHtml(): string {
-  const f = (id: string, lbl: string) => `<div class="fld" id="${id}"><span class="lbl">${esc(lbl)}</span><b class="val">–</b><small></small></div>`;
-  return `<section class="cp" id="cp">
-    <header class="cp-head"><b id="cp-title"></b><span id="cp-status"></span><button class="ico" data-act="climb-close" aria-label="${esc(t.climbClose)}">✕</button></header>
-    <div class="cp-fields">${f('cp-left', t.climbLeft)}${f('cp-gain', t.climbGainLeft)}${f('cp-grade', t.fields.grade)}${f('cp-power', t.fields.power3s)}</div>
-    <div class="cp-prof"><canvas id="cp-canvas"></canvas></div>
-    <div class="cp-foot"><div class="seg-now" id="cp-seg"></div><div class="mut" id="cp-sum"></div></div>
-  </section>`;
-}
-
-function setText(id: string, text: string): void {
-  const el = document.getElementById(id);
-  if (el && el.textContent !== text) el.textContent = text;
-}
-
-function setField(id: string, v: string, u: string, color?: string): void {
-  const el = document.getElementById(id);
-  if (!el) return;
-  (el.children[1] as HTMLElement).textContent = v;
-  (el.children[2] as HTMLElement).textContent = u;
-  if (color) el.style.setProperty('--zc', color);
-  else el.style.removeProperty('--zc');
-}
-
-function updateClimbPage(m: Metrics): void {
-  const a = S.climb;
-  if (!a) return;
-  const c = a.climb;
-  const p = Math.min(Math.max(a.pos, 0), c.lengthM);
-  const leftM = c.lengthM - p;
-  const gainLeft = Math.max(0, c.topM - climbElevation(c, p));
-  const ge = c.openEnd ? '≥ ' : '';
-  setText('cp-title', `⛰ ${t.climbOf(a.index + 1, S.geo?.route.open ? 1 : S.climbs.length)}`);
-  setText('cp-status', a.pos < 0 ? t.climbIn(fmtDist(-a.pos)) : `${t.climbOn} · ${Math.round((p / c.lengthM) * 100)} %`);
-  const [lv, lu] = fmtDist(leftM).split(' ');
-  setField('cp-left', ge + lv!, lu!);
-  setField('cp-gain', ge + nf(gainLeft), 'm');
-  setField('cp-grade', nf(m.gradePercent, 1), '%', gradeColor(m.gradePercent));
-  setField('cp-power', nf(m.watts3s), 'W', zoneOf(m.watts3s, m.ftp).color);
-  // Tronçon en cours : pente, distance jusqu'au suivant ; pente moyenne de ce qui reste.
-  const seg = c.segments.find((s) => p < s.to) ?? c.segments[c.segments.length - 1]!;
-  const segHtml = `<i style="background:${gradeColor(seg.grade)}"></i><span>${esc(t.climbSeg)} ${nf(seg.grade, 1)} % · ${esc(fmtDist(seg.to - p))}</span>${
-    leftM > 50 ? `<span class="mut">${nf((gainLeft / leftM) * 100, 1)} % ${esc(t.climbAvgLeft)}</span>` : ''
-  }`;
-  const segEl = document.getElementById('cp-seg');
-  if (segEl && segEl.dataset.h !== segHtml) {
-    segEl.innerHTML = segHtml;
-    segEl.dataset.h = segHtml;
-  }
-  setText('cp-sum', `${climbSummary(c)} · ${t.climbTop} ${nf(c.topM)} m`);
-  const canvas = document.getElementById('cp-canvas') as HTMLCanvasElement | null;
-  if (canvas) drawClimb(canvas, c, a.pos, nf);
-}
-
-/** Bandeau du compteur : montée suivante, ou montée en cours dont la page a été fermée. */
-function climbStripHtml(m: Metrics): string {
-  if (S.climb) {
-    const c = S.climb.climb;
-    return S.climbHidden
-      ? `<button class="strip climb-s" data-act="climb-show"><b>⛰ ${esc(t.climbNow)}</b><span>${esc(climbSummary(c))}</span><span class="mut">${esc(t.climbShow)} ›</span>${climbBarHtml(c, null)}</button>`
-      : '';
-  }
-  if (!S.geo || S.backwards) return '';
-  const a = climbAhead(S.climbs, m.routeM, { loop: S.geo.route.loop, lengthM: S.geo.route.lengthM });
-  if (!a) return '';
-  const c = a.climb;
-  return `<div class="strip climb-s"><b>⛰ ${esc(t.climbNext)}</b><span>${esc(t.climbIn(fmtDist(-a.pos, 1)))}</span><span class="mut">${esc(climbSummary(c))}</span>${climbBarHtml(c, null)}</div>`;
-}
-
-/** Bandeau réduit de la montée sur les onglets sans la page (pilotage, musique, chat). */
-function renderClimbMini(): void {
-  const el = document.getElementById('climbmini');
-  if (!el) return;
-  const a = S.climb;
-  const show = !!a && S.tab !== 'dash' && S.tab !== 'map';
-  document.getElementById('content')?.classList.toggle('pad-climb', show);
-  if (!show || !a) {
-    if (el.innerHTML) el.innerHTML = '';
-    el.dataset.key = '';
-    return;
-  }
-  const c = a.climb;
-  const p = Math.min(Math.max(a.pos, 0), c.lengthM);
-  const gainLeft = Math.max(0, c.topM - climbElevation(c, p));
-  const ge = c.openEnd ? '≥ ' : '';
-  const text =
-    a.pos < 0
-      ? `${t.climbIn(fmtDist(-a.pos))} · ${nf(c.lengthM / 1000, 1)} km · ${nf(c.avgGrade, 1)} %`
-      : `${ge}${fmtDist(c.lengthM - p)} · ${ge}+${nf(gainLeft)} m · ${nf(S.st?.metrics?.gradePercent ?? 0, 1)} %`;
-  // Construit une fois par montée ; texte et repère mis à jour sur place (bouton sous le doigt).
-  const key = `${lang}|${c.segments.map((s) => s.grade.toFixed(1)).join(',')}`;
-  if (el.dataset.key !== key) {
-    el.dataset.key = key;
-    el.innerHTML = `<button class="cm" data-act="climb-show"><b>⛰</b><span class="cm-txt"></span>${climbBarHtml(c, 0)}</button>`;
-  }
-  const txt = el.querySelector('.cm-txt');
-  if (txt && txt.textContent !== text) txt.textContent = text;
-  const mark = el.querySelector<HTMLElement>('.cbar b');
-  if (mark) {
-    mark.hidden = a.pos < 0;
-    mark.style.left = `${((p / c.lengthM) * 100).toFixed(1)}%`;
-  }
-}
-
-function ctrlHtml(): string {
-  const st = S.st!;
-  // Vitesses (− rapport +) : seulement avec des manettes de vitesses appairées.
-  return `<section class="ctrl">
-    <button class="btn huge" data-cmd="start-race" id="c-start"${st.awaitingStart ? '' : ' hidden'} style="width:100%;margin-bottom:12px;background:var(--accent, #ffd23f);color:#0a0e16;font-weight:800">${esc(st.awaitingStart === 'tt' ? t.startTt : t.startRace)}</button>
-    <div class="cg" id="c-gears"${st.shifter ? '' : ' hidden'}>
-      <h2>${esc(t.ctrlGears)}</h2>
-      <div class="shift">
-        <button class="btn huge" data-cmd="shift-down" aria-label="${esc(t.shiftDown)}">−</button>
-        <div class="gearbox"><span>${esc(t.gear)}</span><b id="c-gear">–</b><small id="c-gearn"></small></div>
-        <button class="btn huge" data-cmd="shift-up" aria-label="${esc(t.shiftUp)}">+</button>
-      </div>
-    </div>
-    <div class="cg">
-      <h2>${esc(t.ctrlRide)}</h2>
-      <div class="tiles">
-        <button class="btn big tile" data-ico="⏯" data-cmd="pause" id="c-pause">${esc(st.phase === 'paused' ? t.resume : t.pause)}</button>
-        ${st.open || !st.multiplayer ? `<button class="btn big tile" data-ico="↶" data-cmd="uturn">${esc(t.uturn)}</button>` : ''}
-        <button class="btn big tile" data-ico="📷" data-cmd="photo">${esc(t.photo)}</button>
-        <button class="btn big tile" data-ico="👀" data-cmd="lookback" id="c-look">${esc(t.lookBack)}</button>
-      </div>
-    </div>
-    <div class="cg">
-      <h2>${esc(t.ctrlView)}</h2>
-      <div class="tiles">
-        <button class="btn big tile" data-ico="▦" data-cmd="hud" id="c-hud">${esc(t.hud)}</button>
-        ${st.ghost === undefined || st.ghost === null ? '' : `<button class="btn big tile${st.ghost ? ' on' : ''}" data-ico="👻" data-cmd="ghost" id="c-ghost">${esc(st.ghost ? t.ghostOn : t.ghostOff)}</button>`}
-        <button class="btn big tile" data-ico="🔊" data-cmd="mute" id="c-mute">${esc(st.muted ? t.unmute : t.mute)}</button>
-        <button class="btn big tile wide2" data-ico="♪" data-music="toggle" id="c-music">${esc(st.music?.playing === false ? t.musicResume : t.musicCut)}</button>
-      </div>
-      ${soundsHtml(st)}
-      <h3>${esc(t.camera)}</h3>
-      <div class="cams">${CAMERAS.map((c) => `<button class="seg" data-cam="${c}">${esc(t.cameras[c])}</button>`).join('')}</div>
-    </div>
-    <div class="cg">
-      <h2>${esc(t.ctrlComfort)}</h2>
-      ${st.fanMode ? `<h3>${esc(t.fan)}</h3><div class="cams" id="c-fanmodes">${PAIR_FAN_MODES.map((m) => `<button class="seg${st.fanMode === m ? ' on' : ''}" data-fanmode="${m}">${esc(t.fanModes[m])}</button>`).join('')}</div>` : ''}
-      <label class="slider" id="c-fanrow"${st.fanMode && st.fanMode !== 'manual' ? ' hidden' : ''}><span>${esc(st.fanMode ? t.fanModes.manual : t.fan)}</span><input type="range" min="0" max="100" step="5" value="${st.fanPercent ?? 0}" id="c-fan"/><output id="c-fanv">${st.fanPercent ?? 0} %</output></label>
-      ${roadFeelHtml(st)}
-    </div>
-    ${
-      st.team
-        ? `<div class="cg"><h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div><div class="grp-list" id="c-grp-list"></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div><div class="row3"><button class="btn big" data-cmd="team-attack">${esc(t.teamAttack)}</button><button class="btn big" data-cmd="team-pull">${esc(t.teamPull)}</button></div></div>`
-        : ''
-    }
-  </section>`;
-}
-
-const SOUND_ICONS: Record<PairSoundBus, string> = { ambience: '🌳', wind: '💨', bike: '🚲', breath: '😮‍💨', crowd: '📣', traffic: '🚗', voice: '🎙' };
-
-/** Sons du jeu, un bouton par type : jaune = audible, barré = coupé (jeu trop ancien : rien). */
-function soundsHtml(st: PairState): string {
-  if (!st.sounds) return '';
-  return `<h3>${esc(t.sounds)}</h3><p class="hint">${esc(t.soundsHint)}</p>
-      <div class="cams sounds" id="c-sounds">${PAIR_SOUND_BUSES.map((b) => `<button class="seg snd${st.sounds?.[b] ? ' on' : ' off'}" data-sound="${b}" aria-pressed="${st.sounds?.[b] ? 'true' : 'false'}"><i aria-hidden="true">${SOUND_ICONS[b]}</i>${esc(t.soundNames[b])}</button>`).join('')}</div>`;
-}
-
-/** Ressenti route du home trainer : valeur affichée (0 = coupé). */
-function roadFeelValue(percent: number): string {
-  return percent > 0 ? `${percent} %` : lang === 'fr' ? 'Coupé' : 'Off';
-}
-
-/** Ressenti route : message sous le curseur, alerte jaune « fort », rouge « très fort ». */
-function roadFeelMsgHtml(percent: number, supported: boolean, surface = 'off'): string {
-  const T = ROAD_FEEL_TEXT[lang];
-  const level = roadFeelLevel(percent);
-  // Revêtement simulé en ce moment : on voit le ressenti suivre la route.
-  const now = supported && percent > 0 ? ` <b>${lang === 'fr' ? 'En ce moment' : 'Now'} : ${esc(ROAD_FEEL_SURFACE_LABEL[lang][surface] ?? surface)}.</b>` : '';
-  return `<p id="c-roadmsg" class="road-msg ${level}">${esc(T[level])}${supported ? '' : ` ${esc(T.unsupported)}`}${now}</p>`;
-}
-
-/** Ressenti route : curseur (Tacx NEO) et son message d'alerte, dans l'onglet Pilotage. */
-function roadFeelHtml(st: PairState): string {
-  const rf = st.roadFeel;
-  if (!rf) return '';
-  return `<label class="slider"><span>${esc(ROAD_FEEL_TEXT[lang].title)}</span><input type="range" min="0" max="${ROAD_FEEL.maxPercent}" step="5" value="${rf.percent}" id="c-road"/><output id="c-roadv">${roadFeelValue(rf.percent)}</output></label>
-    ${roadFeelMsgHtml(rf.percent, rf.supported, rf.surface)}`;
-}
-
-function updateCtrl(st: PairState): void {
-  const m = st.metrics!;
-  const box = document.getElementById('c-gears');
-  if (box) box.hidden = !st.shifter;
-  const g = document.getElementById('c-gear');
-  if (!g) return;
-  g.textContent = m.gearLabel || String(m.gearIndex + 1);
-  const gn = document.getElementById('c-gearn');
-  if (gn) gn.textContent = `${m.gearIndex + 1} / ${m.gearCount}`;
-  const p = document.getElementById('c-pause');
-  if (p) p.textContent = st.phase === 'paused' ? t.resume : t.pause;
-  const go = document.getElementById('c-start');
-  if (go) {
-    go.hidden = !st.awaitingStart;
-    go.textContent = st.awaitingStart === 'tt' ? t.startTt : t.startRace;
-  }
-  const h = document.getElementById('c-hud');
-  if (h) h.textContent = st.hudVisible === false ? t.hudOff : t.hudOn;
-  const look = document.getElementById('c-look');
-  if (look) look.classList.toggle('on', !!st.lookBack);
-  const ghostBtn = document.getElementById('c-ghost');
-  if (ghostBtn) {
-    ghostBtn.textContent = st.ghost ? t.ghostOn : t.ghostOff;
-    ghostBtn.classList.toggle('on', !!st.ghost);
-  }
-  const mute = document.getElementById('c-mute');
-  if (mute) mute.textContent = st.muted ? t.unmute : t.mute;
-  document.querySelectorAll<HTMLButtonElement>('[data-sound]').forEach((b) => {
-    const on = !!st.sounds?.[b.dataset.sound as PairSoundBus];
-    b.classList.toggle('on', on);
-    b.classList.toggle('off', !on);
-    b.setAttribute('aria-pressed', String(on));
-  });
-  // Tout le son coupé : les types restent réglables, mais grisés pour montrer qu'on n'entend rien.
-  document.getElementById('c-sounds')?.classList.toggle('all-muted', !!st.muted);
-  // Radar du groupe : 30 m derrière à 30 m devant, moi au centre (comme le panneau « Groupe » du jeu).
-  const dots = document.getElementById('c-grp-dots');
-  if (dots) {
-    dots.innerHTML = (st.riders ?? [])
-      .filter((r) => !r.me && Math.abs(r.gapM) <= 30)
-      .map((r) => `<i style="left:${(50 + (r.gapM / 30) * 50).toFixed(1)}%;background:${esc(r.color)}" title="${esc(r.name)}"></i>`)
-      .join('');
-    // Équipiers IA : énergie (W′) et ce qu'ils font de notable, du premier au dernier (façon NCT Ride).
-    const list = document.getElementById('c-grp-list');
-    if (list) {
-      const eff = { attack: t.effAttack, chase: t.effChase, cracked: t.effCracked } as const;
-      list.innerHTML = (st.riders ?? [])
-        .filter((r) => r.ai && r.energy !== undefined)
-        .sort((a, b) => b.gapM - a.gapM)
-        .slice(0, 8)
-        .map((r) => {
-          const e = Math.max(0, Math.min(100, Math.round(r.energy ?? 0)));
-          const tone = e > 60 ? 'hi' : e > 30 ? 'mid' : 'lo';
-          const gap = `${r.gapM >= 0 ? '+' : '−'}${Math.round(Math.abs(r.gapM))} m`;
-          return `<div class="gl-row"><i class="gl-dot" style="background:${esc(r.color)}"></i><span class="gl-name">${esc(r.name)}</span>${r.effort ? `<em class="gl-eff ${r.effort}">${esc(eff[r.effort])}</em>` : '<i class="gl-eff"></i>'}<span class="gl-gap">${gap}</span><i class="gl-en ${tone}" title="${esc(t.energy)} ${e} %"><b style="width:${e}%"></b></i><span class="gl-pct">${e} %</span></div>`;
-        })
-        .join('');
-    }
-    const gp = document.getElementById('c-grp-pace');
-    if (gp) gp.textContent = st.groupPacePct ? `${st.groupPacePct} % FTP` : '';
-  }
-  // Musique : le bouton dit ce qu'un appui fait (couper la musique en sortie sans quitter le pilotage).
-  const mu = document.getElementById('c-music');
-  if (mu) mu.textContent = st.music?.playing === false ? t.musicResume : t.musicCut;
-  document.querySelectorAll<HTMLButtonElement>('[data-cam]').forEach((b) => b.classList.toggle('on', b.dataset.cam === st.camera));
-  // Mode du ventilateur : bouton actif suivant le jeu ; le curseur ne sert qu'en mode fixe.
-  if (st.fanMode) {
-    document.querySelectorAll<HTMLButtonElement>('[data-fanmode]').forEach((b) => b.classList.toggle('on', b.dataset.fanmode === st.fanMode));
-    const row = document.getElementById('c-fanrow');
-    if (row) row.hidden = st.fanMode !== 'manual';
-  }
-  const fan = document.getElementById('c-fan') as HTMLInputElement | null;
-  if (fan && document.activeElement !== fan && st.fanPercent !== undefined && Date.now() - fanTouched > 1500) {
-    fan.value = String(st.fanPercent);
-    const out = document.getElementById('c-fanv');
-    if (out) out.textContent = `${st.fanPercent} %`;
-  }
-  const road = document.getElementById('c-road') as HTMLInputElement | null;
-  if (road && st.roadFeel && document.activeElement !== road && Date.now() - roadTouched > 1500) {
-    road.value = String(st.roadFeel.percent);
-    const out = document.getElementById('c-roadv');
-    if (out) out.textContent = roadFeelValue(st.roadFeel.percent);
-    const msg = document.getElementById('c-roadmsg');
-    if (msg) msg.outerHTML = roadFeelMsgHtml(st.roadFeel.percent, st.roadFeel.supported, st.roadFeel.surface);
-  }
-}
-
-function musicHtml(): string {
-  return `<section class="music">
-    <div class="disc" id="mu-disc">♪</div>
-    <div class="np"><span id="mu-src"></span><b id="mu-title">–</b></div>
-    <div class="transport">
-      <button class="btn round" data-music="previous" aria-label="${esc(t.previous)}">⏮</button>
-      <button class="btn round huge" data-music="toggle" id="mu-play">▶</button>
-      <button class="btn round" data-music="next" aria-label="${esc(t.nextTrack)}">⏭</button>
-    </div>
-    <label class="slider"><span>${esc(t.volume)}</span><input type="range" min="0" max="1" step="0.05" id="mu-vol"/><output id="mu-volv"></output></label>
-    <div class="mu-search" id="mu-search">
-      <h2>${esc(t.musicFind)}</h2>
-      <p class="hint" id="mu-need">${esc(t.musicNeedSpotify)}</p>
-      <form class="row" data-form="music"><input name="q" maxlength="100" autocomplete="off" enterkeyhint="search" placeholder="${esc(t.musicSearch)}" value="${esc(S.music.query)}"/><button class="btn">${esc(t.musicSearchGo)}</button></form>
-      <button class="seg" data-act="music-mine">${esc(t.musicMine)}</button>
-      <ul class="mu-results" id="mu-results"></ul>
-    </div>
-  </section>`;
-}
-
-/** Résultats de la recherche Spotify : un appui lance le morceau ou la playlist dans le jeu. */
-function renderMusicResults(): void {
-  const ul = document.getElementById('mu-results');
-  if (!ul) return;
-  const m = S.music;
-  if (m.state === 'loading') ul.innerHTML = `<li class="mu-info">${esc(t.musicSearching)}</li>`;
-  else if (m.state === 'error') ul.innerHTML = `<li class="mu-info">${esc(m.error === 'not_connected' ? t.musicNotConnected : t.musicFailed)}</li>`;
-  else if (m.state === 'done' && !m.items.length) ul.innerHTML = `<li class="mu-info">${esc(t.musicNone)}</li>`;
-  else
-    ul.innerHTML = m.items
-      .map(
-        (i, n) =>
-          `<li><button data-mplay="${n}">${i.image ? `<img src="${esc(i.image)}" alt="" loading="lazy"/>` : '<i></i>'}<span><b>${esc(i.name)}</b><small>${esc(i.type === 'track' ? t.musicTrack : t.musicPlaylist)}${i.sub ? ` · ${esc(i.sub)}` : ''}</small></span></button></li>`,
-      )
-      .join('');
-}
-
-/** Parcours libre : recherche d'une destination, résultats, destination en cours (onglet Carte). */
-function destHtml(): string {
-  return `<section class="dest" id="dest" hidden>
-    <form class="row" data-form="place"><input name="q" maxlength="100" autocomplete="off" enterkeyhint="search" placeholder="${esc(t.destSearch)}" value="${esc(S.place.query)}"/><button class="btn">${esc(t.destSearchGo)}</button></form>
-    <div class="dest-cur" id="dest-cur" hidden></div>
-    <ul class="mu-results dest-results" id="dest-results"></ul>
-  </section>`;
-}
-
-function renderPlaceResults(): void {
-  const ul = document.getElementById('dest-results');
-  if (!ul) return;
-  const p = S.place;
-  let html = '';
-  if (p.state === 'loading') html = `<li class="mu-info">${esc(t.destSearching)}</li>`;
-  else if (p.state === 'error') html = `<li class="mu-info">${esc(t.destUnavailable)}</li>`;
-  else if (p.state === 'done' && !p.items.length) html = `<li class="mu-info">${esc(t.destNone)}</li>`;
-  else if (p.state === 'done') html = p.items.map((i, n) => `<li><button data-pgo="${n}"><span><b>${esc(i.name)}</b><small>${esc(i.sub)}</small></span></button></li>`).join('');
-  // Signature de la recherche affichée : la liste n'est réécrite que si elle change (ou si l'onglet vient d'être reconstruit).
-  const sig = `${p.state}|${p.query}|${p.items.length}`;
-  if (ul.dataset.sig === sig) return;
-  ul.dataset.sig = sig;
-  ul.innerHTML = html;
-}
-
-function placeSearch(query: string): void {
-  S.place = { query, state: 'loading', items: [], error: '' };
-  renderPlaceResults();
-  send({ kind: 'placeSearch', query });
-}
-
-let destCurHtml = '';
-/** Affiche la recherche seulement en parcours libre, et la destination en cours avec la distance restante. */
-function updateDest(st: PairState): void {
-  const box = document.getElementById('dest');
-  if (!box) return;
-  const show = !!st.open && st.phase !== 'menu';
-  if (box.hidden === show) box.hidden = !show;
-  if (show) renderPlaceResults();
-  const cur = document.getElementById('dest-cur');
-  if (!cur) return;
-  const d = show ? st.destination : null;
-  const html = d ? `<span>🏁 <b>${esc(d.name)}</b> · ${esc(fmtDist(d.remainingM, 1))}</span><button class="seg" data-act="dest-clear">${esc(t.destClear)}</button>` : '';
-  // Le conteneur vient d'être reconstruit (changement d'onglet) : son contenu est à refaire même si le texte n'a pas changé.
-  if (html !== destCurHtml || (html && !cur.firstChild)) {
-    cur.innerHTML = html;
-    destCurHtml = html;
-  }
-  cur.hidden = !d;
-}
-
-function musicSearch(query: string): void {
-  S.music = { query, state: 'loading', items: [], error: '' };
-  renderMusicResults();
-  send({ kind: 'musicSearch', query });
-}
-
-let volTouched = 0;
-let fanTouched = 0;
-let roadTouched = 0;
-
-function updateMusic(): void {
-  const mu = S.st?.music;
-  const src = document.getElementById('mu-src');
-  if (!src) return;
-  src.textContent = !mu ? '' : mu.source === 'spotify' ? t.musicSpotify : t.musicGame;
-  const title = document.getElementById('mu-title');
-  if (title) title.textContent = mu ? (mu.playing ? mu.title || '…' : mu.title ? `${mu.title} (${t.stop.toLowerCase()})` : t.musicOff) : '–';
-  const play = document.getElementById('mu-play');
-  if (play) play.textContent = mu?.playing ? '⏸' : '▶';
-  // Pochette Spotify à la place de la note ; seule une adresse https de Spotify est acceptée.
-  const disc = document.getElementById('mu-disc');
-  const cover = mu?.source === 'spotify' && mu.cover && /^https:\/\/[a-z0-9.-]*scdn\.co\//.test(mu.cover) ? mu.cover : '';
-  if (disc && disc.dataset.cover !== cover) {
-    disc.dataset.cover = cover;
-    disc.classList.toggle('has-cover', !!cover);
-    disc.innerHTML = cover ? `<img src="${esc(cover)}" alt="" />` : '♪';
-  }
-  // Recherche toujours visible : active quand Spotify est relié dans le jeu, sinon grisée avec la marche à suivre.
-  const search = document.getElementById('mu-search');
-  if (search) {
-    const ready = mu?.source === 'spotify';
-    const was = !search.classList.contains('off');
-    search.classList.toggle('off', !ready);
-    const need = document.getElementById('mu-need');
-    if (need) need.hidden = ready;
-    search.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button').forEach((el) => (el.disabled = !ready));
-    if (ready && !was) renderMusicResults();
-  }
-  const vol = document.getElementById('mu-vol') as HTMLInputElement | null;
-  if (vol && mu && document.activeElement !== vol && Date.now() - volTouched > 1500) {
-    vol.value = String(mu.volume);
-    const out = document.getElementById('mu-volv');
-    if (out) out.textContent = `${Math.round(mu.volume * 100)} %`;
-  }
-  document.querySelectorAll<HTMLButtonElement>('[data-music]').forEach((b) => (b.disabled = !S.presence.game));
-}
-
-function chatHtml(): string {
-  return `<section class="chat">
-    <ul id="chatlog"></ul>
-    <p class="hint" id="chat-solo">${esc(t.chatSolo)}</p>
-    <div class="quick" id="chat-quick">${t.quick.map((q) => `<button class="seg" data-quick="${esc(q)}">${esc(q)}</button>`).join('')}</div>
-    <form class="row" data-form="chat"><input name="text" maxlength="280" autocomplete="off" placeholder="${esc(t.chatPlaceholder)}"/><button class="btn">${esc(t.send)}</button></form>
-    <div id="rideon"></div>
-  </section>`;
-}
-
-function renderChatLog(): void {
-  const ul = document.getElementById('chatlog');
-  if (!ul) return;
-  ul.innerHTML = S.chat
-    .slice(-60)
-    .map((m) => `<li class="${m.sys ? 'sys' : ''}">${m.sys ? '' : `<b>${esc(m.who)}</b> `}${esc(m.text)}</li>`)
-    .join('');
-  ul.scrollTop = ul.scrollHeight;
-  updateChatControls();
-}
-
-let lastRideOn = '';
-
-function updateChatControls(): void {
-  const multi = !!S.st?.multiplayer;
-  const solo = document.getElementById('chat-solo');
-  if (solo) solo.hidden = multi;
-  // Solo : ni champ ni messages rapides (personne pour les lire) ; seules les annonces du jeu restent.
-  document.querySelectorAll<HTMLElement>('#chat-quick, form[data-form="chat"]').forEach((el) => (el.hidden = !multi));
-  const box = document.getElementById('rideon');
-  if (!box) return;
-  const riders = multi ? (S.st?.riders ?? []).filter((r) => !r.me && !r.ai) : [];
-  const html = riders.length
-    ? `<h2>${esc(t.riders)}</h2><ul class="riders">${riders
-        .map((r) => `<li><i style="background:${esc(r.color)}"></i><span>${esc(r.name)}</span><button class="seg" data-rideon="${esc(r.id)}">👍 ${esc(t.rideOn)}</button></li>`)
-        .join('')}</ul>`
-    : '';
-  if (html !== lastRideOn) {
-    box.innerHTML = html;
-    lastRideOn = html;
-  }
-}
-
-function openPicker(i: number): void {
-  S.picking = i;
-  const sheet = document.getElementById('sheet');
-  if (!sheet) return;
-  sheet.innerHTML = `<div class="sheet-bg" data-act="close-sheet"></div><div class="sheet">
-    <h2>${esc(t.pickField)}</h2>
-    <div class="picks">${ALL_FIELDS.map((f) => `<button class="seg ${S.fields[i] === f ? 'on' : ''}" data-pick="${f}">${esc(t.fields[f])}</button>`).join('')}</div>
-    <button class="btn ghost small" data-act="reset-fields">${esc(t.resetFields)}</button>
-  </div>`;
-}
-
-function closeSheet(): void {
-  S.picking = null;
-  const sheet = document.getElementById('sheet');
-  if (sheet) sheet.innerHTML = '';
-}
-
-/* ───────────── Interactions ───────────── */
-
-async function toggleFullscreen(): Promise<void> {
-  const doc = document as Document & { webkitFullscreenElement?: Element };
-  const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
-  try {
-    if (document.fullscreenElement || doc.webkitFullscreenElement) await document.exitFullscreen();
-    else if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
-    else if (el.webkitRequestFullscreen) await el.webkitRequestFullscreen();
-    else throw new Error('indisponible');
-  } catch {
-    onEvent({ kind: 'toast', text: t.noFullscreen });
-  }
-}
-
-async function rotate(): Promise<void> {
-  const order = ['any', 'landscape', 'portrait'] as const;
-  S.orient = order[(order.indexOf(S.orient) + 1) % order.length]!;
-  const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
-  try {
-    if (S.orient === 'any') o.unlock();
-    else await o.lock?.(S.orient);
-  } catch {
-    S.orient = 'any';
-  }
-  renderBar();
-}
-
-// Onglets : seulement les boutons de la barre (#tabs). La zone de contenu porte aussi data-tab (onglet affiché, pour le
-// CSS) : sans cette restriction, toucher un champ (chat, recherche Spotify) redessinait la page et lui ôtait le focus.
-app.addEventListener('click', (e) => {
-  const el = (e.target as HTMLElement).closest<HTMLElement>('[data-act],#tabs [data-tab],[data-cmd],[data-cam],[data-turn],[data-music],[data-mplay],[data-pgo],[data-quick],[data-rideon],[data-field],[data-pick]');
-  if (!el) return;
-  const d = el.dataset;
-  if (d.tab) {
-    S.tab = d.tab as Tab;
-    localStorage.setItem('ar-cmp-tab', S.tab);
-    haptic(8);
-    renderTabs();
-    renderContent();
-    return;
-  }
-  if (d.act === 'lang') {
-    lang = lang === 'fr' ? 'en' : 'fr';
-    localStorage.setItem('ar-lang', lang);
-    t = STRINGS[lang];
-    render();
-  } else if (d.act === 'mic') {
-    haptic(25);
-    void mic.toggle();
-  } else if (d.act === 'fullscreen') void toggleFullscreen();
-  else if (d.act === 'rotate') void rotate();
-  else if (d.act === 'map-screen') {
-    haptic();
-    send({ kind: 'map', open: !S.st?.mapOpen });
-  } else if (d.act === 'follow') {
-    S.follow = !S.follow;
-    el.textContent = S.follow ? t.whole : t.follow;
-    refresh();
-  } else if (d.act === 'unpair') {
-    localStorage.removeItem('ar-pair');
-    localStorage.removeItem('ar-pair-server');
-    S.pair = null;
-    void mic.stop(false);
-    clearTimeout(retry);
-    const r = room;
-    room = null;
-    r?.removeAllListeners();
-    void r?.leave(true).catch(() => undefined);
-    // Plus de jeu appairé : l'écran peut se remettre en veille.
-    S.presence = { game: false, phones: 0 };
+const handlers: LinkHandlers = {
+  onState,
+  onRoute,
+  onEvent,
+  onPresence: (p, before) => {
+    if (!p.game && mic.linked) void mic.stop(false);
+    if (!p.game && before.game) trackClimb();
     syncWake();
-    render();
-  } else if (d.act === 'climb-close') {
-    haptic(8);
-    S.climbHidden = true;
-    renderContent();
-  } else if (d.act === 'climb-show') {
-    haptic(8);
-    S.climbHidden = false;
-    if (S.tab !== 'dash' && S.tab !== 'map') {
-      S.tab = 'dash';
-      localStorage.setItem('ar-cmp-tab', S.tab);
-      renderTabs();
-    }
-    renderContent();
-  } else if (d.act === 'close-sheet') closeSheet();
-  else if (d.act === 'reset-fields') {
-    S.fields = [...DEFAULT_FIELDS];
-    localStorage.setItem('ar-cmp-fields', JSON.stringify(S.fields));
-    closeSheet();
     refresh();
-  } else if (d.field !== undefined) openPicker(Number(d.field));
-  else if (d.pick && S.picking !== null) {
-    S.fields[S.picking] = d.pick as FieldId;
-    localStorage.setItem('ar-cmp-fields', JSON.stringify(S.fields));
-    closeSheet();
-    refresh();
-  } else if (d.turn !== undefined) {
-    haptic(25);
-    send({ kind: 'turn', index: Number(d.turn) });
-  } else if (d.pgo !== undefined) {
-    const item = S.place.items[Number(d.pgo)];
-    if (item) {
-      haptic(25);
-      send({ kind: 'goTo', x: item.x, z: item.z, name: item.name });
-      // La liste se referme : la carte reprend la place, la destination s'affiche dès l'état suivant.
-      S.place = { query: '', state: 'idle', items: [], error: '' };
-      const q = document.querySelector<HTMLInputElement>('.dest input[name=q]');
-      if (q) {
-        q.value = '';
-        q.blur();
-      }
-      renderPlaceResults();
-    }
-  } else if (d.act === 'dest-clear') {
-    haptic();
-    send({ kind: 'clearDestination' });
-  } else if (d.mplay !== undefined) {
-    const item = S.music.items[Number(d.mplay)];
-    if (item) {
-      haptic(25);
-      send({ kind: 'musicPlay', uri: item.uri });
-      showToast(item.name);
-    }
-  } else if (d.act === 'music-mine') {
-    haptic();
-    const q = document.querySelector<HTMLInputElement>('.mu-search input[name=q]');
-    if (q) q.value = '';
-    musicSearch('');
-  } else if (d.music) {
-    haptic();
-    send({ kind: 'music', action: d.music as 'toggle' | 'next' | 'previous' });
-  } else if (d.fanmode) {
-    haptic();
-    const mode = d.fanmode as PairFanMode;
-    send({ kind: 'fanMode', mode });
-    document.querySelectorAll<HTMLButtonElement>('[data-fanmode]').forEach((b) => b.classList.toggle('on', b === el));
-    const row = document.getElementById('c-fanrow');
-    if (row) row.hidden = mode !== 'manual';
-  } else if (d.sound) {
-    haptic();
-    const on = !el.classList.contains('on');
-    send({ kind: 'sound', bus: d.sound as PairSoundBus, on });
-    // Réponse immédiate ; l'état du jeu (4 fois par seconde) confirme.
-    el.classList.toggle('on', on);
-    el.classList.toggle('off', !on);
-    el.setAttribute('aria-pressed', String(on));
-  } else if (d.cam) {
-    haptic();
-    send({ kind: 'camera', camera: d.cam as CameraMode });
-    document.querySelectorAll<HTMLButtonElement>('[data-cam]').forEach((b) => b.classList.toggle('on', b === el));
-  } else if (d.quick) {
-    if (!S.st?.multiplayer) return;
-    haptic();
-    send({ kind: 'chat', text: d.quick });
-  } else if (d.rideon) {
-    haptic(40);
-    send({ kind: 'rideOn', to: d.rideon });
-  } else if (d.cmd) {
-    haptic();
-    const st = S.st;
-    if (d.cmd === 'shift-up') send({ kind: 'shift', action: 'up' });
-    else if (d.cmd === 'shift-down') send({ kind: 'shift', action: 'down' });
-    else if (d.cmd === 'pause') send({ kind: st?.phase === 'paused' ? 'resume' : 'pause' });
-    else if (d.cmd === 'photo') send({ kind: 'photo' });
-    else if (d.cmd === 'hud') send({ kind: 'hud' });
-    else if (d.cmd === 'ghost') send({ kind: 'ghost', on: !S.st?.ghost });
-    else if (d.cmd === 'lookback') send({ kind: 'lookBack', on: !S.st?.lookBack });
-    else if (d.cmd === 'mute') send({ kind: 'mute' });
-    else if (d.cmd === 'uturn') send({ kind: 'uturn' });
-    else if (d.cmd === 'slowdown') send({ kind: 'slowDown' });
-    else if (d.cmd === 'waitme') send({ kind: 'waitMe' });
-    else if (d.cmd === 'team-attack') send({ kind: 'teamAttack' });
-    else if (d.cmd === 'start-race') send({ kind: 'startRace' });
-    else if (d.cmd === 'team-pull') send({ kind: 'teamPull' });
-    else if (d.cmd === 'formation') send({ kind: 'formation' });
-    else if (d.cmd === 'pace-up') send({ kind: 'pace', delta: 1 });
-    else if (d.cmd === 'pace-down') send({ kind: 'pace', delta: -1 });
-  }
+  },
+  onConn: refresh,
+};
+
+/* ───────────── Doigts et clavier ───────────── */
+
+app.addEventListener('click', (e) => {
+  const el = (e.target as HTMLElement).closest<HTMLElement>(TOUCHABLE);
+  if (el && !(el as HTMLButtonElement).disabled) press(el, mic);
+  touchPanel();
 });
 
-let fanTimer: ReturnType<typeof setTimeout> | undefined;
-let volTimer: ReturnType<typeof setTimeout> | undefined;
-
-app.addEventListener('input', (e) => {
-  const el = e.target as HTMLInputElement;
-  if (el.id === 'c-fan') {
-    fanTouched = Date.now();
-    const percent = Number(el.value);
-    const out = document.getElementById('c-fanv');
-    if (out) out.textContent = `${percent} %`;
-    clearTimeout(fanTimer);
-    fanTimer = setTimeout(() => send({ kind: 'fan', percent }), 150);
-  } else if (el.id === 'c-road') {
-    // Ressenti route : valeur et alerte suivent le doigt ; l'envoi attend le lâcher (événement « change »).
-    roadTouched = Date.now();
-    const percent = Number(el.value);
-    const out = document.getElementById('c-roadv');
-    if (out) out.textContent = roadFeelValue(percent);
-    const msg = document.getElementById('c-roadmsg');
-    if (msg) msg.outerHTML = roadFeelMsgHtml(percent, S.st?.roadFeel?.supported ?? true);
-  } else if (el.id === 'mu-vol') {
-    volTouched = Date.now();
-    const volume = Number(el.value);
-    const out = document.getElementById('mu-volv');
-    if (out) out.textContent = `${Math.round(volume * 100)} %`;
-    clearTimeout(volTimer);
-    volTimer = setTimeout(() => send({ kind: 'music', action: 'volume', volume }), 120);
-  }
-});
-
-// Ressenti route : envoyé au lâcher du curseur ; premier passage en « très fort » confirmé.
-app.addEventListener('change', (e) => {
-  const el = e.target as HTMLInputElement;
-  if (el.id !== 'c-road') return;
-  roadTouched = Date.now();
-  let percent = Number(el.value);
-  const before = roadFeelLevel(S.st?.roadFeel?.percent ?? 0);
-  if (roadFeelLevel(percent) === 'extreme' && before !== 'extreme' && !confirm(ROAD_FEEL_TEXT[lang].confirm)) {
-    percent = ROAD_FEEL.extremePercent - 5;
-    el.value = String(percent);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-  }
-  send({ kind: 'roadFeel', percent });
+watchGestures(app, {
+  swipe: (dir) => {
+    if (!S.pair || S.panel) return;
+    const next = neighbour(tabsFor(S.st), curTab(), dir);
+    if (next !== curTab()) goTab(next);
+  },
+  hold: (name, el) => held(name, el, mic),
+  holdShort: () => showToast(t.holdHint),
 });
 
 app.addEventListener('submit', (e) => {
   e.preventDefault();
   const form = e.target as HTMLFormElement;
   const data = new FormData(form);
+  const blur = () => form.querySelector<HTMLInputElement>('input')?.blur();
   if (form.dataset.form === 'music') {
     musicSearch(String(data.get('q') ?? '').trim());
+    blur();
   } else if (form.dataset.form === 'place') {
     placeSearch(String(data.get('q') ?? '').trim());
-    form.querySelector<HTMLInputElement>('input[name=q]')?.blur();
+    blur();
   } else if (form.dataset.form === 'chat') {
     const text = String(data.get('text') ?? '').trim();
     if (text && S.st?.multiplayer) send({ kind: 'chat', text });
     form.reset();
-  } else if (form.dataset.form === 'pair') {
-    // Lien complet du QR code, ou jeton seul.
-    const raw = String(data.get('link') ?? '').trim();
-    let pair = raw;
-    try {
-      const u = new URL(raw);
-      pair = u.searchParams.get('pair') ?? '';
-      const server = u.searchParams.get('server');
-      if (server) localStorage.setItem('ar-pair-server', server);
-    } catch {
-      /* jeton seul */
-    }
-    if (!PAIR_TOKEN_RE.test(pair)) return;
-    localStorage.setItem('ar-pair', pair);
-    S.pair = pair;
+  } else if (form.dataset.form === 'pair' && pairWith(String(data.get('link') ?? '').trim())) {
     render();
     connect();
   }
@@ -1355,109 +160,43 @@ app.addEventListener('submit', (e) => {
 
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement) S.orient = 'any';
-  renderBar();
+  if (S.panel === 'settings') renderPanel();
 });
 // Redimensionnement (rotation) : les canvas se recalent.
-window.addEventListener('resize', () => refresh());
+window.addEventListener('resize', refresh);
 
-/* ───────────── Écran allumé, reprise au premier plan ───────────── */
-
-let wakeLock: { release(): Promise<void> } | null = null;
-/** L'écran ne reste allumé que si un jeu est appairé : sans jeu, le téléphone se met en veille normalement. */
-const wantAwake = (): boolean => S.presence.game;
-async function keepAwake(): Promise<void> {
-  if (!wantAwake()) return;
-  try {
-    const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<{ release(): Promise<void>; addEventListener(t: 'release', cb: () => void): void }> } };
-    if (nav.wakeLock && document.visibilityState === 'visible') {
-      const lock = await nav.wakeLock.request('screen');
-      // Le jeu est parti pendant la demande : on rend le verrou tout de suite.
-      if (!wantAwake()) {
-        void lock.release().catch(() => undefined);
-        return;
-      }
-      wakeLock = lock;
-      lock.addEventListener('release', () => {
-        if (wakeLock === lock) wakeLock = null;
-      });
-    }
-  } catch {
-    wakeLock = null;
-  }
-}
-/** Prend ou rend le verrou d'écran selon la présence du jeu. */
-function syncWake(): void {
-  if (wantAwake()) {
-    if (!wakeLock) void keepAwake();
-  } else if (wakeLock) {
-    const lock = wakeLock;
-    wakeLock = null;
-    void lock.release().catch(() => undefined);
-  }
-}
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
-  if (!wakeLock) void keepAwake();
-  if (!room) connect();
+  void keepAwake();
+  if (!link.room) connect();
   else send({ kind: 'sync' });
 });
 // Certains navigateurs n'accordent le verrou d'écran qu'après un geste.
-app.addEventListener('pointerdown', () => !wakeLock && void keepAwake(), { passive: true });
-
-/**
- * Proposition d'installation (PWA) : bandeau en bas, une fois le téléphone appairé. Chrome / Edge / Android :
- * bouton « Installer » (événement beforeinstallprompt) ; iPhone / iPad : consigne « Sur l'écran d'accueil ».
- * Rien si l'appli est déjà installée ; « Plus tard » le masque 14 jours.
- */
-const INSTALL_KEY = 'ar.companion.installAsked';
-let installEvent: (Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: string }> }) | null = null;
-const standalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
-const isIos = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-function installAsked(): boolean {
-  try {
-    return Date.now() - Number(localStorage.getItem(INSTALL_KEY) ?? 0) < 14 * 86_400_000;
-  } catch {
-    return false;
+app.addEventListener('pointerdown', () => void keepAwake(), { passive: true });
+// Jeu muet : l'avertissement apparaît même si plus rien n'arrive.
+let wasStale = false;
+setInterval(() => {
+  if (isStale() !== wasStale) {
+    wasStale = !wasStale;
+    refresh();
   }
-}
-
-function showInstall(): void {
-  if (standalone() || installAsked() || document.getElementById('install')) return;
-  if (!installEvent && !isIos()) return;
-  const el = document.createElement('div');
-  el.id = 'install';
-  el.className = 'install';
-  el.innerHTML = `<div><b>${esc(t.installTitle)}</b><span>${esc(installEvent ? t.installText : t.installIos)}</span></div>
-    ${installEvent ? `<button class="btn" data-act="install">${esc(t.installBtn)}</button>` : ''}
-    <button class="btn ghost" data-act="later">${esc(t.installLater)}</button>`;
-  document.body.appendChild(el);
-  el.addEventListener('click', (e) => {
-    const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
-    if (act === 'install' && installEvent) {
-      void installEvent.prompt();
-      void installEvent.userChoice.finally(() => el.remove());
-      installEvent = null;
-    } else if (act === 'later') {
-      localStorage.setItem(INSTALL_KEY, String(Date.now()));
-      el.remove();
-    }
-  });
-}
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  installEvent = e as typeof installEvent;
-  setTimeout(showInstall, 2500);
-});
-window.addEventListener('appinstalled', () => document.getElementById('install')?.remove());
-// iPhone : pas d'événement, la consigne est montrée une fois le téléphone appairé.
-if (isIos() && !standalone()) setTimeout(showInstall, 6000);
+}, 1000);
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => void navigator.serviceWorker.register('./sw.js', { scope: './' }));
 }
 
-render();
-void keepAwake();
-connect();
+/* ───────────── Démarrage ───────────── */
+
+watchInstall();
+const demo = import.meta.env.DEV ? new URLSearchParams(location.search).get('demo') : null;
+if (demo !== null) {
+  // Développement : sortie simulée, sans jeu ni serveur (voir dev/demo.ts).
+  void import('./dev/demo.ts').then(({ startDemo }) => {
+    startDemo(demo, handlers);
+    render();
+  });
+} else {
+  render();
+  connect(handlers);
+}
