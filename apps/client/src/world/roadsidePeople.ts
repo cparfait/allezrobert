@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { abs, attribute, cos, float, floor, instancedBufferAttribute, min, mix, positionGeometry, sin, step, time, vec3 } from 'three/tsl';
+import { abs, attribute, cos, float, floor, instancedBufferAttribute, max, min, mix, positionGeometry, sin, step, time, vec3 } from 'three/tsl';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { rng } from '../engine/noise.ts';
 import { box } from './lowPolyKit.ts';
@@ -17,6 +17,8 @@ import type { LifeChunk, PersonSpot, RoadsideLife } from './roadsideLife.ts';
  * Deux lots : les personnages à moins de ~60 m projettent une ombre, les autres non.
  */
 
+/** Laisses dessinées en même temps. */
+const LEASHES = 48;
 /** Personnages créés à moins de SPAWN_M de leur place, oubliés au-delà de FORGET_M. */
 const SPAWN_M = 320;
 const FORGET_M = 400;
@@ -330,12 +332,22 @@ function peopleMaterial(pose: THREE.InstancedBufferAttribute, anim: THREE.Instan
     .sub(armL)
     .mul(armAmp)
     .mul(s)
-    .add(armL.add(armR).mul(jog).mul(-0.7))
+    .add(armL.add(armR).mul(jog).mul(-0.1))
     .add(armL.mul(sit).mul(-0.5))
     .add(armR.mul(sit).mul(float(-1.1).sub(castLift)));
   const ang = angLeg.add(angArm).add(dA.sub(dB).mul(0.6).mul(s)).add(bl.mul(ph));
   const py = legL.add(legR).mul(0.93).add(armL.add(armR).mul(1.44)).add(dA.add(dB).mul(0.32)).add(bl.mul(0.11));
-  const p0 = positionGeometry;
+  // Coudes et genoux, avant la rotation de l'épaule ou de la hanche : à la course, avant-bras repliés à angle droit et
+  // genou fléchi quand la jambe repasse devant ; en marchant, à peine. (avant-bras : `paint` 3 ; bas de jambe : 4, chaussure : 0)
+  const fore = armL.add(armR).mul(is(paint, 3));
+  const shin = legL.add(legR).mul(is(paint, 4).add(is(paint, 0))).mul(float(1).sub(sit));
+  const recover = max(legR.sub(legL).mul(cos(ph)), float(0));
+  const bend = fore.mul(jog.mul(-1.5).add(walk.mul(armL.sub(armR).mul(s).mul(0.12).sub(0.28)))).add(shin.mul(jog.mul(recover.mul(1.05).add(0.22)).add(walk.mul(recover.mul(0.55)))));
+  const jointY = fore.mul(1.145).add(shin.mul(0.52));
+  const by = positionGeometry.y.sub(jointY);
+  const cb = cos(bend);
+  const sb = sin(bend);
+  const p0 = vec3(positionGeometry.x, by.mul(cb).sub(positionGeometry.z.mul(sb)).add(jointY), by.mul(sb).add(positionGeometry.z.mul(cb)));
   // rotation des membres autour de l'axe x, au pivot (hanche, épaule, épaule du chien, centre du ballon)
   const qy = p0.y.sub(py);
   const ca = cos(ang);
@@ -422,6 +434,9 @@ export class RoadsidePeople {
   private version = -1;
   private scan = 0;
   private readonly heightAt: (x: number, z: number) => number;
+  /** Laisses : un segment de la main du maître au collier, par chien. */
+  private readonly leashPos = new THREE.BufferAttribute(new Float32Array(LEASHES * 6), 3).setUsage(THREE.DynamicDrawUsage);
+  private readonly leashes = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', this.leashPos), new THREE.LineBasicNodeMaterial({ color: '#3a2a22' }));
 
   constructor(
     private readonly life: RoadsideLife,
@@ -433,6 +448,9 @@ export class RoadsidePeople {
     this.batches = [new Batch(this.geo, 28, true), new Batch(this.geo, cap, false)];
     this.group.name = 'roadside-people';
     for (const b of this.batches) this.group.add(b.mesh);
+    this.leashes.frustumCulled = false;
+    this.leashes.name = 'people-leashes';
+    this.group.add(this.leashes);
   }
 
   /** Itinéraire changé : tout le monde repart de zéro. */
@@ -472,7 +490,25 @@ export class RoadsidePeople {
         }
     }
     for (const g of this.groups.values()) this.animate(g, dt, focus);
+    this.updateLeashes();
     for (const b of this.batches) b.commit();
+  }
+
+  private updateLeashes(): void {
+    let n = 0;
+    for (const g of this.groups.values()) {
+      const m = g.actors[0];
+      if (!m || g.spot.kind !== 'walker' || m.slot < 0) continue;
+      for (const a of g.actors) {
+        if (a.role !== 'dog' || a.slot < 0 || n >= LEASHES) continue;
+        // main droite du maître ; garrot du chien
+        this.leashPos.setXYZ(n * 2, m.x - Math.cos(m.yaw) * 0.24, m.y + 0.88 * m.scale, m.z + Math.sin(m.yaw) * 0.24);
+        this.leashPos.setXYZ(n * 2 + 1, a.x + Math.sin(a.yaw) * 0.24 * a.scale, a.y + (a.female ? 0.4 : 0.55) * a.scale, a.z + Math.cos(a.yaw) * 0.24 * a.scale);
+        n++;
+      }
+    }
+    this.leashes.geometry.setDrawRange(0, n * 2);
+    this.leashPos.needsUpdate = true;
   }
 
   private forget(spot: PersonSpot, g: Group): void {
@@ -547,7 +583,11 @@ export class RoadsidePeople {
           a.t = r() * (p.length / 3 - 1) * 4;
           a.dir = r() < 0.5 ? 1 : -1;
           add(a);
-          if (spot.kind === 'walker') add(this.actor('dog', a.x, a.y, a.z, 0, r));
+          if (spot.kind === 'walker') {
+            add(this.actor('dog', a.x, a.y, a.z, 0, r));
+            // un promeneur sur six en tient deux
+            if (r() < 0.16) add(this.actor('dog', a.x, a.y, a.z, 0, r));
+          }
         }
         break;
       }
@@ -628,7 +668,7 @@ export class RoadsidePeople {
         case 'dog': {
           const m = g.actors[0] as Actor;
           // à côté de son maître, un peu devant, qui flâne
-          const wob = Math.sin(m.t * 0.35 + a.scale * 5);
+          const wob = Math.sin(m.t * 0.35 + a.scale * 5) + (g.actors[2] === a ? 0.9 : 0);
           const rx = Math.cos(m.yaw);
           const rz = -Math.sin(m.yaw);
           const fx = Math.sin(m.yaw);
@@ -678,6 +718,8 @@ export class RoadsidePeople {
   private walkPath(a: Actor, p: Float32Array, dt: number, active: boolean): void {
     const n = p.length / 3;
     const L = (n - 1) * 4;
+    // le chien flaire, le promeneur attend
+    if (active && a.role === 'walker' && a.pause <= 0 && Math.random() < dt * 0.025) a.pause = 2 + Math.random() * 3;
     if (active && a.pause <= 0) {
       a.t += a.dir * a.speed * dt;
       if (a.t >= L || a.t <= 0) {
@@ -804,6 +846,8 @@ export class RoadsidePeople {
     this.reset();
     for (const b of this.batches) b.dispose();
     this.geo.dispose();
+    this.leashes.geometry.dispose();
+    (this.leashes.material as THREE.Material).dispose();
   }
 }
 

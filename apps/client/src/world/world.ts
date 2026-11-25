@@ -15,6 +15,8 @@ import { Vegetation } from './vegetation.ts';
 import { Buildings } from './buildings.ts';
 import { RoadMesh, SHOULDER } from './road.ts';
 import { RouteFootprint } from './ribbon.ts';
+import { LandProbe } from './lowPolyKit.ts';
+import { PolyRoads } from './polyRoads.ts';
 import { RoadNetwork } from './network.ts';
 import { RoadHeightField, setCurrentRoadHeight } from './roadHeight.ts';
 import { Rain } from './weather.ts';
@@ -48,6 +50,8 @@ export class World {
   readonly dust: Dust;
   /** Style jeu vidéo : abords peuplés (clôtures, poteaux, fleurs, animaux). */
   readonly life: RoadsideLife | null = null;
+  /** Style jeu vidéo : marquages au sol et panneaux, d'après le graphe routier (null ailleurs). */
+  private readonly polyRoads: PolyRoads | null = null;
   /** Style jeu vidéo : joggeurs, promeneurs, enfants, pêcheurs, footballeurs. */
   readonly people: RoadsidePeople | null = null;
   /** Style jeu vidéo : oiseaux et papillons. */
@@ -154,10 +158,21 @@ export class World {
         const t = this.terrain.getTile(...this.terrain.tileCoord(x, z));
         return t && this.vegReady.has(t.id) ? t : undefined;
       };
-      this.life = new RoadsideLife(track, groundAt, lifeTile, lifeDensity(q), (a, b, c, d) => this.treesIn(a, b, c, d), envState.season);
+      // Trottoirs compris (dalles au-dessus du terrain) : animaux, bornes, poubelles et passants y posaient les pieds dessous.
+      const standAt = (x: number, z: number) => {
+        const g = groundAt(x, z);
+        const w = this.network.walkHeightAt(x, z);
+        return w > g ? w : g;
+      };
+      this.life = new RoadsideLife(track, standAt, lifeTile, lifeDensity(q), (a, b, c, d) => this.treesIn(a, b, c, d), envState.season);
       scene.add(this.life.group);
-      this.people = new RoadsidePeople(this.life, groundAt, lifeDensity(q).people);
+      this.people = new RoadsidePeople(this.life, standAt, lifeDensity(q).people);
       scene.add(this.people.group);
+      if (source.open) {
+        this.polyRoads = new PolyRoads(new LandProbe(lifeTile, standAt), () => source.open?.graph, () => source.open?.places ?? []);
+        this.polyRoads.setTaken(townSignSpots(track));
+        scene.add(this.polyRoads.group);
+      }
       this.sky = new SkyLife(this.life);
       scene.add(this.sky.group);
       if (import.meta.env.DEV) (globalThis as { __life?: RoadsideLife }).__life = this.life;
@@ -381,6 +396,7 @@ export class World {
     this.villageProps?.setTrack(track);
     if (!this.life) return;
     this.life.setTrack(track);
+    this.polyRoads?.setTaken(townSignSpots(track));
     this.people?.reset();
     this.sky?.reset();
   }
@@ -409,6 +425,7 @@ export class World {
         this.soundSources.set('life:troupeaux', life.sources);
       }
       this.people?.update(step, focus);
+      this.polyRoads?.update(focus);
       if (this.sky) {
         // pas d'oiseaux la nuit ; pas de papillons en hiver, la nuit ni sous la pluie
         const night = this.nightFactor();
@@ -507,6 +524,10 @@ export class World {
       this.scene.remove(this.life.group);
       this.life.dispose();
     }
+    if (this.polyRoads) {
+      this.scene.remove(this.polyRoads.group);
+      this.polyRoads.dispose();
+    }
     if (this.people) {
       this.scene.remove(this.people.group);
       this.people.dispose();
@@ -547,6 +568,14 @@ export function freezeStatic(group: THREE.Object3D): void {
 }
 
 /** Densités du décor des abords (style jeu vidéo) selon la qualité graphique. */
+/** Panneaux d'entrée posés par l'itinéraire (signs.ts, 40 m avant chaque lieu). */
+function townSignSpots(track: RouteTrack): Array<{ x: number; z: number }> {
+  return (track.route.landmarks ?? []).map((lm) => {
+    const p = track.positionAt(lm.d - 40, 0);
+    return { x: p.x, z: p.z };
+  });
+}
+
 function lifeDensity(q: QualitySettings): LifeDensity {
   return { props: q.propDensity, people: (q.trafficDensity + q.crowdDensity) / 2 };
 }

@@ -123,7 +123,8 @@ interface Fit {
 }
 
 const FITS: Record<BarKind, Fit> = {
-  drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.63), shoulderDy: -0.03, shoulderDz: 0.03, elbowPole: new THREE.Vector3(0.3, -0.75, -0.45), headTilt: 0 },
+  // Coudes fléchis d'environ 70° et un peu ouverts : de dos (caméra de suivi), des bras presque droits se lisaient raides.
+  drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.63), shoulderDy: -0.06, shoulderDz: 0.045, elbowPole: new THREE.Vector3(0.55, -0.7, -0.45), headTilt: -0.04 },
   flat: { bar: 'flat', hand: new THREE.Vector3(0.31, 0.96, 0.5), shoulderDy: 0.06, shoulderDz: -0.08, elbowPole: new THREE.Vector3(0.8, -0.4, -0.3), headTilt: -0.08 },
   tt: { bar: 'tt', hand: new THREE.Vector3(0.075, 0.95, 0.76), shoulderDy: -0.13, shoulderDz: 0.1, elbowPole: new THREE.Vector3(0.1, -1, 0), headTilt: 0.18 },
 };

@@ -88,6 +88,5 @@ parallèle des tuiles), `verify.ts` (contrôles), `map.ts` (carte).
 
 ## Limites connues, côté moteur
 
-- les tribunes sont des bâtiments pleins (pas de gradins) ; pas de parasols ni de bateaux ;
-- la plage (`sand`) est peinte comme un champ en style jeu vidéo ;
+- les tribunes sont des bâtiments pleins (pas de gradins) ; parasols, port et signalisation sont dessinés par le client (voir SUIVI_MONDE_POLY.md) ;
 - la circulation et les poteaux électriques suivent aussi l'Anneau (voulu sans voitures).

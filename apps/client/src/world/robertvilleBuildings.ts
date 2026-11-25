@@ -36,8 +36,23 @@ const TERRACE: HouseFamily = {
 const SEAFRONT = [FISHERMEN, VILLA, VILLA, TALL_VILLA, TOWNHOUSE, TERRACE, BUNGALOW] as const;
 const RESIDENTIAL = [BUNGALOW, FISHERMEN, TOWNHOUSE, STUDIO, BUNGALOW, VILLA, TERRACE] as const;
 
+const CABIN_ROOFS = ['#f3f1ea', '#e2e6e6', '#f3f1ea', '#cfd8dc'] as const;
+
+/** Cabine de plage : petit abri de bois devant les Planches. */
+export function isBeachCabin(building: TileBuilding): boolean {
+  if (building.kind !== 'shed' || building.pts.length !== 8) return false;
+  const [ax, az, bx, bz, cx, cz] = building.pts as [number, number, number, number, number, number];
+  if (ax < -420 || ax > 1560 || az < 9980 || az > 10460) return false;
+  return Math.hypot(bx - ax, bz - az) < 2.4 && Math.hypot(cx - bx, cz - bz) < 2.4;
+}
+
 /** Varie les silhouettes et façades de Robertville à partir des emprises existantes. */
 export function robertvilleBuilding(building: TileBuilding): TileBuilding {
+  // Cabines blanches, comme sur les plages normandes et du Nord : pignon pointu, petit débord, toit clair.
+  if (isBeachCabin(building)) {
+    const i = Math.abs(Math.round(building.pts[0]! / 2.7));
+    return { ...building, colour: '#fdfcf8', height: 3.5, roof: 'gabled', roofHeight: 1, roofMaterial: 'metal', roofColour: CABIN_ROOFS[i % CABIN_ROOFS.length]!, roofOverhang: 0.16 };
+  }
   if (building.kind !== 'house' || building.pts.length < 6) return building;
   let x = 0;
   let z = 0;

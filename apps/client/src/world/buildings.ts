@@ -1136,7 +1136,7 @@ export class Buildings {
       const plan =
         skillion || flatKind
           ? null
-          : urbanRoof?.plan ?? planRoof(bld.pts, { overhang: LOW_POLY ? ROOF_OVERHANG_LP : 0.4, gableOverhang: LOW_POLY ? GABLE_OVERHANG_LP : 0.25, gabled: !HIPPED.has(shape), maxInset: Math.max(15, box.hw + 1), ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
+          : urbanRoof?.plan ?? planRoof(bld.pts, { overhang: bld.roofOverhang ?? (LOW_POLY ? ROOF_OVERHANG_LP : 0.4), gableOverhang: bld.roofOverhang ?? (LOW_POLY ? GABLE_OVERHANG_LP : 0.25), gabled: !HIPPED.has(shape), maxInset: Math.max(15, box.hw + 1), ...(bld.ridgeShort ? { ridgeShort: true } : {}) });
       // Pente : hauteur de toit (OSM, ou mesurée au LiDAR) sur la demi-largeur effective (là où les pans se rejoignent), bornée.
       const halfW = plan ? Math.max(plan.tEnd - plan.overhang, 0.5) : 0;
       const wantH = Math.min(urbanRoof?.height ?? bld.roofHeight ?? Math.tan((42 * Math.PI) / 180) * halfW, total * 0.6);
@@ -1272,7 +1272,7 @@ export class Buildings {
       // Tuiles : brun-rouge (tuile plate d'Île-de-France) ou orangé (tuile mécanique / canal, BD TOPO) ;
       // archétype : sa palette pour le zinc et la tuile.
       const archTile = !!arch && (archRoof === 'flat_tile' || archRoof === 'mechanical_tile' || archRoof === 'canal_tile');
-      const roofColour = terrace
+      const roofColour = bld.roofColour ?? (terrace
         ? pick(TERRACES)
         : zinc
           ? pick(urbanRoof ? URBAN_ZINC : arch!.roof.colours)
@@ -1282,7 +1282,7 @@ export class Buildings {
               ? SLATE
               : archTile
                 ? pick(arch!.roof.colours)
-                : pick(arch && roofMat === 'tiles' ? MECHANICAL_TILES : roofMat === 'tiles' ? TERRACOTTA : ROOFS);
+                : pick(arch && roofMat === 'tiles' ? MECHANICAL_TILES : roofMat === 'tiles' ? TERRACOTTA : ROOFS));
       const roofKind = terrace ? 4 : metal ? 3 : slate ? 2 : 1;
       // Pignon v2 et volumes v3 : pas de toit du plan (ni ses détails : faîtière et cheminée supposent un toit symétrique).
       const buf = plan && !gable && !volumes ? roofBuffers(plan, wallTop, pitch) : null;

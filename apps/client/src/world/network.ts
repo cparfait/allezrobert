@@ -29,6 +29,18 @@ const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_li
 const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fine_gravel', 'grass', 'sand']);
 /** Pavés (secteurs de Paris–Roubaix, vieilles rues) : mêmes valeurs OSM que la physique et le son. */
 const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblestone:flattened', 'paving_stones:sett']);
+/** Planches (promenade de bord de mer) : revêtement 4 du maillage, dessiné en style jeu vidéo seulement. */
+const WOOD = 4;
+/**
+ * Marquage d'une route revêtue (info.y) : 1 rives et axe. Style jeu vidéo : 0,7 axe seul (rues de village, pistes
+ * cyclables), 0,4 rives en tirets (petites routes) ; l'enrobé uni s'y lisait comme un ruban sans échelle.
+ */
+function markingOf(r: TileRoad, unpaved: number): number {
+  if (MARKED.has(r.kind) && r.width >= 5) return 1;
+  if (!LOW_POLY || unpaved) return 0;
+  if (r.kind === 'cycleway' || (r.kind === 'residential' && r.width >= 5)) return 0.7;
+  return r.kind === 'unclassified' || r.kind === 'residential' ? 0.4 : 0;
+}
 const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform']);
 
 /**
@@ -185,17 +197,37 @@ export class RoadNetwork {
       const da = fwidth(dv).max(0.001);
       const t = fract(dv);
       const dashAA = smoothstep(float(0).sub(da), da, t).mul(float(1).sub(smoothstep(float(3 / 13).sub(da), float(3 / 13).add(da), t)));
-      edge = float(1).sub(smoothstep(float(0.075).sub(aa), float(0.075).add(aa), abs(ax.sub(half.sub(0.225))))).mul(marking);
-      center = float(1).sub(smoothstep(float(0.07).sub(aa), float(0.07).add(aa), ax)).mul(dashAA).mul(marking);
+      // Niveaux de marquage : voir markingOf.
+      const full = step(0.85, marking);
+      const axis = step(0.55, marking);
+      const minor = step(0.2, marking).mul(float(1).sub(axis));
+      const tv = along.div(7);
+      const ta = fwidth(tv).max(0.001);
+      const tt = fract(tv);
+      const shortDash = smoothstep(float(0).sub(ta), ta, tt).mul(float(1).sub(smoothstep(float(3 / 7).sub(ta), float(3 / 7).add(ta), tt)));
+      edge = float(1).sub(smoothstep(float(0.075).sub(aa), float(0.075).add(aa), abs(ax.sub(half.sub(0.225))))).mul(full.add(minor.mul(shortDash)));
+      center = float(1).sub(smoothstep(float(0.07).sub(aa), float(0.07).add(aa), ax)).mul(dashAA).mul(axis);
     }
     const paint = max(edge, center).mul(LOW_POLY ? float(1) : n2.mul(0.25).add(0.75)).mul(float(1).sub(cobble));
     let col = mix(mix(asphalt, gravel, unpaved), cobbles, cobble);
     col = mix(col, vec3(0.9, 0.9, 0.86), paint);
     if (LOW_POLY) {
       // Trottoir (revêtement 3, LP-T1) : dalle claire unie et bordure plus claire, en aplats (sinon pris pour des pavés).
-      const walkLP = step(2.5, info.z);
+      const walkLP = step(2.5, info.z).mul(step(info.z, 3.5));
       const curbLP = walkLP.mul(step(ax, half.add(0.6 + CURB_W)));
       col = mix(col, mix(vec3(0.36, 0.34, 0.31), vec3(0.56, 0.54, 0.5), curbLP), walkLP);
+      // Planches : lames en travers, teinte par lame, joints et lisses de rive ; au loin, teinte moyenne sans moiré.
+      const plank = along.div(0.24);
+      const pf = fwidth(plank);
+      const near = float(1).sub(smoothstep(0.25, 0.7, pf));
+      const tone = hash(floor(plank).add(8192)).sub(0.5).mul(0.3).mul(near).add(1);
+      const jt = min(fract(plank), float(1).sub(fract(plank)));
+      const seam = float(1).sub(smoothstep(float(0.05).sub(pf).max(0), float(0.07).add(pf), jt)).mul(near);
+      const kerb = step(half.add(0.32), ax);
+      // Deux lisses sombres en long, comme les platelages vissés.
+      const runner = float(1).sub(smoothstep(0.03, 0.05, abs(ax.sub(half.mul(0.55))))).mul(near).mul(0.22);
+      const boards = mix(vec3(0.43, 0.29, 0.17).mul(tone), vec3(0.16, 0.1, 0.06), max(seam.mul(0.75), runner));
+      col = mix(col, mix(boards, vec3(0.3, 0.19, 0.11), kerb), step(3.5, info.z));
     }
     // Bords fondus dans le bas-côté (pas d'arête nette sur l'herbe).
     col = col.mul(float(1).sub(this.wetness.mul(0.4).mul(float(1).sub(unpaved))));
@@ -533,8 +565,8 @@ function* buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street
     .filter((r) => (r.pts3 as number[]).length >= 6)
     .map((r) => {
       const half = Math.max(r.width, 2.5) / 2;
-      const marked = MARKED.has(r.kind) && r.width >= 5 ? 1 : 0;
-      const unpaved = COBBLES.has(r.surface ?? '') ? 2 : UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : 0;
+      const unpaved = COBBLES.has(r.surface ?? '') ? 2 : UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : LOW_POLY && r.surface === 'wood' ? WOOD : 0;
+      const marked = markingOf(r, unpaved);
       const bridge = r.bridge ? 1 : 0;
       return { pts3: r.pts3 as number[], half, marked, unpaved, bridge, key: `${half}|${marked}|${unpaved}|${bridge}` };
     });
@@ -636,6 +668,24 @@ function* buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street
           else lampGrid.set(g, [spot]);
           // Flaque de lumière de ce lampadaire, à ±15 m : seulement là où il existe vraiment.
           for (let j = 0; j < n; j++) if (Math.abs((s.along[j] as number) - at) <= LAMP_SPACING / 2 + 0.01) lampAt[j] = mode;
+        }
+      }
+      // Planches : lampadaires de promenade tous les 36 m, d'un bord puis de l'autre (pas de trottoir pour en porter).
+      if (unpaved === WOOD) {
+        const a0 = Math.min(s.along[0] as number, s.along[n - 1] as number);
+        const a1 = Math.max(s.along[0] as number, s.along[n - 1] as number);
+        for (let k = Math.ceil((a0 + 8) / 36); k * 36 < a1 - 8; k++) {
+          let i = 0;
+          for (let j = 1; j < n; j++) if (Math.abs((s.along[j] as number) - k * 36) < Math.abs((s.along[i] as number) - k * 36)) i = j;
+          const [a, b] = k % 2 ? [s.left, s.right] : [s.right, s.left];
+          const ex = (a[i * 3] as number) - (b[i * 3] as number);
+          const ez = (a[i * 3 + 2] as number) - (b[i * 3 + 2] as number);
+          const L = Math.hypot(ex, ez) || 1;
+          const x = (a[i * 3] as number) + (ex / L) * 0.55;
+          const z = (a[i * 3 + 2] as number) + (ez / L) * 0.55;
+          const ground = groundAt?.(x, z) ?? Number.NaN;
+          if (lamps.some((l) => Math.hypot(l.x - x, l.z - z) < 14)) continue;
+          lamps.push({ x, y: Number.isFinite(ground) ? ground : (a[i * 3 + 1] as number), z });
         }
       }
       // Carrefours (P2.2c, 16/11) : rangs dont le profil, bas-côtés compris, touche la chaussée d'une voie qui croise,

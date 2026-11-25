@@ -17,6 +17,13 @@ describe('maisons de Robertville', () => {
     for (const [i, variant] of variants.entries()) expect(variant.pts).toBe(houses[i]!.pts);
   });
 
+  it('peint en blanc les cabines de la plage, et elles seules', () => {
+    const cabin = { ...building(1484, 10104, 'shed'), colour: '#d6403a', pts: [1484.5, 10104.9, 1482.8, 10104.9, 1482.8, 10103.1, 1484.5, 10103.1] };
+    expect(robertvilleBuilding(cabin)).toMatchObject({ colour: '#fdfcf8', roof: 'gabled', pts: cabin.pts });
+    const barn = building(1484, 10104, 'shed');
+    expect(robertvilleBuilding(barn)).toBe(barn);
+  });
+
   it('conserve les autres bourgs et les bâtiments remarquables', () => {
     for (const unchanged of [building(100, 320), building(100, 9500, 'apartments'), building(100, 9500, 'commercial')]) {
       expect(robertvilleBuilding(unchanged)).toBe(unchanged);

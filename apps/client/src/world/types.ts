@@ -50,6 +50,9 @@ export interface TileBuilding {
   material?: string;
   /** Matériau du toit (BD TOPO) : tiles, slate, metal, concrete. */
   roofMaterial?: string;
+  /** Couleur du toit et débord (m) imposés (cabines de plage de l'île, robertvilleBuildings.ts). */
+  roofColour?: string;
+  roofOverhang?: number;
   /** Faîtage parallèle au petit côté de l'emprise (mesuré au LiDAR). */
   ridgeShort?: boolean;
   /** Bâtiment BD TOPO (tuile enrichie) : matériaux régionaux plutôt que ceux d'Île-de-France. */

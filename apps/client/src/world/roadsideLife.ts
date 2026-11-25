@@ -7,6 +7,7 @@ import type { Season } from './environment.ts';
 import type { LoadedTile } from './types.ts';
 import { LandProbe, MeshBuilder, dist2Seg, flatVertexMaterial, segmentsIn } from './lowPolyKit.ts';
 import { lifeTemplates, type LifeTemplates } from './lowPolyProps.ts';
+import { CRITTER_COLOURS, critterTemplates, type CritterTemplates } from './lowPolyCritters.ts';
 import { FarmAnimals, farmAnimalsReady, loadFarmAnimals, type AnimalSpec } from './farmAnimals.ts';
 import { RobertvilleScenery, isRobertville } from './robertville.ts';
 
@@ -61,6 +62,8 @@ export interface BirdPerch {
   ground: boolean;
   x: number;
   z: number;
+  /** Mouettes du front de mer. */
+  gull?: boolean;
 }
 
 /** Ce qu'un tronçon expose aux autres systèmes. */
@@ -123,6 +126,11 @@ const HORSES = ['#6b4128', '#3d2a1e', '#a9733f', '#d9cfc0'].map((c) => new THREE
 const BUSH = ['#4f8a34', '#5f9a3a', '#3f7a32', '#6aa444', '#557f2e'].map((c) => new THREE.Color(c));
 const MAILBOX = ['#2f5b3a', '#6b6f72', '#ece8de', '#1f2124', '#b9a77a', '#8a2a24'].map((c) => new THREE.Color(c));
 const PITCH = [new THREE.Color('#5fae3e'), new THREE.Color('#52a037')];
+/** Hiver : buissons et pelouses givrés, aux teintes du sol enneigé ; automne : buissons roussis. */
+const FROST = new THREE.Color('#dfe6e4');
+const RUST = new THREE.Color('#a8702f');
+const seasonal = (list: readonly THREE.Color[], season: Season): readonly THREE.Color[] =>
+  season === 'winter' ? list.map((c) => c.clone().lerp(FROST, 0.6)) : season === 'autumn' ? list.map((c) => c.clone().lerp(RUST, 0.35)) : list;
 const LINE = new THREE.Color('#f6f6f2');
 const MUD = new THREE.Color('#7a6a45');
 const POND_DEEP = new THREE.Color().setRGB(0.07, 0.27, 0.5);
@@ -260,6 +268,7 @@ export class RoadsideLife {
   private centres = new Float64Array(0);
   private centresLength = -1;
   private disposed = false;
+  private critters?: CritterTemplates;
   /** Vaches, chevaux et moutons animés (Quaternius). */
   private readonly farm = new FarmAnimals();
 
@@ -273,7 +282,7 @@ export class RoadsideLife {
     tileAt: (x: number, z: number) => LoadedTile | undefined,
     density: LifeDensity,
     private readonly treesIn?: (minX: number, minZ: number, maxX: number, maxZ: number) => number[],
-    season: Season = 'summer',
+    private season: Season = 'summer',
   ) {
     this.track = track;
     this.probe = new LandProbe(tileAt, heightAt);
@@ -314,6 +323,11 @@ export class RoadsideLife {
 
   setSeason(season: Season): void {
     this.robertville.setSeason(season);
+    if (season === this.season) return;
+    this.season = season;
+    for (const k of [...this.chunks.keys()]) this.drop(k);
+    this.pending = true;
+    this.afterChange();
   }
 
   /** Peuple les tronçons proches de `focus` (terrain chargé), oublie les lointains, anime les manèges. */
@@ -469,12 +483,24 @@ export class RoadsideLife {
     const spots: PersonSpot[] = [];
     const flowers: number[] = [];
     const perches: BirdPerch[] = [];
+    // Petits animaux : tirage à part, le reste du décor ne bouge pas.
+    const cr = rng(k * 6133 + 29);
+    const critter = (t: keyof CritterTemplates, colours: readonly THREE.Color[], x: number, z: number, scale = 1): boolean => {
+      const y = this.probe.heightAt(x, z);
+      if (!Number.isFinite(y) || !this.probe.read(x, z) || this.probe.water > 0.2 || this.probe.buildingNear(x, z, 0.35) || onAnyRoad(x, z, 0.5)) return false;
+      const sc = scale * (0.9 + cr() * 0.25);
+      this.critters ??= critterTemplates();
+      ab.put(this.critters[t], x, y, z, cr() * 6.28, sc, sc, sc, colours[Math.floor(cr() * colours.length)] as THREE.Color, [0, cr(), x, z]);
+      return true;
+    };
     const sources: SoundSource[] = [];
     const animals: AnimalSpec[] = [];
     const useFarm = farmAnimalsReady();
     const r = rng(k * 7919 + 13);
     const s = this.s;
     const mid = (d0 + d1) / 2;
+    const bushes = seasonal(BUSH, this.season);
+    const bloom = this.season === 'spring' || this.season === 'summer';
     const promenade = track.surfaceAt(mid) === 'wood' && isRobertville(probe, sig[2]!, sig[3]!);
     const halfAt = (d: number) => track.widthAt(d) / 2;
     const tmpC = new THREE.Color();
@@ -637,8 +663,8 @@ export class RoadsideLife {
           const y = ground(s.x, s.z);
           if (!Number.isFinite(y) || inSpan(d, 2) || !probe.open(s.x, s.z) || sideRoad(s.x, s.z, s.dirX, s.dirZ, 2.2) || probe.buildingNear(s.x, s.z, 3)) continue;
           const sc = 0.75 + hr() * 0.4;
-          const c = BUSH[Math.floor(hr() * BUSH.length)] as THREE.Color;
-          sb.put(hr() < 0.1 ? tpl.bushBlossom : tpl.bush, s.x, y - 0.15, s.z, hr() * 6.28, sc * 1.1, sc * (0.9 + hr() * 0.4), sc, c);
+          const c = bushes[Math.floor(hr() * bushes.length)] as THREE.Color;
+          sb.put(hr() < 0.1 && bloom ? tpl.bushBlossom : tpl.bush, s.x, y - 0.15, s.z, hr() * 6.28, sc * 1.1, sc * (0.9 + hr() * 0.4), sc, c);
         }
       }
     }
@@ -691,7 +717,7 @@ export class RoadsideLife {
       for (const side of [-1, 1]) {
         if (r() > 0.42) continue;
         track.positionAt(d + r() * 3, side * (half + 0.9 + r() * 5), s);
-        if (span || !probe.open(s.x, s.z) || sideRoad(s.x, s.z, s.dirX, s.dirZ, 0.5)) continue;
+        if (this.season === 'winter' || span || !probe.open(s.x, s.z) || sideRoad(s.x, s.z, s.dirX, s.dirZ, 0.5)) continue;
         const col = FLOWERS[Math.floor(r() * FLOWERS.length)] as THREE.Color;
         const n = 2 + Math.floor(r() * 5);
         let fy = Number.NaN;
@@ -723,9 +749,9 @@ export class RoadsideLife {
         const y = ground(s.x, s.z);
         if (Number.isFinite(y) && !span && probe.open(s.x, s.z) && !onAnyRoad(s.x, s.z, 1) && !probe.buildingNear(s.x, s.z, 2)) {
           const pick = r();
-          const t = pick < 0.7 ? tpl.bush : pick < 0.8 ? tpl.bushBerries : pick < 0.9 ? tpl.bushBlossom : tpl.bushPink;
+          const t = pick < 0.7 || (pick >= 0.8 && !bloom) ? tpl.bush : pick < 0.8 ? tpl.bushBerries : pick < 0.9 ? tpl.bushBlossom : tpl.bushPink;
           const sc = 0.55 + r() * 0.75;
-          sb.put(t, s.x, y - 0.1, s.z, r() * 6.28, sc * (0.9 + r() * 0.3), sc * (0.8 + r() * 0.4), sc, BUSH[Math.floor(r() * BUSH.length)] as THREE.Color);
+          sb.put(t, s.x, y - 0.1, s.z, r() * 6.28, sc * (0.9 + r() * 0.3), sc * (0.8 + r() * 0.4), sc, bushes[Math.floor(r() * bushes.length)] as THREE.Color);
         }
       }
     }
@@ -774,11 +800,11 @@ export class RoadsideLife {
 
     // ── Troupeaux dans les prés, derrière les clôtures ; abreuvoir ; manège de chevaux ──
     let herd: Herd | null = null;
-    if (r() < 0.55 && !promenade) {
+    if (r() < 0.8 && !promenade) {
       const side = r() < 0.5 ? -1 : 1;
       const kind: HerdKind = r() < 0.45 ? 'cow' : r() < 0.7 ? 'sheep' : 'horse';
       const dh = d0 + r() * (d1 - d0);
-      track.positionAt(dh, side * (halfAt(dh) + 16 + r() * 40), s);
+      track.positionAt(dh, side * (halfAt(dh) + 14 + r() * 28), s);
       const cx = s.x;
       const cz = s.z;
       const cy = ground(cx, cz);
@@ -879,6 +905,33 @@ export class RoadsideLife {
       }
     }
 
+    // ── Mouettes du front de mer, lapins des prés ──
+    if (promenade) {
+      for (let g = 0; g < 2; g++) {
+        const dg = d0 + cr() * (d1 - d0);
+        const side = cr() < 0.5 ? -1 : 1;
+        track.positionAt(dg, side * (halfAt(dg) + 3 + cr() * 14), s);
+        const gx = s.x;
+        const gz = s.z;
+        const pts: number[] = [];
+        const flock = 4 + cr() * 4;
+        for (let i = 0; i < flock; i++) {
+          const x = gx + (cr() - 0.5) * 7;
+          const z = gz + (cr() - 0.5) * 7;
+          const y = ground(x, z);
+          if (Number.isFinite(y) && probe.read(x, z) && probe.water < 0.2 && !probe.buildingNear(x, z, 0.5)) pts.push(x, y + 0.08, z);
+        }
+        if (pts.length > 6) perches.push({ pts: new Float32Array(pts), yaw: cr() * 6.28, ground: true, x: gx, z: gz, gull: true });
+      }
+    } else if (cr() < 0.4 * props) {
+      const dg = d0 + cr() * (d1 - d0);
+      track.positionAt(dg, (cr() < 0.5 ? -1 : 1) * (halfAt(dg) + 5 + cr() * 9), s);
+      const gx = s.x;
+      const gz = s.z;
+      const warren = probe.clear(gx, gz, 3) ? 2 + cr() * 3 : 0;
+      for (let i = 0; i < warren; i++) critter('rabbit', CRITTER_COLOURS.rabbit, gx + (cr() - 0.5) * 5, gz + (cr() - 0.5) * 5, 1.25);
+    }
+
     // ── Mare dans un pré : eau, berge, roseaux ; parfois un pêcheur ──
     if (r() < 0.18 * props) {
       const side = r() < 0.5 ? -1 : 1;
@@ -887,7 +940,17 @@ export class RoadsideLife {
       const px = s.x;
       const pz = s.z;
       const R = 3.5 + r() * 3.5;
-      if (probe.read(px, pz) && probe.field < 0.5 && probe.clear(px, pz, R + 3) && !onAnyRoad(px, pz, R + 3)) this.pond(px, pz, R, r, spots, people);
+      if (probe.read(px, pz) && probe.field < 0.5 && probe.clear(px, pz, R + 3) && !onAnyRoad(px, pz, R + 3)) {
+        this.pond(px, pz, R, r, spots, people);
+        // Canards ou oies sur la berge.
+        const geese = cr() < 0.4;
+        const flock = 3 + cr() * 4;
+        for (let i = 0; i < flock; i++) {
+          const a = cr() * 6.28;
+          const reach = R + 1.2 + cr();
+          critter(geese ? 'goose' : 'duck', geese ? CRITTER_COLOURS.goose : CRITTER_COLOURS.duck, px + Math.cos(a) * reach, pz + Math.sin(a) * reach, 1.15);
+        }
+      }
     }
 
     // ── Village : boîtes aux lettres et poubelles devant les maisons, enfants, habitants ──
@@ -969,6 +1032,18 @@ export class RoadsideLife {
           const vy = ground(s.x, s.z);
           if (Number.isFinite(vy)) spots.push({ kind: 'villager', x: s.x, y: vy, z: s.z, yaw: Math.atan2(s.dirZ * side, -s.dirX * side) + (hr() - 0.5), seed: hr() });
         }
+        // Chat devant la maison ; poules et coq dans la cour des maisons à l'écart.
+        if (cr() < 0.22 * props) {
+          track.positionAt(dm + 2.4, side * (half + 1.5 + cr() * Math.min(3, off * 0.3)), s);
+          critter(cr() < 0.6 ? 'cat' : 'catLying', CRITTER_COLOURS.cat, s.x, s.z, 1.2);
+        }
+        if (urbanMax < 0.75 && cr() < 0.16 * props) {
+          track.positionAt(dm - 4, side * (half + 2.5 + cr() * 2), s);
+          const hx = s.x;
+          const hz = s.z;
+          const brood = critter('rooster', CRITTER_COLOURS.hen, hx, hz, 1.2) ? 3 + cr() * 4 : 0;
+          for (let i = 0; i < brood; i++) critter('hen', CRITTER_COLOURS.hen, hx + (cr() - 0.5) * 5, hz + (cr() - 0.5) * 5, 1.15);
+        }
       }
 
       // Boîte de La Poste à l'entrée du village (passage des champs aux maisons).
@@ -1019,11 +1094,14 @@ export class RoadsideLife {
     }
 
     // ── Joggeurs et promeneurs (avec leur chien) sur l'accotement ──
-    // Piétons : surtout des coureurs (en short), quelques promeneurs avec leur chien.
+    // Piétons : surtout des coureurs (en short) à la campagne ; sur le front de mer et dans les rues, des promeneurs avec leur chien.
+    const strollers = promenade || urbanMax > 0.3;
     for (const [kind, p] of [
       ['jogger', 0.5],
       ['jogger', 0.3],
-      ['walker', 0.15],
+      ['walker', strollers ? 0.85 : 0.3],
+      ['walker', strollers ? 0.6 : 0],
+      ['walker', promenade ? 0.5 : 0],
     ] as const) {
       if (r() > p * people) continue;
       const side = r() < 0.5 ? -1 : 1;
@@ -1292,13 +1370,14 @@ export class RoadsideLife {
         hs.push(ground(atX(u, v), atZ(u, v)) + 0.07);
       }
     const h = (i: number, j: number) => hs[i * (NZ + 1) + j] as number;
+    const grass = seasonal(PITCH, this.season);
     for (let i = 0; i < NX; i++)
       for (let j = 0; j < NZ; j++) {
         const u0 = (i / NX) * 2 * HL - HL;
         const u1 = ((i + 1) / NX) * 2 * HL - HL;
         const v0 = (j / NZ) * 2 * HW - HW;
         const v1 = ((j + 1) / NZ) * 2 * HW - HW;
-        const c = PITCH[i % 2] as THREE.Color;
+        const c = grass[i % 2] as THREE.Color;
         sb.triUp(atX(u0, v0), h(i, j), atZ(u0, v0), atX(u1, v0), h(i + 1, j), atZ(u1, v0), atX(u1, v1), h(i + 1, j + 1), atZ(u1, v1), c);
         sb.triUp(atX(u0, v0), h(i, j), atZ(u0, v0), atX(u1, v1), h(i + 1, j + 1), atZ(u1, v1), atX(u0, v1), h(i, j + 1), atZ(u0, v1), c);
       }

@@ -94,6 +94,7 @@ interface Flock {
 const DARK = new THREE.Color('#1d2129');
 const CROW = new THREE.Color('#17171a');
 const PIGEON = new THREE.Color('#7f8590');
+const GULL = new THREE.Color('#f1f1ec');
 const GOOSE = new THREE.Color('#5b5650');
 const BUTTERFLY_COLS = ['#f7f4ea', '#f4d23a', '#ff8a2a', '#5a8cff', '#d94f7a', '#f2f2a0'].map((c) => new THREE.Color(c));
 
@@ -369,7 +370,8 @@ export class SkyLife {
           b.z = p.pts[i + 2] as number;
           b.yaw = p.yaw + (Math.random() - 0.5) * (p.ground ? 3 : 0.4);
           b.scale = p.ground ? 0.8 + Math.random() * 0.25 : 0.42 + Math.random() * 0.1;
-          const c = p.ground ? (Math.random() < 0.6 ? CROW : PIGEON) : DARK;
+          if (p.gull) b.scale *= 1.25;
+          const c = p.gull ? GULL : p.ground ? (Math.random() < 0.6 ? CROW : PIGEON) : DARK;
           this.bCol.setXYZ(b.slot, c.r, c.g, c.b);
           list.push(b);
         }
