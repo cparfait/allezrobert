@@ -33,6 +33,7 @@ import { DirecteurSportif } from './game/directeur.ts';
 import { DirectorVoice } from './audio/directorVoice.ts';
 import { MotoSchedule, RaceMoto, gapsLine, raceGroups } from './world/raceMoto.ts';
 import { RaceGapsChip } from './ui/raceGaps.ts';
+import { hudHeldAtStart } from './hud/startHud.ts';
 import { StartRamp } from './world/startRamp.ts';
 import { awaitedStart, triggerStart, waitForStart } from './ui/startButton.ts';
 import { addStage, currentStage, loadTour, newTour, saveTour, stagePlan, stageResult, standings as standingsOf, tourDone, tourLeaders, type StageKind, type StageResult, type Tour } from './game/stageRace.ts';
@@ -1735,6 +1736,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   musicCtl.onTrack = (label) => hud.toast(`♪ ${label}`);
   hud.ftp = s.ftpWatts;
   hud.setVisible(true);
+  /** Course : compteurs masqués jusqu'à quelques secondes après le départ (hud/startHud.ts ; ?nointro : affichés tout de suite). */
+  const holdStartHud = s.mode === 'race' && !params.has('nointro');
+  hud.setStarting(hudHeldAtStart(holdStartHud, ride.elapsedS));
   /** Test FTP : FTP au départ, résultat (null tant qu'il n'y en a pas), choix du coureur, historique des FTP. */
   const ftpOutcome: { oldFtp: number; result: Omit<FtpResultInput, 'fr'> | null; decision: FtpDecision; history: Array<{ t: number; ftp: number; source: string }> } = {
     oldFtp: s.ftpWatts,
@@ -3233,7 +3237,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       const groups = ride.dir > 0 ? raceGroups([{ distM: ride.state.distM, me: true }, ...peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM }))]) : null;
       const visit = motoSchedule.update(dt, groups !== null);
       raceMoto?.update(dt, visit ? groups : null, ride.state.speedMs, ride.lateral);
-      raceGaps?.set(gapsLine(groups, ride.state.speedMs, getLang() === 'fr'));
+      raceGaps?.set(hudHeldAtStart(holdStartHud, ride.elapsedS) ? null : gapsLine(groups, ride.state.speedMs, getLang() === 'fr'));
     }
     lap('coureurs IA (animation)');
     // Poussière des roues sur les chemins non revêtus (coureur et coureurs IA), voir world/dust.ts.
@@ -3311,6 +3315,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       room?.update({ distM: ride.state.distM, speedMs: ride.state.speedMs, wkg: ride.watts3s() / s.massKg });
       sequences.tv(rig.mode === 'tv', { riderName: s.name, color: s.look.jersey, position: rank, wkg: ride.watts3s() / s.massKg, watts: ride.watts3s() });
       const i = ride.inputs;
+      hud.setStarting(hudHeldAtStart(holdStartHud, ride.elapsedS));
       hud.update(
         {
           watts3s: ride.watts3s(),

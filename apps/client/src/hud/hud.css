@@ -919,6 +919,15 @@ button.ab-tile.pz-quit:hover { border-color: rgba(239, 68, 68, 0.75); }
 
 /* Lecteur Spotify intégré (Web Playback SDK) : son cadre technique ne doit jamais se voir (petit carré noir en haut à gauche). */
 iframe[src*="sdk.scdn.co"] { position: fixed !important; left: -10000px !important; top: 0 !important; width: 1px !important; height: 1px !important; border: 0 !important; opacity: 0 !important; pointer-events: none !important; }
+/* Départ d'une course (startHud.ts) : compteurs masqués ; restent les messages, les alertes, la voix, le chat et les crédits. */
+.hud.starting > :not(.hud-center, .hud-col, .attribution),
+.hud.starting > .hud-center > :not(.toasts),
+.hud.starting > .hud-col > :not(.hud-bl, .chat),
+.hud.starting .hud-bl > :not(.voice-chip) { visibility: hidden !important; pointer-events: none !important; }
+@media (prefers-reduced-motion: no-preference) {
+  .hud.start-in > :not(.attribution) { animation: hud-start-in 0.6s ease-out; }
+}
+@keyframes hud-start-in { from { opacity: 0; } }
 /* À proximité et groupe : une ligne sur deux plus claire (la ligne du joueur garde sa couleur). */
 .riders .row:not(.me):nth-child(even of .row) { background: rgba(255, 255, 255, 0.06); }
 .grp-row:nth-child(even of .grp-row) { background: rgba(255, 255, 255, 0.06); }

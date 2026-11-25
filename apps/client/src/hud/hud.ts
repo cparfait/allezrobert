@@ -1111,6 +1111,13 @@ export class Hud {
     this.root.classList.toggle('hidden');
   }
 
+  /** Départ de course (startHud.ts) : compteurs masqués, messages et alertes gardés ; puis fondu d'apparition. */
+  setStarting(on: boolean): void {
+    if (this.root.classList.contains('starting') === on) return;
+    this.root.classList.toggle('starting', on);
+    this.root.classList.toggle('start-in', !on);
+  }
+
   get visible(): boolean {
     return !this.root.classList.contains('hidden');
   }
