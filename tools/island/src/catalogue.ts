@@ -20,7 +20,7 @@ export function publishIsland(dir: string): void {
   const routes = meta.routes.map((r) => {
     const file = join(dir, r.file);
     const nameEn = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as { nameEn?: string }).nameEn : undefined;
-    return { id: r.id, name: r.name, ...(nameEn ? { nameEn } : {}), lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop };
+    return { id: r.id, name: r.name, ...(nameEn ? { nameEn } : {}), lengthM: r.lengthM, elevationGainM: r.elevationGainM, loop: r.loop, ...(r.bike ? { bike: r.bike } : {}) };
   });
   const zone: WorldCatalogue['zones'][number] = {
     id: meta.id,

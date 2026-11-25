@@ -84,6 +84,8 @@ button.ia-marker:hover, .ia-marker[aria-pressed='true'] { color: var(--ia-accent
 .ia-side-head h3 { margin: 0; color: var(--ia-fg); font-size: 1.34rem; font-weight: 740; letter-spacing: -.035em; }
 .ia-side-head .mm-x { position: static; margin: 0; width: 35px; height: 35px; border: 1px solid #526762; background: #243936; color: var(--ia-fg); border-radius: 9px; }
 .ia-side-head .mm-x:hover { background: #37524d; }
+.ia-side-head h3 small { color: var(--ia-muted); font-size: .8rem; font-weight: 640; }
+.ia-others { margin: -6px 0 10px; color: var(--ia-muted); font-size: .72rem; line-height: 1.35; }
 .ia-routes { position: relative; flex: 1 1 0; min-height: 204px; overflow: auto; overscroll-behavior: contain; scrollbar-color: #58736a #1b2d2b; }
 .ia-route { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; text-align: left; align-items: center; gap: 10px; min-height: 51px; padding: 8px 9px; border: 1px solid transparent; border-block-end-color: var(--ia-line); border-radius: 0; background: transparent; color: var(--ia-fg); font: inherit; cursor: pointer; }
 .ia-route:hover { background: #203733; }

@@ -1,31 +1,37 @@
-import type { RouteData, RoutePoint } from '@allezrobert/shared';
+import { routeBike, type RouteBike, type RouteData, type RoutePoint } from '@allezrobert/shared';
 import type { WorldRouteRef, WorldRoutes } from '../world/routeStore.ts';
 import './islandAtlas.css';
 
 const ISLAND_BOUNDS = { minX: -19000, minZ: -13000, width: 38000, height: 26000 };
 const MAP_W = 1520;
 const MAP_H = 1040;
-const PRIORITY = ['front-de-mer', 'port-de-robertville', 'anneau', 'criterium-saint-robert', 'anneau-piste-verte', 'phare', 'phare-versant-nord', 'chrono-du-plateau', 'kerbrou-et-le-port', 'gravel-des-vignes', 'tour-de-l-ile'];
-const PLACES = [
-  { x: 971, z: 9601, label: 'Robertville', labelEn: 'Robertville', route: 'front-de-mer' },
-  { x: 300, z: -200, label: 'Saint-Robert', labelEn: 'Saint-Robert', route: 'boucle-de-saint-robert' },
+const PRIORITY = ['front-de-mer', 'port-de-robertville', 'anneau', 'criterium-saint-robert', 'anneau-piste-verte', 'phare', 'phare-versant-nord', 'chrono-du-plateau', 'kerbrou-et-le-port', 'tour-de-l-ile', 'gravel-des-bois', 'gravel-des-vignes', 'grande-traversee', 'chemin-des-douaniers', 'vtt-des-bois', 'vtt-du-renard', 'descente-du-phare', 'vtt-du-phare'];
+/** Lieux de la carte : parcours mis en avant selon le vélo équipé (route, gravel, VTT). */
+const PLACES: ReadonlyArray<{ x: number; z: number; label: string; labelEn: string; route: string; gravel?: string; mtb?: string }> = [
+  { x: 971, z: 9601, label: 'Robertville', labelEn: 'Robertville', route: 'front-de-mer', mtb: 'vtt-des-coteaux' },
+  { x: 300, z: -200, label: 'Saint-Robert', labelEn: 'Saint-Robert', route: 'boucle-de-saint-robert', gravel: 'gravel-du-grand-pre' },
   { x: -4700, z: 900, label: 'L’Anneau', labelEn: 'The Ring', route: 'anneau' },
-  { x: 7579, z: -8131, label: 'Col du Phare', labelEn: 'Lighthouse Pass', route: 'phare' },
-  { x: -8200, z: -2600, label: 'Bois-Joli', labelEn: 'Bois-Joli', route: 'gravel-des-bois' },
-  { x: -1790, z: -9880, label: 'Kerbrou', labelEn: 'Kerbrou', route: 'kerbrou-et-le-port' },
-  { x: 6900, z: 2500, label: 'Vallon-sur-Robe', labelEn: 'Vallon-sur-Robe', route: 'voie-verte-de-la-robe' },
-  { x: 12300, z: 900, label: 'Les Granges', labelEn: 'Les Granges', route: 'chrono-du-plateau' },
-  { x: -2300, z: 3900, label: 'Les Vignes', labelEn: 'Les Vignes', route: 'tour-des-coteaux' },
-] as const;
+  { x: 7579, z: -8131, label: 'Col du Phare', labelEn: 'Lighthouse Pass', route: 'phare', mtb: 'vtt-du-phare' },
+  { x: -8200, z: -2600, label: 'Bois-Joli', labelEn: 'Bois-Joli', route: 'kerbrou-et-le-port', gravel: 'gravel-des-bois', mtb: 'vtt-des-bois' },
+  { x: -1790, z: -9880, label: 'Kerbrou', labelEn: 'Kerbrou', route: 'kerbrou-et-le-port', gravel: 'gravel-de-kerbrou' },
+  { x: 6900, z: 2500, label: 'Vallon-sur-Robe', labelEn: 'Vallon-sur-Robe', route: 'voie-verte-de-la-robe', gravel: 'gravel-de-la-vallee' },
+  { x: 12300, z: 900, label: 'Les Granges', labelEn: 'Les Granges', route: 'chrono-du-plateau', gravel: 'gravel-du-plateau', mtb: 'vtt-du-plateau' },
+  { x: -2300, z: 3900, label: 'Les Vignes', labelEn: 'Les Vignes', route: 'tour-des-coteaux', gravel: 'gravel-des-vignes' },
+  { x: -15820, z: 2255, label: 'Saint-Pierre', labelEn: 'Saint-Pierre', route: 'piste-verte', gravel: 'gravel-de-saint-pierre' },
+  { x: -7973, z: 8924, label: 'La Pointe', labelEn: 'La Pointe', route: 'velomaritime', gravel: 'gravel-de-la-lagune', mtb: 'vtt-des-buttes' },
+];
 
 const COPY = {
-  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', routes: 'Parcours', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné', about: 'environ', paved: 'bitume', boards: 'planches', offroad: 'chemins', climbs: 'côte', sprints: 'sprint' },
-  en: { title: 'Robert’s Island', mode: 'POLY MODE', routes: 'Routes', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route', about: 'about', paved: 'tarmac', boards: 'boardwalk', offroad: 'off-road', climbs: 'climb', sprints: 'sprint' },
+  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné', about: 'environ', paved: 'bitume', boards: 'planches', offroad: 'chemins', bikes: { road: 'Parcours route', gravel: 'Parcours gravel', mtb: 'Parcours VTT' }, withBike: 'Autre vélo au garage :', other: { road: '# parcours route', gravel: '# gravel', mtb: '# VTT' }, climbs: 'côte', sprints: 'sprint' },
+  en: { title: 'Robert’s Island', mode: 'POLY MODE', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route', about: 'about', paved: 'tarmac', boards: 'boardwalk', offroad: 'off-road', bikes: { road: 'Road routes', gravel: 'Gravel routes', mtb: 'MTB trails' }, withBike: 'With another garage bike:', other: { road: '# road', gravel: '# gravel', mtb: '# MTB' }, climbs: 'climb', sprints: 'sprint' },
 } as const;
 
 interface AtlasOptions {
   lang: keyof typeof COPY;
+  /** Parcours proposés au vélo équipé, et tous ceux de l'île. */
   routes: readonly WorldRouteRef[];
+  all: readonly WorldRouteRef[];
+  bike: RouteBike;
   allowFree: boolean;
   allowDraw: boolean;
   packAction: string;
@@ -47,6 +53,10 @@ function routeLabel(id: string, lang: AtlasOptions['lang']): string | undefined 
     'chrono-du-plateau': 'Plateau Time Trial', 'voie-verte-de-la-robe': 'Robe Greenway', 'velomaritime': 'Coast Greenway',
     'phare-versant-nord': 'Lighthouse from the North', 'kerbrou-et-le-port': 'Kerbrou and Bois-Joli', 'tour-des-coteaux': 'Hills Loop',
     'gravel-du-plateau': 'Plateau Gravel', 'gravel-des-vignes': 'Vineyard Gravel', 'gravel-de-la-lagune': 'Lagoon Gravel',
+    'gravel-de-la-vallee': 'Valley Gravel', 'gravel-de-kerbrou': 'Kerbrou Gravel', 'gravel-du-levant': 'Levant Gravel', 'gravel-de-saint-pierre': 'Saint-Pierre Gravel', 'gravel-du-grand-pre': 'Great Meadow Gravel',
+    'chemin-des-douaniers': 'Coast Guard Path', 'chemin-du-littoral': 'East Coast Path', 'grande-traversee': 'Great Gravel Traverse',
+    'vtt-du-renard': 'Fox Trail', 'vtt-des-biches': 'Deer Trail', 'vtt-grand-tour-des-bois': 'Woods MTB Grand Tour', 'vtt-du-phare': 'Lighthouse MTB Loop', 'descente-du-phare': 'Lighthouse Downhill',
+    'vtt-des-coteaux': 'Hills MTB Trail', 'vtt-des-buttes': 'Mounds MTB Trail', 'vtt-du-plateau': 'Plateau MTB Trail',
   };
   return names[id];
 }
@@ -144,7 +154,7 @@ function mapFocus(route: RouteData | undefined): { scale: number; x: number; z: 
 export class IslandAtlas {
   private activeId = '';
 
-  html({ routes, lang, allowDraw, allowFree, packAction }: AtlasOptions): string {
+  html({ routes, all, bike, lang, allowDraw, allowFree, packAction }: AtlasOptions): string {
     const copy = COPY[lang];
     const available = new Set(routes.map(({ id }) => id));
     const order = (id: string) => PRIORITY.includes(id) ? PRIORITY.indexOf(id) : PRIORITY.length;
@@ -154,13 +164,17 @@ export class IslandAtlas {
     const marker = PLACES.map((p) => {
       const name = lang === 'fr' ? p.label : p.labelEn;
       const at = `left:${(mapX(p.x) * 100).toFixed(2)}%;top:${(mapZ(p.z) * 100).toFixed(2)}%`;
-      if ('route' in p && available.has(p.route)) return `<button type="button" class="ia-marker" style="${at}" data-ia-choice="${p.route}" aria-pressed="false"><span>${name}</span></button>`;
+      const id = bike === 'road' ? p.route : p[bike];
+      if (id && available.has(id)) return `<button type="button" class="ia-marker" style="${at}" data-ia-choice="${id}" aria-pressed="false"><span>${name}</span></button>`;
       return `<span class="ia-marker ia-marker-static" style="${at}"><span>${name}</span></span>`;
     }).join('');
     const rows = sorted.map((r) => `<button type="button" class="ia-route" data-ia-choice="${esc(r.id)}" data-ia-row aria-pressed="${r.id === this.activeId}">
       <span class="ia-route-mark" aria-hidden="true"></span><span class="ia-route-main"><b>${esc(routeLabel(r.id, lang) ?? r.name)}</b><small>${routeTag(r, lang)}</small></span>
       <span class="ia-route-metric"><b>${km.format(r.lengthM / 1000)} km</b><small>+${Math.round(r.elevationGainM)} m</small></span>
     </button>`).join('');
+    // Parcours des autres vélos : ils s'affichent dès qu'un vélo de ce type est équipé au garage.
+    const counts = (['road', 'gravel', 'mtb'] as const).filter((b) => b !== bike).map((b) => [b, all.filter((r) => routeBike(r) === b).length] as const).filter(([, n]) => n > 0);
+    const others = counts.length ? `${copy.withBike} ${counts.map(([b, n]) => copy.other[b].replace('#', String(n))).join(' · ')}` : '';
     return `<div class="mm-modal mm-picker-modal ia-overlay" data-picker-close>
       <div class="mm-dialog mm-picker ia-dialog" role="dialog" aria-modal="true" aria-labelledby="ia-title" data-island-atlas>
         <div class="ia-map-panel">
@@ -174,7 +188,8 @@ export class IslandAtlas {
           <div class="ia-legend"><span class="ia-line-key">${copy.trace}</span><span class="ia-start-key">${copy.start}</span><span class="ia-load" data-ia-status role="status"></span></div>
         </div>
         <div class="ia-side">
-          <header class="ia-side-head"><h3>${copy.routes}</h3><button type="button" class="mm-x" data-picker-close aria-label="${copy.close}">×</button></header>
+          <header class="ia-side-head"><h3>${copy.bikes[bike]} <small>${routes.length}</small></h3><button type="button" class="mm-x" data-picker-close aria-label="${copy.close}">×</button></header>
+          ${others ? `<p class="ia-others">${others}</p>` : ''}
           <div class="ia-routes">${rows || `<p class="ia-empty">${copy.unavailable}</p>`}</div>
           ${rows ? `<div class="ia-selection"><canvas class="ia-profile" width="480" height="42" aria-hidden="true"></canvas><p class="ia-facts" data-ia-facts></p><button type="button" class="ia-pick" data-routepick="${esc(this.activeId)}">${copy.pick}<span aria-hidden="true"> →</span></button><button type="button" class="ia-detail" data-route="${esc(this.activeId)}">${copy.details}</button></div>` : ''}
           <footer class="ia-actions">${allowFree ? `<button type="button" data-zc="free">${copy.free}</button>` : ''}${allowDraw ? `<button type="button" data-zc="draw">${copy.draw}</button>` : ''}${packAction}</footer>

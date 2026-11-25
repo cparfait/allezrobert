@@ -7,6 +7,7 @@
  * L'atlas est utilisé pour la carte en jeu et la vignette. `--style flat` masque les voies secondaires
  * et `--style relief` conserve la vue de diagnostic avec les catégories de routes et de parcelles.
  */
+import { GRAVELLY } from './routes.ts';
 import { decodeRoute } from '../../../packages/shared/src/routeCodec.ts';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -176,9 +177,9 @@ for (const t of tiles) for (const f of t.forests) fill(f.rings, f.kind === 'coni
 for (const t of tiles) for (const f of t.landuse) fill(f.rings, LAND[f.kind] ?? [200, 200, 200], 0.6);
 for (const t of tiles) for (const w of t.water) fill(w.rings, [70, 130, 200], 1);
 for (const t of tiles) for (const w of t.waterways) line(w.pts, 2, [60, 120, 210], 1);
-for (const t of tiles) for (const r of t.roads) if (r.kind === 'track' && r.surface !== 'gravel') line(r.pts, 3, [170, 60, 160], 1);
+for (const t of tiles) for (const r of t.roads) if (r.kind === 'track' && !GRAVELLY.has(r.surface ?? '')) line(r.pts, 3, [170, 60, 160], 1);
 for (const kind of ['track', 'cycleway', 'unclassified', 'residential', 'tertiary', 'secondary'])
-  for (const t of tiles) for (const r of t.roads) if (r.kind === kind && !(kind === 'track' && r.surface !== 'gravel')) line(r.pts, 3, ROAD[kind]![0], ROAD[kind]![1], r.width);
+  for (const t of tiles) for (const r of t.roads) if (r.kind === kind && !(kind === 'track' && !GRAVELLY.has(r.surface ?? ''))) line(r.pts, 3, ROAD[kind]![0], ROAD[kind]![1], r.width);
 for (const t of tiles) for (const bd of t.buildings) put(bd.pts[0]!, bd.pts[1]!, [110, 60, 60]);
 }
 if (ROUTE && existsSync(join(DIR, 'routes', `${ROUTE}.json`))) {

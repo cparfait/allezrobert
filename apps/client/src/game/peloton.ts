@@ -16,6 +16,7 @@ import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { brakeForCorners, cornerGrip } from './cornerBrake.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
+import { withTrailBike } from './trailBike.ts';
 import { rng } from '../engine/noise.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
 import type { RouteBuildingCollision } from '@allezrobert/physics';
@@ -591,7 +592,8 @@ export class Peloton {
       const identity = aiIdentity(i, i % 2 === 1);
       // Couvre-chef et vélo selon la sortie (game/headgear.ts) : tirage propre, sans toucher la suite de r().
       const gearRoll = (i * 0.618034 + 0.137) % 1;
-      const look: AvatarLook = withHeadgear({
+      // Chemins et sentiers : gravel ou VTT, jamais un vélo de route.
+      const look: AvatarLook = withTrailBike(withHeadgear({
         ...DEFAULT_LOOK,
         nationality: identity.nationality,
         jersey: color,
@@ -604,7 +606,7 @@ export class Peloton {
         ...crowdShoes(i),
         ...botFace(i, r),
         heightCm: 160 + ((i * 13) % 36),
-      }, gearKind, gearRoll, { bikeIndex: i });
+      }, gearKind, gearRoll, { bikeIndex: i }), track.route, i);
       const avatar = createAvatar(look);
       avatar.setFootDown?.(true);
       scene.add(avatar.root);

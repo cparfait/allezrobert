@@ -17,7 +17,7 @@ import { RoadMesh, SHOULDER } from './road.ts';
 import { RouteFootprint } from './ribbon.ts';
 import { LandProbe } from './lowPolyKit.ts';
 import { PolyRoads } from './polyRoads.ts';
-import { RoadNetwork } from './network.ts';
+import { RoadNetwork, setTrailVerge } from './network.ts';
 import { RoadHeightField, setCurrentRoadHeight } from './roadHeight.ts';
 import { Rain } from './weather.ts';
 import { GrassField } from './grass.ts';
@@ -99,6 +99,7 @@ export class World {
     for (const p of route.points) if (p.y < low) low = p.y;
     if (Number.isFinite(low)) this.env.setMistBase(low + 10);
     this.terrain = new TerrainManager(source, q, envState.season);
+    setTrailVerge(envState.season);
     // Emprise du ruban : terrain abaissé dessous, réseau OSM découpé à son bord. Monde ouvert :
     // toutes les routes sont déjà creusées et dessinées par le réseau, pas de ruban d'itinéraire.
     const open = !!source.open;
@@ -300,6 +301,7 @@ export class World {
   setSeason(season: Season): void {
     this.env.state.season = season;
     this.terrain.setSeason(season);
+    setTrailVerge(season);
     this.vegetation.setSeason(season);
     this.grass.setSeason(season);
     this.water.setSeason(season);

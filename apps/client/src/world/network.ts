@@ -3,6 +3,7 @@ import { uv, attribute, mix, smoothstep, step, fract, floor, hash, min, vec2, ve
 import { LOW_POLY } from '../engine/style.ts';
 import { longchampInfieldRoads } from './longchampRacecourse.ts';
 import type { LoadedTile, TileRoad } from './types.ts';
+import type { Season } from './environment.ts';
 import { asphaltGrain } from './asphalt.ts';
 import { isRouteTwin } from './splat.ts';
 import { chainPieces, ribbonIndex, sideRoadStrips, type RouteFootprint } from './ribbon.ts';
@@ -26,6 +27,95 @@ tune('pluie.forcer', 'Forcer la pluie (chaussée)', 0, 0, 1, 0.01);
 
 /** Routes revêtues avec marquage axial (départementales et plus). */
 const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_link', 'secondary_link']);
+/** Herbe des bords de chemin (style Poly), accordée au talus de la saison (terrain.ts) ; blanchie par la neige. */
+const VERGE: Record<Season, string> = { spring: '#8ed376', summer: '#97d67a', autumn: '#97d67a', winter: '#e6eeea' };
+const vergeColor = uniform(new THREE.Color(VERGE.summer));
+export function setTrailVerge(season: Season): void {
+  vergeColor.value.set(VERGE[season]);
+}
+
+/**
+ * Chemins du style Poly, en aplats irréguliers : stabilisé clair à deux ornières et bande d'herbe au milieu, ou sentier
+ * de terre (moins de 2,7 m de large) avec une trace usée ; plaques de teinte, cailloux, bords mangés par l'herbe.
+ */
+function trailColor(across: THREE.Node<'float'>, along: THREE.Node<'float'>, half: THREE.Node<'float'>, ax: THREE.Node<'float'>, code: THREE.Node<'float'>) {
+  const p = positionWorld.xz;
+  const big = mx_noise_float(p.mul(0.33));
+  const mid = mx_noise_float(p.mul(1.25).add(31));
+  const fine = mx_noise_float(p.mul(4.5).add(7));
+  // Bords d'aplats nets de près, fondus au loin (pas de scintillement).
+  const over = (v: THREE.Node<'float'>, t: number) => smoothstep(float(t).sub(fwidth(v)).sub(0.015), float(t).add(fwidth(v)).add(0.015), v);
+  const v = big.mul(0.7).add(mid.mul(0.5));
+  // Matière (TRAIL_CODE) : partie décimale du revêtement, sans le quart ajouté sur les ponts.
+  const f = fract(code);
+  const kind = floor(f.sub(step(0.24, f).mul(0.25)).div(0.02).add(0.5));
+  const is = (k: number) => float(1).sub(step(0.5, abs(kind.sub(k))));
+  const base0 = TRAIL_LOOKS[0] as TrailLook;
+  const pick = (of: (look: TrailLook) => number): THREE.Node<'float'> => {
+    let s: THREE.Node<'float'> = float(of(base0));
+    TRAIL_LOOKS.forEach((look, k) => {
+      if (k > 0 && of(look) !== of(base0)) s = s.add(is(k).mul(of(look) - of(base0)));
+    });
+    return s;
+  };
+  // Mêmes paliers de teinte que les prés (terrain.ts).
+  const meadow = floor(mx_noise_float(p.mul(0.006)).mul(0.5).add(0.5).mul(3)).div(3).mul(0.14).add(0.9);
+  const grass = vergeColor.mul(meadow.div(0.95));
+  const own = vec3(pick((l) => l.rgb[0]), pick((l) => l.rgb[1]), pick((l) => l.rgb[2]));
+  // Teinte qui glisse le long du chemin.
+  const drift = mx_noise_float(p.mul(0.012).add(90));
+  const base = own.mul(drift.mul(0.22).add(1));
+  const light = base.mul(1.26);
+  const dark = base.mul(0.72);
+  let col = mix(mix(dark, base, over(v, -0.16)), light, over(v, 0.17).mul(0.85));
+  // Chemin d'herbe : le vert domine, la trace usée laisse voir la terre.
+  col = mix(col, grass.mul(mix(float(0.78), float(0.95), over(v, 0))), is(6));
+  const wob = mx_noise_float(vec2(along.mul(0.13), float(3))).mul(0.28);
+  const lat = across.add(wob);
+  const rut = float(1).sub(smoothstep(0.17, 0.27, abs(abs(lat).sub(half.mul(0.45))).add(mid.mul(0.07))));
+  const worn = float(1).sub(smoothstep(0.26, 0.46, abs(lat.add(wob.mul(0.8))).add(mid.mul(0.12))));
+  col = mix(col, mix(light.mul(1.06), dark.mul(0.8), over(mid, 0.25)), rut.mul(pick((l) => l.ruts)).max(worn.mul(pick((l) => l.worn))));
+  const crown = over(float(0.24).sub(abs(lat)).add(mid.mul(0.22)).add(big.mul(0.3)), 0.06);
+  col = mix(col, grass, crown.mul(pick((l) => l.crown)));
+  const fringe = over(ax.sub(half).add(mid.mul(0.3)).add(fine.mul(0.16)), 0.02);
+  col = mix(col, grass, fringe);
+  // Pierres : au plus une par case de 36 cm (dalles plus grosses sur la roche), effacées au loin.
+  const size = mix(float(0.36), float(0.62), is(7));
+  const cx = across.div(size);
+  const cy = along.div(size);
+  const id = floor(cx).add(512).add(floor(cy).add(32768).mul(61));
+  const h1 = hash(id);
+  const dx = abs(fract(cx).sub(h1.mul(0.4).add(0.3)));
+  const dy = abs(fract(cy).sub(hash(id.add(9177)).mul(0.4).add(0.3)));
+  const r = hash(id.add(40093)).mul(0.13).add(mix(float(0.08), float(0.2), is(7)));
+  const pix = fwidth(cy).max(fwidth(cx));
+  const d = max(dx.add(dy.mul(0.55)), dy.add(dx.mul(0.35)));
+  const stone = float(1).sub(smoothstep(r.sub(pix), r.add(pix), d)).mul(step(float(1).sub(pick((l) => l.stones)), hash(id.add(777)))).mul(float(1).sub(smoothstep(0.12, 0.5, pix)));
+  const stoneCol = mix(vec3(0.3, 0.285, 0.26), vec3(0.64, 0.61, 0.55), h1).mul(mix(vec3(1, 1, 1), own.mul(2), 0.35));
+  return mix(col, stoneCol, stone.mul(float(1).sub(fringe)));
+}
+
+/** Aspect d'une matière de chemin : teinte, ornières, trace usée, herbe au milieu, part des pierres. */
+interface TrailLook {
+  rgb: readonly [number, number, number];
+  ruts: number;
+  worn: number;
+  crown: number;
+  stones: number;
+}
+/** Dans l'ordre de TRAIL_CODE : stabilisé, pierre, calcaire, terre, argile, sable, herbe, roche. */
+const TRAIL_LOOKS: readonly TrailLook[] = [
+  { rgb: [0.46, 0.385, 0.28], ruts: 0.6, worn: 0, crown: 0.8, stones: 0.45 },
+  { rgb: [0.35, 0.34, 0.32], ruts: 0.45, worn: 0, crown: 0.35, stones: 0.95 },
+  { rgb: [0.66, 0.61, 0.51], ruts: 0.5, worn: 0, crown: 0.15, stones: 0.3 },
+  { rgb: [0.35, 0.245, 0.155], ruts: 0, worn: 0.7, crown: 0, stones: 0.5 },
+  { rgb: [0.46, 0.215, 0.115], ruts: 0, worn: 0.6, crown: 0, stones: 0.3 },
+  { rgb: [0.62, 0.49, 0.3], ruts: 0, worn: 0.35, crown: 0, stones: 0.08 },
+  { rgb: [0.37, 0.27, 0.17], ruts: 0, worn: 0.95, crown: 0, stones: 0.12 },
+  { rgb: [0.38, 0.35, 0.32], ruts: 0, worn: 0.3, crown: 0, stones: 0.85 },
+];
+const TRAIL_CODE: Readonly<Record<string, number>> = { pebblestone: 1, fine_gravel: 2, dirt: 3, ground: 3, earth: 4, sand: 5, grass: 6, rock: 7 };
+
 const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fine_gravel', 'grass', 'sand']);
 /** Pavés (secteurs de Paris–Roubaix, vieilles rues) : mêmes valeurs OSM que la physique et le son. */
 const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblestone:flattened', 'paving_stones:sett']);
@@ -33,13 +123,13 @@ const COBBLES = new Set(['sett', 'cobblestone', 'unhewn_cobblestone', 'cobblesto
 const WOOD = 4;
 /**
  * Marquage d'une route revêtue (info.y) : 1 rives et axe. Style jeu vidéo : 0,7 axe seul (rues de village, pistes
- * cyclables), 0,4 rives en tirets (petites routes) ; l'enrobé uni s'y lisait comme un ruban sans échelle.
+ * cyclables), 0,6 axe et rives en tirets (routes de 4,5 m), 0,4 rives en tirets (petites routes) ; l'enrobé uni s'y lisait comme un ruban sans échelle.
  */
 function markingOf(r: TileRoad, unpaved: number): number {
   if (MARKED.has(r.kind) && r.width >= 5) return 1;
   if (!LOW_POLY || unpaved) return 0;
   if (r.kind === 'cycleway' || (r.kind === 'residential' && r.width >= 5)) return 0.7;
-  return r.kind === 'unclassified' || r.kind === 'residential' ? 0.4 : 0;
+  return r.kind === 'unclassified' || r.kind === 'residential' ? (r.width >= 4.4 ? 0.6 : 0.4) : 0;
 }
 const SKIP = new Set(['footway', 'path', 'steps', 'cycleway', 'bridleway', 'pedestrian', 'corridor', 'platform']);
 
@@ -172,7 +262,7 @@ export class RoadNetwork {
     // Style jeu vidéo : enrobé foncé uni (même teinte que la route de l'itinéraire, road.ts).
     const asphalt = LOW_POLY ? vec3(0.075, 0.078, 0.085) : vec3(0.24, 0.245, 0.26).mul(asphaltGrain()).mul(n2.mul(0.2).add(0.9));
     // Style jeu vidéo : chemins de terre bruns (le gris clair se lisait comme une dalle de béton).
-    const gravel = LOW_POLY ? vec3(0.42, 0.33, 0.23) : vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
+    const gravel = LOW_POLY ? trailColor(across, along, half, ax, info.z) : vec3(0.5, 0.46, 0.38).mul(n.mul(0.35).add(0.7));
     // revêtement entier ; + 0,25 sur un pont (le ruban y sert de tablier : bas-côté jamais découpé, voir P2.2c)
     const unpaved = step(0.5, info.z).mul(step(info.z, 1.5));
     const cobble = step(1.5, info.z);
@@ -200,7 +290,7 @@ export class RoadNetwork {
       // Niveaux de marquage : voir markingOf.
       const full = step(0.85, marking);
       const axis = step(0.55, marking);
-      const minor = step(0.2, marking).mul(float(1).sub(axis));
+      const minor = step(0.2, marking).mul(float(1).sub(step(0.65, marking)));
       const tv = along.div(7);
       const ta = fwidth(tv).max(0.001);
       const tt = fract(tv);
@@ -586,17 +676,19 @@ function* buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street
   const pieces = roads
     .filter((r) => (r.pts3 as number[]).length >= 6)
     .map((r) => {
-      const half = Math.max(r.width, 2.5) / 2;
+      // Sentiers du style Poly : jusqu'à 1,8 m de large.
+      const half = Math.max(r.width, LOW_POLY && r.kind === 'track' ? 1.8 : 2.5) / 2;
       const unpaved = COBBLES.has(r.surface ?? '') ? 2 : UNPAVED.has(r.surface ?? '') || r.kind === 'track' ? 1 : LOW_POLY && r.surface === 'wood' ? WOOD : 0;
       const marked = markingOf(r, unpaved);
       const bridge = r.bridge ? 1 : 0;
-      return { pts3: r.pts3 as number[], half, marked, unpaved, bridge, key: `${half}|${marked}|${unpaved}|${bridge}` };
+      const trail = LOW_POLY && unpaved === 1 ? (TRAIL_CODE[r.surface ?? ''] ?? 0) : 0;
+      return { pts3: r.pts3 as number[], half, marked, unpaved, bridge, trail, key: `${half}|${marked}|${unpaved}|${bridge}|${trail}` };
     });
   // Tronçons du graphe mis bout à bout : rives continues aux nœuds, pointillé sans à-coup.
   for (const c of chainPieces(pieces)) {
     yield;
-    const { half, marked, unpaved, bridge } = pieces[c.piece] as (typeof pieces)[number];
-    const surfaceCode = unpaved + bridge * 0.25;
+    const { half, marked, unpaved, bridge, trail } = pieces[c.piece] as (typeof pieces)[number];
+    const surfaceCode = unpaved + bridge * 0.25 + trail * 0.02;
     // Bords à demi-largeur + 0,6 m de bas-côté fondu ; découpe contre l'itinéraire actif.
     const o = half + 0.6;
     for (const raw of sideRoadStrips(c.pts3, o, half, footprint, 0.05, c.dirs, c.stops)) {

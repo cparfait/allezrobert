@@ -183,6 +183,8 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
 
 /** Méandres et petites routes : 1 = valeurs du jeu. */
 const MEANDER_K = Number(process.env.ISLAND_MEANDER ?? 1);
+/** Écart (m) d'une courbe à sa corde sous lequel elle peut devenir une ligne droite ; 0 : aucune. */
+const STRAIGHT_M = Number(process.env.ISLAND_STRAIGHT ?? 24);
 const MESH_M = Number(process.env.ISLAND_MESH ?? 2100);
 const TRACK_WOB = Number(process.env.ISLAND_TRACK_WOB ?? 0.4);
 /** Coût qui varie d'un endroit à l'autre : les routes serpentent au lieu de filer droit (amplitude, taille en m). */
@@ -324,7 +326,166 @@ export function saddle(): Vec2 {
   return best;
 }
 
+type Trail = { name: string; mtb?: boolean; seed?: number } & ({ at: Vec2; r: number; n: number } | { line: Vec2[] });
+const shorePath = (from: number, to: number, n: number, inset: number): Vec2[] => Array.from({ length: n + 1 }, (_, k) => coastPoint(from + ((to - from) * k) / n, inset));
+
+/** Pistes gravel et sentiers VTT : boucles (centre, rayon) et traversées (points de passage). */
+const TRAILS: Trail[] = [
+  { name: 'Chemin de la Vallée', at: [4200, 4700], r: 1500, n: 8 },
+  { name: 'Chemin de Kerbrou', at: [-2600, -6800], r: 1700, n: 8 },
+  { name: 'Chemin du Levant', at: [12800, -3600], r: 1800, n: 8 },
+  { name: 'Chemin de Saint-Pierre', at: [-12300, 300], r: 1700, n: 8 },
+  { name: 'Chemin du Grand Pré', at: [900, -5000], r: 1500, n: 8 },
+  { name: 'Chemin de la Traversée', line: [[-8900, -1700], [-8000, 2200], [-5400, 4300], [-3300, 5300]] },
+  { name: 'Chemin de la Traversée', line: [[200, 6100], [2500, 5500]] },
+  { name: 'Chemin de la Traversée', line: [[6000, 4200], [8300, 4000], [10300, 2200]] },
+  { name: 'Chemin des Douaniers', line: shorePath(-2.75, -2.0, 7, 270) },
+  { name: 'Chemin du Littoral', line: shorePath(-0.35, 0.35, 7, 270) },
+  { name: 'Sentier du Renard', mtb: true, at: [-11800, -3800], r: 850, n: 8 },
+  { name: 'Sentier des Biches', mtb: true, at: [-8200, -6500], r: 950, n: 8 },
+  { name: 'Sentier du Phare', mtb: true, at: [7580, -8130], r: 2300, n: 12 },
+  { name: 'Descente du Phare', mtb: true, line: [saddle(), [6900, -6600], [5900, -5700], [5003, -5001]] },
+  { name: 'Sentier des Coteaux', mtb: true, at: [-300, 7300], r: 900, n: 8 },
+  { name: 'Sentier des Buttes', mtb: true, at: [-7200, 5300], r: 1000, n: 8 },
+  { name: 'Sentier du Plateau', mtb: true, at: [14300, 1600], r: 1000, n: 8 },
+];
+
+/**
+ * Matière et largeur des chemins, tronçon après tronçon (jamais deux pareils à la suite) : stabilisé (gravel), pierre
+ * (pebblestone), calcaire clair (fine_gravel), pavés (cobblestone), terre (dirt), argile rouge (earth), sable (sand),
+ * herbe (grass), roche (rock). Les sentiers restent étroits, quelques chemins s'ouvrent à 4,4 m.
+ */
+const SKIN: Record<string, Array<[surface: string, width: number]>> = {
+  'Chemin des Bois': [['gravel', 3.2], ['pebblestone', 2.8], ['fine_gravel', 3.6]],
+  'Chemin des Vignes': [['fine_gravel', 4.2], ['gravel', 3.2], ['pebblestone', 3]],
+  'Chemin du Plateau': [['pebblestone', 3.4], ['fine_gravel', 4.4], ['gravel', 2.8]],
+  'Chemin de la Lagune': [['fine_gravel', 2.8], ['gravel', 3.4]],
+  'Chemin de la Vallée': [['gravel', 3], ['cobblestone', 3.4], ['fine_gravel', 4]],
+  'Chemin de Kerbrou': [['pebblestone', 2.8], ['gravel', 3.6]],
+  'Chemin du Levant': [['fine_gravel', 4.4], ['pebblestone', 3], ['cobblestone', 3.6]],
+  'Chemin de Saint-Pierre': [['gravel', 3.6], ['fine_gravel', 2.8], ['pebblestone', 3.2]],
+  'Chemin du Grand Pré': [['gravel', 2.6], ['pebblestone', 3.4], ['fine_gravel', 4]],
+  'Chemin de la Traversée': [['gravel', 3.6], ['fine_gravel', 4.4], ['pebblestone', 2.8], ['gravel', 2.6]],
+  'Chemin des Douaniers': [['fine_gravel', 2.6], ['pebblestone', 3], ['gravel', 3.6]],
+  'Chemin du Littoral': [['fine_gravel', 3], ['gravel', 2.6], ['pebblestone', 3.4]],
+  'Sentier VTT des Bois': [['dirt', 2.2], ['earth', 1.9], ['grass', 2.6]],
+  'Sentier du Renard': [['earth', 2], ['dirt', 2.4], ['rock', 2.2]],
+  'Sentier des Biches': [['grass', 2.6], ['dirt', 1.9], ['earth', 2.2]],
+  'Sentier du Phare': [['rock', 2.4], ['dirt', 2], ['grass', 2.6], ['rock', 2]],
+  'Descente du Phare': [['dirt', 2.2], ['rock', 2.6], ['earth', 2]],
+  'Sentier des Coteaux': [['earth', 2.2], ['dirt', 1.9], ['rock', 2.4]],
+  'Sentier des Buttes': [['sand', 2.6], ['dirt', 2], ['grass', 2.4]],
+  'Sentier du Plateau': [['grass', 2.6], ['earth', 2.2], ['rock', 1.9]],
+};
+
 const LANE_NAMES = ['des Tilleuls', 'du Vieux Puits', 'des Quatre Vents', 'de la Croix Blanche', 'du Bois Rond', 'des Alouettes', 'du Lavoir', 'de la Butte', 'des Genêts', 'du Grand Pré', 'de la Fontaine', 'des Peupliers', 'du Moulin Brûlé', 'de la Hulotte', 'des Merisiers', 'du Calvaire', 'de la Garenne', 'des Ajoncs', 'du Pont Neuf', 'de la Forge', 'des Vergers', 'du Coteau', 'de la Pie', 'des Bruyères', 'du Chêne Creux', 'de la Mare', 'des Coquelicots', 'du Berger'];
+
+const MESH_NAMES = new Set(LANE_NAMES.map((n) => `Route ${n}`));
+
+/**
+ * Petites routes du maillage qui ne tiennent pas les contrôles (verify.ts) : raccord en biseau, croisement sans carrefour,
+ * creux ou pente trop forts, bout isolé. Elles sont retirées ; les autres routes ne bougent pas.
+ */
+export function pruneMesh(roads: Road[], profiles: boolean): Road[] {
+  let list = roads;
+  const mesh = (r: Road) => MESH_NAMES.has(r.name);
+  for (let pass = 0; pass < 12; pass++) {
+    const graph = buildGraph(list);
+    const bad = new Set<Road>();
+    const near = (r: Road, x: number, z: number) => r.pts.some((p) => Math.hypot(p[0] - x, p[2] - z) < 2.5);
+    const drop = (name: string, x: number, z: number) => {
+      if (!MESH_NAMES.has(name)) return false;
+      const r = list.find((q) => q.name === name && !bad.has(q) && near(q, x, z));
+      if (r) bad.add(r);
+      return !!r;
+    };
+    const node = (n: number): [number, number] => [graph.nodes[n * 3]!, graph.nodes[n * 3 + 2]!];
+    // Biseaux.
+    const dirs = new Map<number, Array<{ a: number; e: number }>>();
+    graph.edges.forEach((e, ei) => {
+      const m = e.pts.length / 3;
+      const away = (from: number, step: number) => {
+        let k = from;
+        let L = 0;
+        while (k + step >= 0 && k + step < m && L < 8) {
+          L += Math.hypot(e.pts[(k + step) * 3]! - e.pts[k * 3]!, e.pts[(k + step) * 3 + 2]! - e.pts[k * 3 + 2]!);
+          k += step;
+        }
+        return Math.atan2(e.pts[k * 3 + 2]! - e.pts[from * 3 + 2]!, e.pts[k * 3]! - e.pts[from * 3]!);
+      };
+      (dirs.get(e.a) ?? dirs.set(e.a, []).get(e.a)!).push({ a: away(0, 1), e: ei });
+      (dirs.get(e.b) ?? dirs.set(e.b, []).get(e.b)!).push({ a: away(m - 1, -1), e: ei });
+    });
+    for (const [n, l] of dirs)
+      for (let i = 0; i < l.length; i++)
+        for (let j = i + 1; j < l.length; j++) {
+          let t = Math.abs(l[i]!.a - l[j]!.a);
+          if (t > Math.PI) t = 2 * Math.PI - t;
+          if (t > (24 * Math.PI) / 180) continue;
+          const [x, z] = node(n);
+          const A = graph.edges[l[i]!.e]!;
+          const B = graph.edges[l[j]!.e]!;
+          const [short, long] = A.len < B.len ? [A, B] : [B, A];
+          if (!drop(short.name ?? '', x, z)) drop(long.name ?? '', x, z);
+        }
+    // Croisements sans carrefour et routes qui se longent de trop près.
+    const seg = new Map<string, Array<{ e: number; k: number }>>();
+    const cellOf = (x: number, z: number) => `${Math.floor(x / 20)}_${Math.floor(z / 20)}`;
+    graph.edges.forEach((e, ei) => {
+      for (let k = 0; k + 5 < e.pts.length; k += 3) {
+        const c = cellOf(e.pts[k]!, e.pts[k + 2]!);
+        (seg.get(c) ?? seg.set(c, []).get(c)!).push({ e: ei, k });
+      }
+    });
+    graph.edges.forEach((e, ei) => {
+      if (!MESH_NAMES.has(e.name ?? '')) return;
+      for (let k = 6; k + 8 < e.pts.length; k += 3) {
+        const x = e.pts[k]!;
+        const z = e.pts[k + 2]!;
+        if ([e.a, e.b].some((n) => Math.hypot(node(n)[0] - x, node(n)[1] - z) < 26)) continue;
+        for (let dx = -20; dx <= 20; dx += 20)
+          for (let dz = -20; dz <= 20; dz += 20)
+            for (const q of seg.get(cellOf(x + dx, z + dz)) ?? []) {
+              if (q.e === ei) continue;
+              const o = graph.edges[q.e]!;
+              if (Math.hypot(o.pts[q.k]! - x, o.pts[q.k + 2]! - z) < (e.width + o.width) / 2 + 2.5) {
+                drop(e.name ?? '', x, z);
+                return;
+              }
+            }
+      }
+      if (!profiles) return;
+      for (let i = 4; i + 4 < e.pts.length / 3; i++) {
+        const sag = (e.pts[(i - 4) * 3 + 1]! + e.pts[(i + 4) * 3 + 1]!) / 2 - e.pts[i * 3 + 1]!;
+        const rise = Math.abs(e.pts[(i + 4) * 3 + 1]! - e.pts[(i - 4) * 3 + 1]!) / 16;
+        if (sag > 0.11 || rise > 0.13) {
+          drop(e.name ?? '', e.pts[i * 3]!, e.pts[i * 3 + 2]!);
+          return;
+        }
+      }
+    });
+    // Bouts isolés : morceaux détachés du réseau principal, petits culs-de-sac.
+    const parent = Array.from({ length: graph.nodes.length / 3 }, (_, i) => i);
+    const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i]!)));
+    const deg = new Map<number, number>();
+    for (const e of graph.edges) {
+      parent[find(e.a)] = find(e.b);
+      deg.set(e.a, (deg.get(e.a) ?? 0) + 1);
+      deg.set(e.b, (deg.get(e.b) ?? 0) + 1);
+    }
+    const size = new Map<number, number>();
+    for (let i = 0; i < parent.length; i++) size.set(find(i), (size.get(find(i)) ?? 0) + 1);
+    const main = [...size].sort((a, b) => b[1] - a[1])[0]![0];
+    for (const e of graph.edges) {
+      if (!MESH_NAMES.has(e.name ?? '')) continue;
+      const mid = Math.floor(e.pts.length / 6) * 3;
+      if (find(e.a) !== main || ((deg.get(e.a) === 1 || deg.get(e.b) === 1) && e.len < 320)) drop(e.name ?? '', e.pts[mid]!, e.pts[mid + 2]!);
+    }
+    if (!bad.size) break;
+    list = list.filter((r) => !bad.has(r) || !mesh(r));
+  }
+  return list;
+}
 
 /** Petites routes sur toute l'île : semis irrégulier de carrefours, reliés à leurs plus proches voisins. */
 function meshRoads(P: Plan): void {
@@ -450,10 +611,10 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   // Les chemins suivent le relief, déjà marqué dans les Bois : peu de détours imposés.
   for (let c = 0; c < P.grid.N; c++) P.grid.wob[c] = 1 + (P.grid.wob[c]! - 1) * TRACK_WOB;
   const r = rng(31337);
-  const loopPts = (cx: number, cz: number, R: number, n: number, jit: number): Vec2[] =>
+  const loopPts = (cx: number, cz: number, R: number, n: number, jit: number, r0 = r): Vec2[] =>
     Array.from({ length: n }, (_, k) => {
       const a = (k / n) * Math.PI * 2;
-      const rr = R * (1 + (r() - 0.5) * jit);
+      const rr = R * (1 + (r0() - 0.5) * jit);
       return [cx + Math.cos(a) * rr * 1.3, cz + Math.sin(a) * rr] as Vec2;
     });
   const bois = loopPts(-10300, -5000, 2300, 12, 0.5);
@@ -475,6 +636,17 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   loopConnect(loopPts(LAKES[0]!.x, LAKES[0]!.z, 1500, 7, 0.3), [C.track], 'Chemin de la Lagune');
   // h. VTT : sentiers des Bois et du massif.
   const mtb = loopConnect(loopPts(-10600, -5400, 1300, 10, 0.6), [C.mtb, { ...C.mtb, gmax: 0.26 }], 'Sentier VTT des Bois');
+  // i. Pistes gravel et sentiers VTT dans chaque région (TRAILS), après les boucles des Bois.
+  for (const [k0, t] of TRAILS.entries()) {
+    const cls = t.mtb ? [C.mtb, { ...C.mtb, gmax: 0.24 }] : [C.track, { ...C.track, gmax: 0.16 }];
+    if ('r' in t) loopConnect(loopPts(t.at[0], t.at[1], t.r, t.n, t.mtb ? 0.65 : 0.45, rng(7100 + k0 + (t.seed ?? 0))), cls, t.name);
+    else {
+      const pts = t.line.filter(okPt);
+      const occ0 = new Set(pts.filter((p) => P.grid.occ[P.grid.cellAt(p[0], p[1])]! >= 5));
+      for (let k = 0; k + 1 < pts.length; k++) connect(P, pts[k]!, pts[k + 1]!, cls, t.name);
+      for (const p of [pts[0], pts[pts.length - 1]]) if (p && !occ0.has(p)) spur(P, p, cls[0]!, 5, t.name);
+    }
+  }
   return { ring: ring.map((q) => q.p), bois: boisOk, mtb, col, foot };
 }
 
@@ -642,7 +814,7 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
    * Méandres : la courbe ondule de part et d'autre de son tracé (amplitude et longueur d'onde selon la catégorie), sans
    * bouger aux carrefours, près d'une autre route, de l'eau ou d'une emprise réservée, et moins à flanc de pente raide.
    */
-  const meander = (d: Vec2[], own: ReadonlySet<number>, pins: ReadonlyArray<Vec2>, A: number, L: number): Vec2[] => {
+  const meander = (d: Vec2[], own: ReadonlySet<number>, pins: ReadonlyArray<Vec2>, A: number, L: number, held?: Uint8Array): Vec2[] => {
     const n = d.length;
     if (n < 60 || A <= 0) return d;
     const free = new Float32Array(n).fill(1);
@@ -681,6 +853,7 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
       for (let i = Math.max(0, best - 8); i <= Math.min(n - 1, best + 8); i++) free[i] = 0;
     }
     free[0] = free[n - 1] = 0;
+    if (held) for (let i = 0; i < n; i++) if (held[i]) free[i] = 0;
     // Retour progressif (70 m) vers les points tenus, puis lissage.
     const ramp = 2 / 70;
     for (let i = 1; i < n; i++) free[i] = Math.min(free[i]!, free[i - 1]! + ramp);
@@ -695,6 +868,57 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
       const o = A * smooth(free[i]!) * (0.8 * Math.sin((2 * Math.PI * s) / L + ph + 1.1 * Math.sin((2 * Math.PI * s) / (L * 3.1) + ph * 2)) + 0.35 * Math.sin((2 * Math.PI * s) / (L * 1.9) + ph * 3));
       return [x - ((b[1] - a[1]) / l) * o, z + ((b[0] - a[0]) / l) * o] as Vec2;
     });
+  };
+  /**
+   * Lignes droites : de loin en loin, 240 à 900 m d'une courbe qui s'écarte peu de sa corde deviennent droits, avec 70 m de
+   * raccord à chaque bout (des virages partout donnaient le tournis). Jamais à travers un carrefour.
+   */
+  const straighten = (d: Vec2[], pins: ReadonlyArray<Vec2>): { pts: Vec2[]; held: Uint8Array } => {
+    const n = d.length;
+    const held = new Uint8Array(n);
+    if (STRAIGHT_M <= 0 || n < 150) return { pts: d, held };
+    // Versants du Phare : les lacets suivent la pente.
+    if (d.some((p) => Math.hypot(p[0] - 7580, p[1] + 8130) < 3600)) return { pts: d, held };
+    const busy = new Uint8Array(n);
+    for (const p of pins) {
+      let best = 0;
+      for (let i = 1; i < n; i++) if (Math.hypot(d[i]![0] - p[0], d[i]![1] - p[1]) < Math.hypot(d[best]![0] - p[0], d[best]![1] - p[1])) best = i;
+      for (let i = Math.max(0, best - 12); i <= Math.min(n - 1, best + 12); i++) busy[i] = 1;
+    }
+    const out = d.map((p) => [p[0], p[1]] as Vec2);
+    const pick = rng(Math.abs(Math.round(d[0]![0] * 11 + d[0]![1] * 5)) % 100003);
+    const R = 35;
+    let i = 8 + Math.floor(pick() * 60);
+    while (i + 120 < n) {
+      let made = 0;
+      for (let len = Math.min(n - 9 - i, Math.floor((300 + pick() * 600) / 2)); len >= 120 && !made; len -= 20) {
+        const a = d[i]!;
+        const b = d[i + len]!;
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        let ok = true;
+        for (let k = i; ok && k <= i + len; k++) {
+          const off = Math.abs((d[k]![0] - a[0]) * (b[1] - a[1]) - (d[k]![1] - a[1]) * (b[0] - a[0])) / L;
+          if (busy[k] || off > STRAIGHT_M) ok = false;
+          // Jamais en taillant dans une pente : la ligne droite reste à 3 m du relief de la courbe.
+          if (ok && k % 5 === 0) {
+            const t = (k - i) / len;
+            if (Math.abs(terrain(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t) - terrain(d[k]![0], d[k]![1])) > 3) ok = false;
+          }
+        }
+        if (!ok) continue;
+        for (let k = 1; k < len; k++) {
+          const u = Math.min(1, k / R, (len - k) / R);
+          const w = u * u * (3 - 2 * u);
+          const t = k / len;
+          const p = d[i + k]!;
+          held[i + k] = 1;
+          out[i + k] = [p[0] + (a[0] + (b[0] - a[0]) * t - p[0]) * w, p[1] + (a[1] + (b[1] - a[1]) * t - p[1]) * w];
+        }
+        made = len;
+      }
+      i += made ? made + 50 + Math.floor(pick() * 220) : 15;
+    }
+    return { pts: out, held };
   };
   const MEANDER: Record<string, [number, number]> = { secondary: [20, 400], tertiary: [20, 320], lane: [18, 240], cycleway: [11, 230], track: [13, 170], mtb: [8, 110] };
   // Lissage d'une chaîne : marches retirées, virages arrondis, puis points tous les 2 m ; position finale
@@ -717,8 +941,12 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
     const hardAt = new Map<number, number>();
     for (let t = 0; t + 1 < hard.length; t++) {
       const seg = pts.slice(hard[t]!, hard[t + 1]! + 1);
+      const curved = (b: Vec2[]) => {
+        const s = straighten(b, pins);
+        return meander(s.pts, own, pins, amp * MEANDER_K, wave, s.held);
+      };
       const base = seg.length >= 2 ? resample(chaikin(fillet(simplifyPath(seg, tol), R), 2), 2) : seg;
-      const d = seg.length >= 2 ? resample(meander(base, own, pins, amp * MEANDER_K, wave), 2) : seg;
+      const d = seg.length >= 2 ? resample(opts.designed ? base : curved(base), 2) : seg;
       for (let i = dense.length ? 1 : 0; i < d.length; i++) dense.push(d[i]!);
       hardAt.set(hard[t + 1]!, dense.length - 1);
     }
@@ -782,7 +1010,11 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
       const cls = CLASS_BY_RANK[e.rank]!;
       const xz = dense.slice(bounds[i]!, bounds[i + 1]! + 1);
       if (xz.length < 2) return;
-      const y = profile(xz, false, cls.kind === 'track' ? 24 : 30, cls.gmax + 0.005, endY(xz[0]!), endY(xz[xz.length - 1]!));
+      const y = profile(xz, false, cls.id === 'track' ? 24 : cls.id === 'mtb' ? 40 : 30, cls.gmax + 0.005, endY(xz[0]!), endY(xz[xz.length - 1]!));
+      const skins = cls.kind === 'track' ? SKIN[e.label ?? ''] : undefined;
+      const nth = counts.get(`·${e.label}`) ?? 0;
+      if (skins) counts.set(`·${e.label}`, nth + 1);
+      const [surface, width] = skins ? skins[nth % skins.length]! : [cls.surface, cls.width];
       const n = (counts.get(cls.id) ?? 0) + 1;
       counts.set(cls.id, n);
       out.push({
@@ -790,11 +1022,11 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
         ...(opts.designed ? { designed: true } : {}),
         name: e.label || cls.id,
         kind: cls.kind,
-        width: cls.width,
-        surface: cls.surface,
+        width,
+        surface,
         loop: false,
         pts: xz.map(([x, z], j) => [x, y[j]!, z]),
-        flat: cls.width / 2 + (cls.kind === 'track' ? 0.8 : 1.5),
+        flat: width / 2 + (cls.kind === 'track' ? 0.8 : 1.5),
         blend: cls.kind === 'track' ? 5 : 7,
         gmax: cls.gmax,
       });
@@ -852,6 +1084,23 @@ function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; f
     { id: 'tour-des-coteaux', name: 'Le tour des Coteaux', nameEn: 'Hills loop', loop: true, mode: 'road', waypoints: [t('les-vignes'), t('robertville')], sprints: [{ name: 'Sprint de la République', x: coastPoint(ang, 800)[0], z: coastPoint(ang, 800)[1] }], landmarks: [{ name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }, { name: 'Robertville-sur-Mer', x: rv.x, z: rv.z }] },
     { id: 'gravel-du-plateau', name: 'Gravel du Plateau', nameEn: 'Plateau gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin du Plateau', landmarks: [{ name: 'Les Granges', x: t('les-granges')[0], z: t('les-granges')[1] }] },
     { id: 'gravel-des-vignes', name: 'Gravel des Vignes', nameEn: 'Vineyard gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Vignes', landmarks: [{ name: 'Moulin des Coteaux', x: -3600, z: 5000 }] },
+    // Pistes gravel et sentiers VTT de chaque région (TRAILS).
+    { id: 'gravel-de-la-vallee', name: 'Gravel de la Vallée', nameEn: 'Valley gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin de la Vallée', landmarks: [{ name: 'La Vallée', x: 4200, z: 4700 }] },
+    { id: 'gravel-de-kerbrou', name: 'Gravel de Kerbrou', nameEn: 'Kerbrou gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin de Kerbrou', landmarks: [{ name: 'Landes de Kerbrou', x: -2600, z: -6800 }] },
+    { id: 'gravel-du-levant', name: 'Gravel du Levant', nameEn: 'Levant gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin du Levant', landmarks: [{ name: 'Le Levant', x: 12800, z: -3600 }] },
+    { id: 'gravel-de-saint-pierre', name: 'Gravel de Saint-Pierre', nameEn: 'Saint-Pierre gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin de Saint-Pierre', landmarks: [{ name: 'Saint-Pierre', x: t('saint-pierre')[0], z: t('saint-pierre')[1] }] },
+    { id: 'gravel-du-grand-pre', name: 'Gravel du Grand Pré', nameEn: 'Great Meadow gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin du Grand Pré', landmarks: [{ name: 'Le Grand Pré', x: 900, z: -5000 }] },
+    { id: 'chemin-des-douaniers', name: 'Le chemin des Douaniers', nameEn: 'Coast guard path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(-2.75, 270), coastPoint(-2.4, 270), coastPoint(-2.0, 270)], landmarks: [{ name: 'Le chemin des Douaniers', x: -10000, z: -9300 }, { name: 'Kerbrou', x: t('kerbrou')[0], z: t('kerbrou')[1] }] },
+    { id: 'chemin-du-littoral', name: 'Le chemin du Littoral', nameEn: 'East coast path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(-0.35, 270), coastPoint(0.35, 270)], landmarks: [{ name: 'Côte du Levant', x: 16500, z: 0 }] },
+    { id: 'grande-traversee', name: 'La Grande Traversée', nameEn: 'Great gravel traverse', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [t('bois-joli'), [-8000, 2200], [-5400, 4300], [-3000, 5600], [-1500, 6700], [200, 6100], [2500, 5500], [4200, 6100], [6000, 4200], [8300, 4000], [10300, 2200], [12300, 3300]], landmarks: [{ name: 'Bois-Joli', x: t('bois-joli')[0], z: t('bois-joli')[1] }, { name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }, { name: 'Vallon-sur-Robe', x: t('vallon')[0], z: t('vallon')[1] }, { name: 'Les Granges', x: t('les-granges')[0], z: t('les-granges')[1] }] },
+    { id: 'vtt-du-renard', name: 'VTT du Renard', nameEn: 'Fox MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Renard', landmarks: [{ name: 'Le Renard', x: -12300, z: -3900 }] },
+    { id: 'vtt-des-biches', name: 'VTT des Biches', nameEn: 'Deer MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Biches', landmarks: [{ name: 'La clairière des Biches', x: -8200, z: -6500 }] },
+    { id: 'vtt-grand-tour-des-bois', name: 'Le grand tour VTT des Bois', nameEn: 'Woods MTB grand tour', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [[-13300, -3900], [-11400, -6100], [-8300, -7300], [-7400, -6300], [-9600, -5000], [-11300, -4000]], landmarks: [{ name: 'Chapelle en ruine', x: -10600, z: -5600 }, { name: 'Étang des Bois', x: -9400, z: -4600 }] },
+    { id: 'vtt-du-phare', name: 'VTT du tour du Phare', nameEn: 'Lighthouse MTB loop', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Phare', landmarks: [{ name: 'Le Hameau du Col', x: t('le-col')[0], z: t('le-col')[1] }] },
+    { id: 'descente-du-phare', name: 'La descente du Phare', nameEn: 'Lighthouse downhill', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[6990, -6671], [3830, -5629]], sprints: [{ name: 'Chrono de la descente', x: 3830, z: -5629, lengthM: 1500 }], landmarks: [{ name: 'Balcon du Phare', x: 6990, z: -6671 }, { name: 'Le Vieux Puits', x: 3830, z: -5629 }] },
+    { id: 'vtt-des-coteaux', name: 'VTT des Coteaux', nameEn: 'Hills MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Coteaux', landmarks: [{ name: 'Les Coteaux', x: -300, z: 7300 }] },
+    { id: 'vtt-des-buttes', name: 'VTT des Buttes', nameEn: 'Mounds MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Buttes', landmarks: [{ name: 'Les Buttes', x: -7200, z: 5300 }] },
+    { id: 'vtt-du-plateau', name: 'VTT du Plateau', nameEn: 'Plateau MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Plateau', landmarks: [{ name: 'Le Plateau', x: 14300, z: 1600 }] },
     { id: 'gravel-de-la-lagune', name: 'Gravel de la Lagune', nameEn: 'Lagoon gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [[-8600, 8200], [-10500, 7500], [-9000, 6500]], landmarks: [{ name: 'La Lagune', x: -10400, z: 7400 }] },
   ];
 }
@@ -887,7 +1136,10 @@ async function main(): Promise<void> {
   for (const f of P.failed) console.log(`   · impossible : ${f}`);
   const netRoads = networkRoads(grid, D.roads, D.gates);
   const quays = portRoads([...D.roads, ...netRoads]);
-  const roads = [...D.roads, ...netRoads, ...quays];
+  const kept = pruneMesh([...D.roads, ...netRoads, ...quays], false);
+  joinCrossings(kept);
+  const roads = pruneMesh(kept, true);
+  log(`maillage : ${D.roads.length + netRoads.length + quays.length - roads.length} tronçons écartés`);
   const nx = joinCrossings(roads);
   log(`${roads.length} routes (${netRoads.length} tracées), ${(roads.reduce((s, r) => s + r.pts.length * 2, 0) / 1000).toFixed(0)} km, ${nx} croisements`);
 
@@ -916,7 +1168,7 @@ async function main(): Promise<void> {
     B.street(r, { spacing: core ? 13 : 16, setback: core ? 3 : 4.5, depth: [8, 12], len: [8, 13], levels: core ? [2, 3] : [1, 2], palette, inside, seed: r.id.length * 131 + Math.round(t.x), apartments: core ? 0.15 : 0, ...(r.id.endsWith('boulevard') ? { sides: [1] } : r.id.endsWith('-quai') ? { sides: [-1] } : {}) });
   }
   farmBuildings(B, farms);
-  roadsideHouses(B, netRoads);
+  roadsideHouses(B, netRoads.filter((r) => roads.includes(r)));
   log(`${B.out.length} bâtiments`);
 
   // Sols : parcelles, plages, eau.

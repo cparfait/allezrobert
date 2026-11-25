@@ -1,9 +1,10 @@
 import * as THREE from 'three/webgpu';
+import { vec3 } from 'three/tsl';
 import type { RoadGraphData } from '@allezrobert/shared';
 import { MeshBuilder, box, flatVertexMaterial, part, prism, template, type LandProbe, type Template } from './lowPolyKit.ts';
 import { NAME_H, NAME_W, glyphRect, nameRect, roadAtlas, signRect, type Glyph, type RoadAtlas, type UvRect } from './polyRoadAtlas.ts';
 import { CELL_M, planRoads, type PlanPlace, type PlannedPanel, type PlannedSign, type PlannedTown, type RoadCell, type RoadPlan, type SignKind } from './polyRoadPlan.ts';
-import { NETWORK_ROAD_LIFT } from './roadHeight.ts';
+import { NETWORK_ROAD_LIFT, currentRoadHeight } from './roadHeight.ts';
 
 /**
  * Dessin de la signalisation du mode Poly (plan : polyRoadPlan.ts) autour du coureur : par case de CELL_M, un maillage
@@ -13,8 +14,10 @@ import { NETWORK_ROAD_LIFT } from './roadHeight.ts';
 const BUILD_M = 340;
 const FORGET_M = 430;
 const SHADOW_M = 90;
-/** Peinture au-dessus du ruban des routes (polylignes du graphe, voir roadHeight.ts). */
-const PAINT_LIFT = NETWORK_ROAD_LIFT + 0.012;
+/** Peinture au-dessus de la chaussée dessinée (roadHeight.ts). */
+const PAINT_LIFT = 0.012;
+/** Écart toléré entre l'axe du graphe et celui de la chaussée dessinée, coudes arrondis (m). */
+const SNAP_M = 1.2;
 /** Temps de calcul du plan par image (ms), pendant les premières secondes de la sortie. */
 const PLAN_BUDGET_MS = 4;
 const PAINT = new THREE.Color(0.86, 0.86, 0.82);
@@ -108,6 +111,9 @@ export class PolyRoads {
   ) {
     this.group.name = 'poly-signalisation';
     this.paintMat.flatShading = false;
+    // Comme la chaussée (network.ts) : mate, sans reflet du ciel qui bleuissait les lignes.
+    this.paintMat.roughness = 0.95;
+    this.paintMat.envNode = vec3(0.34, 0.34, 0.35);
     this.paintMat.polygonOffset = true;
     this.paintMat.polygonOffsetFactor = -4;
     this.paintMat.polygonOffsetUnits = -4;
@@ -176,13 +182,40 @@ export class PolyRoads {
     return !!this.probe.tileAt(cx, cz);
   }
 
+  /** Peinture recalée sur la chaussée dessinée : décalée avec l'axe dans les coudes arrondis, à la hauteur du ruban. */
+  private onRoad(cell: RoadCell): number[] {
+    const road = currentRoadHeight();
+    const out = cell.marks.slice();
+    const at = { x: 0, y: 0, z: 0 };
+    let ax = Number.NaN;
+    let az = Number.NaN;
+    let ok = false;
+    for (let v = 0, i = 0; i + 2 < out.length; v += 2, i += 3) {
+      const x = cell.axis[v]!;
+      const z = cell.axis[v + 1]!;
+      const y = out[i + 1]!;
+      if (x !== ax || z !== az) {
+        ax = x;
+        az = z;
+        ok = !!road?.axisAt(x, z, y, SNAP_M, at);
+      }
+      if (ok) {
+        out[i] = out[i]! + at.x - x;
+        out[i + 2] = out[i + 2]! + at.z - z;
+      }
+      const s = ok ? road!.surfaceAt(out[i]!, out[i + 2]!, at.y) : Number.NaN;
+      out[i + 1] = (Number.isFinite(s) ? s : ok ? at.y : y + NETWORK_ROAD_LIFT) + PAINT_LIFT;
+    }
+    return out;
+  }
+
   private build(cell: RoadCell, cx: number, cz: number): Built {
     const out: Built = { cx, cz };
-    const m = cell.marks;
+    const m = this.onRoad(cell);
     if (m.length) {
       this.builder.reset();
       for (let i = 0; i + 8 < m.length; i += 9)
-        this.builder.triUp(m[i]!, m[i + 1]! + PAINT_LIFT, m[i + 2]!, m[i + 3]!, m[i + 4]! + PAINT_LIFT, m[i + 5]!, m[i + 6]!, m[i + 7]! + PAINT_LIFT, m[i + 8]!, PAINT);
+        this.builder.triUp(m[i]!, m[i + 1]!, m[i + 2]!, m[i + 3]!, m[i + 4]!, m[i + 5]!, m[i + 6]!, m[i + 7]!, m[i + 8]!, PAINT);
       const g = this.builder.geometry();
       if (g) {
         g.computeVertexNormals();
@@ -255,9 +288,21 @@ export class PolyRoads {
     digits.forEach((g, i) => face(faces, f, (i - digits.length / 2) * w, h - 0.88, (i + 1 - digits.length / 2) * w, h - 0.6, 0.012, glyphRect(g)));
   }
 
+  /** Place d'un panneau large de `w` m vers l'extérieur sans entrer dans une façade : reculé le long de la rue s'il le faut. */
+  private clearOfWalls(p: PlannedPanel, w: number): PlannedPanel | null {
+    const road = currentRoadHeight();
+    for (const s of [0, 5, 10, 15, 20]) {
+      const q = { ...p, x: p.x - p.dx * s, z: p.z - p.dz * s };
+      if (s > 0 && Number.isFinite(road?.surfaceAt(q.x, q.z, p.y) ?? Number.NaN)) continue;
+      let free = true;
+      for (let a = 0; free && a <= w; a += w / 4) free = !this.probe.buildingNear(q.x - q.dz * a, q.z + q.dx * a, 0.35);
+      if (free) return q;
+    }
+    return null;
+  }
+
   private panel(p: PlannedPanel, kit: Parts, faces: FaceSink, atlas: RoadAtlas): void {
     if (this.blocked(p.x, p.z) || this.nearTaken(p.x, p.z, 26)) return;
-    const f = frameOf(p, this.probe.heightAt(p.x, p.z));
     const row = 0.46;
     const nameH = 0.33;
     const widths = p.lines.map((l) => (atlas.nameWidth[l.place] ?? 1) * (NAME_W / NAME_H) * nameH);
@@ -266,6 +311,9 @@ export class PolyRoads {
     const base = 1.55;
     // Le panneau s'étend vers l'extérieur : son bord gauche reste à l'aplomb de l'emplacement.
     const left = -0.15;
+    const spot = this.clearOfWalls(p, left + W);
+    if (!spot) return;
+    const f = frameOf(spot, this.probe.heightAt(spot.x, spot.z));
     for (const a of [left + 0.35, left + W - 0.35]) this.put(kit.post, f, a, 0, -0.13, 1, base + H);
     this.put(kit.board, f, left + W / 2, base + H / 2, -0.02, W + 0.12, H + 0.12, RIM);
     this.put(kit.board, f, left + W / 2, base + H / 2, -0.04, W + 0.12, H + 0.12, BACK);

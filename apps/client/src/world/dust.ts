@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { instancedBufferAttribute, float, vec3, uniform, smoothstep, uv, mix, hash, instanceIndex, atan, sin } from 'three/tsl';
+import { LOW_POLY } from '../engine/style.ts';
 import type { QualitySettings } from '../engine/quality.ts';
 import type { LoadedTile } from './types.ts';
 
@@ -8,6 +9,12 @@ export const UNPAVED_SURFACES = new Set(['unpaved', 'gravel', 'fine_gravel', 'di
 /** Seuls la terre, le sable et le gravier soulèvent de la poussière (pas l'herbe, les chemins verts ou la boue). */
 export const DUSTY_SURFACES = new Set(['dirt', 'earth', 'sand', 'gravel', 'fine_gravel', 'pebblestone']);
 const LIFE = 2.6;
+/** Style Poly : panache plus clair, plus dense et plus large (les aplats du chemin avalaient la poussière). */
+const ALPHA = LOW_POLY ? 0.42 : 0.1;
+const PER_M = LOW_POLY ? 5 : 3.5;
+const GROW = LOW_POLY ? 1.5 : 1;
+const LIFT = LOW_POLY ? 0.2 : 0.05;
+const RISE = LOW_POLY ? 0.55 : 0.35;
 
 /** Revêtement d'une route OSM : `unpaved` si le tag l'indique ou si c'est une piste sans revêtement. */
 export function isUnpaved(kind: string, surface: string | undefined): boolean {
@@ -61,7 +68,7 @@ export class Dust {
   /** Horloge des particules (s), avancée par update(). */
   private readonly now = uniform(0);
   /** Couleur de la terre (ocre clair), réglée selon la saison. */
-  readonly tint = uniform(new THREE.Color('#d2c19a'));
+  readonly tint = uniform(LOW_POLY ? new THREE.Color('#e9d9b6').multiplyScalar(1.35) : new THREE.Color('#d2c19a'));
   private readonly max: number;
   private readonly p0: THREE.InstancedBufferAttribute;
   private readonly v0: THREE.InstancedBufferAttribute;
@@ -90,9 +97,9 @@ export class Dust {
     // Freinage de l'air : la vitesse initiale s'éteint, la dérive au vent s'installe.
     const drag = float(1).sub(age.mul(-1.6).exp()).div(1.6);
     const drift = vec3(this.windDir.x, 0, this.windDir.y).mul(this.windMs.mul(0.35)).mul(age);
-    const rise = vec3(0, age.mul(0.35).add(k.mul(0.3)), 0);
+    const rise = vec3(0, age.mul(RISE).add(k.mul(0.3)), 0);
     m.positionNode = P.xyz.add(V.xyz.mul(drag)).add(drift).add(rise);
-    m.scaleNode = float(0.25).add(k.mul(V.w)).mul(age.lessThan(LIFE).select(float(1), float(0)));
+    m.scaleNode = float(0.25).add(k.mul(V.w).mul(GROW)).mul(age.lessThan(LIFE).select(float(1), float(0)));
     // Disque doux, opacité qui monte vite puis s'éteint.
     const c = uv().sub(0.5);
     const h = hash(instanceIndex);
@@ -101,10 +108,11 @@ export class Dust {
     const lobes = sin(ang.mul(3).add(h.mul(6.28))).mul(0.18).add(sin(ang.mul(5).add(h.mul(17))).mul(0.12)).add(sin(ang.mul(2).sub(h.mul(9))).mul(0.1));
     const r = c.length().mul(float(1).add(lobes));
     // smoothstep(a, b, x) exige a < b en WGSL : bords inversés = résultat indéfini (carrés en mosaïque).
-    const soft = float(1).sub(smoothstep(0, 0.5, r));
+    // Coupé avant le bord du carré : les lobes y laissaient un contour visible quand la poussière est dense.
+    const soft = float(1).sub(smoothstep(0, 0.5, r)).mul(float(1).sub(smoothstep(0.36, 0.49, c.length())));
     const fade = smoothstep(0, 0.12, age).mul(float(1).sub(smoothstep(0.35, 1, k)));
     m.colorNode = mix(this.tint, this.tint.mul(0.85), h);
-    const alpha = soft.mul(fade).mul(0.1);
+    const alpha = soft.mul(fade).mul(ALPHA);
     m.opacityNode = alpha;
     // Les quads entièrement transparents sont écartés : sinon ils assombrissent le fond en carrés.
     m.maskNode = alpha.greaterThan(0.004);
@@ -123,7 +131,7 @@ export class Dust {
    */
   emit(id: string, x: number, y: number, z: number, dx: number, dz: number, speed: number, dt: number): void {
     if (!this.enabled || speed < 1.5) return;
-    let a = (this.acc.get(id) ?? 0) + dt * speed * 3.5;
+    let a = (this.acc.get(id) ?? 0) + dt * speed * PER_M;
     while (a >= 1) {
       a -= 1;
       const i = this.next;
@@ -132,7 +140,7 @@ export class Dust {
       // Lancée vers l'arrière et un peu sur les côtés, avec une fraction de la vitesse.
       const back = -speed * (0.15 + j() * 0.2);
       const side = (j() - 0.5) * 1.2;
-      this.p0.setXYZW(i, x + (j() - 0.5) * 0.3, y + 0.05, z + (j() - 0.5) * 0.3, this.clock);
+      this.p0.setXYZW(i, x + (j() - 0.5) * 0.3, y + LIFT, z + (j() - 0.5) * 0.3, this.clock);
       this.v0.setXYZW(i, dx * back - dz * side, 0.3 + j() * 0.5, dz * back + dx * side, 0.7 + j() * 0.9);
       this.emitted++;
       this.lastEmit = this.clock;

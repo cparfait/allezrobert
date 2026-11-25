@@ -70,7 +70,7 @@ Les tuiles (`tiles/`, ≈ 400 Mo) ne sont pas versionnées : les régénérer ap
 est présentée à côté de la carte de France (« Hors de France ») ; en direct : `/?world=ile-de-robert&route=anneau`
 (ou un autre identifiant d'itinéraire).
 
-`ISLAND_OUT=<dossier>` génère un essai ailleurs, sans toucher à l'île, au catalogue ni aux cartes du jeu. Les quais des deux
+`ISLAND_OUT=<dossier>` génère un essai ailleurs, sans toucher à l'île, au catalogue ni aux cartes du jeu. Réglages d'essai : `ISLAND_PLAN=1` (tracé seul, 35 s), `ISLAND_RELIEF='{"hills":42}'`, `ISLAND_PEN` (peur de la pente), `ISLAND_MEANDER` (méandres), `ISLAND_MESH` (pas des petites routes en mètres, 0 = aucune), `ISLAND_STRAIGHT` (lignes droites : écart à la corde en mètres, 0 = aucune). Chemins : `TRAILS` (tracés) et `SKIN` (matière et largeur) dans `build.ts`. Les quais des deux
 ports (`ports.ts`) sont ajoutés après le tracé du réseau : ils ne changent aucune autre route. Les itinéraires portent leurs
 côtes et sprints chronométrés (`routes.ts`, `timedSegments`).
 

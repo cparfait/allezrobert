@@ -31,7 +31,11 @@ export interface RouteSpec {
 /** Bouts des grands tronçons (≥ 1 km) d'un chemin nommé, autour de leur centre : points de passage d'une boucle qui le suit. */
 function waypointsAlong(graph: RoadGraphData, name: string, count = 6): Vec2[] {
   const ids = new Set<number>();
-  for (const e of graph.edges) if (e.name === name && e.len >= 1000) ids.add(e.a).add(e.b);
+  // Sentiers très découpés : les tronçons de 300 m et plus suffisent.
+  for (const min of [1000, 300]) {
+    for (const e of graph.edges) if (e.name === name && e.len >= min) ids.add(e.a).add(e.b);
+    if (ids.size >= 3) break;
+  }
   const pts = [...ids].map((k) => [graph.nodes[k * 3]!, graph.nodes[k * 3 + 2]!] as Vec2);
   if (pts.length < 2) return pts;
   const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
@@ -40,9 +44,12 @@ function waypointsAlong(graph: RoadGraphData, name: string, count = 6): Vec2[] {
   return pts.length <= count ? pts : Array.from({ length: count }, (_, k) => pts[Math.floor((k * pts.length) / count)]!);
 }
 
+/** Chemins roulants (gravel) ; les autres matières des chemins sont des sentiers (VTT). */
+export const GRAVELLY = new Set(['gravel', 'fine_gravel', 'pebblestone', 'compacted', 'cobblestone']);
+
 function edgeFactor(mode: Mode, kind: string, surface: string): number {
-  const dirt = kind === 'track' && surface !== 'gravel';
-  const gravel = kind === 'track' && surface === 'gravel';
+  const dirt = kind === 'track' && !GRAVELLY.has(surface);
+  const gravel = kind === 'track' && GRAVELLY.has(surface);
   switch (mode) {
     case 'road':
       return dirt ? 80 : gravel ? 40 : kind === 'cycleway' ? 1.4 : kind === 'residential' ? 1.15 : kind === 'unclassified' ? 1.08 : 1;
@@ -51,7 +58,7 @@ function edgeFactor(mode: Mode, kind: string, surface: string): number {
     case 'gravel':
       return gravel ? 0.4 : dirt ? 1.5 : kind === 'unclassified' || kind === 'cycleway' ? 1 : kind === 'residential' ? 1.2 : kind === 'tertiary' ? 1.6 : 2.5;
     case 'mtb':
-      return dirt ? 0.3 : gravel ? 0.8 : 2.5;
+      return dirt ? 0.25 : gravel ? 0.7 : 4;
   }
 }
 

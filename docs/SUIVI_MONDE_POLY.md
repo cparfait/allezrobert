@@ -67,7 +67,7 @@ Fichiers ajoutés : `world/polyRoadPlan.ts` (calcul, testé sur le graphe réel)
 
 La carte comprend 22 parcours depuis le troisième lot. [Conception et générateur de l’île](ILE_DE_ROBERT.md)
 
-## Troisième lot (25 novembre, fin d'après-midi, non commité)
+## Troisième lot (25 novembre, fin d'après-midi, commité 950e8d53)
 
 Réponses de l'utilisateur : météo de Paris, sortie annoncée comme virtuelle, enseignes parodiques gardées, une route vers le port, et les trois chantiers suivants.
 
@@ -86,12 +86,41 @@ Réponses de l'utilisateur : météo de Paris, sortie annoncée comme virtuelle,
 
 L'ancienne île est sauvegardée dans `D:/zzCACHE_ALLEZROBERT/zones-travail/ile-de-robert-avant-port`. La nouvelle passe tous les contrôles (`verify.ts`) et n'est ni envoyée sur le serveur, ni mise dans le pack hors ligne publié.
 
+## Quatrième lot (25 novembre, soir)
+
+Demandes de l'utilisateur : plus de relief, des routes sinueuses mais aussi des lignes droites, des routes un peu partout, des pistes et parcours VTT et gravel.
+
+| Sujet | Avant | Maintenant |
+| --- | --- | --- |
+| Routes | 404 km | environ 600 km : 190 petites routes de campagne en maillage d'environ 2 km (`meshRoads`), celles qui ne tenaient pas les contrôles étant écartées (`pruneMesh`) |
+| Chemins | 47 km | environ 190 km : douze chemins gravel et huit sentiers VTT dans toutes les régions (`TRAILS`), du chemin des Douaniers à la descente du Phare |
+| Lignes droites de 400 m et plus | 55 % du réseau | 13 % : méandres (`meander`), coupés de vraies lignes droites de 240 à 900 m (`straighten`, sauf sur les versants du Phare) |
+| Relief | 5,6 m de D+ par km, 66 % des routes sous 1 % | 12,1 m de D+ par km, 33 % sous 1 % ; buttes, vallons et coteaux plus hauts, plats gardés autour de l'Anneau, de Saint-Robert et de la lagune |
+| Tour de l'Île | 89,8 km, 613 m | 93,8 km, 730 m |
+
+38 parcours (12 gravel, 9 VTT), tous au vert (`verify.ts`, largeurs, KOM). Le tracé de la plupart des anciens a changé : records locaux non comparables.
+
+| Sujet | Fait |
+| --- | --- |
+| Parcours selon le vélo | L'écran de l'île liste les parcours du vélo équipé (route, gravel, VTT), les lieux de la carte mènent à ceux de ce vélo, une ligne compte ceux des autres. Garage : rubrique « VTT / Gravel ». |
+| Matières et largeurs | Neuf matières (stabilisé, pierre, calcaire clair, pavés, terre, argile rouge, sable, herbe, roche) et 1,9 à 4,4 m de large, tronçon par tronçon (`SKIN`). Dessin Poly dans `network.ts` (`trailColor`) : plaques, ornières, herbe au milieu, cailloux, bords d'herbe de la couleur du talus et de la saison. |
+| Poussière | Plus claire, plus dense et plus haute en Poly, sans contour carré. |
+| Home-trainer | Le revêtement du tronçon (gravier, terre, roche, pavés…) part déjà vers le ressenti Tacx et la résistance ; corrigé : en VTT ou gravel, un chemin roulait mieux que l'enrobé (`surfaceCrr`, partagé avec le serveur : à redéployer). Non essayé sur le Neo. |
+| VTT Poly | Poignées nettes à la place du maillage simplifié déchiqueté, mains posées dessus. |
+| Peinture des routes | Elle suivait l'axe brut du graphe, la chaussée dessinée arrondit les coudes (jusqu'à 0,5 m d'écart) : recalée (`RoadHeightField.axisAt`), et plus bleutée. |
+| Routes de 4,5 m | Axe pointillé ajouté, continu dans les virages. |
+| Captures | `public/onboarding/style-lowpoly.jpg` (Planches) et `deploy/site/img/alpe-lowpoly.jpg` (Col du Phare) refaites, texte du site adapté (« Deux mondes, le même vélo »), non mis en ligne. |
+| Panneaux de direction | Reculés quand ils entraient dans une façade. |
+
+Les autres cyclistes (IA et ambiance) prennent un VTT sur les parcours VTT, un gravel ou un VTT sur les parcours gravel (`game/trailBike.ts`) ; vérifié sur les IA en Poly. En Bêta, l'équipement V3 garde son vélo.
+
+Vérifié par sauts, son coupé. Pas de sortie continue, temps GPU non mesuré.
+
 ## Questions ouvertes
 
-1. **Relief** : hors Phare, l'île est plate (66 % des routes sous 1 %, 5,6 m de D+ par km ; Chevreuse 6 à 10, Annecy 12, Limagne 22 à 28). Deux essais de collines plus hautes (dossier à part, effacés) ne donnent que 10 à 20 % de D+ en plus, car le traceur contourne les bosses, et cassent une à deux routes. Il faut aussi lui faire accepter plus de pente.
-2. **Ligne provenance** : `ASSETS_LICENSES.md` (réservé ailleurs, non touché) ne cite pas la signalisation, les animaux, les ports ni la fête de l'Anneau, tous procéduraux et originaux. Il faut aussi y citer la liste des communes (API Découpage administratif, données INSEE et IGN, Licence Ouverte 2.0 Etalab).
-3. **Publication** : tuiles et pack de l'île à renvoyer sur le serveur, et serveur à redéployer pour la description Strava.
-4. **Suite du plan** : finir Robertville (devantures, sons), falaises, écluses et ruine des Bois, fantôme et groupes à allure choisie.
+1. **Publication** : tuiles et pack de l'île à renvoyer sur le serveur, et serveur à redéployer pour la description Strava.
+2. **Suite du plan** : finir Robertville (devantures, sons), falaises, écluses et ruine des Bois, fantôme et groupes à allure choisie.
+3. **Trait clair aux bords de tuile** : un filet d'un pixel traverse parfois une moitié de chaussée, là où le ruban du réseau est coupé (vu à Saint-Robert, km 0,3 de la boucle). Antérieur à ce lot, non corrigé.
 
 ## Repères pour reprendre le chantier
 

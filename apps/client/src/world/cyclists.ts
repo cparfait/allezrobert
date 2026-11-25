@@ -6,6 +6,7 @@ import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { brakeForCorners, cornerGrip } from '../game/cornerBrake.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
+import { withTrailBike } from '../game/trailBike.ts';
 import { rng } from '../engine/noise.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from './roadHeight.ts';
 import { crowdV3 } from '../game/v3Crowd.ts';
@@ -184,7 +185,7 @@ export class AmbientCyclists {
       if (k === 0) firstJersey = jersey;
       // Toujours un casque ; une casquette de temps en temps (game/headgear.ts).
       const gearRoll = this.r();
-      const look: AvatarLook = withHeadgear({
+      const look: AvatarLook = withTrailBike(withHeadgear({
         ...DEFAULT_LOOK,
         jersey,
         jerseyAccent: club ? kit[1] : (JERSEYS[(i + 3) % JERSEYS.length] as string),
@@ -196,7 +197,7 @@ export class AmbientCyclists {
         build: this.r(),
         ...crowdShoes(Math.floor(this.r() * 1000)),
         heightCm: 160 + ((i * 17) % 36),
-      }, 'ride', gearRoll);
+      }, 'ride', gearRoll), this.track.route, i);
       const avatar = createAvatar(look);
       scene.add(avatar.root);
       skipHiddenMatrixUpdates(avatar.root);

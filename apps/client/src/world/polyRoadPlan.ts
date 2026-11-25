@@ -50,9 +50,13 @@ export interface PlannedPost {
   z: number;
 }
 
-/** Contenu d'une case de CELL_M : `marks` = triangles (x, y, z) peints sur la chaussée. */
+/**
+ * Contenu d'une case de CELL_M : `marks` = triangles (x, y, z) peints sur la chaussée, `axis` = point de l'axe de la route
+ * (x, z) en face de chaque sommet (la chaussée dessinée arrondit les coudes : la peinture s'y recale, polyRoads.ts).
+ */
 export interface RoadCell {
   marks: number[];
+  axis: number[];
   signs: PlannedSign[];
   panels: PlannedPanel[];
   towns: PlannedTown[];
@@ -228,7 +232,7 @@ class Planner {
   private cell(x: number, z: number): RoadCell {
     const k = cellKeyOf(x, z);
     let c = this.cells.get(k);
-    if (!c) this.cells.set(k, (c = { marks: [], signs: [], panels: [], towns: [], posts: [] }));
+    if (!c) this.cells.set(k, (c = { marks: [], axis: [], signs: [], panels: [], towns: [], posts: [] }));
     return c;
   }
 
@@ -283,7 +287,13 @@ class Planner {
       const q = line.at(d, b, back);
       const r = line.at(e, b, back);
       const s = line.at(e, a, back);
-      this.cell(p.x, p.z).marks.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z, p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z);
+      const c = this.cell(p.x, p.z);
+      c.marks.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z, p.x, p.y, p.z, r.x, r.y, r.z, s.x, s.y, s.z);
+      const ax = p.x + p.dz * a;
+      const az = p.z - p.dx * a;
+      const bx = s.x + s.dz * a;
+      const bz = s.z - s.dx * a;
+      c.axis.push(ax, az, ax, az, bx, bz, ax, az, bx, bz, bx, bz);
     }
   }
 
@@ -291,8 +301,10 @@ class Planner {
     const o = line.at(d, 0, back);
     const c = this.cell(o.x, o.z);
     for (let i = 0; i < shape.length; i += 2) {
-      const p = line.at(d + (shape[i + 1] as number) * sy, lat + (shape[i] as number) * sx, back);
+      const l = lat + (shape[i] as number) * sx;
+      const p = line.at(d + (shape[i + 1] as number) * sy, l, back);
       c.marks.push(p.x, p.y, p.z);
+      c.axis.push(p.x + p.dz * l, p.z - p.dx * l);
     }
   }
 
@@ -401,7 +413,7 @@ class Planner {
       const mid = line.at((r.a + r.b) / 2, 0, false);
       const urban = this.isUrban(mid.x, mid.z);
       // Axe continu dans le virage et à ses abords (routes à deux voies).
-      if (line.half >= 2.5) this.paint(line, r.a - 22, r.b + 22, -0.07, 0.07, false);
+      if (line.half >= 2.2) this.paint(line, r.a - 22, r.b + 22, -0.07, 0.07, false);
       if (urban) continue;
       for (const back of [false, true]) {
         const start = back ? line.length - r.b : r.a;
@@ -541,7 +553,7 @@ class Planner {
         if (stop) this.paint(line, at(clear + 0.5), at(clear), 0.1, line.half - 0.12, back);
         else this.yieldLine(line, at(clear), back);
         this.sign(stop ? 'stop' : 'yield', line, at(clear + 0.4), back);
-        if (line.half >= 2.5) this.paint(line, at(clear + 24), at(clear + (walk ? 5.5 : 0.6)), -0.07, 0.07, back);
+        if (line.half >= 2.2) this.paint(line, at(clear + 24), at(clear + (walk ? 5.5 : 0.6)), -0.07, 0.07, back);
       } else if (low < top && !urban && line.rank >= 3 && line.length > 190) this.sign('priority', line, at(110), back);
       else if (low === top && !urban && line.length > 130) this.sign('crossing', line, at(75), back);
       if (walk) {

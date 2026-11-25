@@ -69,6 +69,32 @@ export class RoadHeightField {
     return Number.isFinite(minD) ? this.scan(x, z, nearY, minD + TIE) : Number.NaN;
   }
 
+  /** Point le plus proche de (x, z) sur l'axe d'une route dessinée, à moins de `maxD` m ; faux s'il n'y en a pas. */
+  axisAt(x: number, z: number, nearY: number, maxD: number, out: { x: number; y: number; z: number }): boolean {
+    const k = key(Math.floor(x / CELL), Math.floor(z / CELL));
+    let best = maxD;
+    let found = false;
+    for (const grid of this.tiles.values()) {
+      const cell = grid.get(k);
+      if (!cell) continue;
+      for (const s of cell) {
+        const dx = s.bx - s.ax;
+        const dz = s.bz - s.az;
+        const l2 = dx * dx + dz * dz;
+        const t = l2 > 1e-9 ? Math.min(1, Math.max(0, ((x - s.ax) * dx + (z - s.az) * dz) / l2)) : 0;
+        const d = Math.hypot(s.ax + t * dx - x, s.az + t * dz - z);
+        const y = s.ay + t * (s.by - s.ay) + NETWORK_ROAD_LIFT;
+        if (d >= best || Math.abs(y - nearY) > MAX_DY) continue;
+        best = d;
+        found = true;
+        out.x = s.ax + t * dx;
+        out.y = y;
+        out.z = s.az + t * dz;
+      }
+    }
+    return found;
+  }
+
   /** maxD infini : plus petite distance au plan d'une route candidate ; sinon, plus haute candidate à maxD au plus. */
   private scan(x: number, z: number, nearY: number, maxD: number): number {
     const k = key(Math.floor(x / CELL), Math.floor(z / CELL));
@@ -108,6 +134,8 @@ let current: RoadHeightField | null = null;
 export function setCurrentRoadHeight(f: RoadHeightField | null): void {
   current = f;
 }
+
+export const currentRoadHeight = (): RoadHeightField | null => current;
 
 /** Pose sur la chaussée : y de l'origine (au sol) et tangage (rad, > 0 : avant plus haut). */
 export interface RoadPose {

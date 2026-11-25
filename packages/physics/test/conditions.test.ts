@@ -169,6 +169,8 @@ describe('VTT et roues', () => {
     const mtb = paramsFromBike(77, vtt);
     expect(steadyStateSpeed(250, 0, mtb, env)).toBeLessThan(steadyStateSpeed(250, 0, route, env) - 0.5);
     expect(surfaceCrr('dirt', vtt.crr, 'mtb')).toBeLessThan(surfaceCrr('dirt', DEFAULT_BIKE.crr, 'road'));
+    // Un chemin freine toujours plus que l'enrobé, même en VTT.
+    for (const s of ['gravel', 'compacted', 'dirt', 'sett']) expect(surfaceCrr(s, vtt.crr, 'mtb')).toBeGreaterThan(vtt.crr);
   });
   it('roues de 65 mm : meilleures sur le plat, moins bonnes en côte que les 40 mm', () => {
     const p40 = paramsFromBike(70, tunedBikeSetup(DEFAULT_BIKE, ['tune-wh-zipp-303']).bike);

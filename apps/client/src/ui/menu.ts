@@ -1324,9 +1324,12 @@ const ZOOM_MAX = 1.6;
 const SLOT_VIEW: Record<CosmeticSlot, GarageView> = { jersey: '3q', helmet: 'front', bike: 'side', socks: 'shoes', glasses: 'front', trainer: 'trainer' };
 
 /** Filtres de la liste des vélos du garage. */
-type BikeFilter = BikeCollection | 'unlocked';
+type BikeFilter = BikeCollection | 'offroad' | 'unlocked';
+/** VTT ou gravel (pneus de chemin). */
+const offRoad = (c: CosmeticItem): boolean => c.physics?.tyre === 'gravel' || c.physics?.tyre === 'mtb';
 const BIKE_FILTERS: Array<[BikeFilter, string, string]> = [
   ['saison-2026', 'Saison 2026', '2026 season'],
+  ['offroad', 'VTT / Gravel', 'MTB / Gravel'],
   ['mythiques', 'Mythiques', 'Legends'],
   ['divers', 'Divers', 'Misc.'],
   ['unlocked', 'Débloqués', 'Unlocked'],
@@ -2032,7 +2035,7 @@ export class MainMenu {
     this.yaw = 0;
     if (item.slot === 'bike') {
       const bike = bikeById(item.id);
-      this.bikeFilter = bike ? bike.collection : 'divers';
+      this.bikeFilter = bike ? bike.collection : offRoad(item) ? 'offroad' : 'divers';
       this.bikeType = 'all';
     }
     this.go('garage');
@@ -2868,6 +2871,7 @@ export class MainMenu {
       const visible = new Set(this.routeIds);
       return this.islandAtlas.html({
         lang: getLang(), routes: this.routeStore.index.filter((r) => visible.has(r.id)),
+        all: this.routeStore.index, bike: bikeSetupFor(loadProgress().equipped).tyre ?? 'road',
         allowFree: this.openWorld && this.s.mode !== 'race', allowDraw: this.openWorld,
         packAction: this.packAction(ROBERT_ISLAND),
       });
@@ -3814,8 +3818,8 @@ export class MainMenu {
   private bikesInCollection(level: number): CosmeticItem[] {
     const group = (id: string) => BIKE_GROUPS.findIndex((g) => g.id === bikeById(id)?.group);
     return COSMETICS.filter((c) => c.slot === 'bike')
-      // Le VTT et le gravel ne sont pas au catalogue des cadres : ils sont rangés dans « Divers ».
-      .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : (bikeById(c.id)?.collection ?? 'divers') === this.bikeFilter))
+      // Le VTT et le gravel ne sont pas au catalogue des cadres : ils ont leur propre rubrique.
+      .filter((c) => (this.bikeFilter === 'unlocked' ? c.level <= level : (bikeById(c.id)?.collection ?? (offRoad(c) ? 'offroad' : 'divers')) === this.bikeFilter))
       .sort((a, b) => brandName(a.id).localeCompare(brandName(b.id), 'fr') || a.level - b.level || group(a.id) - group(b.id) || a.name.fr.localeCompare(b.name.fr));
   }
 
@@ -3844,7 +3848,7 @@ export class MainMenu {
     const types = BIKE_TYPE_ORDER.filter((ty) => all.some((c) => bikeById(c.id)?.type === ty));
     const type = this.bikeType !== 'all' && types.includes(this.bikeType) ? this.bikeType : 'all';
     const list = type === 'all' ? all : all.filter((c) => bikeById(c.id)?.type === type);
-    const plain = type === 'all';
+    const plain = type === 'all' && this.bikeFilter !== 'offroad';
     const open = list.filter((c) => c.level <= level);
     const locked = list.filter((c) => c.level > level);
     const row = (c: CosmeticItem) => this.bikeRowHtml(c, level, equippedId);

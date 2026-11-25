@@ -16,6 +16,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { deltaDecodeU16 } from '../../../packages/shared/src/heights.ts';
 import { terrain } from './design.ts';
+import { GRAVELLY } from './routes.ts';
 import type { RoadGraphData } from '../../../packages/shared/src/roadgraph.ts';
 import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
 
@@ -27,7 +28,7 @@ const TOL_NODE = 0.05;
 const GRADE_RING = 0.01;
 /** Pente maximale par catégorie (fraction, sur 10 m). */
 function gradeLimit(kind: string, surface: string): number {
-  if (kind === 'track') return surface === 'gravel' ? 0.2 : 0.27;
+  if (kind === 'track') return GRAVELLY.has(surface) ? 0.2 : 0.27;
   return ({ cycleway: 0.07, secondary: 0.085, tertiary: 0.115, residential: 0.13, unclassified: 0.135 } as Record<string, number>)[kind] ?? 0.13;
 }
 const GRADE_WINDOW = 10;
@@ -39,6 +40,7 @@ const MAX_EARTHWORK = 25;
 const RADIUS_ROAD = 7.5;
 const RADIUS_SMALL = 2.5;
 const RADIUS_TRACK = 4;
+// (sentiers VTT : épingles comme les petites routes)
 const RING_NAME = "L'Anneau";
 
 interface Grid {
@@ -383,7 +385,7 @@ export function verifyWorld(dir: string): { ok: boolean; lines: string[] } {
         const r = circumradius(a[0], a[2], b[0], b[2], c[0], c[2]);
         if (ring) ringMinR = Math.min(ringMinR, r);
         else roadMinR = Math.min(roadMinR, r);
-        if (r < (ring ? RADIUS_RING : e.kind === 'track' ? RADIUS_TRACK : e.kind === 'secondary' ? RADIUS_ROAD : RADIUS_SMALL) && gErr.length < 100) {
+        if (r < (ring ? RADIUS_RING : e.kind === 'track' ? (GRAVELLY.has(e.surface) ? RADIUS_TRACK : RADIUS_SMALL) : e.kind === 'secondary' ? RADIUS_ROAD : RADIUS_SMALL) && gErr.length < 100) {
           // Un message par virage (points voisins regroupés).
           const key = `${e.name}|${Math.round(b[0] / 40)}|${Math.round(b[2] / 40)}`;
           if (!radiusSeen.has(key)) {

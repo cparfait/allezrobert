@@ -25,8 +25,8 @@ export const ONBOARDING_SCRIPT: Record<string, Line[]> = {
   ],
   style: [
     {
-      fr: '<emotion value="curious"/>Comment veux-tu voir la route ? Avec une vue plus réaliste, au plus près des vraies routes de France, ou en mode plus ludique, façon jeu vidéo, avec des formes simples et un monde plus animé. <break time="250ms"/>Choisis celui qui te plaît, tu pourras en changer quand tu veux dans les réglages.',
-      en: '<emotion value="curious"/>How do you want to see the road? With a more realistic view, true to the real roads of France, or in a more playful mode, video game style, with simple shapes and a livelier world. <break time="250ms"/>Pick the one you like, you can switch any time in the settings.',
+      fr: '<emotion value="curious"/>Où veux-tu rouler ? Sur les vraies routes de France, avec une vue réaliste, ou sur l’Île de Robert, un monde façon jeu vidéo imaginé pour le vélo : routes, gravel, VTT et bord de mer. <break time="250ms"/>Choisis celui qui te plaît, tu pourras en changer quand tu veux dans les réglages.',
+      en: '<emotion value="curious"/>Where do you want to ride? On the real roads of France, with a realistic view, or on Robert’s Island, a video game style world made for cycling: roads, gravel, mountain bike trails and the seaside. <break time="250ms"/>Pick the one you like, you can switch any time in the settings.',
     },
   ],
   profile: [

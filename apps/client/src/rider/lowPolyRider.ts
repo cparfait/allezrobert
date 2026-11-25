@@ -126,7 +126,7 @@ interface Fit {
 const FITS: Record<BarKind, Fit> = {
   // Coudes fléchis d'environ 70° et un peu ouverts : de dos (caméra de suivi), des bras presque droits se lisaient raides.
   drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.63), shoulderDy: -0.06, shoulderDz: 0.045, elbowPole: new THREE.Vector3(0.55, -0.7, -0.45), headTilt: -0.04 },
-  flat: { bar: 'flat', hand: new THREE.Vector3(0.31, 0.96, 0.5), shoulderDy: 0.06, shoulderDz: -0.08, elbowPole: new THREE.Vector3(0.8, -0.4, -0.3), headTilt: -0.08 },
+  flat: { bar: 'flat', hand: new THREE.Vector3(0.232, 0.962, 0.538), shoulderDy: 0.06, shoulderDz: -0.08, elbowPole: new THREE.Vector3(0.8, -0.4, -0.3), headTilt: -0.08 },
   tt: { bar: 'tt', hand: new THREE.Vector3(0.075, 0.95, 0.76), shoulderDy: -0.13, shoulderDz: 0.1, elbowPole: new THREE.Vector3(0.1, -1, 0), headTilt: 0.18 },
 };
 
@@ -1104,10 +1104,12 @@ export class LowPolyRider implements RiderAvatarLike {
         });
     const mats = new BikeMaterials(bike, look, family);
     this.realMats = mats;
+    const tapes = new Set<THREE.Object3D>();
     a.group.traverse((o) => {
       o.userData.shared = true;
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
+      if ((mesh.material as THREE.Material).name === 'bar_tape') tapes.add(mesh);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       // Plaque de cadre : matériau texturé propre.
@@ -1116,6 +1118,18 @@ export class LowPolyRider implements RiderAvatarLike {
       flatLook(m);
       mesh.material = m;
     });
+    // VTT : les poignées simplifiées du modèle sont déchiquetées (et prenaient la teinte de la guidoline) ; poignées nettes.
+    if (own === 'mtb') {
+      a.group.getObjectByName('cockpit')?.traverse((o) => {
+        if (tapes.has(o)) o.visible = false;
+      });
+      const rubber = flat('#1b1c20', 0.9);
+      for (const s of [1, -1]) {
+        const grip = new THREE.Mesh(tube(v3(0.183 * s, 0.956, 0.548), v3(0.279 * s, 0.961, 0.531), 0.0185, 0.0185, 8), rubber);
+        grip.castShadow = true;
+        a.group.add(grip);
+      }
+    }
     this.crank = a.crank ?? new THREE.Group();
     this.wheels = wheels;
     const pl = a.pedals.L;
@@ -1194,13 +1208,13 @@ export class LowPolyRider implements RiderAvatarLike {
     const sp = saddle.getAttribute('position');
     for (let i = 0; i < sp.count; i++) if (sp.getZ(i) > SADDLE_PRISM.z) sp.setX(i, sp.getX(i) * 0.35);
     const fit = this.fit;
-    const stemEnd = fit.bar === 'flat' ? v3(0, 0.95, 0.5) : v3(0, 0.89, 0.55);
+    const stemEnd = fit.bar === 'flat' ? v3(0, 0.95, 0.53) : v3(0, 0.89, 0.55);
     const steer = headTop.clone().add(headTop.clone().sub(headBottom).normalize().multiplyScalar(0.035));
     parts.push(tube(seatTop, SADDLE_PRISM.clone().setY(SADDLE_PRISM.y - 0.03), 0.014 * (mtb ? 1.4 : 1)), saddle, tube(headTop, steer, 0.017, 0.017, 8), tube(steer.clone().add(v3(0, -0.005, -0.012)), stemEnd, 0.017, 0.016, 8), box(0.05, 0.036, 0.03, stemEnd.x, stemEnd.y, stemEnd.z));
     const bar: THREE.BufferGeometry[] = [];
     if (fit.bar === 'flat') {
-      bar.push(tube(v3(0.36, 0.955, 0.5), v3(-0.36, 0.955, 0.5), 0.014, 0.014, 6));
-      for (const s of [1, -1]) parts.push(tube(v3(0.28 * s, 0.955, 0.5), v3(0.36 * s, 0.955, 0.5), 0.02, 0.02, 6));
+      bar.push(tube(v3(0.285, 0.957, 0.535), v3(-0.285, 0.957, 0.535), 0.014, 0.014, 6));
+      for (const s of [1, -1]) parts.push(tube(v3(0.185 * s, 0.957, 0.535), v3(0.285 * s, 0.957, 0.535), 0.02, 0.02, 6));
     } else if (fit.bar === 'tt') {
       // Chrono : cintre de base en cornes, prolongateurs et manchons.
       bar.push(tube(v3(0.2, 0.88, 0.56), v3(-0.2, 0.88, 0.56), 0.014));

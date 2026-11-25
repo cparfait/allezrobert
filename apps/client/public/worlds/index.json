@@ -3474,16 +3474,16 @@
      "id": "boucle-de-saint-robert",
      "name": "La boucle de Saint-Robert",
      "nameEn": "Saint-Robert loop",
-     "lengthM": 15445.67,
-     "elevationGainM": 115.38,
+     "lengthM": 17621.36,
+     "elevationGainM": 147.85,
      "loop": true
     },
     {
      "id": "robertville-plage",
      "name": "Robertville par les Coteaux",
      "nameEn": "Robertville via the hills",
-     "lengthM": 55629.57,
-     "elevationGainM": 382.77,
+     "lengthM": 40020.64,
+     "elevationGainM": 363.49,
      "loop": true
     },
     {
@@ -3498,15 +3498,15 @@
      "id": "col-du-phare",
      "name": "La traversée du Col du Phare",
      "nameEn": "Lighthouse pass traverse",
-     "lengthM": 14470.2,
-     "elevationGainM": 334.43,
+     "lengthM": 14445.35,
+     "elevationGainM": 334.47,
      "loop": false
     },
     {
      "id": "phare",
      "name": "La montée au Phare",
      "nameEn": "Lighthouse climb",
-     "lengthM": 7635.28,
+     "lengthM": 7623.31,
      "elevationGainM": 449.85,
      "loop": false
     },
@@ -3514,33 +3514,35 @@
      "id": "tour-de-l-ile",
      "name": "Le Tour de l'Île",
      "nameEn": "Round the island",
-     "lengthM": 89768.97,
-     "elevationGainM": 613.23,
+     "lengthM": 93156.7,
+     "elevationGainM": 711.3,
      "loop": true
     },
     {
      "id": "piste-verte",
      "name": "La Piste verte",
      "nameEn": "The green way",
-     "lengthM": 19831.49,
-     "elevationGainM": 81.35,
+     "lengthM": 19611.61,
+     "elevationGainM": 93.39,
      "loop": false
     },
     {
      "id": "gravel-des-bois",
      "name": "Gravel des Bois",
      "nameEn": "Woods gravel loop",
-     "lengthM": 18577.35,
-     "elevationGainM": 289.73,
-     "loop": true
+     "lengthM": 26400.17,
+     "elevationGainM": 433.08,
+     "loop": true,
+     "bike": "gravel"
     },
     {
      "id": "vtt-des-bois",
      "name": "VTT des Bois",
      "nameEn": "Woods MTB loop",
-     "lengthM": 17304.51,
-     "elevationGainM": 234.67,
-     "loop": true
+     "lengthM": 10058.78,
+     "elevationGainM": 150.09,
+     "loop": true,
+     "bike": "mtb"
     },
     {
      "id": "criterium-saint-robert",
@@ -3554,15 +3556,15 @@
      "id": "anneau-piste-verte",
      "name": "L'Anneau par la Piste verte",
      "nameEn": "The Ring by the greenway",
-     "lengthM": 11179.62,
-     "elevationGainM": 40.54,
+     "lengthM": 10499.31,
+     "elevationGainM": 49.97,
      "loop": true
     },
     {
      "id": "port-de-robertville",
      "name": "Planches et port de Robertville",
      "nameEn": "Boardwalk and harbour",
-     "lengthM": 6228.87,
+     "lengthM": 6229.27,
      "elevationGainM": 11.33,
      "loop": true
     },
@@ -3570,80 +3572,227 @@
      "id": "chrono-du-plateau",
      "name": "Le chrono du Plateau",
      "nameEn": "Plateau time trial",
-     "lengthM": 7282.04,
-     "elevationGainM": 53.59,
+     "lengthM": 7780.54,
+     "elevationGainM": 41.85,
      "loop": false
     },
     {
      "id": "voie-verte-de-la-robe",
      "name": "La voie verte de la Robe",
      "nameEn": "Robe greenway",
-     "lengthM": 7864.29,
-     "elevationGainM": 19.98,
+     "lengthM": 8058.98,
+     "elevationGainM": 22.02,
      "loop": false
     },
     {
      "id": "velomaritime",
      "name": "La Vélomaritime",
      "nameEn": "Coast greenway",
-     "lengthM": 10555.46,
-     "elevationGainM": 12.22,
+     "lengthM": 10624.68,
+     "elevationGainM": 14.42,
      "loop": false
     },
     {
      "id": "phare-versant-nord",
      "name": "Le Phare par le versant nord",
      "nameEn": "Lighthouse from the north",
-     "lengthM": 9677.45,
-     "elevationGainM": 630.39,
+     "lengthM": 9661.29,
+     "elevationGainM": 630.4,
      "loop": false
     },
     {
      "id": "kerbrou-et-le-port",
      "name": "Kerbrou et Bois-Joli",
      "nameEn": "Kerbrou and Bois-Joli",
-     "lengthM": 30329.53,
-     "elevationGainM": 330.83,
+     "lengthM": 25309.54,
+     "elevationGainM": 261.24,
      "loop": true
     },
     {
      "id": "tour-des-coteaux",
      "name": "Le tour des Coteaux",
      "nameEn": "Hills loop",
-     "lengthM": 23014.36,
-     "elevationGainM": 235.26,
+     "lengthM": 20913.09,
+     "elevationGainM": 238.85,
      "loop": true
     },
     {
      "id": "gravel-du-plateau",
      "name": "Gravel du Plateau",
      "nameEn": "Plateau gravel",
-     "lengthM": 18386.41,
-     "elevationGainM": 192.22,
-     "loop": true
+     "lengthM": 19739.73,
+     "elevationGainM": 259.89,
+     "loop": true,
+     "bike": "gravel"
     },
     {
      "id": "gravel-des-vignes",
      "name": "Gravel des Vignes",
      "nameEn": "Vineyard gravel",
-     "lengthM": 9887.29,
-     "elevationGainM": 197.21,
-     "loop": true
+     "lengthM": 10582.79,
+     "elevationGainM": 189.79,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-la-vallee",
+     "name": "Gravel de la Vallée",
+     "nameEn": "Valley gravel",
+     "lengthM": 11163.39,
+     "elevationGainM": 142.74,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-kerbrou",
+     "name": "Gravel de Kerbrou",
+     "nameEn": "Kerbrou gravel",
+     "lengthM": 12469.63,
+     "elevationGainM": 171.79,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-du-levant",
+     "name": "Gravel du Levant",
+     "nameEn": "Levant gravel",
+     "lengthM": 11980.55,
+     "elevationGainM": 169.59,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-saint-pierre",
+     "name": "Gravel de Saint-Pierre",
+     "nameEn": "Saint-Pierre gravel",
+     "lengthM": 11361.93,
+     "elevationGainM": 115.96,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-du-grand-pre",
+     "name": "Gravel du Grand Pré",
+     "nameEn": "Great Meadow gravel",
+     "lengthM": 10124.11,
+     "elevationGainM": 157.63,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-des-douaniers",
+     "name": "Le chemin des Douaniers",
+     "nameEn": "Coast guard path",
+     "lengthM": 23049.32,
+     "elevationGainM": 227.89,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-du-littoral",
+     "name": "Le chemin du Littoral",
+     "nameEn": "East coast path",
+     "lengthM": 12782.94,
+     "elevationGainM": 69.11,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "grande-traversee",
+     "name": "La Grande Traversée",
+     "nameEn": "Great gravel traverse",
+     "lengthM": 43114.76,
+     "elevationGainM": 616.16,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "vtt-du-renard",
+     "name": "VTT du Renard",
+     "nameEn": "Fox MTB trail",
+     "lengthM": 7016.56,
+     "elevationGainM": 132.28,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-biches",
+     "name": "VTT des Biches",
+     "nameEn": "Deer MTB trail",
+     "lengthM": 5865.76,
+     "elevationGainM": 67.04,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-grand-tour-des-bois",
+     "name": "Le grand tour VTT des Bois",
+     "nameEn": "Woods MTB grand tour",
+     "lengthM": 25715.21,
+     "elevationGainM": 341.39,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-du-phare",
+     "name": "VTT du tour du Phare",
+     "nameEn": "Lighthouse MTB loop",
+     "lengthM": 27481.95,
+     "elevationGainM": 1399.38,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "descente-du-phare",
+     "name": "La descente du Phare",
+     "nameEn": "Lighthouse downhill",
+     "lengthM": 3740.08,
+     "elevationGainM": 0,
+     "loop": false,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-coteaux",
+     "name": "VTT des Coteaux",
+     "nameEn": "Hills MTB trail",
+     "lengthM": 8701.12,
+     "elevationGainM": 199.55,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-buttes",
+     "name": "VTT des Buttes",
+     "nameEn": "Mounds MTB trail",
+     "lengthM": 8239.33,
+     "elevationGainM": 149.53,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-du-plateau",
+     "name": "VTT du Plateau",
+     "nameEn": "Plateau MTB trail",
+     "lengthM": 7713.7,
+     "elevationGainM": 89.41,
+     "loop": true,
+     "bike": "mtb"
     },
     {
      "id": "gravel-de-la-lagune",
      "name": "Gravel de la Lagune",
      "nameEn": "Lagoon gravel",
-     "lengthM": 9578.14,
-     "elevationGainM": 79.7,
-     "loop": true
+     "lengthM": 6518.69,
+     "elevationGainM": 48.9,
+     "loop": true,
+     "bike": "gravel"
     }
    ],
    "pack": {
-    "version": "ef9d9dc45e61",
-    "bytes": 378914959,
+    "version": "ed353b4ab299",
+    "bytes": 383471613,
     "files": 2650,
-    "gzBytes": 40896750
+    "gzBytes": 44490599
    },
    "l93": {
     "minE": 76000,
