@@ -209,7 +209,7 @@ export class AmbientCyclists {
         if (row > 0) rowOff += gap;
         lastRow = row;
       }
-      const v3 = crowdV3(avatar, look, i, this.r() < 0.4);
+      const v3 = crowdV3(avatar, look, i, this.r() < 0.4, undefined, { kind: 'ride', roll: gearRoll });
       members.push({ avatar, ...(v3 ? { v3 } : {}), off: -rowOff, latOff: pairs && k % 2 ? -1.0 * sens : 0, cadenceOff: Math.round((this.r() - 0.5) * 8), anim: new AnimBudget(members.length + Math.floor(this.r() * 4)) });
     }
     const mass = lv.mass[0] + this.r() * (lv.mass[1] - lv.mass[0]);

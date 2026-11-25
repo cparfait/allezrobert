@@ -328,7 +328,7 @@ export class Multiplayer {
         // Bêta : sans cela, les autres coureurs (joueurs et IA du serveur) restaient en coureurs du mode Réel.
         // Leur équipement V3 n'est pas transmis : profil validé choisi d'après leur identifiant.
         const seed = hashId(r.id);
-        const v3 = crowdV3(avatar, look, seed >> 1, (seed & 1) === 1);
+        const v3 = crowdV3(avatar, look, seed >> 1, (seed & 1) === 1, undefined, { kind: this.gearKind, roll: 1 });
         rem = { avatar, label: null, ...(v3 ? { v3 } : {}) };
         this.scene.add(rem.avatar.root);
         this.remotes.set(r.id, rem);

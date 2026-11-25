@@ -1,7 +1,8 @@
 import { BIKES, bikeById, tuneItem, type AvatarLook, type CapStyle } from '@allezrobert/shared';
+import type { V3Equipment } from '../v3/visuals.ts';
 
 /**
- * Couvre-chef et vélo selon la sortie (règle de jeu, Réel et Poly) : tout le monde porte un casque ; hors course, une
+ * Couvre-chef et vélo selon la sortie (règle de jeu, trois styles) : tout le monde porte un casque ; hors course, une
  * casquette de temps en temps ; en course, casque obligatoire ; en contre-la-montre, casque chrono et vélo de chrono
  * pour tous (joueur compris). Calcul pur (testé).
  */
@@ -68,4 +69,41 @@ export function withHeadgear(look: AvatarLook, kind: GearKind, roll: number, o: 
     return { ...rest, cap: { style, color: look.jersey, accent: look.jerseyAccent } };
   }
   return { ...rest, ...shape };
+}
+
+/** Bêta : casque chrono S-Works TT 2020 (catalogue V3, sans marque Zwift). */
+export const V3_TT_HELMET = 1783;
+/** Bêta : casquettes de cycliste sans marque Zwift (Rapha, Specialized, INEOS, Movistar, Le Col, Alpecin). */
+export const V3_CAPS: readonly number[] = [1762, 1767, 1820, 1842, 1827, 1905];
+/** Bêta : vélos de chrono 2026 (Cervélo P5, Canyon Speedmax CFR, Giant Trinity, Cube Aerium, Cannondale SuperSlice, Factor Hanzo). */
+export const V3_TT_BIKES: readonly string[] = ['cervelop52026', 'canyonspeedmaxcfr2026', 'gianttrinityadvancedsl2026', 'cubeaeriumc68x2026', 'cannondalesuperslicelab712026', 'factorhanzo2026'];
+
+/** Identifiants des couvre-chefs Bêta qui ne sont pas des casques (casquettes) : retirés en course. */
+const V3_NOT_HELMET = new Set<number>(V3_CAPS);
+/** Bêta : article « None » (tête nue) du catalogue. */
+const V3_BARE = 1738;
+
+/**
+ * Équipement Bêta selon la sortie : en chrono, casque chrono et vélo de chrono (roues d'origine du vélo) ; en course,
+ * casquette ou tête nue remplacées par le casque d'origine ; hors course, une casquette pour `roll < CAP_SHARE` (coureurs
+ * du décor seulement : `keepCap` garde le choix du joueur). `bare` : identifiants « tête nue » du catalogue.
+ */
+export function v3WithHeadgear(eq: V3Equipment, kind: GearKind, roll: number, o: { keepCap?: boolean; bikeIndex?: number; bare?: ReadonlySet<number> } = {}): V3Equipment {
+  const kit = { ...(eq.kit ?? {}) };
+  const head = kit.HEAD_GEAR?.id;
+  const bare = head !== undefined && (head === V3_BARE || !!o.bare?.has(head));
+  const notHelmet = bare || (head !== undefined && V3_NOT_HELMET.has(head));
+  if (kind === 'tt') {
+    kit.HEAD_GEAR = { id: V3_TT_HELMET, color: 0 };
+    const bike = V3_TT_BIKES[((o.bikeIndex ?? Math.floor(roll * 997)) % V3_TT_BIKES.length + V3_TT_BIKES.length) % V3_TT_BIKES.length] as string;
+    const { wheels: _w, ...rest } = eq;
+    return { ...rest, bike, color: 0, kit };
+  }
+  if (kind === 'race') {
+    if (notHelmet) delete kit.HEAD_GEAR;
+    return { ...eq, kit };
+  }
+  if (!o.keepCap && roll < CAP_SHARE) kit.HEAD_GEAR = { id: V3_CAPS[Math.floor((roll / CAP_SHARE) * V3_CAPS.length) % V3_CAPS.length] as number, color: 0 };
+  else if (bare) delete kit.HEAD_GEAR;
+  return { ...eq, kit };
 }

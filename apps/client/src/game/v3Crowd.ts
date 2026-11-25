@@ -1,3 +1,4 @@
+import { v3WithHeadgear, type GearKind } from './headgear.ts';
 import type { AvatarLook } from '@allezrobert/shared';
 import { V3_STYLE } from '../engine/style.ts';
 import { GltfRiderAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
@@ -29,12 +30,14 @@ export function rivalV3Jersey(team: number, mineId?: number): V3TeamJersey | und
   return piece ? { piece } : undefined;
 }
 
-export function crowdV3(avatar: RiderAvatarLike, look: AvatarLook, seed: number, female: boolean, jersey?: V3TeamJersey): V3Visual | undefined {
+export function crowdV3(avatar: RiderAvatarLike, look: AvatarLook, seed: number, female: boolean, jersey?: V3TeamJersey, gear?: { kind: GearKind; roll: number }): V3Visual | undefined {
   if (!V3_STYLE || !(avatar instanceof GltfRiderAvatar)) return undefined;
   const list = female && FEMALE.length ? FEMALE : MALE.length ? MALE : CINEMATIC_V3;
   const base = list[((seed % list.length) + list.length) % list.length];
   if (!base) return undefined;
-  const equipment: V3Equipment = jersey ? { ...base, kit: { ...base.kit, CYCLING_JERSEY: jersey.piece }, ...(jersey.zip !== undefined ? { zip: jersey.zip } : {}) } : base;
+  const dressed: V3Equipment = jersey ? { ...base, kit: { ...base.kit, CYCLING_JERSEY: jersey.piece }, ...(jersey.zip !== undefined ? { zip: jersey.zip } : {}) } : base;
+  // Casque, casquette ou casque et vélo de chrono selon la sortie (game/headgear.ts).
+  const equipment = gear ? v3WithHeadgear(dressed, gear.kind, gear.roll, { bikeIndex: seed }) : dressed;
   const visual = new V3Visual(hiddenV3Mount(avatar), () => {}, (error) => console.warn('[V3] coureur IA', error));
   visual.set(look, equipment);
   return visual;

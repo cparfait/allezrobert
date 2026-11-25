@@ -594,7 +594,7 @@ export class Peloton {
       avatar.setFootDown?.(true);
       scene.add(avatar.root);
       skipHiddenMatrixUpdates(avatar.root);
-      const v3 = crowdV3(avatar, look, i >> 1, i % 2 === 1, lead ? { piece: { id: LEADER_V3_JERSEY[lead], color: 0 } } : team === undefined ? undefined : team === 0 ? teams!.v3 : rivalV3Jersey(team, teams!.v3?.piece.id));
+      const v3 = crowdV3(avatar, look, i >> 1, i % 2 === 1, lead ? { piece: { id: LEADER_V3_JERSEY[lead], color: 0 } } : team === undefined ? undefined : team === 0 ? teams!.v3 : rivalV3Jersey(team, teams!.v3?.piece.id), { kind: gearKind, roll: gearRoll });
       const name = identity.name;
       const tag = createNameTag(name, identity.nationality);
       const label = tag.anchor;

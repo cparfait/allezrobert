@@ -38,7 +38,7 @@ import { StartRamp } from './world/startRamp.ts';
 import { awaitedStart, triggerStart, waitForStart } from './ui/startButton.ts';
 import { addStage, currentStage, loadTour, newTour, saveTour, stagePlan, stageResult, standings as standingsOf, tourDone, tourLeaders, type StageKind, type StageResult, type Tour } from './game/stageRace.ts';
 import { raceReport } from './game/raceReport.ts';
-import { ttMissing, withHeadgear, type GearKind } from './game/headgear.ts';
+import { v3WithHeadgear, ttMissing, withHeadgear, type GearKind } from './game/headgear.ts';
 import { askTtGear, rememberTtChoice, takeTtKeep } from './ui/ttGear.ts';
 import { showTourPanel } from './ui/tourPanel.ts';
 /** Le joueur traverse en fondu les coureurs qu'il rattrape (?traverser=0 : ils s'écartent comme avant). */
@@ -1323,10 +1323,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   avatar.setFootDown?.(true);
   engine.scene.add(avatar.root);
   const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(hiddenV3Mount(avatar)) : undefined;
-  if (myLead) {
+  if (v3) {
     const eq = readV3Equipment();
-    v3?.set(riderLook, { ...eq, kit: { ...eq.kit, CYCLING_JERSEY: { id: LEADER_V3_JERSEY[myLead], color: 0 } } });
-  } else v3?.set(riderLook);
+    const dressed = myLead ? { ...eq, kit: { ...eq.kit, CYCLING_JERSEY: { id: LEADER_V3_JERSEY[myLead], color: 0 } } } : eq;
+    v3.set(riderLook, v3WithHeadgear(dressed, myGear, 1, { keepCap: true, bikeIndex: 0 }));
+  }
   // Équipement V3 de cette sortie gardé pour les sorties sans connexion.
   if (v3) syncV3Offline(riderLook);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_LOOK, tuneItem, type AvatarLook } from '@allezrobert/shared';
-import { CAP_SHARE, ttBike, ttMissing, ttWheels, withHeadgear } from '../src/game/headgear.ts';
+import { CAP_SHARE, ttBike, ttMissing, ttWheels, V3_CAPS, V3_TT_BIKES, V3_TT_HELMET, v3WithHeadgear, withHeadgear } from '../src/game/headgear.ts';
 
 const bare: AvatarLook = { ...DEFAULT_LOOK, noHelmet: true };
 const capped: AvatarLook = { ...DEFAULT_LOOK, cap: { style: 'pois', color: '#fff' } };
@@ -53,5 +53,26 @@ describe('withHeadgear (Réel, Poly)', () => {
   });
   it('un casque chrono caché par une casquette compte comme oublié', () => {
     expect(ttMissing({ ...capped, helmetShape: 'chrono' })?.helmet).toBe(true);
+  });
+});
+
+describe('v3WithHeadgear (Bêta)', () => {
+  const eq = { bike: 'canyonaeroad2024', color: 0, wheels: 'zipp', kit: { HEAD_GEAR: { id: 1796, color: 0 }, CYCLING_JERSEY: { id: 453, color: 0 } } };
+  it('en chrono : casque chrono et vélo de chrono, roues d’origine', () => {
+    const r = v3WithHeadgear(eq, 'tt', 0.4, { bikeIndex: 2 });
+    expect(r.kit?.HEAD_GEAR?.id).toBe(V3_TT_HELMET);
+    expect(r.bike).toBe(V3_TT_BIKES[2]);
+    expect(r.wheels).toBeUndefined();
+    expect(r.kit?.CYCLING_JERSEY?.id).toBe(453);
+  });
+  it('en course : casquette et tête nue retirées (casque d’origine)', () => {
+    expect(v3WithHeadgear({ ...eq, kit: { HEAD_GEAR: { id: V3_CAPS[0] as number, color: 0 } } }, 'race', 0).kit?.HEAD_GEAR).toBeUndefined();
+    expect(v3WithHeadgear({ ...eq, kit: { HEAD_GEAR: { id: 1738, color: 0 } } }, 'race', 0).kit?.HEAD_GEAR).toBeUndefined();
+    expect(v3WithHeadgear(eq, 'race', 0).kit?.HEAD_GEAR?.id).toBe(1796);
+  });
+  it('hors course : une casquette rarement pour les coureurs du décor, jamais imposée au joueur', () => {
+    expect(V3_CAPS).toContain(v3WithHeadgear(eq, 'ride', 0.01).kit?.HEAD_GEAR?.id);
+    expect(v3WithHeadgear(eq, 'ride', 0.9).kit?.HEAD_GEAR?.id).toBe(1796);
+    expect(v3WithHeadgear(eq, 'ride', 0.01, { keepCap: true }).kit?.HEAD_GEAR?.id).toBe(1796);
   });
 });
