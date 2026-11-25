@@ -1290,7 +1290,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   ui.innerHTML = '';
   // Le vélo roulé dépend de l'équipement porté au garage et des pièces de l'atelier (masse, traînée, pneus, roues).
-  // Style V3 : vélo roulé calculé au garage V3 d'après le vélo et les accessoires Zwift portés (poids, traînée, pneus).
+  // Style V3 : vélo roulé calculé au garage V3 d'après le vélo et les accessoires portés (poids, traînée, pneus).
   const profile: RiderProfile = { id: 'local', displayName: s.name, massKg: s.massKg, heightCm: s.heightCm, ftpWatts: s.ftpWatts, bike: (V3_STYLE && readV3BikeSetup()) || tunedBike() };
   const params = new URLSearchParams(location.search);
   let startD = nav ? 0 : challenge ? challenge.startD : Number(params.get('d') ?? 0);

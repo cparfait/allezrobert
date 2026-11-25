@@ -27,7 +27,7 @@ P=pos[mask>0]; print('bounds',P.min(0),P.max(0))
 lo,hi=P.min(0),P.max(0)
 vis=((pos-lo)/(hi-lo)*255).clip(0,255).astype(np.uint8); vis[mask==0]=0
 Image.fromarray(vis).save(S+'/posmap.png')
-# Contrôle facultatif : superposition avec la texture UAE 2017 de Zwift (cache local du garage V3).
+# Contrôle facultatif : superposition avec la texture UAE 2017 de référence (cache local du garage V3).
 import glob
 refs=glob.glob('out/v3/map/171-diffuse-0-*.png')
 if refs:

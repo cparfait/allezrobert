@@ -607,7 +607,7 @@ export class AtelierHost {
       ['gravel', ['canyongrail2025', 'canyongrailgravel'], hang(1.85, 1.3, -2.82, Math.PI / 2)],
       ['route', ['bmcteammachine2022'], hang(-2.9, 1.3, 2.15, 0)],
       ['route', ['cannondalesupersixevo2026', 'cannondalesupersixevo2020'], lean(-0.7, -2.62, Math.PI / 2, 0, -0.1)],
-      // Deux vélos de marque contre le mur (à la place du vélo de chrono et du Factor), pas de vélo Zwift : un ancien
+      // Deux vélos de marque contre le mur (à la place du vélo de chrono et du Factor) : un ancien
       // (Pinarello Dogma 65.1, freins sur jante) et un récent à roue pleine (Tarmac SL9, roues Princeton Mach / Blur).
       ['route', ['dogma65-1', 'pinarellof8'], lean(3.02, -1.7, 0, 1, -0.1)],
       ['route', ['specializedtarmacsl92026', 'sworkstarmacsl82024'], lean(3.02, 0.9, 0, 1, -0.1), 'princetoncarbonworks-machtsv2blur'],

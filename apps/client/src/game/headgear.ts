@@ -71,9 +71,9 @@ export function withHeadgear(look: AvatarLook, kind: GearKind, roll: number, o: 
   return { ...rest, ...shape };
 }
 
-/** Bêta : casque chrono S-Works TT 2020 (catalogue V3, sans marque Zwift). */
+/** Bêta : casque chrono S-Works TT 2020 (catalogue V3). */
 export const V3_TT_HELMET = 1783;
-/** Bêta : casquettes de cycliste sans marque Zwift (Rapha, Specialized, INEOS, Movistar, Le Col, Alpecin). */
+/** Bêta : casquettes de cycliste (Rapha, Specialized, INEOS, Movistar, Le Col, Alpecin). */
 export const V3_CAPS: readonly number[] = [1762, 1767, 1820, 1842, 1827, 1905];
 /** Bêta : vélos de chrono 2026 (Cervélo P5, Canyon Speedmax CFR, Giant Trinity, Cube Aerium, Cannondale SuperSlice, Factor Hanzo). */
 export const V3_TT_BIKES: readonly string[] = ['cervelop52026', 'canyonspeedmaxcfr2026', 'gianttrinityadvancedsl2026', 'cubeaeriumc68x2026', 'cannondalesuperslicelab712026', 'factorhanzo2026'];

@@ -85,7 +85,7 @@ export function v3AssetMiddleware(
       files.set('bike/' + bike.id, path);
       const preview = previews.get(bike.id);
       if (preview) files.set('bike-thumbnail/' + bike.id, preview);
-      // Poids total (grammes) et bonus de traînée (m²) de Zwift, valeurs « v2 » en priorité : pour la physique du V3.
+      // Poids total (grammes) et bonus de traînée (m²) du catalogue, valeurs « v2 » en priorité : pour la physique du V3.
       type Part = { role: string; xml?: string; weight_g?: number | null; weight_v2_g?: number | null; cda?: number | null; cda_v2?: number | null };
       const sheet = existsSync(resolve(bikeDir, bike.id + '.json'))
         ? readJson<{ poids_total_g?: number; poids_total_v2_g?: number; cda_bias_total?: number; cda_bias_v2_total?: number; pieces?: Part[] }>(resolve(bikeDir, bike.id + '.json'))
@@ -109,10 +109,10 @@ export function v3AssetMiddleware(
         files.set('object/' + id, path);
         return { id, name: basename(path, extname(path)), category, path: key };
       }));
-    // Roues de Zwift (paires avant / arrière du catalogue des pièces) : modèles .gde de l'installation locale.
+    // Roues (paires avant / arrière du catalogue des pièces) : modèles .gde de l'installation locale.
     const pieces = existsSync(resolve(study, 'pieces-catalogue.json')) ? readJson<{ pieces: Piece[] }>(resolve(study, 'pieces-catalogue.json')).pieces : [];
     const seenWheels = new Set<string>();
-    // Vignettes des roues de Zwift (UI/…/Customization/Wheels/Wheel_<nom>.ztx), rapprochées du dossier de la roue.
+    // Vignettes des roues (UI/…/Customization/Wheels/Wheel_<nom>.ztx), rapprochées du dossier de la roue.
     const wheelIcons = resolve(data, 'UI/WhiteOrangeTheme/Customization/Wheels');
     const icons = existsSync(wheelIcons) ? readdirSync(wheelIcons).flatMap(name => {
       const match = /^Wheel_(.+)\.(ztx|tgax)$/i.exec(name);
@@ -147,7 +147,7 @@ export function v3AssetMiddleware(
     });
     for (const [key, path] of Object.entries({
       'rider/homme': 'perso/corps/MaleMaster.glb', 'rider/femme': 'perso/corps/FemaleMaster.glb',
-      // Autres corps Zwift (même squelette et mêmes groupes de géométrie) : mince, fort (coureur seulement).
+      // Autres silhouettes (même squelette et mêmes groupes de géométrie) : mince, fort (coureur seulement).
       'rider/homme-mince': 'perso/corps/MaleMasterSkinny.glb', 'rider/homme-fort': 'perso/corps/MaleMasterBig.glb',
       'rider/femme-mince': 'perso/corps/FemaleMasterSkinny.glb',
       // Casques par défaut lissés (tools/v3_smooth_glb.py) s'ils existent, sinon ceux de l'étude (en facettes).
@@ -183,7 +183,7 @@ export function v3AssetMiddleware(
     }
     return job.then(() => target);
   }
-  /** Noms français de Zwift (clés LOC_…, extraites par tools/v3_loc.py), sinon anglais, sinon le nom de l'étude. */
+  /** Noms français des articles (clés LOC_…, extraites par tools/v3_loc.py), sinon anglais, sinon le nom de l'étude. */
   let names: { fr: Record<string, string>; en: Record<string, string> } | undefined;
   function nameOf(row: Gear): string {
     names ??= {
@@ -307,14 +307,14 @@ export function v3AssetMiddleware(
               model: !!row.source, pair: !!row.pairSource,
               bone: row.os, pairBone: row.os_paire, offset: row.offset, rotation: row.rotation,
               pairOffset: row.offset_paire, pairRotation: row.rotation_paire,
-              // Poids (grammes) et bonus de traînée (m²) de l'accessoire selon Zwift (casques, lunettes, chaussures…).
+              // Poids (grammes) et bonus de traînée (m²) de l'accessoire (casques, lunettes, chaussures…).
               weightG: row.poids_g || undefined, cdaBias: row.cda || undefined,
               // Géométrie de coiffure imposée par le couvre-chef (Accessories.xml, hairGeomOverride) : 1, 2 ou 3.
               hairGeom: row.cheveux_override ? Number(row.cheveux_override) : undefined,
               colors: gearSchemes(row).map(color => ({
                 name: color.Name, hue: hueOf(color), diffuse: !!color.TexturePath, normal: !!color.NormalsPath,
                 femaleNormal: !!(color.Name === 'D’origine' && row.normale_f), preview: !!(color.preview || row.thumbnail),
-                // Vraie icône de l'interface Zwift (dossier UI) ; sinon la vignette n'est que la texture dépliée.
+                // Icône du catalogue (dossier UI) ; sinon la vignette n'est que la texture dépliée.
                 icon: /[\\/]UI[\\/]/i.test(color.preview || row.thumbnail || ''),
               })),
             })));
@@ -406,7 +406,7 @@ export function v3AssetMiddleware(
             return json(200, { colors: (info.coloris ?? []).map(color => ({ name: color.Name, hue: hueOf(color) })) });
           }
           if (format !== 'glb') return json(404, { error: 'Format V3 introuvable.' });
-          // Roue : modèle .gde converti comme un objet (premier niveau de détail, textures de Zwift).
+          // Roue : modèle .gde converti comme un objet (premier niveau de détail, textures d'origine).
           if (kind === 'wheel') return sendFile(await prepare('object', 'wheel-' + id, source, 0));
           return sendFile(await prepare(kind, id, source, variant, kind === 'bike' ? hue : undefined));
         })().catch((error: unknown) => {

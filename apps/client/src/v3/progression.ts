@@ -7,7 +7,7 @@ import { getV3Catalog, getV3Gear, isBare, itemFits, readV3Equipment, type V3Gear
 
 /**
  * Récompenses du style Beta pour la page Progression : vélos, roues et articles du catalogue V3 avec le niveau qui les
- * apporte (levels.ts) et leur vignette (photo du studio, sinon icône de Zwift). Chargées une fois, en tâche de fond.
+ * apporte (levels.ts) et leur vignette (photo du studio, sinon icône du catalogue). Chargées une fois, en tâche de fond.
  */
 export type V3RewardCat = 'bike' | 'wheel' | 'jersey' | 'helmet' | 'glasses' | 'gloves' | 'socks' | 'shoes';
 

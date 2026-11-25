@@ -1,10 +1,10 @@
-"""Noms lisibles des articles du profil V3 : dictionnaires de traduction de Zwift (clés LOC_…).
+"""Noms lisibles des articles du profil V3 : dictionnaires de traduction du catalogue (clés LOC_…).
 
-Lit l'archive de localisation de l'installation Zwift locale (assets/Noesis/Blend_Data/noesis_loc.wad), décodée par
+Lit l'archive de localisation de l'installation source (assets/Noesis/Blend_Data/noesis_loc.wad), décodée par
 l'outil d'étude zwf_wad.py, et écrit <étude>/v3/loc/FR.json et EN.json ({clé LOC: texte}) que lit
-apps/client/scripts/v3Assets.ts. Ressources Zwift : étude locale seulement, jamais distribuées.
+apps/client/scripts/v3Assets.ts.
 
-Usage : python tools/v3_loc.py [installation Zwift] [dossier d'étude]
+Usage : python tools/v3_loc.py [installation source] [dossier d'étude]
 """
 import html
 import json

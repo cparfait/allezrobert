@@ -5,7 +5,7 @@ import { isBare, V3_DEFAULT_BIKE, V3_DEFAULT_KIT, V3_DEFAULT_SHOES, type V3Bike,
 /**
  * Progression du style Beta (ex-V3) : vélos, roues et articles se gagnent au niveau du joueur (même XP et mêmes niveaux
  * que le Réel), sans crédits. Au garage, seuls les objets gagnés apparaissent ; la page Progression montre ce que chaque
- * niveau apporte (v3/progression.ts). Le catalogue de Zwift n'a pas de niveau pour la plupart des objets : il est
+ * niveau apporte (v3/progression.ts). La plupart des objets n'ont pas de niveau dans le catalogue : il est
  * calculé ici, toujours le même pour un objet donné.
  * - Vélos, roues, casques et chaussures : selon leur gain de poids et de traînée face aux objets du même type
  *   (le moins bon au niveau 1, le meilleur au niveau 50), à parts égales sur les 50 niveaux.
@@ -36,7 +36,7 @@ type Rank = { loss: number; tie: number };
 
 /**
  * Niveau selon le rang parmi ses semblables, à parts égales : 1 pour le moins bon, V3_TOP_GEAR_LEVEL pour le meilleur.
- * Les ex aequo (77 casques de Zwift ont le même effet) sont départagés par leur identifiant, pour ne pas tomber tous
+ * Les ex aequo (77 casques du catalogue ont le même effet) sont départagés par leur identifiant, pour ne pas tomber tous
  * au même niveau.
  */
 function rankLevel(own: Rank, all: readonly Rank[]): number {
@@ -89,7 +89,7 @@ export function gearLevel(item: V3Gear, items: readonly V3Gear[]): number {
   if (hasEffect(item)) {
     const rank = (row: V3Gear) => hasEffect(row) ? { loss: loss(row.weightG, row.cdaBias), tie: unit(row.id) } : undefined;
     const all = ranksOf(items, 'gear:' + item.type, row => row.type === item.type, rank);
-    // Effets tous égaux (lunettes, chaussures de Zwift) : rien à classer, réparties comme les tenues.
+    // Effets tous égaux (lunettes, chaussures) : rien à classer, réparties comme les tenues.
     const losses = all.map(row => row.loss);
     if (Math.min(...losses) < Math.max(...losses)) return rankLevel(rank(item)!, all);
   }

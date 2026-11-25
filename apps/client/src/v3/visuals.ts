@@ -40,7 +40,7 @@ const cycling = new Set([1, 3, 5, 13, 15, 18, 20, 24, 31]);
 const DEFAULT_SHOES = 'SworksSpSevenL';
 export const V3_DEFAULT_SHOES = DEFAULT_SHOES;
 /**
- * Tenue de départ du style Beta, sans marquage Zwift : maillot blanc du Tour de France (validé pour le film d'accueil) et
+ * Tenue de départ du style Bêta : maillot blanc du Tour de France (validé pour le film d'accueil) et
  * chaussettes noires unies ; casque et chaussures d'origine. « D'origine » dans le vestiaire y revient.
  */
 export const V3_DEFAULT_KIT: Readonly<Record<string, V3GearSelection>> = {
@@ -118,13 +118,13 @@ export type V3Bike = {
   /** Roues d'origine : paire du catalogue (si elle y figure), poids (g) et bonus de traînée (m²) compris dans le vélo. */
   wheels?: { id?: string; weightG: number; cdaBias: number };
 };
-/** Paire de roues de Zwift (avant + arrière) : famille, poids total (g) et bonus de traînée (m²). */
+/** Paire de roues (avant + arrière) : famille, poids total (g) et bonus de traînée (m²). */
 export type V3Wheel = { id: string; name: string; brand: string; kind: 'route' | 'gravel' | 'vtt'; weightG: number; cdaBias: number; preview?: boolean };
 export type V3Object = { id: string; name: string; category: string; path: string };
 export type V3Catalog = { bikes: V3Bike[]; objects: V3Object[]; wheels?: V3Wheel[] };
 
 /**
- * Roues proposées selon le type de vélo, comme dans Zwift : roues de route et de gravel sur les vélos de route, de
+ * Roues proposées selon le type de vélo : roues de route et de gravel sur les vélos de route, de
  * chrono et de gravel ; les autres (VTT, ville, concept, tricycle, handbike, couché) gardent leurs roues.
  */
 export function wheelsFor(type: string | undefined, wheels: readonly V3Wheel[]): V3Wheel[] {
@@ -153,7 +153,7 @@ export function riderBmi(): number | undefined {
 }
 
 /**
- * Corps par défaut selon l'IMC : mince sous 20,5, fort au-delà de 27 (coureur seulement, Zwift n'a pas de corps fort
+ * Corps par défaut selon l'IMC : mince sous 20,5, fort au-delà de 27 (coureur seulement, pas de silhouette forte
  * féminin), standard entre les deux.
  */
 export function bodyForBmi(bmi: number | undefined, sex: 'male' | 'female'): V3Body {
@@ -171,17 +171,17 @@ export function resolvedBody(equipment: V3Equipment, sex: 'male' | 'female'): V3
 export type V3Equipment = {
   bike: string; color: number; hue?: number; sex?: 'male' | 'female'; kit?: Record<string, V3GearSelection>; sockHeight?: V3SockHeight;
   /**
-   * Manches du maillot : 0 courtes, col en V (maillot 3 du corps Zwift, d'origine), 1 longues, col rond (maillot 40).
+   * Manches du maillot : 0 courtes, col en V (maillot 3 du modèle, d'origine), 1 longues, col rond (maillot 40).
    * Nom `zip` gardé pour les réglages déjà enregistrés.
    */
   zip?: number;
-  /** Poches du maillot, dans le dos : 0 vides (d'origine) à 4 pleines (pièces 9 à 12 du corps Zwift, 55 à 58 en manches longues). */
+  /** Poches du maillot, dans le dos : 0 vides (d'origine) à 4 pleines (pièces 9 à 12 du modèle, 55 à 58 en manches longues). */
   pockets?: number;
   /** Maillot ouvert (fermeture éclair descendue sur la poitrine), manches courtes comme longues ; fermé d'origine. */
   open?: boolean;
-  /** Corps Zwift : standard, mince ou fort (fort : coureur seulement). */
+  /** Silhouette : standard, mince ou fort (fort : coureur seulement). */
   body?: V3Body;
-  /** Couleurs des cheveux et de la barbe : case 0 à 5 des planches Zwift. */
+  /** Couleurs des cheveux et de la barbe : case 0 à 5 des planches de textures. */
   hairColor?: number;
   beardColor?: number;
   /** Couleur libre (palette) des cheveux et de la barbe, « #rrggbb » : prime sur la case de la planche. */
@@ -193,7 +193,7 @@ export type V3Equipment = {
   trainer?: string | null;
 };
 
-/** Six couleurs des planches de cheveux et de barbe Zwift (2 colonnes × 3 lignes), dans l'ordre des cases. */
+/** Six couleurs des planches de cheveux et de barbe (2 colonnes × 3 lignes), dans l'ordre des cases. */
 export const V3_HAIR_COLORS: Array<{ name: string; swatch: string }> = [
   { get name() { return S('hairChestnut'); }, swatch: '#6b4a2b' }, { get name() { return S('hairBlond'); }, swatch: '#c9a25a' }, { get name() { return S('hairRed'); }, swatch: '#b5562a' },
   { get name() { return S('hairDark'); }, swatch: '#2e2520' }, { get name() { return S('hairGrey'); }, swatch: '#b8b4ad' }, { get name() { return S('hairBlue'); }, swatch: '#2f7f93' },
@@ -211,7 +211,7 @@ const BEARD_GROUPS: Record<string, number> = {
 };
 
 /**
- * Posture adaptée au type de vélo : variantes Zwift VTT (Mountain), ville (_Buffalo), concept, chrono (_TT),
+ * Posture adaptée au type de vélo : variantes VTT (Mountain), ville (_Buffalo), concept, chrono (_TT),
  * couché (Recumbent) et handbike (Handcycle) ; la posture de base si la variante n'existe pas.
  */
 /**
@@ -279,7 +279,7 @@ export function itemSex(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>): 'male' 
   return female && !male ? 'female' : male && !female ? 'male' : 'tous';
 }
 
-/** Article « None » de Zwift (gants, casque, lunettes, chaussettes) : la pièce est retirée. */
+/** Article « None » du catalogue (gants, casque, lunettes, chaussettes) : la pièce est retirée. */
 export function isBare(item: Pick<V3Gear, 'variant'>): boolean {
   return /^none$/i.test(item.variant ?? '');
 }
@@ -290,23 +290,23 @@ export function itemFits(item: Pick<V3Gear, 'sex' | 'name' | 'variant'>, sex: 'm
   return own === 'tous' || own === sex;
 }
 
-/** Coupe du maillot : les deux maillots du corps Zwift, manches courtes et col en V (3) ou manches longues et col rond (40). */
+/** Coupe du maillot : les deux maillots du modèle, manches courtes et col en V (3) ou manches longues et col rond (40). */
 const ZIP_JERSEYS = [3, 40];
 export const V3_ZIPS = labelList(['zipShort', 'zipLong']);
-/** Contenu des poches arrière (pièces du corps Zwift posées sur le maillot, de plus en plus remplies). */
+/** Contenu des poches arrière (pièces du modèle posées sur le maillot, de plus en plus remplies). */
 export const V3_POCKETS = labelList(['pocketsEmpty', 'pocketsFew', 'pocketsMedium', 'pocketsFilled', 'pocketsFull']);
 export const V3_OPENINGS = labelList(['closed', 'open']);
 const POCKETS_SHORT = [9, 10, 11, 12];
 const POCKETS_LONG = [55, 56, 57, 58];
 
 /**
- * Ouverture du maillot : le corps Zwift n'a pas de maillot ouvert (ni morphose, ni pièce) et pas de peau sous le haut
+ * Ouverture du maillot : le modèle n'a pas de maillot ouvert (ni morphose, ni pièce) et pas de peau sous le haut
  * du maillot. L'ouverture est donc dessinée : un V de peau sous le col, sur le devant, bordé d'une fermeture éclair
  * sombre. Le dessin suit la pose de repos (positionGeometry), donc les animations, et vaut pour les deux maillots.
  */
 const openingUniforms = () => ({ on: uniform(0), skin: uniform(new Color(0.78, 0.58, 0.46)) });
 type Opening = ReturnType<typeof openingUniforms> & { bottom: number; top: number; width: number };
-/** Copie d'un matériau du corps Zwift en matériau à nœuds (même texture, relief et réglages). */
+/** Copie d'un matériau du corps en matériau à nœuds (même texture, relief et réglages). */
 function nodeCopy(source: MeshStandardMaterial): MeshStandardNodeMaterial {
   const material = new MeshStandardNodeMaterial();
   material.name = source.name;
@@ -346,7 +346,7 @@ function openableJersey(source: MeshStandardMaterial, opening: Opening, closing:
 }
 
 /**
- * Col fermé du maillot à col en V (groupe 3, le seul de la coureuse) : Zwift n'a pas de version fermée. Le V de peau
+ * Col fermé du maillot à col en V (groupe 3, le seul de la coureuse) : le modèle n'a pas de version fermée. Le V de peau
  * sous le col (cou et haut du sternum, matériaux FLESH) prend la couleur dominante du devant du maillot, comme si la
  * fermeture était remontée. Même dessin sur la pose de repos que l'ouverture.
  */
@@ -355,7 +355,7 @@ type Closing = ReturnType<typeof closingUniforms>;
 /** V du col du maillot 3 (pose de repos, mètres) : pointe à 1,43 m, bords du col à 1,50 m, ±7 cm (débord caché sous le col). */
 const COLLAR_V = { bottom: 1.43, top: 1.5, half: 0.07 };
 /**
- * Bordure sombre du col en V sur le maillot (texture Zwift), recouverte quand il est fermé : bande de 1,6 cm le long
+ * Bordure sombre du col en V sur le maillot (texture d'origine), recouverte quand il est fermé : bande de 1,6 cm le long
  * du V mesuré sur le maillot (bord à ≈ 1,16 × (y − 1,44) m de l'axe, coureur comme coureuse), un peu sous la pointe et
  * jusqu'au départ de l'anneau du col.
  */
@@ -544,7 +544,7 @@ function atlasSkinTone(rider: RiderVisual): Color {
 export function showZip(rider: RiderVisual, zip = 0, pockets = 0, open = false): void {
   rider.opening.on.value = open ? 1 : 0;
   if (open) rider.opening.skin.value.copy(skinTone(rider));
-  // Corps féminin : pas de manches longues (son groupe 40 est le déguisement de dinosaure de Zwift) ; corps fort
+  // Corps féminin : pas de manches longues (son groupe 40 est le déguisement de dinosaure) ; corps fort
   // masculin : pas de groupe 40 du tout (manches courtes gardées, sinon le coureur n'aurait plus de haut).
   const long = zip > 0 && rider.sex === 'male' && rider.groups.some(group => group.id === 40);
   const shown = ZIP_JERSEYS[long ? 1 : 0];
@@ -566,7 +566,7 @@ export type V3Gear = {
   model: boolean; pair: boolean; bone?: string; pairBone?: string;
   offset: [number, number, number]; rotation: [number, number, number];
   pairOffset?: [number, number, number]; pairRotation?: [number, number, number];
-  /** Poids (grammes) et bonus de traînée (m²) selon Zwift. */
+  /** Poids (grammes) et bonus de traînée (m²) du catalogue. */
   weightG?: number;
   cdaBias?: number;
   /** Couvre-chef : géométrie de coiffure à montrer dessous (1 libre, 2 bandeau ou visière, 3 tassée) ; casque : aucune. */
@@ -583,7 +583,7 @@ const equipmentKey = 'ar.v3.equipment';
 export function readV3Equipment(): V3Equipment {
   try {
     const value = JSON.parse(localStorage.getItem(equipmentKey) ?? 'null') as V3Equipment | null;
-    // Pièce jamais choisie (ou remise « d'origine ») : celle de la tenue de départ, sans marquage Zwift.
+    // Pièce jamais choisie (ou remise « d'origine ») : celle de la tenue de départ.
     if (value && typeof value.bike === 'string' && Number.isInteger(value.color)) return { ...value, kit: { ...V3_DEFAULT_KIT, ...value.kit } };
   } catch { /* stockage indisponible */ }
   return { bike: defaultBike, color: 0, kit: { ...V3_DEFAULT_KIT } };
@@ -613,11 +613,11 @@ export const getV3Catalog = () => catalog ??= get<V3Catalog>('catalogue').catch(
 export const getV3Clips = () => clips ??= get<V3Clip[]>('clips').catch(error => { clips = undefined; throw error; });
 export const getV3Gear = () => gear ??= get<V3Gear[]>('gear')
   .then(items => {
-    // Accessories.xml de Zwift déclare certains articles deux fois à l'identique (43 maillots) : on garde le premier.
+    // Accessories.xml déclare certains articles deux fois à l'identique (43 maillots) : on garde le premier.
     const seen = new Set<string>();
     return items.filter(item => {
       if (item.sport ? item.sport !== 'cycling' && item.sport !== 'any' : item.type.startsWith('RUNNING_')) return false;
-      // Mascottes de série (Scotty, récompense des semaines d'affilée de Zwift) : rubrique retirée du V3.
+      // Mascottes de série (Scotty, récompense des séries de semaines) : rubrique retirée du V3.
       if (item.type === 'STREAK_FLAIR') return false;
       const key = item.type + '|' + item.variant + '|' + item.sex;
       if (seen.has(key)) return false;
@@ -746,7 +746,7 @@ const TYRE_BEAD = 0.3105;
 const TYRE_CENTER = 0.3135;
 
 /**
- * Pneus sans inscriptions : dans les textures Zwift, le pneu partage souvent la planche de la jante (lettrage blanc
+ * Pneus sans inscriptions : dans les textures des roues, le pneu partage souvent la planche de la jante (lettrage blanc
  * de la jante étiré sur les flancs). Les triangles du pneu sont retrouvés par la géométrie ; si la zone de texture
  * qu'ils lisent porte du lettrage clair, ils passent sur un matériau de gomme unie (couleur ordinaire de cette zone).
  * Les pneus sans lettrage (flancs bruns de la roue classique) gardent leur texture ; jante et rayons ne changent pas.
@@ -940,7 +940,7 @@ function gearFiles(item: V3Gear, selection: V3GearSelection, sex?: 'male' | 'fem
 
 /**
  * Articles chargés pour cette tenue et cette silhouette, et pièces retirées (article « None ») : sans chaussures
- * choisies, chaussures de vélo de route (le corps de Zwift n'a que des chaussures de course).
+ * choisies, chaussures de vélo de route (le modèle du corps n'a que des chaussures de course).
  */
 function wornItems(items: readonly V3Gear[], kit: Record<string, V3GearSelection>, sex: 'male' | 'female' | undefined) {
   const ownShoes = !!kit.CYCLING_SHOES || !!kit.RUNNING_SHOES;
@@ -995,7 +995,7 @@ export async function loadGearItem(item: V3Gear, selection: V3GearSelection, sex
   const value = <T>(part: PromiseSettledResult<T>) => part.status === 'fulfilled' ? part.value : undefined;
   const left = value(parts[0]);
   if (item.type === 'HAIR' && left) {
-    // Coiffure convertie sans texture (matériau presque noir) : planche Zwift, une copie par modèle (décalage de couleur).
+    // Coiffure convertie sans texture (matériau presque noir) : planche de textures, une copie par modèle (décalage de couleur).
     const atlas = await hairAtlas(item).catch(() => undefined);
     if (atlas) for (const material of materialsOf(left)) {
       material.map = atlas.map.clone();
@@ -1117,7 +1117,7 @@ async function mountWheels(levels: Object3D[], id: string): Promise<void> {
   });
 }
 
-/** Roue avant d'une paire (vignette du studio pour les roues sans icône Zwift). */
+/** Roue avant d'une paire (vignette du studio pour les roues sans icône dans le catalogue). */
 export async function loadV3DisplayWheel(id: string): Promise<Group> {
   const wheel = await model('wheel/' + id + '-av.glb');
   wheel.traverse(node => { node.castShadow = false; });
@@ -1253,7 +1253,7 @@ export function restoreRider(rider: RiderVisual): void {
 }
 
 /**
- * Une coiffure Zwift contient trois géométries : cheveux libres, variante bandeau ou visière, version tassée.
+ * Une coiffure contient trois géométries : cheveux libres, variante bandeau ou visière, version tassée.
  * Le couvre-chef choisit (hairGeomOverride 1, 2 ou 3) ; sous un casque (sans valeur), la version tassée.
  * Sans couvre-chef, cheveux libres. Une seule géométrie visible à la fois.
  */
@@ -1320,7 +1320,7 @@ export type V3Glow = { kind: 'bike'; id: string } | { kind: 'wheel'; id: string 
   | { kind: 'object'; root: Object3D };
 /** Pièce cliquée sur la vue du garage : le vélo, ses roues, ou un emplacement de la tenue ou du personnage. */
 export type V3Part = { kind: 'bike' } | { kind: 'wheel' } | { kind: 'trainer' } | { kind: 'slot'; type: string };
-/** Matériaux du corps Zwift et emplacement qu'ils habillent. */
+/** Matériaux du corps et emplacement qu'ils habillent. */
 const PART_OF_MATERIAL: Array<[RegExp, string]> = [
   [/^CyclistKIT$/i, 'CYCLING_JERSEY'], [/^SockKIT$/i, 'SOCKS'], [/^GloveKIT$/i, 'GLOVES'], [/^HAIR$/i, 'HAIR'], [/^FLESH/i, 'HEAD_TYPE'],
 ];
@@ -1329,7 +1329,7 @@ const GLOW_COLOR = new Color(0xffd23f);
 const GLOW_SECONDS = 0.8;
 /** Délai avant la première pulsation : la caméra du garage a fini d'arriver sur le coureur. */
 const GLOW_DELAY_MS = 1400;
-/** Matériau du corps Zwift habillé par chaque emplacement (pièces portées sans modèle à part). */
+/** Matériau du corps habillé par chaque emplacement (pièces portées sans modèle à part). */
 const SLOT_MATERIAL: Record<string, RegExp> = { CYCLING_JERSEY: /^CyclistKIT$/i, SOCKS: /^SockKIT$/i, GLOVES: /^GloveKIT$/i, HEAD_TYPE: /^FLESH/i };
 
 export class V3Visual {
@@ -1438,7 +1438,7 @@ export class V3Visual {
     return this.sex;
   }
 
-  /** Couleurs des cheveux (coiffure portée ou intégrée) et de la barbe : case de la planche Zwift. */
+  /** Couleurs des cheveux (coiffure portée ou intégrée) et de la barbe : case de la planche de textures. */
   private applyHairColors(): void {
     const rider = this.rider;
     if (!rider) return;
@@ -1550,8 +1550,8 @@ export class V3Visual {
   }
 
   /**
-   * Balancement du vélo et du coureur, d'un bloc. Les clips de Zwift (danseuse, sprint) font osciller tout le coureur
-   * par l'os racine (os_0) : Zwift fait suivre le vélo. Ici l'écart à sa pose moyenne est retiré de l'os racine et appliqué au
+   * Balancement du vélo et du coureur, d'un bloc. Les clips de danseuse et de sprint font osciller tout le coureur
+   * par l'os racine (os_0) : le vélo suit le mouvement. L'écart à sa pose moyenne est retiré de l'os racine et appliqué au
    * groupe (vélo + coureur), les mains restent donc sur le cintre et les pieds sur les pédales.
    * Au garage (« Pédaler »), s'y ajoute en selle un léger balancement (≈ 1°, un peu plus en forçant, comme l'avatar du
    * jeu), à l'opposé de la jambe qui appuie (phase tirée des pieds du coureur).

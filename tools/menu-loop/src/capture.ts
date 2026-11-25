@@ -28,7 +28,7 @@ const PUBLIC = resolve(ROOT, 'apps/client/public/menu');
 const SEASONS = ['spring', 'summer', 'autumn', 'winter'] as const;
 /** Styles graphiques du jeu (apps/client/src/engine/style.ts) : un film chacun. */
 const STYLES = ['real', 'lowpoly', 'v3'] as const;
-/** Styles tournés par défaut : le style V3 (ressources Zwift locales, jamais distribuées) seulement sur demande. */
+/** Styles tournés par défaut : le style V3 seulement sur demande. */
 const DEFAULT_STYLES = ['real', 'lowpoly'];
 const NULL_DEV = process.platform === 'win32' ? 'NUL' : '/dev/null';
 /** Image fixe du menu : JPEG d'environ 200 à 300 ko. */
@@ -183,8 +183,7 @@ async function waitCapture(season: string, chrome: ChildProcess | null, keepServ
 const mb = (f: string) => `${(statSync(f).size / 1048576).toFixed(1)} Mo`;
 
 /**
- * Dossier des boucles d'un style : apps/client/public/menu, sauf le style V3 (ressources Zwift locales, jamais
- * distribuées) gardé hors du dossier public et du déploiement, dans out/v3/menu (servi par le plugin V3 en local).
+ * Dossier des boucles d'un style : apps/client/public/menu, sauf les captures du style V3, conservées dans out/v3/menu (servi par le plugin V3 en local).
  */
 const outDirOf = (tag: string) => (tag.startsWith('v3-') ? resolve(ROOT, 'out/v3/menu') : PUBLIC);
 function encode(season: string): void {

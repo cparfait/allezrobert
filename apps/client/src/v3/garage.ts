@@ -23,7 +23,7 @@ const S = strings(
     admin: 'Gérer les objets V3',
     roadAria: 'Effet sur la route',
     effectLine: 'En selle : {kg} kg · traînée {drag} %',
-    effectTitle: 'Vélo {bike} kg + équipement {gear} kg (poids et traînée Zwift) ; appliqué à la prochaine sortie en style V3. Pneus : {tyre}.',
+    effectTitle: 'Vélo {bike} kg + équipement {gear} kg. Poids et traînée pris en compte à la prochaine sortie en style Bêta. Pneus : {tyre}.',
     tyreMtb: 'VTT',
     tyreGravel: 'gravel',
     tyreRoad: 'route',
@@ -72,7 +72,7 @@ const S = strings(
     noBike: 'Aucun vélo ne correspond.',
     colourway: 'Coloris',
     colourwayN: 'Coloris {n}',
-    onlyColour: 'Un seul coloris pour ce vélo dans Zwift, sans teinte réglable.',
+    onlyColour: 'Ce vélo est disponible dans un seul coloris, sans teinte réglable.',
     variants: 'Variantes par type de vélo',
     typeRoute: 'Route',
     typeChrono: 'Chrono',
@@ -90,7 +90,7 @@ const S = strings(
     admin: 'Manage V3 items',
     roadAria: 'Effect on the road',
     effectLine: 'Riding: {kg} kg · drag {drag} %',
-    effectTitle: 'Bike {bike} kg + gear {gear} kg (Zwift weight and drag); applied to the next ride in V3 style. Tyres: {tyre}.',
+    effectTitle: 'Bike {bike} kg + gear {gear} kg. Weight and drag apply to the next Beta ride. Tyres: {tyre}.',
     tyreMtb: 'MTB',
     tyreGravel: 'gravel',
     tyreRoad: 'road',
@@ -139,7 +139,7 @@ const S = strings(
     noBike: 'No bike matches.',
     colourway: 'Colourway',
     colourwayN: 'Colourway {n}',
-    onlyColour: 'Only one colourway for this bike in Zwift, with no adjustable tint.',
+    onlyColour: 'This bike comes in one colourway, with no adjustable tint.',
     variants: 'Variants by bike type',
     typeRoute: 'Road',
     typeChrono: 'Time trial',
@@ -163,13 +163,13 @@ export interface V3GarageActions {
   playing(on: boolean): void;
   /** Pièce à faire pulser sur le coureur (récompense venue de la page Progression). */
   highlight?(target: V3Glow, delayed?: boolean): void;
-  /** Photo d'un article porté par le coureur V3 (vignettes des articles sans icône Zwift). */
+  /** Photo d'un article porté par le coureur V3 (vignettes des articles sans icône dans le catalogue). */
   photo?(item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean): Promise<string>;
   /** Silhouette effective du coureur V3. */
   sex?(): 'male' | 'female' | undefined;
-  /** Photo de profil d'un vélo sans icône Zwift. */
+  /** Photo de profil d'un vélo sans icône dans le catalogue. */
   photoBike?(id: string, wanted: () => boolean): Promise<string>;
-  /** Photo de profil d'une roue sans icône Zwift. */
+  /** Photo de profil d'une roue sans icône dans le catalogue. */
   photoWheel?(id: string, wanted: () => boolean): Promise<string>;
   /** Tête nue (casque retiré) tant que la catégorie Cheveux est ouverte. */
   bareHead?(on: boolean): void;
@@ -216,7 +216,7 @@ const pick = <T>(list: T[]): T | undefined => list[Math.floor(Math.random() * li
 let bikePhoto: ((id: string, wanted: () => boolean) => Promise<string>) | undefined;
 
 function bikeIcon(bike: V3Bike | undefined, big = false): HTMLElement {
-  // Tous les vélos en photo de profil roues comprises (les icônes Zwift ne montrent que le cadre).
+  // Tous les vélos en photo de profil roues comprises (les icônes du catalogue ne montrent que le cadre).
   if (!bike?.preview || bikePhoto) {
     const empty = document.createElement('span');
     empty.className = 'mm-bikeicon' + (big ? ' big' : '');
@@ -248,7 +248,7 @@ function bikeIcon(bike: V3Bike | undefined, big = false): HTMLElement {
 
 /**
  * Garage V3 sur le modèle du garage Réel et Poly : trois rubriques (Tenue, Vélo, Personnage) en tête
- * du panneau (`top`), leur contenu dans le corps (`panel`). Ressources Zwift locales, développement seulement.
+ * du panneau (`top`), leur contenu dans le corps (`panel`).
  */
 export function createV3Garage(actions: V3GarageActions) {
   bikePhoto = actions.photoBike;
@@ -311,7 +311,7 @@ export function createV3Garage(actions: V3GarageActions) {
   });
   panel.append(profiles.element);
   /**
-   * Effet du vélo et des accessoires sur la sortie (poids, traînée) d'après leurs caractéristiques Zwift :
+   * Effet du vélo et des accessoires sur la sortie (poids, traînée) d'après leurs caractéristiques dans le catalogue :
    * affiché sous la fiche du vélo et enregistré pour la prochaine sortie en style V3.
    */
   let gearItems: V3Gear[] = [];
@@ -440,7 +440,7 @@ export function createV3Garage(actions: V3GarageActions) {
     sexSeg.append(button);
   }
   sexField.append(S('silhouette'));
-  // Corps Zwift : standard, mince, fort (le corps fort n'existe que pour le coureur).
+  // Silhouettes : standard, mince, fort (le corps fort n'existe que pour le coureur).
   const bodyField = document.createElement('div');
   bodyField.className = 'field';
   const bodySeg = document.createElement('div');
@@ -558,7 +558,7 @@ export function createV3Garage(actions: V3GarageActions) {
   focusText.append(focusName, focusType, effectLine);
   focus.append(bikeIcon(undefined, true), focusText);
   bikes.section.append(focus);
-  // Teinte des coloris réglables de Zwift : fait tourner les couleurs de la peinture (noir, gris et blanc restent).
+  // Teinte des coloris réglables : fait tourner les couleurs de la peinture (noir, gris et blanc restent).
   // Proposée avec les coloris, sous le vélo choisi dans la liste.
   const hue = createHueControl(value => apply({ ...equipment, hue: value }), S('mainColour'), S('mainColourHint'));
   hue.field.title = S('hueTitle');
@@ -590,7 +590,7 @@ export function createV3Garage(actions: V3GarageActions) {
   };
   ride.append(play);
   settingsCard.append(ride);
-  // Roues (comme dans Zwift, pas de pneus à part : ils viennent avec les roues). Même présentation que la liste des
+  // Roues (les pneus sont inclus). Même présentation que la liste des
   // vélos : intitulé repliable (paire montée), puis lignes avec vignette, marques repliées sauf celle de la paire montée.
   const wheelField = document.createElement('div');
   wheelField.className = 'field';
@@ -618,7 +618,7 @@ export function createV3Garage(actions: V3GarageActions) {
       const empty = document.createElement('span');
       empty.className = 'mm-bikeicon v3-wheelicon';
       empty.innerHTML = V3_ICON.bike;
-      // Pas d'icône Zwift : roue photographiée au studio quand la ligne devient visible.
+      // Pas d'icône dans le catalogue : roue photographiée au studio quand la ligne devient visible.
       const photo = actions.photoWheel;
       if (wheel && photo) {
         const take = () => {
@@ -947,7 +947,7 @@ export function createV3Garage(actions: V3GarageActions) {
     const title = document.createElement('div');
     title.className = 'v3-color-title';
     title.textContent = S('colourway');
-    // Pastille de couleur de chaque coloris (couleur dominante de sa peinture), noms de Zwift souvent peu parlants.
+    // Pastille de couleur de chaque coloris (couleur dominante de sa peinture), noms du catalogue souvent peu parlants.
     const dot = (index: number) => {
       const swatch = document.createElement('i');
       swatch.className = 'v3-color-dot';

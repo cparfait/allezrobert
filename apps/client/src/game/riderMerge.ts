@@ -2,8 +2,7 @@ import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /**
- * Fusion des pièces des coureurs (inspirée des maillages fusionnés de MyWhoosh, `SM_MERGED_*`, et des LOD de
- * Zwift) : un coureur V3 envoie ~27 appels de dessin (cadre en 3 morceaux, fourche, dérailleurs, 9 morceaux de
+ * Fusion des pièces des coureurs : un coureur V3 envoie ~27 appels de dessin (cadre en 3 morceaux, fourche, dérailleurs, 9 morceaux de
  * corps…), et chaque appel coûte ~29 µs de processeur dans three.js (WebGPU), qui est la limite de l'image (mesure
  * du 17/11/2026). Ici, les pièces qui partagent le même matériau et ne bougent pas les unes par rapport aux autres
  * sont dessinées en une seule :

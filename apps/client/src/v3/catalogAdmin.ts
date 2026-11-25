@@ -84,7 +84,7 @@ const TABS: Array<{ id: string; label: string }> = [
   { id: 'bikes', label: 'Vélos' }, { id: 'wheels', label: 'Roues' },
 ];
 
-/** Marquage Zwift reconnaissable au nom (Zwift, ZC, ZRL, Watopia, Makuri, Neokyo, Academy…). */
+/** Motifs qui signalent un marquage dans le nom ou la variante d’un article. */
 const ZWIFT_NAME = /zwift|\bzc\b|\bzrl|\bzrs|\bza\b|watopia|makuri|neokyo|\btron|scotty|academy|big ?spin|drop ?shop/i;
 
 type Row = { key: string; name: string; detail: string; image?: string; zwift: boolean; gear?: V3Gear };
@@ -118,7 +118,7 @@ export async function openV3Admin(photo?: Photo): Promise<void> {
   const sexOf = (item: V3Gear) => (itemSex(item) === 'female' ? 'female' : 'male');
   const gearImage = (item: V3Gear) => {
     if (item.colors[0]?.preview && !needsPhoto(item)) return v3Resource('gear/' + item.id + '/thumb.png');
-    // Sans photo au studio : prise à l'affichage de la carte (l'icône de Zwift n'est qu'une texture à plat).
+    // Sans photo au studio : prise à l'affichage de la carte (l'icône du catalogue n'est qu'une texture à plat).
     return studio(photoKey(item, sexOf(item))) ?? (photo ? undefined : item.colors[0]?.preview ? v3Resource('gear/' + item.id + '/thumb.png') : undefined);
   };
   const bikeRow = (bike: V3Bike): Row => ({
@@ -132,7 +132,7 @@ export async function openV3Admin(photo?: Photo): Promise<void> {
   });
   const gearRow = (item: V3Gear): Row => ({
     key: keyOf('gear', item.id), name: item.name || item.variant, detail: item.variant + ' · n° ' + item.id + (itemSex(item) !== 'tous' ? ' · ' + (itemSex(item) === 'female' ? 'femme' : 'homme') : ''),
-    // Gamme « Originals » : maillots de Zwift, marqués de son logo même quand le nom ne le dit pas.
+    // Les maillots « Originals » portent un logo même quand leur nom ne le précise pas.
     image: gearImage(item), gear: item, zwift: ZWIFT_NAME.test(item.name + ' ' + item.variant) || /^Originals_/.test(item.variant),
   });
   const rowsOf = (tab: string): Row[] => tab === 'all' ? TABS.filter(row => row.id !== 'all').flatMap(row => rowsOf(row.id))
@@ -207,7 +207,7 @@ export async function openV3Admin(photo?: Photo): Promise<void> {
   }
   type Mode = 'all' | 'shown' | 'hidden' | 'zwift';
   let mode = 'all' as Mode;
-  const modes: Array<[Mode, string]> = [['all', 'Tous'], ['shown', 'Proposés'], ['hidden', 'Masqués'], ['zwift', 'Marqués Zwift']];
+  const modes: Array<[Mode, string]> = [['all', 'Tous'], ['shown', 'Proposés'], ['hidden', 'Masqués'], ['zwift', 'Articles signalés']];
   for (const [id, label] of modes) {
     const button = document.createElement('button');
     button.type = 'button';
@@ -266,7 +266,7 @@ export async function openV3Admin(photo?: Photo): Promise<void> {
     tags.className = 'v3-admin-tags';
     if (row.zwift) {
       const tag = document.createElement('span');
-      tag.textContent = 'Zwift';
+      tag.textContent = 'Signalé';
       tags.append(tag);
     }
     const toggle = document.createElement('button');
@@ -304,7 +304,7 @@ export async function openV3Admin(photo?: Photo): Promise<void> {
     showShown.textContent = 'Tout proposer (' + hiddenHere.length + ')';
     showShown.disabled = !hiddenHere.length;
     showShown.onclick = () => { void changeVisibility(hiddenHere.map(row => row.key), false); };
-    hideZwift.textContent = 'Masquer les marqués Zwift (' + zwiftHere.length + ')';
+    hideZwift.textContent = 'Masquer les articles signalés (' + zwiftHere.length + ')';
     hideZwift.disabled = !zwiftHere.length;
     hideZwift.onclick = () => { void changeVisibility(zwiftHere.map(row => row.key), true); };
     grid.replaceChildren(...rows.map(card));

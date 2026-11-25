@@ -151,7 +151,7 @@ span.mm-bikeicon { display: block; }
 .v3-inline-colors .gr-sub { font-size: 14px; padding: 7px 13px; }
 .v3-inline-colors > .field { flex: 1 0 100%; margin: 0; }
 .v3-inline-colors[hidden] { display: none; }
-/* Roues : vignettes Zwift (roue entière), sinon pictogramme de vélo. */
+/* Roues : vignettes du catalogue (roue entière), sinon pictogramme de vélo. */
 .ar-v3-garage .v3-wheelicon { object-fit: contain; }
 .ar-v3-garage span.v3-wheelicon { display: grid; place-items: center; color: #6f7a88; }
 .ar-v3-garage span.v3-wheelicon svg { width: 46%; height: 46%; }

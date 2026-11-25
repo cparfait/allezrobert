@@ -8,7 +8,7 @@ import { CINEMATIC_V3 } from '../v3/cinematicRiders.ts';
 /**
  * Style V3 (développement seulement) : coureurs IA et cyclistes croisés habillés comme le joueur, en vrais coureurs et
  * vélos V3. Ils reprennent les profils validés du film d'accueil (v3/cinematicRiders.ts : ni équipement, ni vélo, ni
- * roues marqués Zwift), choisis selon le sexe du coureur ; sans style V3, rien n'est créé.
+ * roues portant un logo du catalogue), choisis selon le sexe du coureur ; sans style V3, rien n'est créé.
  */
 const MALE = CINEMATIC_V3.filter((e) => e.sex !== 'female');
 const FEMALE = CINEMATIC_V3.filter((e) => e.sex === 'female');

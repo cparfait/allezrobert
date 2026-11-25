@@ -1,4 +1,4 @@
-"""Lisse les normales d'un GLB converti de Zwift : les sommets confondus dont les normales font moins de `angle` degrés
+"""Lisse les normales d'un GLB converti : les sommets confondus dont les normales font moins de `angle` degrés
 reçoivent leur normale moyenne (facettes supprimées), les vraies arêtes (au-delà) restent vives.
 Usage : python tools/v3_smooth_glb.py <entrée.glb> <sortie.glb> [angle=50]
 Sert aux casques par défaut du style V3, livrés tout faits par l'étude (sans normales stockées à reprendre)."""

@@ -2,7 +2,7 @@ import { DEFAULT_BIKE, type BikeSetup } from '@allezrobert/shared';
 import { mountedWheel, type V3Bike, type V3Equipment, type V3Gear, type V3Wheel } from './visuals.ts';
 
 /**
- * Vélo roulé du style V3, d'après les caractéristiques Zwift du vélo et des accessoires portés :
+ * Vélo roulé du style V3, d'après les caractéristiques du vélo et des accessoires portés :
  * poids total (cadre, fourche, roues, composants) et bonus de traînée (CdABias, m²), plus le poids et le bonus
  * des accessoires (casque, lunettes, chaussures, chaussettes). Même modèle que les vélos du jeu (BikeSetup) :
  * la sortie solo en style V3 roule avec ce vélo à la place de celui du garage Réel/Poly.
@@ -23,7 +23,7 @@ export interface V3BikeEffect {
   dragPct: number;
 }
 
-/** Pneus selon le type de vélo Zwift (le VTT et le gravel roulent mieux hors enrobé, moins bien sur route). */
+/** Pneus selon le type de vélo (le VTT et le gravel roulent mieux hors enrobé, moins bien sur route). */
 function tyreOf(type: string | undefined): BikeSetup['tyre'] {
   return type === 'vtt' ? 'mtb' : type === 'gravel' ? 'gravel' : 'road';
 }

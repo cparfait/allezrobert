@@ -344,7 +344,7 @@ col *= lum[..., None]
 lightc = col.mean(-1) > 0.5
 col[stitch] = np.where(lightc[stitch][:, None], col[stitch] * 0.82, col[stitch] * 1.0 + 0.10)
 
-# Plis : ombrage doux tiré de la normale Zwift (creux plus sombres), occlusion des coutures.
+# Plis : ombrage doux tiré de la normale de référence (creux plus sombres), occlusion des coutures.
 zn = np.asarray(Image.open(S + '/ref_normal.png').convert('RGB').resize((N, N), Image.BICUBIC), np.float32) / 255 * 2 - 1
 fold = np.clip(zn[..., 2], 0, 1)
 shade = 1 - 0.35 * (1 - fold) - 0.07 * np.where(seam_shadow, smooth(16, 2, dist_in), 0)
@@ -356,7 +356,7 @@ idx = ndi.distance_transform_edt(outside, return_distances=False, return_indices
 col = col[idx[0], idx[1]]
 Image.fromarray((np.clip(col, 0, 1) * 255).astype(np.uint8)).save(OUT + '-diffuse.png')
 
-# Normale : normale Zwift + relief fin (mélange RNM simplifié).
+# Normale : normale de référence + relief fin (mélange RNM simplifié).
 hs = ndi.gaussian_filter(height, 0.6)
 gx = ndi.sobel(hs, 1) / 8; gy = ndi.sobel(hs, 0) / 8
 k = 0.9

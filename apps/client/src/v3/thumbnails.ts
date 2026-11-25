@@ -4,7 +4,7 @@ import { v3Resource } from '../engine/v3Access.ts';
 import { attachKit, BUILT_IN_BEARDS, freeGear, showSockHeight, getV3Catalog, getV3Gear, loadGearItem, loadRider, loadV3DisplayBike, loadV3DisplayWheel, restoreRider, showHairGeometry, type RiderVisual, type V3Gear } from './visuals.ts';
 
 /**
- * Vignettes du vestiaire V3 pour les articles sans icône Zwift (maillots, chaussettes, têtes, barbes…) :
+ * Vignettes du vestiaire V3 pour les articles sans icône dans le catalogue (maillots, chaussettes, têtes, barbes…) :
  * le coureur V3 porte l'article, photographié hors écran (fond transparent, éclairage de studio),
  * cadré sur la partie du corps concernée. Une prise à la fois ; gardées en mémoire et dans le cache du navigateur.
  */
@@ -13,7 +13,7 @@ const CACHE = 'ar-v3-vignettes-6';
 /** Version des photos gardées sur le serveur (out/v3/studio/<version>) : à changer avec CACHE quand le rendu change. */
 const STUDIO = v3Resource('studio/v6/');
 
-/** Vignette photographiée par le studio (sinon icône Zwift, ou pastille de couleur pour les chaussettes). */
+/** Vignette photographiée par le studio (sinon icône du catalogue, ou pastille de couleur pour les chaussettes). */
 /**
  * Clé de la photo d'un article ; têtes, coiffures et barbes en version « b » : photographiées sans la moustache
  * d'origine (les premières photos la montraient sur toutes les têtes).
@@ -35,7 +35,7 @@ function sexOfKey(key: string): 'male' | 'female' {
 }
 
 export function needsPhoto(item: V3Gear): boolean {
-  // Maillots et coiffures toujours photographiés (icônes Zwift : fond noir, ou mannequin d'un autre style).
+  // Maillots et coiffures toujours photographiés (icônes du catalogue : fond noir, ou mannequin d'un autre style).
   return item.type === 'CYCLING_JERSEY' || item.type === 'HAIR' || !item.colors[0]?.icon;
 }
 
@@ -219,7 +219,7 @@ export class V3ThumbnailStudio {
     return rider;
   }
 
-  /** Vélo sans icône Zwift : photo de profil, roues comprises (vignette 256 × 160, comme les icônes du catalogue). */
+  /** Vélo sans icône dans le catalogue : photo de profil, roues comprises (vignette 256 × 160, comme les icônes du catalogue). */
   photoBike(id: string, wanted: () => boolean = () => true): Promise<string> {
     const key = 'bike-' + id;
     let job = this.done.get(key);
@@ -231,7 +231,7 @@ export class V3ThumbnailStudio {
     return job;
   }
 
-  /** Roue sans icône Zwift : photo de profil de la roue avant (même format que les vignettes de vélos). */
+  /** Roue sans icône dans le catalogue : photo de profil de la roue avant (même format que les vignettes de vélos). */
   photoWheel(id: string, wanted: () => boolean = () => true): Promise<string> {
     const key = 'wheel-' + id;
     let job = this.done.get(key);
@@ -359,7 +359,7 @@ export class V3ThumbnailStudio {
       rider.scene.visible = true;
       // Trois quarts face, légèrement plongeant ; pieds vus un peu plus de côté.
       const { y, half, z = 0 } = framing(item.type);
-      // Maillot presque de face, comme les icônes Zwift ; pieds un peu de côté ; têtes de trois quarts.
+      // Maillot presque de face, comme les icônes du catalogue ; pieds un peu de côté ; têtes de trois quarts.
       const direction = item.type === 'CYCLING_JERSEY' ? new THREE.Vector3(1, 0.06, 0.22)
         : item.type === 'HAIR' ? new THREE.Vector3(-0.35, 0.25, 1) // trois quarts arrière : la coiffure, pas le visage
         : item.type === 'SOCKS' ? new THREE.Vector3(0.3, 0.12, 1) // de côté : le motif de la chaussette

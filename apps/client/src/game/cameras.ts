@@ -66,7 +66,7 @@ const CHASE_UP = 1.5;
 const PHOTO_MAX_YAW = 1.2;
 /**
  * Vue d'arrivée : angle de l'orbite (rad, négatif = vers la gauche du coureur), recul et hauteur (m). Trois-quarts avant
- * gauche : on voit le pied gauche posé (clip Zwift pied à terre) et, derrière, les IA rangées sur la gauche.
+ * gauche : on voit le pied gauche posé (clip pied à terre) et, derrière, les IA rangées sur la gauche.
  */
 const ARRIVAL_YAW = -1.9;
 const ARRIVAL_BACK = 3.6;

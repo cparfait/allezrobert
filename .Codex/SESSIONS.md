@@ -200,3 +200,11 @@ Extension publicites Poly : apps/client/src/world/polySponsors.ts, raccords dans
 - État : en cours.
 - Correctif appliqué localement, 25 tests ciblés réussis. Ancien modèle hors Git supprimé et deux modèles actifs vérifiés. Fichiers libérés.
 - Lot Bêta commité dans 65b3a76d. Vérification TypeScript réussie.
+
+
+## Mentions des ressources Bêta dans le code
+
+- Chantier : reformuler les textes affichés et commentaires qui citent l’origine des modèles Bêta.
+- Fichiers réservés : apps/client/src/v3/ (textes et commentaires), apps/client/scripts/v3Assets.ts, commentaires ciblés de apps/client/src/main.ts, game/cameras.ts, game/headgear.ts, game/peloton.ts, game/riderMerge.ts, game/v3Crowd.ts, ui/startRider.ts et ui/atelier.ts, commentaires de tools/v3_loc.py, tools/v3_smooth_glb.py, tools/menu-loop/src/capture.ts et tools/v3_kits/uae2026/ (scripts Python).
+- État : en cours. Aucun build de zones.
+- État final : libellés et commentaires reformulés. Comparaison du code confirmant que les données et la logique du catalogue sont identiques. TypeScript et 15 tests ciblés réussis. Fichiers libérés.

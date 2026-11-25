@@ -2,11 +2,11 @@ import type { V3Equipment } from './visuals.ts';
 
 /**
  * Les 10 coureurs du film d'accueil en style V3 (tools/menu-loop), dans l'ordre de la formation : Robert en tête
- * (cheveux et moustache gris, maillot jaune du Tour de France, Specialized faute de Lapierre chez Zwift), puis
- * 4 coureuses et 5 coureurs, validés le 16/11/2026. Ni équipement, ni vélo, ni roues (pneus marqués) Zwift ; maillots
- * du Tour de France ou d'équipes pro (dont la tenue UAE 2026 créée pour le V3 ; les « unis » de Zwift portent son logo) ;
+ * (cheveux et moustache gris, maillot jaune du Tour de France, vélo Specialized), puis
+ * 4 coureuses et 5 coureurs, validés le 16/11/2026. Équipement, vélos et roues choisis sans marquage du catalogue ; maillots
+ * du Tour de France ou d'équipes pro (dont la tenue UAE 2026 créée pour le V3 ; les maillots unis du catalogue portent un logo) ;
  * vélos de course ; pas de barbe ; chaussettes unies noires ou blanches.
- * Identifiants du catalogue local de Zwift (style V3 : développement seulement, rien de distribué).
+ * Identifiants du catalogue Bêta.
  */
 const SHAVEN = { id: 1670, color: 0 };
 

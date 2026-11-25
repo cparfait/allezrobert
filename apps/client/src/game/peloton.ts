@@ -128,7 +128,7 @@ const PARK_SIDESTEP_MS = 0.3;
 const PARK_PLAYER_GAP_M = 0.85;
 
 /**
- * Fin de relais : l'IA qui quitte la tête fait signe du coude au suivant de passer (clip Zwift existant
+ * Fin de relais : l'IA qui quitte la tête fait signe du coude au suivant de passer (clip
  * cyclistHoodsElbowFlick, joué une fois par-dessus la posture en selle). Le clip avance avec le pédalier : il est
  * déroulé par un angle de pédalier imposé, deux tours sur sa durée (1,33 s, soit 90 tr/min).
  */

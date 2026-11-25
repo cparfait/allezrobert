@@ -19,7 +19,7 @@ const S = strings(
     famCharities: 'Associations',
     famSpecials: 'Spéciaux',
     famPacks: 'Packs',
-    others: 'Zwift et autres',
+    others: 'Autres accessoires',
     teams: 'Équipes',
     otherJerseys: 'Autres',
     tint: 'Teinte',
@@ -63,7 +63,7 @@ const S = strings(
     famCharities: 'Charities',
     famSpecials: 'Specials',
     famPacks: 'Packs',
-    others: 'Zwift and others',
+    others: 'Other accessories',
     teams: 'Teams',
     otherJerseys: 'Others',
     tint: 'Tint',
@@ -105,7 +105,7 @@ const fill = (text: string, values: Record<string, string | number>): string => 
 type Actions = {
   equipment(equipment: V3Equipment): void;
   report(error: unknown): void;
-  /** Photo de l'article porté par le coureur V3 (articles sans icône Zwift). */
+  /** Photo de l'article porté par le coureur V3 (articles sans icône dans le catalogue). */
   photo?(item: V3Gear, sex: 'male' | 'female', wanted?: () => boolean): Promise<string>;
   /** Catégorie ouverte (les coiffures se montrent tête nue). */
   view?(type: string): void;
@@ -191,7 +191,7 @@ function familyRank(name: string): [number, string] {
 }
 
 /**
- * Réglage de teinte d'un coloris réglable de Zwift : décale la teinte des parties colorées de la peinture (le noir, le
+ * Réglage de la teinte d'un coloris : décale la teinte des parties colorées de la peinture (le noir, le
  * gris et le blanc ne changent pas). Avec la couleur dominante du coloris (`paint`), la piste montre les couleurs
  * obtenues et une pastille la couleur choisie.
  */
@@ -293,7 +293,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   reset.textContent = S('stock');
   reset.title = S('stockTitle');
   reset.disabled = true;
-  // Retirer la pièce (gants, casque, lunettes, chaussettes) : article « None » de Zwift, mains ou tête nues.
+  // Retirer la pièce (gants, casque, lunettes, chaussettes) : article « None » du catalogue, mains ou tête nues.
   const remove = document.createElement('button');
   remove.type = 'button';
   remove.className = 'gr-sub';
@@ -349,7 +349,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   }
   sockField.append(S('height'), sockSeg);
   sockField.hidden = true;
-  // Manches du maillot (pièces du corps Zwift) : courtes d'origine, longues avec col rond (coureur seulement).
+  // Manches du maillot (pièces du maillage du corps) : courtes d'origine, longues avec col rond (coureur seulement).
   const zipField = document.createElement('div');
   zipField.className = 'field';
   const zipSeg = document.createElement('div');
@@ -377,7 +377,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   });
   zipField.append(S('sleeves'), zipSeg);
   zipField.hidden = true;
-  // Poches arrière du maillot, de vides (d'origine) à pleines, comme dans Zwift.
+  // Poches arrière du maillot, de vides (d'origine) à pleines.
   const pocketField = document.createElement('div');
   pocketField.className = 'field';
   const pocketSeg = document.createElement('div');
@@ -433,14 +433,14 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
   });
   openField.append(S('zip'), openSeg);
   openField.hidden = true;
-  // Couleur des cheveux et de la barbe : six cases des planches Zwift, en pastilles comme le garage Réel.
+  // Couleur des cheveux et de la barbe : six cases des planches de textures, en pastilles comme le garage Réel.
   function hairColorRow(text: string, key: 'hairColor' | 'beardColor', tintKey: 'hairTint' | 'beardTint') {
     const row = document.createElement('div');
     row.className = 'gr-colors';
     const small = document.createElement('small');
     small.textContent = text;
     const swatches = document.createElement('div');
-    // Autre couleur : palette libre (comme le garage Réel), appliquée sur la case grise de la planche Zwift.
+    // Autre couleur : palette libre (comme le garage Réel), appliquée sur la case grise de la planche de textures.
     const custom = document.createElement('label');
     custom.className = 'gr-sw gr-custom';
     custom.title = S('otherColour');
@@ -567,8 +567,8 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     button.setAttribute('aria-label', label(item));
     const photo = actions.photo;
     if (photo && needsPhoto(item)) {
-      // Maillots toujours photographiés (fond transparent) : leurs icônes Zwift ont un fond noir opaque.
-      // Pas d'icône Zwift : pictogramme en attendant la photo de l'article porté.
+      // Maillots toujours photographiés (fond transparent) : leurs icônes dans le catalogue ont un fond noir opaque.
+      // Pas d'icône dans le catalogue : pictogramme en attendant la photo de l'article porté.
       button.classList.add('v3-chip-wait');
       button.insertAdjacentHTML('afterbegin', V3_SLOTS[item.type]?.icon ?? '');
       // Prise abandonnée (rubrique quittée avant son tour) : redemandée quand la pastille réapparaît.
@@ -688,7 +688,7 @@ export function addWardrobe(head: HTMLElement, parent: HTMLElement, settings: ()
     }
     sockField.hidden = type !== 'SOCKS';
     showSockHeight();
-    // Maillot ouvert : corps masculin seulement (le corps féminin de Zwift n'en a pas).
+    // Maillot ouvert : corps masculin seulement (le modèle féminin n'en a pas).
     // Manches longues : coureur seulement, et pas le corps fort (le maillot à manches longues n'y existe pas).
     zipField.hidden = type !== 'CYCLING_JERSEY' || riderSex() !== 'male' || resolvedBody(settings(), 'male') === 'big';
     showZipChoice();

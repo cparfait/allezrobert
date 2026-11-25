@@ -1,6 +1,6 @@
 /**
  * Portrait du joueur pour l'écran « Prêt à rouler ? » (style Bêta) : son coureur V3, avec sa tenue et son apparence
- * du garage, debout, mains sur les hanches : pose « debout à l'arrêt » de Zwift (CyclistStandingIdle01), telle quelle.
+ * du garage, debout, mains sur les hanches : pose « debout à l'arrêt » (CyclistStandingIdle01).
  * Photographié une fois hors écran par le moteur du jeu (comme les vignettes du vestiaire, v3/thumbnails.ts), puis
  * montré en image : rien ne tourne en continu pendant le chargement.
  */
@@ -101,7 +101,7 @@ async function shoot(o: Omit<PortraitOptions, 'cancelled'>): Promise<Blob | null
       if (performance.now() - t0 > 30_000) return null;
       await new Promise((r) => setTimeout(r, 120));
     }
-    // Debout à l'arrêt, mains sur les hanches (clip de Zwift, image de départ), sans vélo.
+    // Debout à l'arrêt, mains sur les hanches (première image du clip), sans vélo.
     visual.update(0, 0, 0, 'seated', { clip: 'CyclistStandingIdle01', helmet: true });
     const v3Group = holder.children[0];
     if (!v3Group) return null;

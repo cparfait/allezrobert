@@ -67,7 +67,7 @@ const neutrals = new WeakMap<V3Clip, Quaternion | null>();
 
 /**
  * Orientation moyenne de l'os racine (os_0) sur le clip : sa pose « droite ». L'écart à cette moyenne est
- * l'oscillation du coureur (danseuse, sprint) que Zwift fait suivre au vélo.
+ * l'oscillation du coureur (danseuse, sprint) transmise au vélo.
  */
 export function rootNeutral(clip: V3Clip): Quaternion | undefined {
   const known = neutrals.get(clip);
