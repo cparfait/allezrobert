@@ -204,6 +204,21 @@ export function updateRiderLight(root: THREE.Object3D, group: THREE.Object3D, di
   group.visible = !want;
 }
 
+/**
+ * Maillage témoin de la version légère (un triangle, mêmes attributs et même matériau) : posé le temps de la
+ * précompilation du départ. Sans lui, le premier coureur passé au-delà de 60 m compilait son shader en direct.
+ */
+export function riderLightWarmup(): THREE.Mesh {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 0.1, 0, 0, 0, 0.1, 0]), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(9).fill(1), 3));
+  g.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2]), 1));
+  g.computeVertexNormals();
+  const mesh = new THREE.Mesh(g, SHARED_MATERIAL);
+  mesh.castShadow = true;
+  return mesh;
+}
+
 /** Le coureur n'a pas encore de version légère (il faut que son rendu V3 soit chargé une fois, même de loin). */
 export function needsLightBuild(root: THREE.Object3D): boolean {
   return !states.get(root)?.mesh;

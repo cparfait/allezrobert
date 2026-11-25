@@ -133,6 +133,9 @@ export interface RiderSnapshot {
   pose: 'seated' | 'standing' | 'coasting';
   /** Sens de marche : 1 = sens de l'itinéraire (absent), -1 = après un demi-tour (distM sur l'itinéraire inversé). */
   dir?: 1 | -1;
+  /** IA : réserve d'énergie (W′, 0–100) et état notable. */
+  energy?: number;
+  effort?: 'attack' | 'chase' | 'cracked';
 }
 
 /** Marquages latéraux des chaussures (marques utilisées avec l'accord déclaré par le porteur du projet). */
@@ -549,6 +552,9 @@ export interface SnapshotRow {
   pose: 'seated' | 'standing' | 'coasting';
   /** Sens de marche (défaut 1) ; -1 : `distM` est mesurée sur l'itinéraire inversé (L − distance). */
   dir?: 1 | -1;
+  /** IA : réserve d'énergie (W′, 0–100) et état notable (attaque, poursuite, cramée). */
+  energy?: number;
+  effort?: 'attack' | 'chase' | 'cracked';
 }
 
 /**
@@ -566,6 +572,8 @@ export interface CompactSnapshotMsg {
 
 export const SNAPSHOT_STRIDE = 10;
 const POSES = ['seated', 'standing', 'coasting'] as const;
+/** État d'une IA dans l'instantané compact (indice 0 : rien de notable). */
+const EFFORT_CODE = ['', 'attack', 'chase', 'cracked'] as const;
 
 export function encodeSnapshot(tick: number, t: number, rows: ArrayLike<SnapshotRow>, out: number[] = []): CompactSnapshotMsg {
   out.length = 0;
@@ -581,7 +589,9 @@ export function encodeSnapshot(tick: number, t: number, rows: ArrayLike<Snapshot
       r.hr === undefined ? -1 : Math.round(r.hr),
       Math.round(r.draftPct * 10),
       r.lap,
-      (r.pose === 'standing' ? 1 : r.pose === 'coasting' ? 2 : 0) + (r.dir === -1 ? 4 : 0),
+      // Posture (bits 0–1), demi-tour (bit 2), état de l'IA (bits 3–4) et énergie + 1 (bits 5 et plus, 0 = inconnue) :
+      // les anciens clients ne lisent que les bits 0 à 2, le format reste compatible dans les deux sens.
+      (r.pose === 'standing' ? 1 : r.pose === 'coasting' ? 2 : 0) + (r.dir === -1 ? 4 : 0) + 8 * (r.effort ? EFFORT_CODE.indexOf(r.effort) : 0) + (r.energy === undefined ? 0 : 32 * (Math.max(0, Math.min(100, Math.round(r.energy))) + 1)),
     );
   }
   return { k: tick, t, r: out };
@@ -611,6 +621,10 @@ export function decodeSnapshot(msg: CompactSnapshotMsg, roster: ReadonlyMap<numb
       pose: POSES[(r[i + 9] as number) & 3] ?? 'seated',
     };
     if (((r[i + 9] as number) & 4) !== 0) snap.dir = -1;
+    const flags = r[i + 9] as number;
+    const effort = EFFORT_CODE[(flags >> 3) & 3];
+    if (effort) snap.effort = effort;
+    if (flags >> 5 > 0) snap.energy = (flags >> 5) - 1;
     if (hr >= 0) snap.hr = hr;
     riders.push(snap);
   }

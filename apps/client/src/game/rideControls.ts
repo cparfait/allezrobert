@@ -12,7 +12,7 @@ export type CameraMode = 'chase' | 'cockpit' | 'action' | 'gopro' | 'drone' | 't
 const CAMERA_KEYS: readonly CameraMode[] = ['chase', 'cockpit', 'action', 'gopro', 'drone', 'tv', 'photo', 'free'];
 
 export type RideKeyAction =
-  | { kind: 'uturn' | 'lookBack' | 'cycleCamera' | 'toggleHud' | 'mute' | 'music' | 'nextTrack' | 'chat' | 'mic' | 'slowDown' | 'waitMe' | 'formation' | 'photo' | 'pause' | 'ghost' }
+  | { kind: 'uturn' | 'lookBack' | 'cycleCamera' | 'toggleHud' | 'mute' | 'music' | 'nextTrack' | 'chat' | 'mic' | 'slowDown' | 'waitMe' | 'teamAttack' | 'teamPull' | 'formation' | 'photo' | 'pause' | 'ghost' }
   | { kind: 'camera'; mode: CameraMode }
   | { kind: 'pace'; delta: 1 | -1 };
 
@@ -36,6 +36,8 @@ const LETTERS: Record<string, RideKeyAction['kind']> = {
   v: 'mic',
   r: 'slowDown',
   k: 'waitMe',
+  a: 'teamAttack',
+  e: 'teamPull',
   f: 'formation',
   p: 'photo',
   g: 'ghost',

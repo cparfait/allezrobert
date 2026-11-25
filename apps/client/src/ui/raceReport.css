@@ -1,0 +1,61 @@
+/* Bilan de course du résumé (ui/raceReportCard.ts), en gros blocs (ui/blocks.css). */
+.rr { display: flex; flex-direction: column; gap: 22px; margin-bottom: 22px; }
+.rr-title { font-size: clamp(22px, 2.4vw, 30px); }
+.rr-block-sec { display: flex; flex-direction: column; }
+/* Blocs du bilan : icône et nom sur une ligne, grande valeur, puis détail et état (lisibles même en colonnes étroites). */
+.rr .ab-tile:not(.ab-plain) { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: 'ico name' 'val val' 'detail detail' 'state state'; align-items: center; padding: 14px 16px; gap: 6px 10px; }
+.rr .ab-ico.sm { width: 38px; height: 38px; border-radius: 11px; }
+.rr .ab-ico.sm svg { width: 24px; height: 24px; }
+.rr .ab-name { align-self: center; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rr .ab-detail { font-size: 13px; }
+.rr .ab-val { min-height: 0; margin-top: 4px; }
+.rr .ab-val b { font-size: clamp(28px, 2.6vw, 38px); }
+.rr .ab-state { font-size: 13.5px; }
+/* Ma place : le bloc qui attire l'œil. */
+.rr-hero { border-color: rgba(255, 210, 63, 0.75); background: linear-gradient(180deg, rgba(64, 52, 14, 0.55), rgba(12, 16, 25, 0.9)); }
+.rr-hero .ab-ico { color: #ffd23f; background: rgba(255, 210, 63, 0.16); }
+.rr-hero .ab-val b { color: #ffd23f; }
+.rr-green .ab-ico { background: rgba(63, 166, 90, 0.18); color: #86efac; }
+.rr-kom .ab-ico { background: rgba(214, 58, 47, 0.16); color: #fca5a5; }
+/* Podium : marches de hauteurs différentes, la mienne en jaune. */
+.rr-finish { display: flex; flex-direction: column; gap: 16px; }
+.rr-podium { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 10px; max-width: 520px; margin: 0 auto; width: 100%; }
+.rr-step { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.rr-step-name { font-size: 15px; font-weight: 800; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-step small { font-size: 13px; color: #c3cddb; font-variant-numeric: tabular-nums; }
+.rr-block { width: 100%; margin-top: 6px; display: grid; place-items: center; border-radius: 14px 14px 6px 6px; font-size: 28px; font-weight: 900; color: #0a0e16; }
+.rr-step.s1 .rr-block { height: 92px; background: linear-gradient(180deg, #ffe37a, #ffd23f); }
+.rr-step.s2 .rr-block { height: 68px; background: linear-gradient(180deg, #e6ebf2, #b9c4d3); }
+.rr-step.s3 .rr-block { height: 52px; background: linear-gradient(180deg, #e7b58a, #c98a55); }
+.rr-step.me .rr-step-name { color: #ffd23f; }
+/* Autour de moi : place, nom, barre d'écart, écart. */
+.rr-around h4 { margin: 0 0 6px; font-size: 15px; font-weight: 800; color: #f5f7fa; }
+.rr-line { display: grid; grid-template-columns: 2.4em minmax(0, 1.2fr) minmax(60px, 1fr) 4.6em; align-items: center; gap: 12px; padding: 7px 10px; border-radius: 12px; }
+.rr-line + .rr-line { margin-top: 4px; }
+.rr-line.me { background: rgba(255, 210, 63, 0.14); box-shadow: inset 0 0 0 2px rgba(255, 210, 63, 0.6); }
+.rr-pos { display: grid; place-items: center; height: 30px; border-radius: 9px; background: rgba(255, 255, 255, 0.1); font-weight: 800; font-variant-numeric: tabular-nums; }
+.rr-line.me .rr-pos { background: #ffd23f; color: #0a0e16; }
+.rr-who { display: flex; flex-direction: column; min-width: 0; }
+.rr-who b, .rr-who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-who b { font-size: 15px; }
+.rr-who small { color: #c3cddb; font-size: 12.5px; }
+.rr-gapbar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.rr-gapbar i { display: block; height: 100%; min-width: 3px; border-radius: 4px; background: rgba(195, 205, 219, 0.55); }
+.rr-line.me .rr-gapbar i { background: #ffd23f; }
+.rr-gap { text-align: right; font-family: var(--mono, ui-monospace, monospace); font-weight: 700; font-variant-numeric: tabular-nums; }
+.rr-all { margin-top: 4px; }
+.rr-all summary { list-style: none; display: inline-block; margin-bottom: 8px; }
+.rr-all summary::-webkit-details-marker { display: none; }
+/* Tours : barre proportionnelle au temps, le meilleur en jaune. */
+.rr-laps { display: flex; flex-direction: column; gap: 8px; }
+.rr-lap { display: grid; grid-template-columns: 4.2em minmax(0, 1fr) 4.4em 7.5em; align-items: center; gap: 12px; font-size: 15px; }
+.rr-lap b { font-family: var(--mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; text-align: right; }
+.rr-lap small { color: #c3cddb; font-size: 13px; }
+.rr-lapbar { height: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.rr-lapbar i { display: block; height: 100%; border-radius: 6px; background: rgba(195, 205, 219, 0.5); }
+.rr-lap.best .rr-lapbar i { background: #ffd23f; }
+.rr-lap.best small { color: #ffe37a; font-weight: 700; }
+@media (max-width: 900px) {
+  .rr-line { grid-template-columns: 2.4em minmax(0, 1fr) 4.6em; }
+  .rr-gapbar { display: none; }
+}

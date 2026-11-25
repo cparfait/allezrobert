@@ -1,0 +1,31 @@
+/* Écran de fin d'étape du tour (tourPanel.ts) : podium, maillots, classements. */
+.tp-overlay { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px; background: rgba(6, 9, 15, 0.72); backdrop-filter: blur(6px); }
+.tp-card { width: min(980px, 100%); max-height: calc(100vh - 48px); overflow: auto; display: flex; flex-direction: column; gap: 16px; padding: 26px 28px; border-radius: 26px; border: 2px solid rgba(255, 255, 255, 0.1); background: linear-gradient(180deg, rgba(22, 29, 43, 0.97), rgba(12, 16, 25, 0.97)); color: var(--ar-fg, #f5f7fa); }
+.tp-podium { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 10px; max-width: 620px; width: 100%; margin: 6px auto 0; }
+.tp-step { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.tp-who { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.tp-who b { font-size: 17px; font-weight: 800; }
+.tp-who small { font-size: 12.5px; color: #c3cddb; }
+.tp-block { width: 100%; display: grid; place-items: center; border-radius: 14px 14px 4px 4px; font: 900 34px var(--mono, ui-monospace, monospace); color: #0a0e16; }
+.tp-step.s1 .tp-block { height: 120px; background: linear-gradient(180deg, #ffe27a, #e9b81d); }
+.tp-step.s2 .tp-block { height: 88px; background: linear-gradient(180deg, #e6ebf2, #b7c0cc); }
+.tp-step.s3 .tp-block { height: 64px; background: linear-gradient(180deg, #e3a76f, #b9773f); }
+.tp-step.me .tp-who b { color: var(--ar-accent, #ffd23f); }
+.tp-jersey { width: 28px; height: 28px; flex: none; vertical-align: middle; }
+.tp-leaders { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.tp-lead { display: flex !important; align-items: center; gap: 12px; padding: 12px 16px; }
+.tp-lead .tp-jersey { width: 40px; height: 40px; }
+.tp-lead small { display: block; font-size: 13px; color: #c3cddb; }
+.tp-lead b { font-size: 17px; font-weight: 800; }
+.tp-lead.me { border-color: var(--ar-accent, #ffd23f); }
+.tp-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tp-tab { appearance: none; display: inline-flex; align-items: center; gap: 6px; border: 2px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 7px 14px; font: 700 15px var(--font, system-ui); color: var(--ar-fg, #f5f7fa); background: rgba(255, 255, 255, 0.06); cursor: pointer; }
+.tp-tab .tp-jersey { width: 22px; height: 22px; }
+.tp-tab.on { border-color: var(--ar-accent, #ffd23f); background: rgba(255, 210, 63, 0.12); }
+.tp-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.tp-table td { padding: 7px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.tp-table td small { margin-left: 8px; color: #8d98a6; font-size: 12.5px; }
+.tp-table td.num { font-family: var(--mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; white-space: nowrap; width: 1%; }
+.tp-table td.num:last-child { text-align: right; }
+.tp-table tr.me td { background: rgba(255, 210, 63, 0.14); font-weight: 800; }
+@media (max-width: 720px) { .tp-leaders { grid-template-columns: 1fr; } }

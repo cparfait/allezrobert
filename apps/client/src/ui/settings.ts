@@ -80,6 +80,10 @@ export interface Settings {
   realWeather: boolean;
   /** Course sur une boucle : nombre de tours. */
   raceLaps: number;
+  /** Course locale : en ligne (départ groupé) ou contre-la-montre (départs décalés, sans aspiration). */
+  raceFormat?: 'road' | 'tt' | 'tour';
+  /** Tour à étapes : nombre d'étapes d'un nouveau tour (2–7). */
+  tourStages?: number;
   /** Sortie créée : même vélo pour tous (absent : oui en course, non en groupe). */
   equalEquipment?: boolean;
   /** Blocs du HUD masqués en sortie (identifiants de HUD_BLOCKS) : selon le matériel du coureur. */
@@ -137,6 +141,15 @@ export const DEFAULT_SETTINGS: Settings = {
 const KEY = 'ar.settings';
 
 /** Heure actuelle de l'ordinateur, en heures décimales (14,5 = 14 h 30). */
+/**
+ * Saison du jour (hémisphère nord, idée NCT Ride : le monde suit la période de l'année) : printemps du 20 mars au
+ * 20 juin, été jusqu'au 22 septembre, automne jusqu'au 20 décembre, hiver ensuite. Appliquée quand l'heure est réelle.
+ */
+export function seasonOfDate(d = new Date()): Season {
+  const md = (d.getMonth() + 1) * 100 + d.getDate();
+  return md >= 320 && md < 621 ? 'spring' : md >= 621 && md < 923 ? 'summer' : md >= 923 && md < 1221 ? 'autumn' : 'winter';
+}
+
 export function nowHour(): number {
   const d = new Date();
   return Math.round((d.getHours() + d.getMinutes() / 60) * 4) / 4;
@@ -152,7 +165,10 @@ export function loadSettings(): Settings {
         saved.realTime = true;
         localStorage.setItem('ar.hourRealDefault', '1');
       }
-      if (saved.realTime) saved.hour = nowHour();
+      if (saved.realTime) {
+        saved.hour = nowHour();
+        saved.season = seasonOfDate();
+      }
       if (!localStorage.getItem('ar.wxRealDefault')) {
         saved.realWeather = true;
         localStorage.setItem('ar.wxRealDefault', '1');
@@ -162,7 +178,7 @@ export function loadSettings(): Settings {
   } catch {
     // Réglages corrompus : on repart des valeurs par défaut.
   }
-  return migrateBike({ ...DEFAULT_SETTINGS, hour: nowHour() });
+  return migrateBike({ ...DEFAULT_SETTINGS, hour: nowHour(), season: seasonOfDate() });
 }
 
 /**

@@ -130,7 +130,8 @@ function ezTopOf(mesh: THREE.InstancedMesh, i: number): number {
 
 /** Couleurs de feuillage par saison (feuillus) — palettes de ART_DIRECTION.md. */
 const LEAVES: Record<Season, [string, string, string]> = {
-  spring: ['#7fb24a', '#a9cf6a', '#6e9e3f'],
+  // Printemps (idée NCT Ride) : une partie des feuillus en fleurs (teinte C, blanc rosé des pommiers et cerisiers).
+  spring: ['#7fb24a', '#a9cf6a', '#f0d6df'],
   summer: ['#4f7a32', '#6b8e3a', '#3f6a2b'],
   // Automne (P2.3d) : rouille et or rabattus, un arbre sur cinq environ encore vert olive (teinte C).
   autumn: CROWN_LOOK ? ['#a8642c', '#c39a45', '#66702f'] : ['#c8762c', '#e0a33a', '#9b3d1f'],
@@ -139,7 +140,7 @@ const LEAVES: Record<Season, [string, string, string]> = {
 
 /** Style jeu vidéo : feuillages plus vifs et plus clairs (vert pomme). */
 const LEAVES_LOWPOLY: Record<Season, [string, string, string]> = {
-  spring: ['#8cc84b', '#a6d65a', '#77b843'],
+  spring: ['#8cc84b', '#a6d65a', '#f6c9da'],
   summer: ['#6fae3f', '#86c04e', '#5d9a36'],
   autumn: ['#d98b2b', '#e8b23a', '#86b043'],
   winter: ['#6e5d4f', '#6e5d4f', '#6e5d4f'],
@@ -906,7 +907,7 @@ export class Vegetation {
    * Végétation réelle (tuile enrichie au LiDAR HD) : un arbre par sommet mesuré, à sa hauteur et
    * à la largeur de son houppier, haies et buissons ; aucun semis aléatoire.
    */
-  private addRealTile(tile: LoadedTile): void {
+  private *addRealTileSteps(tile: LoadedTile): Generator<void> {
     const t0 = performance.now();
     const f = tile.features;
     const T = this.trees;
@@ -994,6 +995,8 @@ export class Vegetation {
       }
     };
     for (let i = 0; i + 3 < trees.length; i += 4) {
+      // Placement découpé (file de travail du monde) : 256 arbres par pas ; les blocs ne sont créés qu'au dernier.
+      if ((i & 1023) === 0) yield;
       const x0 = trees[i] as number;
       const z0 = trees[i + 1] as number;
       const h0 = trees[i + 2] as number;
@@ -1079,6 +1082,7 @@ export class Vegetation {
     }
     const shrubs = f.shrubs ?? [];
     for (let i = 0; i + 2 < shrubs.length; i += 3) {
+      if (i % 768 === 0) yield;
       const x0 = shrubs[i] as number;
       const z0 = shrubs[i + 1] as number;
       const h = shrubs[i + 2] as number;
@@ -1188,10 +1192,17 @@ export class Vegetation {
 
   /** Place les arbres d'une tuile (déterministe) et crée ses blocs instanciés. */
   addTile(tile: LoadedTile): void {
-    if (tile.features.realVegetation) {
-      this.addRealTile(tile);
-      return;
-    }
+    for (const _ of this.addTileSteps(tile));
+  }
+
+  /** Comme `addTile`, en plusieurs pas pour la file de travail du monde (arbres mesurés seulement : les plus lourds). */
+  *addTileSteps(tile: LoadedTile): Generator<void> {
+    if (tile.features.realVegetation) yield* this.addRealTileSteps(tile);
+    else this.addSeededTile(tile);
+  }
+
+  /** Arbres semés (tuile sans végétation mesurée). */
+  private addSeededTile(tile: LoadedTile): void {
     const r = rng(tile.tx * 73856093 + tile.tz * 19349663);
     const tries = Math.floor(((tile.size * tile.size) / 100) * this.q.treeDensity * 0.45);
     const per = new Map<string, { decid: THREE.Matrix4[]; conif: THREE.Matrix4[]; larch: THREE.Matrix4[] }>();

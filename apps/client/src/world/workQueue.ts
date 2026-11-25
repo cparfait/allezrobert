@@ -6,8 +6,23 @@
  */
 import { frameStats } from '../engine/frameStats.ts';
 
+/**
+ * Tâche : `run` fait tout d'un coup, ou renvoie un itérateur (générateur) que la file fait avancer pas à pas dans le
+ * budget de chaque image (construction des bâtiments d'une tuile : plus de 300 ms d'un bloc sinon).
+ */
+interface Task {
+  run: () => unknown;
+  priority: number;
+  seq: number;
+  label: string;
+  started?: boolean;
+  it?: Iterator<unknown>;
+}
+
+const isIterator = (r: unknown): r is Iterator<unknown> => !!r && typeof (r as Iterator<unknown>).next === 'function';
+
 export class WorkQueue {
-  private readonly tasks: Array<{ run: () => void; priority: number; seq: number; label: string }> = [];
+  private readonly tasks: Task[] = [];
   private seq = 0;
 
   get size(): number {
@@ -15,7 +30,7 @@ export class WorkQueue {
   }
 
   /** `label` : nom du poste pour le panneau de performance (F3). */
-  defer(run: () => void, priority = 0, label = 'construction'): void {
+  defer(run: () => unknown, priority = 0, label = 'construction'): void {
     this.tasks.push({ run, priority, seq: this.seq++, label });
   }
 
@@ -27,15 +42,29 @@ export class WorkQueue {
     const start = now();
     let done = 0;
     while (this.tasks.length && (done === 0 || now() - start < budgetMs)) {
-      const t = this.tasks.shift() as { run: () => void; label: string };
+      const t = this.tasks[0] as Task;
       done++;
       const t0 = frameStats.enabled ? performance.now() : 0;
+      let finished = true;
       try {
-        t.run();
+        if (!t.started) {
+          t.started = true;
+          const r = t.run();
+          if (isIterator(r)) t.it = r;
+        }
+        // Tâche découpée (itérateur) : avancée pas à pas dans le budget, reprise à l'image suivante sinon.
+        if (t.it) {
+          let r: IteratorResult<unknown>;
+          do r = t.it.next();
+          while (!r.done && now() - start < budgetMs);
+          finished = !!r.done;
+        }
       } catch (e) {
         console.warn('Tâche de chargement du monde en échec', e);
       }
       if (frameStats.enabled) frameStats.add(t.label, performance.now() - t0);
+      if (finished) this.tasks.shift();
+      else break;
     }
     return done;
   }

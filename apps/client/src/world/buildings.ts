@@ -1018,6 +1018,15 @@ export class Buildings {
   }
 
   addTile(tile: LoadedTile): void {
+    for (const _ of this.addTileSteps(tile));
+  }
+
+  /**
+   * Construction des bâtiments d'une tuile, un bâtiment par pas (file de travail du monde, workQueue.ts) : d'un bloc,
+   * une tuile de village prenait plus de 300 ms et figeait l'image. Le maillage n'est ajouté qu'au dernier pas :
+   * abandonnée en route (tuile déchargée), la construction ne laisse rien.
+   */
+  *addTileSteps(tile: LoadedTile): Generator<void> {
     if (LOW_POLY && this.paris && !this.eiffel && ownsEiffelTower(tile)) {
       const { x, z, angle } = EIFFEL_SITE;
       const y = this.groundAt(x, z);
@@ -1053,6 +1062,7 @@ export class Buildings {
     const source = tile.buildingSource?.worldId;
     const ileDeFrance = source ? source.startsWith('idf-') || source === 'montmartre' : this.ileDeFrance;
     for (const bld of tile.features.buildings) {
+      yield;
       if (this.eiffel?.tileId === tile.id && isEiffelSourceBuilding(bld.id)) continue;
       if (this.longchamp.get(tile.id)?.buildings && isLongchampSourceBuilding(bld.id)) continue;
       if (bld.pts.length < 6) continue;
@@ -1330,7 +1340,8 @@ export class Buildings {
         parts.push(spire);
       }
     }
-    if (!parts.length) return;
+    if (!parts.length || this.tiles.has(tile.id)) return;
+    yield;
     const merged = mergeGeometries(
       parts.map((p) => (p.index ? p.toNonIndexed() : p)),
       false,

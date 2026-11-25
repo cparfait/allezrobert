@@ -25,6 +25,9 @@ renders/
 # serveur à part (docs/DEPLOY.md) ; les images fixes still-<saison>.jpg restent versionnées.
 apps/client/public/menu/loop-*.mp4
 apps/client/public/menu/loop-*.webm
+# Voix et moteur Piper du directeur sportif (~140 Mo) : récupérés par tools/piper/fetch-piper.mjs, copiés sur le
+# serveur à part comme les boucles du menu.
+apps/client/public/piper/
 .DS_Store
 Thumbs.db
 

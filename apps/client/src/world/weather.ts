@@ -39,6 +39,8 @@ export class Rain {
     this.mesh.frustumCulled = false;
     this.mesh.name = 'rain';
     this.mesh.visible = false;
+    // Précompilée au départ même masquée (engine/renderer.ts, withAllLevels) : la pluie peut tomber en cours de sortie.
+    this.mesh.userData.precompile = true;
   }
 
   update(rain: number, windMs: number, windFrom: number): void {

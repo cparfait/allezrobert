@@ -72,6 +72,26 @@ export class Trains {
     this.group.add(this.railMeshes);
   }
 
+  /**
+   * Voiture témoin, jamais affichée : posée le temps de la précompilation du départ. Sans elle, le premier train
+   * compilait ses shaders en direct à son arrivée (image figée).
+   */
+  warmup(): THREE.Object3D {
+    const g = new THREE.Group();
+    const bodies = this.lowPolyMat
+      ? [new THREE.Mesh(this.lowPolyGeometry('mid', LIVERIES[0] as string), this.lowPolyMat)]
+      : [new THREE.Mesh(this.geo.body, this.mats.ter), new THREE.Mesh(this.geo.body, this.mats.accent)];
+    for (const b of bodies) b.castShadow = true;
+    g.add(...bodies);
+    if (!this.lowPolyMat) g.add(new THREE.Mesh(this.geo.glass, this.mats.glass), new THREE.Mesh(this.geo.dark, this.mats.dark));
+    // Voie (ballast et rails), construite quand une tuile qui en porte se charge : mêmes géométries que `rebuild`.
+    const piece = strip([0, 0, 0, 0.1, 0, 0, 0, 0, 0.1, 0.1, 0, 0.1], 2);
+    const ballast = new THREE.Mesh(piece, this.mats.ballast);
+    ballast.receiveShadow = true;
+    g.add(ballast, new THREE.Mesh(piece, this.mats.rail));
+    return g;
+  }
+
   /** Voie ajoutée à la main (développement : `?fakerail`). */
   addRail(pts: number[]): void {
     this.extra.push({ id: -1 - this.extra.length, pts });

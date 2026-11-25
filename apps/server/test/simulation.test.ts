@@ -288,6 +288,9 @@ describe('RideSimulation — IA : pas de collision, dépassement propre', () => 
         const b = riders[j]!;
         const along = Math.abs(a.state.distM - b.state.distM);
         const across = Math.abs(a.lateralM - b.lateralM);
+        // Un humain plus rapide traverse en fondu celui qu'il rattrape (collision.ts `passThrough`) : voulu, pas compté.
+        const faster = Math.abs(a.state.speedMs - b.state.speedMs) > 0.3 ? (a.state.speedMs > b.state.speedMs ? a : b) : null;
+        if (faster && faster.kind !== 'ai') continue;
         // Marge de 15 cm : l'écart se fait en quelques pas.
         if (along < BIKE_LENGTH - 0.15 && across < BIKE_WIDTH - 0.15) worst = Math.max(worst, Math.min(BIKE_LENGTH - along, BIKE_WIDTH - across));
       }

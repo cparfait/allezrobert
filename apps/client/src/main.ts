@@ -13,6 +13,7 @@ import { GltfRiderAvatar, createAvatar } from './rider/gltfAvatar.ts';
 import { V3_STYLE } from './engine/style.ts';
 import { v3Resource } from './engine/v3Access.ts';
 import { V3Visual } from './v3/visuals.ts';
+import { readV3Equipment } from './v3/visuals.ts';
 import { hiddenV3Mount, settleV3 } from './game/v3Crowd.ts';
 import { syncV3Offline } from './v3/offline.ts';
 import { readV3BikeSetup } from './v3/physics.ts';
@@ -23,11 +24,20 @@ import { roadFeelFor } from './game/roadFeel.ts';
 import { FreeFlyCamera } from './game/freecam.ts';
 import { RideSession } from './game/ride.ts';
 import { KeyboardControls, type InputSource } from './game/inputs.ts';
-import { Peloton } from './game/peloton.ts';
-import { updateNearFade } from './game/nearFade.ts';
+import { LEADER_COLORS, Peloton, ttPowerW, type RaceTeams } from './game/peloton.ts';
+import { LEADER_V3_JERSEY } from './game/v3Crowd.ts';
+import { nearFadeProxies, releaseNearFade, updateNearFade } from './game/nearFade.ts';
+import { riderLightWarmup } from './game/riderLight.ts';
 import { aiEffortTag, energyPercent } from '@allezrobert/shared';
+import { DirecteurSportif } from './game/directeur.ts';
+import { DirectorVoice } from './audio/directorVoice.ts';
 import { MotoSchedule, RaceMoto, gapsLine, raceGroups } from './world/raceMoto.ts';
 import { RaceGapsChip } from './ui/raceGaps.ts';
+import { StartRamp } from './world/startRamp.ts';
+import { awaitedStart, triggerStart, waitForStart } from './ui/startButton.ts';
+import { addStage, currentStage, loadTour, newTour, saveTour, stageResult, standings as standingsOf, tourDone, tourLeaders, type StageKind, type StageResult, type Tour } from './game/stageRace.ts';
+import { raceReport } from './game/raceReport.ts';
+import { showTourPanel } from './ui/tourPanel.ts';
 /** Le joueur traverse en fondu les coureurs qu'il rattrape (?traverser=0 : ils s'écartent comme avant). */
 const PASS_THROUGH = new URLSearchParams(location.search).get('traverser') !== '0';
 import { separateRiders, type Body } from './game/collision.ts';
@@ -1271,11 +1281,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     inertiaFactor: s.inertia,
   });
   // Modèle du vélo (route, gravel, VTT) : celui du vélo équipé.
-  const riderLook = { ...s.look, heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' };
+  // Tour à étapes : maillots distinctifs gagnés aux étapes précédentes (le mien, et ceux des IA plus bas).
+  const tourBefore = s.mode === 'race' && s.raceFormat === 'tour' ? loadTour() : null;
+  const tourJerseys = tourBefore && !tourDone(tourBefore) ? tourLeaders(tourBefore) : {};
+  const myLead = tourJerseys.me;
+  const riderLook = { ...s.look, ...(myLead ? { jersey: LEADER_COLORS[myLead][0], jerseyAccent: LEADER_COLORS[myLead][1] } : {}), heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' };
   const avatar = createAvatar(riderLook);
   engine.scene.add(avatar.root);
   const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(hiddenV3Mount(avatar)) : undefined;
-  v3?.set(riderLook);
+  if (myLead) {
+    const eq = readV3Equipment();
+    v3?.set(riderLook, { ...eq, kit: { ...eq.kit, CYCLING_JERSEY: { id: LEADER_V3_JERSEY[myLead], color: 0 } } });
+  } else v3?.set(riderLook);
   // Équipement V3 de cette sortie gardé pour les sorties sans connexion.
   if (v3) syncV3Offline(riderLook);
   // Phare avant (la nuit) : projecteur fixé au vélo, sans ombre portée (coût).
@@ -1337,7 +1354,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let collisionSpawn: Awaited<ReturnType<Multiplayer['initialCollisionPose']>>;
   // Messages de connexion : affichés une fois l’écran « Préparation de la sortie… » retiré (sinon perdus dessous).
   const afterStart: string[] = [];
-  if (s.mode === 'group' || s.mode === 'race' || extras.publicRoom) {
+  // Contre-la-montre et tour à étapes : joués en local contre les IA du jeu (classements, départs décalés et sauvegarde
+  // du tour n'existent pas dans les salles du serveur).
+  const localRaceFormat = s.mode === 'race' && (s.raceFormat === 'tt' || s.raceFormat === 'tour') && !extras.publicRoom;
+  if ((s.mode === 'group' || s.mode === 'race' || extras.publicRoom) && !localRaceFormat) {
     // Profil (avatar) envoyé au compte juste avant l'entrée : les autres te voient comme tu te vois.
     try {
       collisionData = await loadRideCollisionData(source.id, track.route);
@@ -1410,15 +1430,48 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // monde ouvert et multijoueur : pas d'IA locale.
   const wantedAi = s.mode === 'free' ? (s.soloAiRiders ?? 0) : s.aiRiders;
   const aiCount = workout || mp || challenge || (s.mode !== 'free' && s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(wantedAi, 0), engine.quality.aiRidersMax);
-  const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
+  // Course : les IA sont réparties en équipes ; la mienne porte mon maillot (Réel, Poly et V3).
+  const myV3Jersey = readV3Equipment();
+  const raceTeams: RaceTeams | undefined =
+    s.mode === 'race' ? { jersey: s.look.jersey, jerseyAccent: s.look.jerseyAccent, leaders: tourJerseys, ...(myV3Jersey.kit?.CYCLING_JERSEY ? { v3: { piece: myV3Jersey.kit.CYCLING_JERSEY, ...(myV3Jersey.zip !== undefined ? { zip: myV3Jersey.zip } : {}) } } : {}) } : undefined;
+  const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1), raceTeams);
+  /** Contre-la-montre local (idée NCT Ride) : départs décalés de 30 s, le joueur part en dernier, sans aspiration. */
+  // Tour à étapes local (game/stageRace.ts) : étape en cours d'un tour sauvegardé, ou nouveau tour.
+  const tourMode = s.mode === 'race' && s.raceFormat === 'tour' && aiCount > 0;
+  let tour: Tour | null = null;
+  if (tourMode) {
+    tour = loadTour();
+    if (!tour || tourDone(tour)) {
+      tour = newTour(s.tourStages ?? 3, peloton.riders.map((r) => ({ id: r.id, name: r.name })), s.name);
+      saveTour(tour);
+    }
+    // Fatigue des étapes précédentes : FTP du jour réduite.
+    for (const [id, f] of Object.entries(tour.fatigue)) if (f > 0) peloton.setForm(id, 1 - f);
+  }
+  const tourStageKind: StageKind | null = tour ? (tour.stages[currentStage(tour)] ?? 'road') : null;
+  const timeTrial = ((s.mode === 'race' && s.raceFormat === 'tt') || tourStageKind === 'tt') && aiCount > 0;
+  const raceLengthM = track.route.loop ? s.raceLaps * track.length : Math.max(500, track.length - startD);
   /** Moto chrono (world/raceMoto.ts) : seulement en course avec des IA, pas en contre-la-montre (?moto=0 pour l'enlever). */
-  const raceMoto = s.mode === 'race' && aiCount > 0 && new URLSearchParams(location.search).get('moto') !== '0' ? new RaceMoto(engine.scene, track) : null;
+  const raceMoto = s.mode === 'race' && aiCount > 0 && !timeTrial && new URLSearchParams(location.search).get('moto') !== '0' ? new RaceMoto(engine.scene, track) : null;
   /** La moto passe de temps en temps ; les écarts restent affichés discrètement tant que la course est cassée. */
   const motoSchedule = new MotoSchedule();
   /** Écarts à l'écran : en course, contre-la-montre compris (seul affichage des écarts en chrono, sans moto). */
   const raceGaps = s.mode === 'race' && aiCount > 0 ? new RaceGapsChip() : null;
   // Course hors ligne : les IA roulent à 82 % de leur propre FTP (niveau × FTP du joueur), pas à l'allure du joueur.
   if (s.mode === 'race' && aiCount > 0) peloton.paceFtpPct = 0.82 * (s.aiLevel ?? 1);
+  if (timeTrial) peloton.setTimeTrial(startD, raceLengthM, 30);
+  /** Contre-la-montre : rampe de départ et compte à rebours de 10 s (?ramp=0 pour s'en passer). */
+  const startRamp = timeTrial && params.get('ramp') !== '0' ? new StartRamp(engine.scene, track, startD, ride.lateral) : null;
+  if (tour) peloton.setRaceLog(startD, raceLengthM);
+  let tourStageSaved = false;
+  if (tour) {
+    const k = currentStage(tour) + 1;
+    const L = getLang() === 'fr';
+    const kind = tourStageKind === 'tt' ? (L ? (k === 1 ? 'prologue contre-la-montre' : 'contre-la-montre') : 'time trial') : L ? 'course en ligne' : 'road stage';
+    const leader = tour.results.length ? standingsOf(tour).gc[0]?.name : null;
+    const t = tour;
+    setTimeout(() => hud.toast(`🏆 ${t.name} — ${L ? 'étape' : 'stage'} ${k}/${t.stages.length} : ${kind}${leader ? ` · 🟡 ${leader}` : ''}`), 4000);
+  }
   if (pilotCollision) peloton.enableBuildingCollisions(pilotCollision);
   const ghost = new Ghost(engine.scene, track, track.route.id, startD, { ...s.look, heightCm: s.heightCm });
   // Fantôme d'un ami (compte connecté, tour complet depuis le départ) : son meilleur tour sur cette boucle.
@@ -1446,6 +1499,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const L = getLang() === 'fr';
     const label = { single: L ? 'file indienne' : 'single file', double: L ? 'deux files tournantes' : 'double paceline', echelon: L ? 'bordure' : 'echelon' }[f];
     hud.toast(`${L ? 'Peloton' : 'Group'} : ${label}${pref === 'auto' ? (L ? ' (auto)' : ' (auto)') : ''}`);
+  };
+  peloton.onEscortEnd = (name, why) => {
+    const L = getLang() === 'fr';
+    hud.toast(why === 'cracked' ? (L ? `${name} est cramé, il ne peut plus rouler pour toi` : `${name} is cooked, can't pull any more`) : L ? `${name} a fini son relais pour toi` : `${name} is done pulling for you`);
   };
   peloton.onUTurn = (name) => hud.toast(getLang() === 'fr' ? `${name} fait demi-tour pour revenir au groupe` : `${name} turns back to rejoin the group`);
   // Source d'entrées après la ligne : mêmes capteurs, mais sans puissance ni pédalage.
@@ -1886,11 +1943,73 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   }
   // Départ : intro + compte à rebours HyperFrames, la sortie démarre au « go » (?nointro pour les tests).
   // Course en ligne : le départ est donné par le serveur (compte à rebours synchronisé), pas par l'intro.
-  const playIntro = () => {
+  /** Écran « Préparation de la sortie » retiré : le jeu est visible (le compte à rebours du chrono attend ce moment). */
+  let markRideShown = () => {};
+  const rideShown = new Promise<void>((r) => (markRideShown = r));
+  /** Contre-la-montre : compte à rebours de 10 s sur l'horloge de la rampe, gros chiffres et bips les 5 dernières. */
+  const ttCountdown = (ramp: StartRamp) => {
     ride.paused = true;
-    void sequences
-      .intro({ season: s.season, riders: peloton.riders.length + 1, rideType: s.mode })
-      .finally(() => (ride.paused = false));
+    void rideShown.then(() => waitForStart('tt')).then(() => runTtCountdown(ramp));
+  };
+  const runTtCountdown = (ramp: StartRamp) => {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;display:grid;place-items:center;pointer-events:none;z-index:40';
+    document.body.appendChild(el);
+    let ctx: AudioContext | null = null;
+    try {
+      ctx = new AudioContext();
+    } catch {
+      ctx = null;
+    }
+    const beep = (long: boolean) => {
+      if (!ctx) return;
+      const o = ctx.createOscillator();
+      const gain = ctx.createGain();
+      o.frequency.value = long ? 1320 : 880;
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (long ? 0.9 : 0.25));
+      o.connect(gain).connect(ctx.destination);
+      o.start();
+      o.stop(ctx.currentTime + (long ? 0.9 : 0.25));
+    };
+    const t0 = performance.now();
+    const TOTAL_S = 10;
+    let shown = -1;
+    const tick = () => {
+      const left = TOTAL_S - (performance.now() - t0) / 1000;
+      ramp.setClock(left);
+      const n = Math.ceil(left);
+      if (n !== shown) {
+        shown = n;
+        if (left > 0 && n <= 5) {
+          el.innerHTML = `<div class="mp-countdown">${n}</div>`;
+          beep(false);
+        }
+      }
+      if (left <= 0) {
+        el.innerHTML = `<div class="mp-countdown go">${getLang() === 'fr' ? 'Partez !' : 'Go!'}</div>`;
+        beep(true);
+        ride.paused = false;
+        setTimeout(() => {
+          el.remove();
+          void ctx?.close();
+        }, 1500);
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  };
+  const playIntro = () => {
+    if (startRamp) return ttCountdown(startRamp);
+    ride.paused = true;
+    const intro = () =>
+      sequences
+        .intro({ season: s.season, riders: peloton.riders.length + 1, rideType: s.mode })
+        .finally(() => (ride.paused = false));
+    // Course locale contre les IA : départ donné par le joueur, une fois installé (bouton « Lancer la course »).
+    if (s.mode === 'race' && !mp && peloton.riders.length) void rideShown.then(() => waitForStart('race')).then(intro);
+    else void intro();
   };
   // Écran de départ ouvert au clic sur « Rouler » : la sortie attend que le joueur valide ses capteurs.
   const check = startCheck;
@@ -2013,8 +2132,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     void mp?.dispose();
     void voice?.disconnect();
     coach?.voice.stop();
+    directorVoice.stop();
     raceMoto?.dispose();
     raceGaps?.dispose();
+    startRamp?.dispose();
+    releaseNearFade();
     tutorial?.stop();
     audio.dispose();
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
@@ -2204,6 +2326,18 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         withGroup: peloton.riders.length > 0 || !!mp || ride.group.draftS > 0,
         guest: s.guest,
         end: rideEndView(rideEnd, { fr: L, raceRank: room?.selfRank() ?? 0, oldFtp: ftpOutcome.oldFtp, canResume }),
+        ...(raceForReport
+          ? {
+              race: raceReport({
+                ...raceForReport,
+                marks: raceForReport.segs,
+                samples: ride.records,
+                raceLengthM,
+                lapM: track.route.loop ? track.length : null,
+                massKg: s.massKg,
+              }),
+            }
+          : {}),
         saved,
         trophies: trophies.map((t) => ({ name: t.name[getLang()], description: t.description[getLang()], xp: t.xp })),
         ...(challengeResult ? { challenge: challengeResult } : {}),
@@ -2356,12 +2490,119 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
    * quand un équipier repasse devant, « Ils s'organisent, ils reviennent sur toi ! » quand l'échappée fond.
    */
   const talk = new GroupTalk();
+  /** Contre-la-montre en cours (cible du directeur sportif plus haute, conseils d'allure). */
+  const dsTimeTrial = timeTrial;
+  /** Ta puissance de chrono : tenable sur la durée prévue (même calcul que les IA, W′ moyen 80 J par watt de FTP). */
+  const myTtWatts = ttPowerW(raceLengthM, s.ftpWatts, s.massKg, 80);
+  /** Contre-la-montre : prochain repère du joueur (0, 1 = intermédiaires, 2 = arrivée, 3 = fini). */
+  let ttMark = 0;
   const groupTalk = (dt: number) => {
     if (!peloton.riders.length || ride.dir < 0) return;
     let front = -Infinity;
     for (const r of peloton.riders) front = Math.max(front, r.state.distM);
     const line = talk.update(dt, ride.state.distM - front);
     if (line) hud.toast(line[getLang()]);
+    directeurTalk(dt);
+  };
+  /**
+   * Directeur sportif (game/directeur.ts, idée NCT Ride) : dans l'oreillette en course et en sortie de groupe avec des
+   * IA, et en contre-la-montre. Puissance cible d'après la FTP, attaques et défaillances, échappée, derniers mètres.
+   * ?ds=0 pour le faire taire.
+   */
+  const directeur = new DirecteurSportif();
+  /** Arrivée du contre-la-montre : classement (branché par le tour à étapes). */
+  let onTimeTrialFinish = null as ((res: Array<{ name: string; t: number; me?: boolean }>) => void) | null;
+  /** Course locale arrivée (étape du tour, contre-la-montre) : de quoi faire le bilan de course du résumé (game/raceReport.ts). */
+  let raceForReport: { result: StageResult; segs: ReadonlyArray<{ kind: 'kom' | 'sprint'; name: string; atM: number; lengthM: number }>; riders: Record<string, { name: string; team?: string }> } | null = null;
+  const directorVoice = new DirectorVoice();
+  const dsOn = new URLSearchParams(location.search).get('ds') !== '0';
+  if (dsOn && peloton.riders.length) directorVoice.warm();
+  const aiStates = new Map<string, string>();
+  const directeurTalk = (dt: number) => {
+    if (!dsOn || ride.paused) return;
+    const attacks: string[] = [];
+    const cracks: string[] = [];
+    let ahead: number | null = null;
+    let behind: number | null = null;
+    for (const r of peloton.riders) {
+      const prev = aiStates.get(r.id);
+      const st = r.ai.state;
+      if (prev !== undefined && prev !== st && Math.abs(r.state.distM - ride.state.distM) < 120) {
+        if (st === 'attack') attacks.push(r.name);
+        else if (st === 'cracked') cracks.push(r.name);
+      }
+      aiStates.set(r.id, st);
+      const gap = r.state.distM - ride.state.distM;
+      if (gap > 2 && (ahead === null || gap < ahead)) ahead = gap;
+      if (gap < -2 && (behind === null || -gap < behind)) behind = -gap;
+    }
+    // Contre-la-montre : temps aux intermédiaires (1/3, 2/3) comparés aux IA parties avant, puis classement à l'arrivée.
+    if (timeTrial && ttMark < 3) {
+      const done = ride.state.distM - startD;
+      const mark = ttMark < 2 ? (raceLengthM * (ttMark + 1)) / 3 : raceLengthM;
+      if (done >= mark) {
+        if (ttMark < 2) {
+          const c = peloton.ttCheckpoint(ttMark, ride.elapsedS);
+          const l = DirecteurSportif.checkpoint(c.deltaS, c.rival);
+          hud.toast(`⏱ ${l[getLang()]}`);
+          if (dsOn) directorVoice.say(l);
+        } else {
+          const res = peloton.ttResults(s.name, ride.elapsedS);
+          const rank = res.findIndex((x) => x.me) + 1;
+          const best = res[0];
+          const L = getLang() === 'fr';
+          const gap = best && !best.me ? Math.round(ride.elapsedS - best.t) : 0;
+          const l = { fr: rank === 1 ? `Victoire ! Meilleur temps, ${Math.round((res[1]?.t ?? ride.elapsedS) - ride.elapsedS)} secondes d’avance.` : `Tu termines ${rank}e, à ${gap} secondes de ${best?.name}.`, en: rank === 1 ? 'Win! Fastest time.' : `You finish ${rank}th, ${gap} seconds behind ${best?.name}.`, urgent: true };
+          hud.toast(`🏁 ${L ? l.fr : l.en}`);
+          if (dsOn) directorVoice.say(l);
+          onTimeTrialFinish?.(res);
+          // Contre-la-montre seul (hors tour, dont l'étape est notée plus bas) : classement pour le bilan.
+          if (!tour) {
+            const id = (x: { name: string; me?: boolean }) => (x.me ? 'me' : x.name);
+            raceForReport = {
+              result: { kind: 'tt', route: track.route.name || track.route.id, times: Object.fromEntries(res.map((x) => [id(x), x.t])), order: res.map(id), marks: [] },
+              segs: [],
+              riders: Object.fromEntries(res.map((x) => [id(x), { name: x.name }])),
+            };
+          }
+        }
+        ttMark++;
+      }
+    }
+    // Tour à étapes : relevé du joueur, puis à l'arrivée l'étape est classée, sauvegardée et le podium s'affiche.
+    if (tour && !tourStageSaved) {
+      peloton.logRider('me', s.name, ride.state.distM, ride.elapsedS);
+      if (ride.state.distM - startD >= raceLengthM) {
+        tourStageSaved = true;
+        const log = peloton.raceLog();
+        if (log) {
+          const result = stageResult(tourStageKind ?? 'road', track.route.name || track.route.id, log, ride.elapsedS);
+          raceForReport = { result, segs: log.segs, riders: Object.fromEntries(tour.riders.map((r) => [r.id, { name: r.name, team: r.team }])) };
+          tour = addStage(tour, result, peloton.fatigueOf());
+          saveTour(tour);
+          const t = tour;
+          setTimeout(() => void showTourPanel(t, result), 2500);
+        }
+      }
+    }
+    const lines = directeur.update(dt, {
+      watts3s: ride.watts3s(),
+      ftpWatts: s.ftpWatts,
+      gradePercent: sample.grade,
+      timeTrial: dsTimeTrial,
+      ...(dsTimeTrial ? { ttWatts: myTtWatts } : {}),
+      gapAheadM: ahead,
+      gapBehindM: behind,
+      speedMs: ride.state.speedMs,
+      remainingM: track.route.loop ? null : track.length - ride.state.distM,
+      attacks,
+      cracks,
+    });
+    directorVoice.muted = audio.isMuted();
+    for (const l of lines) {
+      hud.toast(`🎧 ${l[getLang()]}`);
+      directorVoice.say(l);
+    }
   };
   /** Équipiers : allure du groupe en % de FTP (±5 %). */
   const changePace = (delta: number) => {
@@ -2380,6 +2621,20 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (!peloton.riders.length) return;
     peloton.waitForMe();
     hud.toast(getLang() === 'fr' ? '« Attendez-moi ! »' : '“Wait for me!”');
+  };
+  /** « Attaque ! » : l'équipier le plus frais attaque (touche A, compagnon). */
+  const teamAttack = () => {
+    if (!peloton.riders.length) return;
+    const name = peloton.orderAttack();
+    const L = getLang() === 'fr';
+    hud.toast(name ? (L ? `« Vas-y ${name}, attaque ! »` : `“Go ${name}, attack!”`) : L ? 'Personne n’a assez de jus pour attaquer' : 'Nobody has the legs to attack');
+  };
+  /** « Roule pour moi » : l'équipier le plus frais vient rouler devant (touche E, compagnon). */
+  const teamPull = () => {
+    if (!peloton.riders.length) return;
+    const name = peloton.orderPull();
+    const L = getLang() === 'fr';
+    hud.toast(name ? (L ? `« ${name}, roule pour moi ! » — reste dans sa roue` : `“${name}, pull for me!” — stay on the wheel`) : L ? 'Aucun équipier assez frais pour rouler' : 'No teammate fresh enough to pull');
   };
   /** Forme du peloton : auto → file indienne → deux files → bordure. */
   const cycleFormation = () => {
@@ -2458,6 +2713,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         return slowDown();
       case 'waitMe':
         return waitMe();
+      case 'teamAttack':
+        return teamAttack();
+      case 'teamPull':
+        return teamPull();
       case 'formation':
         return cycleFormation();
       case 'photo':
@@ -2487,7 +2746,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const hands = new THREE.Vector3();
   let hudAcc = 0;
   let remoteRiders: InterpolatedRider[] = [];
-  let prevHeading = Number.NaN;
   // Chacun sa moitié de chaussée : le joueur ne passe pas sur celle de qui arrive en face (équipier, cycliste,
   // véhicule, autre joueur dans l'autre sens) ; voir lanes.ts.
   ride.oncoming = (d, dir, range) =>
@@ -2495,6 +2753,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     (cyclists?.approaching(d, dir, range) ?? false) ||
     (dir > 0 && (traffic?.oncomingAhead(d, range) ?? false)) ||
     remoteRiders.some((r) => r.dir === -dir && facingWithin((r.unwrappedM - d) * dir, range));
+  let prevHeading = Number.NaN;
   let bank = 0;
   // Monde ouvert : roues posées sur la chaussée du réseau (écart lissé au profil de l'itinéraire, et tangage).
   let roadDy = 0;
@@ -2702,6 +2961,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         const d = cyclists.update(dt, { distM: ride.state.distM, lateral: ride.lateral, speedMs: ride.state.speedMs }, engine.camera, peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM, lateral: r.lateral, speedMs: r.state.speedMs })), ride.dir);
         if (ride.dir > 0) ride.draft = Math.max(ride.draft, d);
       }
+      // Contre-la-montre : pas d'aspiration pour le joueur non plus.
+      if (timeTrial) ride.draft = 0;
     } else if (summitShown && !mp) {
       // Arrivée : sortie figée, mais les IA finissent leur course et vont se ranger pied à terre.
       peloton.settleAtFinish(dt);
@@ -2844,6 +3105,13 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       shownPos.y = ref + roadDy;
       pitch = roadPitch;
     }
+    if (startRamp) {
+      // Rampe du contre-la-montre : en haut de la plateforme au départ, puis la descente.
+      startRamp.update(ride.state.distM);
+      const lift = startRamp.liftAt(ride.state.distM);
+      shownPos.y += lift.dy;
+      pitch += lift.pitch * ride.dir;
+    }
     avatar.root.position.copy(shownPos);
     avatar.root.rotation.set(0, 0, 0);
     avatar.root.rotateY(shownHeading);
@@ -2886,7 +3154,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (v3) applyRiderShadows(avatar.root, true, (v3 as unknown as { group: THREE.Object3D }).group);
     lap('mon coureur');
     peloton.render(dt, engine.camera);
-    // Moto chrono (world/raceMoto.ts) : de temps en temps devant mon groupe quand la course est cassée ;
+    // Moto de l'ardoisier (world/raceMoto.ts) : de temps en temps devant mon groupe quand la course est cassée ;
     // écarts en une ligne discrète à l'écran.
     if (raceMoto || raceGaps) {
       const groups = ride.dir > 0 ? raceGroups([{ distM: ride.state.distM, me: true }, ...peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM }))]) : null;
@@ -2907,6 +3175,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const eyeOk = (rig.mode === 'cockpit' || rig.mode === 'action') && !!avatar.eyeWorld;
     if (eyeOk) avatar.eyeWorld?.(eye, hands);
     // Pendant un demi-tour, la caméra reste d'abord en place puis pivote doucement (voir camPos / camDir).
+    // Rampe du contre-la-montre : la caméra monte avec le coureur sur la plateforme.
+    if (startRamp) pos.y += startRamp.liftAt(ride.state.distM).dy;
     rig.update(dt, { position: camTurn ? camPos : pos, dir: camTurn ? camDir : dir, distM: ride.state.distM, speedMs: ride.state.speedMs, sign: ride.dir, buzz: buzzLevel(ride.surface), uturn: camTurn, subject: shownPos, ...(eyeOk ? { eye, hands } : {}) });
     // Coureurs collés à la caméra ou entre elle et mon coureur : estompés (game/nearFade.ts), caméra à jour.
     updateNearFade(dt, engine.camera, rig.mode === 'free' ? null : shownPos, (function* () {
@@ -3003,7 +3273,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
             ...remoteRiders.map((r) => {
               const p = track.sample(r.unwrappedM);
               const mass = mp?.net.roster.get(r.id)?.massKg ?? 75;
-              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, friend: mp?.net.friendIds.has(r.id) ?? false, speaking: voice?.speaking.has(r.name) ?? false, km: r.unwrappedM / 1000, watts: r.watts, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}) };
+              return { id: r.id, name: r.name, distM: r.unwrappedM, x: p.x, z: p.z, me: false, isAI: r.isAI, isGuest: r.isGuest, color: r.avatar.jersey, online: !r.isAI, friend: mp?.net.friendIds.has(r.id) ?? false, speaking: voice?.speaking.has(r.name) ?? false, km: r.unwrappedM / 1000, watts: r.watts, wkg: r.watts / mass, ...(r.avatar.nationality ? { nationality: r.avatar.nationality } : {}), ...(r.energy !== undefined ? { energy: r.energy } : {}), ...(r.effort ? { effort: r.effort } : {}) };
             }),
             ...(cyclists
               ? cyclists.roster(ride.state.distM, 400).map((c) => {
@@ -3089,7 +3359,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Pipelines des objets ajoutés pour la sortie (coureur, groupe, circulation) compilés avant la première image,
   // au lieu de figer la première image du jeu.
   // Bêta : coureurs V3 (joueur et groupe) chargés et affichés avant cette compilation (v3Crowd.ts, settleV3).
-  if (V3_STYLE) await settleV3([v3, ...peloton.riders.map((r) => r.v3)]);
+  // Fantôme compris : chargé après coup, il était compilé en direct à sa première apparition (≈ 1,5 s figée après l'intro).
+  if (V3_STYLE) await settleV3([v3, ghost.v3, ...peloton.riders.map((r) => r.v3)]);
+  ghost.refresh();
   performance.mark('ar:départ : objets de la sortie');
   // Phare et lampadaires : gardés seulement si la nuit est là ou peut tomber dans les huit heures (heure de la sortie).
   {
@@ -3097,26 +3369,55 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const hourNow = weatherAt(rideWeather, weatherElapsedS(rideWeather, ride.elapsedS, mp?.net.serverNow())).hour;
     nightLights.start(world.nightFactor() > 0 || nightWithin((h) => sunDirection(h, season).y, hourNow));
   }
-  // Moto chrono : modèle chargé et montré le temps de la compilation (sinon à-coup à sa première apparition).
+  // Moto de l'ardoisier : modèle chargé et montré le temps de la compilation (sinon à-coup à sa première apparition).
   if (raceMoto) {
     await raceMoto.ready;
     raceMoto.root.visible = true;
   }
+  // Témoins de ce qui n'apparaît qu'en roulant (premier train, premier coureur lointain en version légère) : compilés
+  // avec la scène puis retirés ; leurs shaders restent prêts.
+  const warmups = new THREE.Group();
+  warmups.add(trains.warmup(), riderLightWarmup());
+  warmups.position.copy(engine.camera.position);
+  engine.scene.add(warmups);
   await engine.compileScene(tileStage(startOverlay, 0.85, 1));
+  warmups.removeFromParent();
   performance.mark('ar:départ : objets compilés');
   // Laisse l'écran d'attente se peindre, puis fait les premières images (lentes) derrière lui : la première
   // compile la passe de scène, les suivantes les ombres (redessinées une image sur deux) et le post-traitement.
   await new Promise<void>((r) => setTimeout(r, 50));
-  for (let i = 0; i < 4; i++) engine.renderManual();
+  // Tout est dessiné, hors du champ compris : les ombres (végétation, banderoles) se compilent ici et non en roulant.
+  for (let i = 0; i < 4; i++) engine.renderUnculled();
+  performance.mark('ar:départ : ombres préparées');
   performance.mark('ar:premières images');
   if (raceMoto) raceMoto.root.visible = false;
   // Désormais, ce qui arrive dans la scène (tuiles, cyclistes) est compilé à l'avance avant d'être dessiné.
   engine.watchNewObjects(true);
+  // Fondu des coureurs proches (game/nearFade.ts) : copies tramées compilées en arrière-plan pendant que la carte de
+  // départ attend (sans rallonger le chargement), puis gardées toute la sortie. Sinon le premier coureur estompé
+  // figeait l'image. Un coureur par matériau encore jamais vu suffit : les shaders se partagent d'une copie à l'autre.
+  {
+    const seenMats = new Set<string>();
+    const fadeRoots = [...peloton.riders.map((r) => r.avatar.root), ...(cyclists ? cyclists.roots() : [])].filter((root) => {
+      let fresh = false;
+      root.traverse((o) => {
+        const m = (o as THREE.Mesh).material;
+        if (!(o as THREE.Mesh).isMesh || !m) return;
+        for (const mat of Array.isArray(m) ? m : [m]) {
+          const key = `${mat.type}|${mat.name}|${(o as THREE.SkinnedMesh).isSkinnedMesh ? 1 : 0}`;
+          if (!seenMats.has(key)) (seenMats.add(key), (fresh = true));
+        }
+      });
+      return fresh;
+    });
+    void engine.compileDetached(nearFadeProxies(fadeRoots)).then(() => performance.mark('ar:fondu compilé'));
+  }
   // Coureurs : niveau de détail choisi d'après la caméra de la sortie, niveaux masqués non recalculés.
   GltfRiderAvatar.camera = engine.camera;
   // Repère pour les outils de mesure (tools/perf) : la sortie commence.
   performance.mark('ar:ride-start');
   startOverlay.remove();
+  markRideShown();
   for (const text of afterStart) hud.toast(text);
   engine.renderer.setAnimationLoop(() => {
     background.drawn();
@@ -3183,7 +3484,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const d = ride.state.distM;
     const me = { id: mp?.net.selfId || 'me', name: s.name, gapM: 0, wkg: ride.watts3s() / s.massKg, color: s.look.jersey, me: true };
     const others = [
-      ...remoteRiders.map((r) => ({ id: r.id, name: r.name, gapM: r.unwrappedM - d, wkg: r.watts / (mp?.net.roster.get(r.id)?.massKg ?? 75), color: r.avatar.jersey, ai: r.isAI, online: !r.isAI })),
+      ...remoteRiders.map((r) => ({ id: r.id, name: r.name, gapM: r.unwrappedM - d, wkg: r.watts / (mp?.net.roster.get(r.id)?.massKg ?? 75), color: r.avatar.jersey, ai: r.isAI, online: !r.isAI, ...(r.energy !== undefined ? { energy: r.energy } : {}), ...(r.effort ? { effort: r.effort } : {}) })),
       ...peloton.riders.map((r) => {
         const effort = aiEffortTag(r.ai.state);
         return { id: r.id, name: r.name, gapM: r.state.distM - d, wkg: r.watts / r.massKg, color: r.color, ai: true, energy: energyPercent(r.ai.wPrime.fraction), ...(effort ? { effort } : {}) };
@@ -3195,6 +3496,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const wNext = w && workout ? workout.workout.steps[w.stepIndex + 1] : undefined;
     return {
       phase: pauseOpen ? 'paused' : 'ride',
+      ...(awaitedStart() ? { awaitingStart: awaitedStart()! } : {}),
       routeName: track.route.name,
       ...(nav ? { road: nav.roadName(d), open: true } : {}),
       multiplayer: !!mp,
@@ -3347,6 +3649,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         break;
       case 'waitMe':
         waitMe();
+        break;
+      case 'teamAttack':
+        teamAttack();
+        break;
+      case 'startRace':
+        triggerStart();
+        break;
+      case 'teamPull':
+        teamPull();
         break;
       case 'formation':
         cycleFormation();

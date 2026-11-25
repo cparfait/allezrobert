@@ -79,6 +79,19 @@ function withoutCulling<T>(renderer: THREE.WebGPURenderer, root: THREE.Object3D,
 function withAllLevels<T>(root: THREE.Object3D, compile: () => T): T {
   const saved: Array<() => void> = [];
   root.traverse((o) => {
+    // Objet masqué au départ mais qui peut apparaître en route (pluie) : `userData.precompile`.
+    if (o.userData.precompile && !o.visible) {
+      o.visible = true;
+      saved.push(() => (o.visible = false));
+    }
+    // Coureurs et vélos Bêta (v3/visuals.ts) : niveaux en nœuds frères « LOD0 », « LOD2 », « LOD5 » montrés à la main,
+    // pas un THREE.LOD. Sans eux, le premier changement de niveau après le départ compilait en direct (≈ 2 s figées).
+    const named = o.children.filter((c) => /^LOD\d+$/.test(c.name));
+    if (named.length > 1) {
+      const shown = named.map((c) => c.visible);
+      for (const c of named) c.visible = true;
+      saved.push(() => named.forEach((c, i) => (c.visible = shown[i] as boolean)));
+    }
     const lod = o as THREE.LOD;
     if (!lod.isLOD) return;
     const auto = lod.autoUpdate;
@@ -183,6 +196,17 @@ export interface Engine {
   render(): void;
   /** Rendu hors boucle d'animation (tests, captures) : avance le compteur d'images des nœuds. */
   renderManual(): void;
+  /**
+   * Image de préparation (derrière l'écran de chargement) : tout est dessiné, hors du champ compris, y compris dans
+   * la carte d'ombre. `compileScene` ne prépare que la passe de scène ; les ombres (végétation, banderoles…) se
+   * compilaient en direct à la première image où elles entraient dans le cadre du soleil.
+   */
+  renderUnculled(): void;
+  /**
+   * Compile `obj` en arrière-plan (file de `watchNewObjects`) sans jamais le dessiner : posé dans la scène hors de tout
+   * calque le temps de la compilation, puis retiré. Les pipelines restent prêts pour des objets de mêmes shaders.
+   */
+  compileDetached(obj: THREE.Object3D): Promise<void>;
 }
 
 /**
@@ -265,7 +289,12 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
    * construits par three.js même « en asynchrone ») que leur construction à l'apparition, étalée par
    * leurs propriétaires (blocs d'arbres : voir `Vegetation.pendingLod`).
    */
-  const queue: Array<{ obj: THREE.Object3D; restore: () => void }> = [];
+  /**
+   * `show` / `hide` : calques d'origine remis le temps de l'appel de compilation, puis retirés. three.js saute à la
+   * compilation les objets hors des calques de la caméra : sans cela, rien n'était préparé (premier train, voie,
+   * cyclistes compilés en direct à leur apparition).
+   */
+  const queue: Array<{ obj: THREE.Object3D; show: () => void; hide: () => void; restore: () => void }> = [];
   let busy = false;
 
   const isDrawable = (obj: THREE.Object3D): boolean => {
@@ -309,7 +338,10 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
     const job = queue.shift();
     if (!job) return;
     busy = true;
-    void compileObject(job.obj)
+    job.show();
+    const compiled = compileObject(job.obj);
+    job.hide();
+    void compiled
       .catch(() => undefined)
       .finally(() => {
         job.restore();
@@ -326,8 +358,10 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
     const objs: THREE.Object3D[] = [];
     obj.traverse((o) => objs.push(o));
     const masks = objs.map((o) => o.layers.mask);
-    for (const o of objs) o.layers.mask = 0;
-    queue.push({ obj, restore: () => objs.forEach((o, i) => (o.layers.mask = masks[i] as number)) });
+    const show = () => objs.forEach((o, i) => (o.layers.mask = masks[i] as number));
+    const hide = () => objs.forEach((o) => (o.layers.mask = 0));
+    hide();
+    queue.push({ obj, show, hide, restore: show });
     pipelineStats.pending = queue.length;
     pump();
   };
@@ -603,6 +637,25 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
       (highlightNode.value as THREE.Color).copy(grade.highlights);
       vignetteNode.value = grade.vignette;
       pipeline.render();
+    },
+    compileDetached(obj) {
+      if (!scenePass) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const objs: THREE.Object3D[] = [];
+        obj.traverse((o) => objs.push(o));
+        const masks = objs.map((o) => o.layers.mask);
+        const show = () => objs.forEach((o, i) => (o.layers.mask = masks[i] as number));
+        const hide = () => objs.forEach((o) => (o.layers.mask = 0));
+        hide();
+        scene.add(obj);
+        seen?.add(obj);
+        queue.push({ obj, show, hide, restore: () => (obj.removeFromParent(), resolve()) });
+        pipelineStats.pending = queue.length;
+        pump();
+      });
+    },
+    renderUnculled() {
+      withoutCulling(renderer, scene, () => engine.renderManual());
     },
   };
   engine.rebuildPipeline(q);

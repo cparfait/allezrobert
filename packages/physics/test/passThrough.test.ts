@@ -44,4 +44,15 @@ describe('traverser le coureur qu’on rattrape', () => {
     step([me, a, b], 60);
     expect(Math.abs(a.lateral - b.lateral) >= BIKE_WIDTH_M - 0.06 || b.distM - a.distM >= 1.79).toBe(true);
   });
+
+  it('une IA plus rapide qui rattrape le joueur le contourne (elle ne le traverse pas)', () => {
+    const me: Body = { distM: 10, lateral: 0, speedMs: 8, priority: true, passThrough: true };
+    const ai: Body = { distM: 8, lateral: 0.1, speedMs: 11 };
+    let apart = true;
+    for (let i = 0; i < 90; i++) {
+      step([me, ai], 1);
+      if (Math.abs(me.distM - ai.distM) < 1.79 && Math.abs(me.lateral - ai.lateral) < BIKE_WIDTH_M - 0.06) apart = false;
+    }
+    expect(apart).toBe(true);
+  });
 });

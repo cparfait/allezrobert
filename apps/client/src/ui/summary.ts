@@ -1,5 +1,7 @@
 import { getLang, strings } from '../i18n/index.ts';
 import type { RideSession } from '../game/ride.ts';
+import type { RaceReport } from '../game/raceReport.ts';
+import { raceReportHtml } from './raceReportCard.ts';
 import { CURVE_DURATIONS, durationLabel, POWER_ZONES, type RideHistoryEntry, type RideStats } from '../game/stats.ts';
 import type { HistoryRide, RideFeedback } from '@allezrobert/shared';
 import { bindFtpReport, ftpHistoryHtml, ftpProfileHtml, ftpReportView, ftpResultCardHtml, ftpTestChartSvg, ftpZonesHtml, type FtpTestReport } from './ftpTestReport.ts';
@@ -44,6 +46,8 @@ export interface SummaryData {
   end?: RideEndView;
   /** Sauvegarde dans l'historique de l'appareil : état connu, ou promesse de l'écriture en cours. */
   saved?: SaveState | Promise<SaveState>;
+  /** Course locale terminée (étape du tour, contre-la-montre) : classement, points, moments clés, tours. */
+  race?: RaceReport;
 }
 
 export interface SummaryActions {
@@ -463,6 +467,7 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
             <div class="sum-canvas tall"><canvas id="c-time"></canvas><div class="sum-tip" hidden></div></div></section>
         </div>`
           : `
+        ${d.race ? raceReportHtml(d.race, L, d.ftp) : ''}
         <div class="sum-tiles sum-heroes">${tilesHtml(heroTiles, [IC.distance, IC.time, IC.power, IC.speed])}</div>
         ${minorHtml}
         <div class="sum-charts">

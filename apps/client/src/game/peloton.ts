@@ -18,13 +18,42 @@ import { crowdBike } from '../rider/bikes.ts';
 import { rng } from '../engine/noise.ts';
 import { BIKE_FRONT_M, BIKE_REAR_M, roadPose, type RoadPose } from '../world/roadHeight.ts';
 import type { RouteBuildingCollision } from '@allezrobert/physics';
-import { crowdV3 } from './v3Crowd.ts';
+import { LEADER_V3_JERSEY, crowdV3, rivalV3Jersey, type V3TeamJersey } from './v3Crowd.ts';
 import type { V3Visual } from '../v3/visuals.ts';
 
 /** Adhérence des IA en virage (enrobé sec), voir cornerBrake.ts. */
 const CORNER_GRIP = cornerGrip(0);
 /** Vitesse latérale (m/s) d'une IA qui regagne sa moitié de chaussée quand le joueur arrive en face (à contresens). */
 const RETURN_LATERAL_MS = 1.5;
+
+/**
+ * Équipes d'une course (idée du 25/11/2026) : l'IA n° i court pour l'équipe i % RACE_TEAM_COUNT (même partage que le
+ * tour à étapes, stageRace.ts : TOUR_TEAMS) ; l'équipe 0 est celle du joueur et porte son maillot. Seuls ses équipiers
+ * reçoivent ses ordres (attaque, roule pour moi).
+ */
+export const RACE_TEAM_COUNT = 4;
+export interface RaceTeams {
+  /** Maillot du joueur (styles Réel et Poly) : couleur et rappel. */
+  jersey: string;
+  jerseyAccent: string;
+  /** Maillot V3 du joueur (garage V3). */
+  v3?: V3TeamJersey;
+  /** Tour à étapes : maillots distinctifs gagnés aux étapes précédentes (identifiant de l'IA → maillot). */
+  leaders?: Partial<Record<string, 'gc' | 'points' | 'kom'>>;
+}
+/** Couleurs des maillots distinctifs (styles Réel et Poly) : jaune, vert, blanc à pois rouges. */
+export const LEADER_COLORS = { gc: ['#ffd23f', '#ffd23f'], points: ['#3fa65a', '#3fa65a'], kom: ['#f2f2ee', '#d63a2f'] } as const;
+/** Couleur d'une équipe adverse : loin de celle du joueur. */
+function rivalColor(team: number, mine: string): string {
+  const hex = (c: string) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16));
+  const [r0, g0, b0] = hex(mine.length === 7 ? mine : '#000000') as [number, number, number];
+  const far = JERSEYS.filter((c) => {
+    const [r, g, b] = hex(c) as [number, number, number];
+    return Math.hypot(r - r0, g - g0, b - b0) > 120;
+  });
+  const list = far.length >= RACE_TEAM_COUNT ? far : JERSEYS;
+  return list[(team * 3) % list.length] as string;
+}
 
 const JERSEYS = ['#e63946', '#2a9d8f', '#f4a261', '#8d99ae', '#06d6a0', '#ef476f', '#118ab2', '#ffd166', '#6a4c93', '#90be6d', '#f3722c', '#277da1'];
 const PROFILES: AiProfileName[] = ['rouleur', 'diesel', 'puncheur', 'sprinter'];
@@ -51,6 +80,26 @@ function botFace(i: number, r: () => number): Partial<AvatarLook> {
  * dans cameras.ts, plus une marge) et de part et d'autre de son axe sur CAMERA_CLEAR_SIDE_M (moins que l'écart de
  * dépassement, 1,2 m : celui qui double est hors du couloir). Aucune IA n'y reste : elle double ou reste en retrait.
  */
+/** Vitesse approchée (m/s) sur le plat, seul, à `watts` (même relation que le placement des départs décalés). */
+function ttSpeedMs(watts: number, massKg: number): number {
+  return 10.5 * Math.cbrt(Math.max(0.4, watts / Math.max(40, massKg) / 3.4));
+}
+
+/**
+ * Puissance de contre-la-montre (W) d'une IA : celle qu'elle peut tenir sur la durée de l'effort, modèle puissance
+ * critique (FTP ≈ CP) : P = FTP + 0,9 × W′ / T. Un chrono de 5 min se roule vers 115–125 % de la FTP, une heure
+ * vers 100 % ; plafonné à 130 % (efforts très courts), jamais sous 95 %. La durée T dépend de la vitesse, donc de P :
+ * quelques itérations suffisent.
+ */
+export function ttPowerW(lengthM: number, ftp: number, massKg: number, wPrimePerFtp: number): number {
+  let p = ftp;
+  for (let k = 0; k < 4; k++) {
+    const t = Math.max(60, lengthM / ttSpeedMs(p, massKg));
+    p = Math.min(ftp * 1.3, Math.max(ftp * 0.95, ftp + (0.9 * wPrimePerFtp * ftp) / t));
+  }
+  return p;
+}
+
 export const CAMERA_CLEAR_BACK_M = 5.5;
 export const CAMERA_CLEAR_SIDE_M = 1.0;
 /** Écart latéral (m) en dessous duquel une IA qui suit le joueur est dans son couloir ou sur le point d'y entrer. */
@@ -87,12 +136,31 @@ const FLICK_S = 4 / 3;
 /** Pas de geste presque arrêté (le clip pédale) : interrompu sous cette vitesse (m/s). */
 const FLICK_MIN_MS = 2.5;
 
+/** Passage noté au relevé de course : sommet d'une côte ou ligne de sprint (fin de segment). */
+export interface RaceLogSeg {
+  key: string;
+  segmentId: string;
+  name: string;
+  kind: 'kom' | 'sprint';
+  /** Distance depuis le départ de la course (m). */
+  atM: number;
+  avgGrade: number;
+  lengthM: number;
+  /** Ordre de passage (identifiants, 'me' = joueur). */
+  order: string[];
+}
+
+/** « Roule pour moi » : point suivi par l'équipier, devant le joueur (m) ; follow garde 1,8 + 0,6 m derrière, d'où ~2 m entre les deux. */
+const ESCORT_AHEAD_M = 4.4;
+
 export interface PelotonRider {
   id: string;
   name: string;
   /** Nationalité (code ISO) : celle de son « Prénom NOM ». */
   nationality: string;
   color: string;
+  /** Course : équipe (0 = celle du joueur) ; absente en sortie (tous équipiers). */
+  team?: number;
   state: RiderState;
   lateral: number;
   ai: AiRider;
@@ -166,6 +234,24 @@ export class Peloton {
   private readonly lanes = new LaneRotator();
   /** Ordre « attendez-moi » : les équipiers devant moi lèvent le pied jusqu'à cet instant (s de sortie). */
   private waitUntil = 0;
+  /** Ordre « attaque ! » : l'équipier qui attaque, jusqu'à cet instant (ni plafond d'avance ni demi-tour pendant ce temps). */
+  private readonly attackers = new Map<PelotonRider, number>();
+  /** Ordre « roule pour moi » : l'équipier qui roule juste devant le joueur, jusqu'à cet instant. */
+  private escort: { r: PelotonRider; until: number } | null = null;
+  /** Dernière position du joueur (choix de l'équipier qui reçoit un ordre). */
+  private playerDistM = 0;
+  /**
+   * Contre-la-montre (idée NCT Ride) : départs décalés de `gapS` (les IA sont parties avant le joueur, qui part en
+   * dernier), pas d'aspiration, chacun à son allure ; temps aux intermédiaires (1/3, 2/3) et à l'arrivée.
+   */
+  private tt: { startD: number; lengthM: number; offsets: Map<PelotonRider, number>; pace: Map<PelotonRider, number>; splits: number[]; splitTimes: Array<Array<{ name: string; t: number }>>; finish: Array<{ name: string; t: number }>; done: Map<PelotonRider, number> } | null = null;
+  /**
+   * Relevé de course (tour à étapes) : ordre de passage au sommet des côtes et sur les lignes de sprint (fin des
+   * segments, à chaque tour d'une boucle), temps d'arrivée de chacun (avance au départ du contre-la-montre comprise).
+   */
+  private log: { startD: number; lengthM: number; segs: RaceLogSeg[]; finish: Array<{ id: string; name: string; t: number }>; seen: Map<string, number> } | null = null;
+  /** Fin d'un ordre « roule pour moi » : `cracked` si l'équipier a craqué, `done` au bout du temps. */
+  onEscortEnd?: (name: string, why: 'cracked' | 'done') => void;
   /** Changement de forme effective (annonce dans le HUD). */
   onFormation?: (formation: Formation, pref: FormationPref) => void;
   /** IA rangées (ou qui vont se ranger) à l'arrivée d'un parcours non bouclé : place attribuée dans l'ordre d'arrivée. */
@@ -273,6 +359,146 @@ export class Peloton {
     this.waitUntil = this.time + 90;
   }
 
+  /** Équipiers qui peuvent recevoir un ordre : à moins de 30 m du joueur, dans le sens de marche, les plus frais d'abord. */
+  private orderable(except?: PelotonRider): PelotonRider[] {
+    return this.riders
+      .filter((r) => r !== except && (r.team === undefined || r.team === 0) && !r.uturn.active && !this.parked.has(r) && Math.abs(r.state.distM - this.playerDistM) < 30)
+      .sort((a, b) => b.ai.wPrime.fraction - a.ai.wPrime.fraction);
+  }
+
+  /** Ordre « attaque ! » : l'équipier le plus frais attaque tout de suite. Renvoie son nom, ou null si personne ne peut. */
+  orderAttack(): string | null {
+    for (const r of this.orderable(this.escort?.r)) {
+      if (!r.ai.orderAttack()) continue;
+      this.attackers.set(r, this.time + 300);
+      return r.name;
+    }
+    return null;
+  }
+
+  /**
+   * Ordre « roule pour moi » : l'équipier le plus frais (sauf un attaquant) vient rouler juste devant le joueur pendant
+   * deux minutes. Renvoie son nom, ou null si aucun n'a assez d'énergie (W′ sous 30 %).
+   */
+  orderPull(): string | null {
+    const r = this.orderable().find((x) => !this.attackers.has(x) && x.ai.state !== 'cracked' && x.ai.wPrime.fraction >= 0.3);
+    if (!r) return null;
+    this.escort = { r, until: this.time + 120 };
+    return r.name;
+  }
+
+  /**
+   * Passe en contre-la-montre : chaque IA est partie `gapS` secondes avant la suivante, le joueur en dernier. Elle est
+   * placée là où son allure l'a menée depuis son départ ; son temps = horloge de la course + son avance au départ.
+   */
+  setTimeTrial(startD: number, lengthM: number, gapS = 30): void {
+    const n = this.riders.length;
+    const offsets = new Map<PelotonRider, number>();
+    const pace = new Map<PelotonRider, number>();
+    this.riders.forEach((r, i) => {
+      const offset = (n - i) * gapS;
+      offsets.set(r, offset);
+      const watts = ttPowerW(lengthM, r.ftp, r.massKg, r.ai.profile.wPrimePerFtp);
+      pace.set(r, watts);
+      const v = ttSpeedMs(watts, r.massKg);
+      r.state.distM = startD + v * offset;
+      r.state.speedMs = v;
+      r.lateral = 0.6;
+      r.ai.aggressiveness = 0;
+    });
+    this.tt = { startD, lengthM, offsets, pace, splits: [lengthM / 3, (2 * lengthM) / 3], splitTimes: [[], []], finish: [], done: new Map() };
+  }
+
+  /** Lance le relevé de course : sommets et sprints de l'itinéraire entre `startD` et `startD + lengthM`, arrivée. */
+  setRaceLog(startD: number, lengthM: number): void {
+    const L = this.track.length;
+    const laps = this.track.route.loop ? Math.ceil((startD + lengthM) / L) + 1 : 1;
+    const segs: RaceLogSeg[] = [];
+    for (let lap = 0; lap < laps; lap++) {
+      for (const g of this.track.route.segments) {
+        if (g.kind !== 'kom' && g.kind !== 'sprint') continue;
+        const abs = g.endM + lap * (this.track.route.loop ? L : 0);
+        if (abs <= startD || abs - startD > lengthM) continue;
+        segs.push({ key: `${g.id}#${lap}`, segmentId: g.id, name: g.name, kind: g.kind, atM: abs - startD, avgGrade: g.avgGrade, lengthM: g.endM - g.startM, order: [] });
+      }
+    }
+    segs.sort((a, b) => a.atM - b.atM);
+    this.log = { startD, lengthM, segs, finish: [], seen: new Map() };
+  }
+
+  /** Relevé : un coureur (`id`, joueur = 'me') à `distM` au temps de course `t` (s) ; passages et arrivée notés une fois. */
+  logRider(id: string, name: string, distM: number, t: number): void {
+    const log = this.log;
+    if (!log) return;
+    const done = distM - log.startD;
+    let k = log.seen.get(id) ?? 0;
+    while (k < log.segs.length && done >= (log.segs[k] as RaceLogSeg).atM) (log.segs[k++] as RaceLogSeg).order.push(id);
+    if (k === log.segs.length && done >= log.lengthM) {
+      log.finish.push({ id, name, t });
+      k++;
+    }
+    log.seen.set(id, k);
+  }
+
+  /** Relevé de la course : passages, arrivées, et ceux pas encore arrivés (distance restante, vitesse). */
+  raceLog(): { segs: RaceLogSeg[]; finish: Array<{ id: string; name: string; t: number }>; pending: Array<{ id: string; name: string; remainingM: number; speedMs: number; t: number }> } | null {
+    const log = this.log;
+    if (!log) return null;
+    const arrived = new Set(log.finish.map((f) => f.id));
+    const pending = this.riders
+      .filter((r) => !arrived.has(r.id))
+      .map((r) => ({ id: r.id, name: r.name, remainingM: Math.max(0, log.lengthM - (r.state.distM - log.startD)), speedMs: Math.max(3, r.state.speedMs), t: this.time + (this.tt?.offsets.get(r) ?? 0) }));
+    return { segs: log.segs, finish: log.finish, pending };
+  }
+
+  /** Réserve d'énergie et travail de chaque IA (fatigue d'une étape à l'autre). */
+  fatigueOf(): Array<{ id: string; wPrime: number; ftp: number }> {
+    return this.riders.map((r) => ({ id: r.id, wPrime: r.ai.wPrime.fraction, ftp: r.ai.ftpNow }));
+  }
+
+  /** Forme du jour imposée (tour à étapes : fatigue des étapes précédentes) : FTP × `factor`. */
+  setForm(id: string, factor: number): void {
+    const r = this.riders.find((x) => x.id === id);
+    if (!r) return;
+    r.ftp = r.ftp * factor;
+    r.ai = new AiRider({ id: r.ai.id, profile: r.ai.profile, ftpWatts: r.ftp, params: r.ai.params, riderMassKg: r.massKg, seed: r.ai.id, aggressiveness: r.ai.aggressiveness, tactic: r.ai.tactic });
+  }
+
+  get timeTrial(): boolean {
+    return this.tt !== null;
+  }
+
+  /** Meilleur temps des IA à l'intermédiaire `k`, comparé au temps `t` du joueur (s) : écart (négatif = plus rapide). */
+  ttCheckpoint(k: number, t: number): { deltaS: number | null; rival: string | null } {
+    const times = this.tt?.splitTimes[k] ?? [];
+    if (!times.length) return { deltaS: null, rival: null };
+    const best = times.reduce((a, b) => (b.t < a.t ? b : a));
+    return { deltaS: t - best.t, rival: best.name };
+  }
+
+  /** Classement du contre-la-montre avec le joueur (temps `t`, s) : seules les IA déjà arrivées y figurent. */
+  ttResults(name: string, t: number): Array<{ name: string; t: number; me?: boolean }> {
+    return [...(this.tt?.finish ?? []), { name, t, me: true }].sort((a, b) => a.t - b.t);
+  }
+
+  /** Contre-la-montre : temps d'une IA aux intermédiaires et à l'arrivée (une fois chacun). */
+  private ttTimes(r: PelotonRider): void {
+    const tt = this.tt;
+    if (!tt) return;
+    const k = tt.done.get(r) ?? 0;
+    const marks = [...tt.splits, tt.lengthM];
+    if (k >= marks.length || r.state.distM - tt.startD < (marks[k] as number)) return;
+    const t = this.time + (tt.offsets.get(r) ?? 0);
+    if (k < tt.splits.length) tt.splitTimes[k]?.push({ name: r.name, t });
+    else tt.finish.push({ name: r.name, t });
+    tt.done.set(r, k + 1);
+  }
+
+  /** L'équipier qui roule pour le joueur (affichage), ou null. */
+  get escortName(): string | null {
+    return this.escort?.r.name ?? null;
+  }
+
   /** Forme suivante : auto → file indienne → deux files → bordure. */
   cycleFormation(): FormationPref {
     this.formationPref = FORMATION_PREFS[(FORMATION_PREFS.indexOf(this.formationPref) + 1) % FORMATION_PREFS.length] as FormationPref;
@@ -302,7 +528,7 @@ export class Peloton {
   private readonly animBudgets = new WeakMap<PelotonRider, AnimBudget>();
   private animFrame = 0;
 
-  constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number) {
+  constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number, teams?: RaceTeams) {
     this.scene = scene;
     this.track = track;
     const r = rng(42);
@@ -310,14 +536,17 @@ export class Peloton {
       const massKg = 58 + r() * 30;
       // FTP de chaque IA autour du niveau choisi (± 10 %).
       const ftp = Math.round(ftpRef * (0.9 + r() * 0.2));
-      const color = JERSEYS[i % JERSEYS.length] as string;
+      // Course : équipe i % RACE_TEAM_COUNT ; la 0 porte le maillot du joueur, les autres une couleur par équipe.
+      const team = teams ? i % RACE_TEAM_COUNT : undefined;
+      const lead = teams?.leaders?.[`ai-${i}`];
+      const color = lead ? LEADER_COLORS[lead][0] : team === undefined ? (JERSEYS[i % JERSEYS.length] as string) : team === 0 ? teams!.jersey : rivalColor(team, teams!.jersey);
       // Un sur deux est une femme (voir botFace) : prénom, nom et nationalité cohérents.
       const identity = aiIdentity(i, i % 2 === 1);
       const look: AvatarLook = {
         ...DEFAULT_LOOK,
         nationality: identity.nationality,
         jersey: color,
-        jerseyAccent: JERSEYS[(i + 5) % JERSEYS.length] as string,
+        jerseyAccent: lead ? LEADER_COLORS[lead][1] : team === 0 ? teams!.jerseyAccent : (JERSEYS[((team ?? i) + 5) % JERSEYS.length] as string),
         bike: ['#1d1d1f', '#c0392b', '#f4f4f4', '#2c3e50', '#16a085'][i % 5] as string,
         bikeModel: crowdBike(i),
         skin: ['#f1c27d', '#e0ac69', '#c68642', '#8d5524', '#ffdbac'][i % 5] as string,
@@ -330,7 +559,7 @@ export class Peloton {
       const avatar = createAvatar(look);
       scene.add(avatar.root);
       skipHiddenMatrixUpdates(avatar.root);
-      const v3 = crowdV3(avatar, look, i >> 1, i % 2 === 1);
+      const v3 = crowdV3(avatar, look, i >> 1, i % 2 === 1, lead ? { piece: { id: LEADER_V3_JERSEY[lead], color: 0 } } : team === undefined ? undefined : team === 0 ? teams!.v3 : rivalV3Jersey(team, teams!.v3?.piece.id));
       const name = identity.name;
       const tag = createNameTag(name, identity.nationality);
       const label = tag.anchor;
@@ -338,6 +567,7 @@ export class Peloton {
       this.riders.push({
         id: `ai-${i}`,
         name,
+        ...(team !== undefined ? { team } : {}),
         nationality: identity.nationality,
         color,
         // Départ groupé : en file indienne juste devant le joueur et derrière lui, hors du champ de la caméra de poursuite.
@@ -382,6 +612,14 @@ export class Peloton {
     // allure, sans l'attendre ni l'abriter ; tout reprend quand il refait demi-tour.
     if (player.reversed) return this.rideOn(dt, player);
     this.time += dt;
+    this.playerDistM = player.distM;
+    // Ordres : attaque terminée (ou reprise), escorte au bout du temps ou équipier cramé.
+    for (const [r, until] of this.attackers) if (this.time > until || r.ai.state !== 'attack') this.attackers.delete(r);
+    if (this.escort && (this.time > this.escort.until || this.escort.r.ai.state === 'cracked' || this.escort.r.uturn.active)) {
+      const { r } = this.escort;
+      this.escort = null;
+      this.onEscortEnd?.(r.name, r.ai.state === 'cracked' ? 'cracked' : 'done');
+    }
     // Allure : % de FTP imposé (équipiers) ou W/kg du joueur lissé sur ~20 s (le groupe roule « avec » lui).
     const target = this.paceFtpPct !== null && player.ftpWatts ? (player.ftpWatts * this.paceFtpPct) / Math.max(player.massKg, 1) : player.watts / Math.max(player.massKg, 1);
     this.paceWkg += (Math.min(Math.max(target, 1.2), 5.5) - this.paceWkg) * Math.min(1, dt / (this.paceFtpPct !== null ? 6 : 20));
@@ -413,6 +651,8 @@ export class Peloton {
       ...this.riders.map((r) => ({ distM: r.state.distM, lateralM: r.uturn.active ? 100 : r.lateral, speedMs: r.uturn.active ? 0 : r.state.speedMs })),
     ];
     const factors = this.draft.compute(all);
+    // Contre-la-montre : personne ne profite de l'aspiration de personne.
+    if (this.tt) factors.fill(0);
     const order = [...this.riders].sort((a, b) => b.state.distM - a.state.distM);
     const half = roadHalfM(this.track.route.roadWidthM);
     const right = keepRightM(half);
@@ -428,7 +668,7 @@ export class Peloton {
       // Demi-tour : l'équipier parti trop loin devant revient vers le groupe (sauf dans un segment disputé).
       const wasActive = r.uturn.active;
       const turn = r.uturn.update(
-        { leadM: r.state.distM - player.distM, groupSpeedMs: player.speedMs, distM: r.state.distM, speedMs: r.state.speedMs, lateralM: r.lateral, blocked: this.inSegment(r.state.distM) },
+        { leadM: r.state.distM - player.distM, groupSpeedMs: player.speedMs, distM: r.state.distM, speedMs: r.state.speedMs, lateralM: r.lateral, blocked: this.inSegment(r.state.distM) || this.attackers.has(r) || this.tt !== null },
         dt,
       );
       if (turn.active) {
@@ -459,6 +699,9 @@ export class Peloton {
       for (const o of [...peers.map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral, isPlayer: true }]) {
         if (o.distM > r.state.distM + 0.01 && (!ahead || o.distM < ahead.distM)) ahead = o;
       }
+      // « Roule pour moi » : il suit un point fictif devant le joueur, sur sa ligne (sa roue arrière à ~0,6 m de la mienne).
+      const escorting = this.escort?.r === r;
+      if (escorting) ahead = { distM: player.distM + ESCORT_AHEAD_M, speedMs: player.speedMs, lateral: player.lateral };
       // Dépassement propre : plus rapide que celui de devant (le joueur, une IA, un cycliste d'ambiance), on déboîte par la
       // gauche à bonne distance, on double avec un mètre d'écart et on se rabat une fois dégagé ; sans place, on reste dans sa roue.
       const sameWay: LaneBody[] = [
@@ -473,14 +716,17 @@ export class Peloton {
           gradePercent: s.grade,
           speedMs: r.state.speedMs,
           // Élastique autour du joueur : on ralentit devant lui, on accélère derrière (sortie solo).
-          groupPaceWkg:
-            this.paceWkg * easing * (double ? LANE_PACE[myLane] : 1) * (waitingForMe && r.state.distM > player.distM + 6 ? 0.78 : 1) * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
+          // Contre-la-montre : chacun seul, à la puissance qu'il peut tenir sur la durée du chrono (ttPowerW).
+          groupPaceWkg: this.tt
+            ? (this.tt.pace.get(r) ?? r.ftp) / r.massKg
+            : this.paceWkg * easing * (double ? LANE_PACE[myLane] : 1) * (waitingForMe && r.state.distM > player.distM + 6 ? 0.78 : 1) * (1 - THREE.MathUtils.clamp((r.state.distM - player.distM - 4) / 50, -0.3, 0.45)),
           // Pas de roue à suivre pendant un dépassement : l'IA garde son allure jusqu'à être passée.
           // Derrière le joueur on reste hors du champ de la caméra de poursuite (jamais dans sa roue).
-          gapAheadM: ahead && !plan.passing ? ahead.distM - r.state.distM - (ahead.isPlayer && Math.abs(ahead.lateral - r.lateral) < CAMERA_FOLLOW_SIDE_M ? CAMERA_CLEAR_BACK_M : 1.8) : Infinity,
+          gapAheadM: this.tt ? Infinity : escorting && ahead ? Math.min(24, ahead.distM - r.state.distM - 1.8) : ahead && !plan.passing ? ahead.distM - r.state.distM - (ahead.isPlayer && Math.abs(ahead.lateral - r.lateral) < CAMERA_FOLLOW_SIDE_M ? CAMERA_CLEAR_BACK_M : 1.8) : Infinity,
           speedAheadMs: ahead?.speedMs ?? r.state.speedMs,
           ...(ahead && !plan.passing ? { lateralAheadM: ahead.lateral - r.lateral } : {}),
-          positionInGroup: rank,
+          // L'escorte ne passe pas en mode relais (allure du groupe) : elle cale son allure sur le joueur.
+          positionInGroup: escorting || this.tt ? 1 : rank,
           groupSize: this.riders.length + 1,
           cdaFactor: 1 - r.draft,
           env,
@@ -493,15 +739,17 @@ export class Peloton {
       // Se laisser glisser : au-delà de 40 m d'avance, l'équipier se relève et attend le groupe
       // (au-delà de ~120 m qui ne se résorbent pas, il fait demi-tour : voir TeammateUTurn).
       const leadM = r.state.distM - player.distM;
-      if (leadM > 40) r.watts = Math.min(r.watts, this.paceWkg * r.massKg * Math.max(0.2, 0.7 - (leadM - 40) / 200));
+      if (leadM > 40 && !this.attackers.has(r) && !this.tt) r.watts = Math.min(r.watts, this.paceWkg * r.massKg * Math.max(0.2, 0.7 - (leadM - 40) / 200));
       r.cadence = out.cadence;
       r.pose = r.poseCtl.update({ watts: r.watts, cadence: out.cadence, gradePercent: s.grade, ftpWatts: r.ftp, speedMs: r.state.speedMs }, dt);
       stepRider(r.state, { watts: r.watts, gradePercent: s.grade, params: r.ai.params, env, cdaFactor: 1 - r.draft }, dt);
+      if (this.tt) this.ttTimes(r);
+      if (this.log) this.logRider(r.id, r.name, r.state.distM, this.time + (this.tt?.offsets.get(r) ?? 0));
       // Freinage avant les virages serrés, comme le joueur (cornerBrake.ts).
       r.state.speedMs = brakeForCorners(this.track, r.state.distM, Math.cos(r.heading) < 0 ? -1 : 1, r.state.speedMs, CORNER_GRIP, dt);
       // Vent de côté : l'abri est décalé sous le vent ; le coureur s'y place (bordure).
       const shelter = ahead && this.formationNow !== 'single' ? wakeShiftM(ahead.distM - r.state.distM - 1.75, this.crossWindMs, ahead.speedMs) : 0;
-      const base = double ? laneAt[myLane] : (ahead?.lateral ?? Math.min(1.2, half));
+      const base = escorting ? player.lateral : double ? laneAt[myLane] : (ahead?.lateral ?? Math.min(1.2, half));
       // Circulation à droite : sauf pour doubler, on reste dans la moitié droite (ceux d'en face roulent à gauche).
       let targetLat = THREE.MathUtils.clamp(base + (double ? 0 : out.lateralTargetM) + shelter, right, half);
       // Dépassement en cours mais quelqu'un arrive en face à moins de 60 m : on l'abandonne et on se rabat

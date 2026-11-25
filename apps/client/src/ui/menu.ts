@@ -22,7 +22,8 @@ import { inDesktop, quitApp } from '../platform/desktop.ts';
 import { compositeId, neighbourZones, PARIS_CITY_ZONES } from '../world/composite.ts';
 import { t, setLang, getLang, strings, type I18nKey } from '../i18n/index.ts';
 import type { Settings } from './settings.ts';
-import { nowHour, saveSettings } from './settings.ts';
+import { nowHour, saveSettings, seasonOfDate } from './settings.ts';
+import { currentStage, loadTour, saveTour, standings, tourDone } from '../game/stageRace.ts';
 import { music } from '../audio/music.ts';
 import { spotify, redirectUri } from '../audio/spotify.ts';
 import { musicSource, setMusicSource } from '../audio/musicSource.ts';
@@ -121,6 +122,15 @@ const S = strings(
     aiRiders: 'Coureurs IA',
     eachHasItsOwn: 'Chacun a sa tactique et sa forme du jour.',
     aiLevel: 'Niveau des IA',
+    raceFormat: 'Format',
+    raceFormatHint: 'Contre-la-montre : départs toutes les 30 s, tu pars en dernier, sans aspiration.',
+    formatRoad: 'En ligne',
+    formatTt: 'Contre-la-montre',
+    formatTour: 'Tour à étapes',
+    tourStages: 'Étapes',
+    tourStagesHint: 'Prologue chrono puis courses en ligne ; une étape quand tu veux, le tour est gardé.',
+    tourOngoing: 'Tour en cours',
+    tourAbandon: 'Abandonner le tour',
     theirPowerAsA: 'Leur puissance, en part de ta FTP.',
     targetAverageSpeed: 'Vitesse moyenne visée',
     aiRidersPaceThemselves: 'Les IA règlent leur effort pour la tenir ; l’organisateur peut l’augmenter en route.',
@@ -478,6 +488,15 @@ const S = strings(
     aiRiders: 'AI riders',
     eachHasItsOwn: 'Each has its own tactic and form of the day.',
     aiLevel: 'AI level',
+    raceFormat: 'Format',
+    raceFormatHint: 'Time trial: starts every 30 s, you go last, no drafting.',
+    formatRoad: 'Road race',
+    formatTt: 'Time trial',
+    formatTour: 'Stage race',
+    tourStages: 'Stages',
+    tourStagesHint: 'Prologue time trial then road stages; one stage whenever you like, the race is saved.',
+    tourOngoing: 'Stage race in progress',
+    tourAbandon: 'Abandon the race',
     theirPowerAsA: 'Their power, as a share of your FTP.',
     targetAverageSpeed: 'Target average speed',
     aiRidersPaceThemselves: 'AI riders pace themselves to hold it; the host can raise it on the road.',
@@ -2210,6 +2229,19 @@ export class MainMenu {
     );
   }
 
+  /** Tour à étapes : tour en cours (étape, maillot jaune) et abandon, sinon nombre d'étapes du prochain tour. */
+  private tourHtml(): string {
+    const tour = loadTour();
+    if (tour && !tourDone(tour)) {
+      const k = currentStage(tour);
+      const leader = tour.results.length ? standings(tour).gc[0]?.name : null;
+      const L = fr();
+      const next = tour.stages[k] === 'tt' ? (L ? 'contre-la-montre' : 'time trial') : L ? 'course en ligne' : 'road stage';
+      return `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('tourOngoing')} : ${esc(tour.name)}</b><small>${L ? `Étape ${k + 1}/${tour.stages.length} (${next})` : `Stage ${k + 1}/${tour.stages.length} (${next})`}${leader ? ` · 🟡 ${esc(leader)}` : ''}</small></div><button type="button" class="ab-btn" id="m-tourabandon">${S('tourAbandon')}</button></div>`;
+    }
+    return `<div class="mm-opt"><div class="mm-opt-l"><b>${S('tourStages')}</b><small>${S('tourStagesHint')}</small></div>${this.stepper('m-tourstages', 2, 7, this.s.tourStages ?? 3)}</div>`;
+  }
+
   private seg(id: string, current: string, opts: Array<[string, string]>): string {
     return `<div class="mm-seg" id="${id}" data-value="${esc(current)}" role="radiogroup">${opts
       .map(([v, label]) => `<button type="button" role="radio" aria-checked="${v === current}" class="${v === current ? 'on' : ''}" data-v="${esc(v)}">${esc(label)}</button>`)
@@ -2536,7 +2568,7 @@ export class MainMenu {
               <div class="mm-opt"><div class="mm-opt-l"><b>${S('aiRiders')}</b><small>${S('eachHasItsOwn')}</small></div>${this.stepper('m-ai', 0, 19, s.aiRiders)}</div>
               ${
                 s.mode === 'race'
-                  ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('aiLevel')}</b><small>${S('theirPowerAsA')}</small></div>${this.aiLevelSeg()}</div>`
+                  ? `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('aiLevel')}</b><small>${S('theirPowerAsA')}</small></div>${this.aiLevelSeg()}</div><div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('raceFormat')}</b><small>${S('raceFormatHint')}</small></div>${this.seg('m-raceformat', s.raceFormat ?? 'road', [['road', S('formatRoad')], ['tt', S('formatTt')], ['tour', S('formatTour')]])}</div>${s.raceFormat === 'tour' ? this.tourHtml() : ''}`
                   : `<div class="mm-opt mm-opt-col"><div class="mm-opt-l"><b>${S('targetAverageSpeed')}</b><small>${S('aiRidersPaceThemselves')}</small></div>${this.seg('m-target', String(s.groupTargetKmh), [
                       ['0', S('free')],
                       ...[22, 25, 28, 30, 32, 35].map((v): [string, string] => [String(v), `${v} km/h`]),
@@ -4333,6 +4365,8 @@ export class MainMenu {
     if (this.s.realTime) this.s.hour = nowHour();
     const laps = Number((this.root.querySelector('#m-laps') as HTMLInputElement | null)?.value);
     if (Number.isFinite(laps) && laps >= 1) this.s.raceLaps = Math.min(20, Math.round(laps));
+    const stages = Number((this.root.querySelector('#m-tourstages') as HTMLInputElement | null)?.value);
+    if (Number.isFinite(stages) && stages >= 2) this.s.tourStages = Math.min(7, Math.round(stages));
     this.launch(this.s, { ...(this.workoutFile ? { workoutFile: this.workoutFile } : {}), ...(invite ? { inviteCode: invite } : {}), ...more });
   }
 
@@ -5377,13 +5411,19 @@ export class MainMenu {
       const real = el.value === '1';
       s.realTime = real;
       s.realWeather = real;
-      if (real) s.hour = nowHour();
+      if (real) {
+        s.hour = nowHour();
+        s.season = seasonOfDate();
+      }
       changed();
       this.render();
     });
     on<HTMLSelectElement>('m-realtime', 'change', (el) => {
       s.realTime = el.value === '1';
-      if (s.realTime) s.hour = nowHour();
+      if (s.realTime) {
+        s.hour = nowHour();
+        s.season = seasonOfDate();
+      }
       changed();
       this.render();
     });
@@ -5413,6 +5453,19 @@ export class MainMenu {
     on<HTMLSelectElement>('m-target', 'change', (el) => {
       s.groupTargetKmh = Number(el.value);
       changed();
+    });
+    on<HTMLSelectElement>('m-raceformat', 'change', (el) => {
+      s.raceFormat = el.value === 'tt' || el.value === 'tour' ? el.value : 'road';
+      changed();
+      this.render();
+    });
+    on<HTMLInputElement>('m-tourstages', 'change', (el) => {
+      s.tourStages = Math.min(7, Math.max(2, Math.round(Number(el.value) || 3)));
+      changed();
+    });
+    this.root.querySelector('#m-tourabandon')?.addEventListener('click', () => {
+      saveTour(null);
+      this.render();
     });
     on<HTMLSelectElement>('m-ailevel', 'change', (el) => {
       s.aiLevel = Number(el.value);

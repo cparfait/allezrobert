@@ -106,7 +106,12 @@ export class Ghost {
     this.avatar.root.visible = !!this.best && this.shown;
   }
 
-  private v3?: V3Visual;
+  /** Coureur Bêta du fantôme (attendu au départ avec les autres, settleV3, pour être précompilé). */
+  v3?: V3Visual;
+  /** Matériaux translucides posés tout de suite (avant la précompilation du départ), sans attendre la passe des 2 s. */
+  refresh(): void {
+    ghostify(this.avatar.root);
+  }
   /** Fantôme affiché (réglage du joueur) ; caché, il continue d'enregistrer le tour en cours. */
   private shown = true;
   setShown(on: boolean): void {

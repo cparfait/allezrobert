@@ -1,7 +1,7 @@
 import type { AvatarLook } from '@allezrobert/shared';
 import { V3_STYLE } from '../engine/style.ts';
 import { GltfRiderAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
-import { V3Visual } from '../v3/visuals.ts';
+import { V3Visual, type V3Equipment } from '../v3/visuals.ts';
 import { CINEMATIC_V3 } from '../v3/cinematicRiders.ts';
 
 /**
@@ -12,11 +12,29 @@ import { CINEMATIC_V3 } from '../v3/cinematicRiders.ts';
 const MALE = CINEMATIC_V3.filter((e) => e.sex !== 'female');
 const FEMALE = CINEMATIC_V3.filter((e) => e.sex === 'female');
 
-export function crowdV3(avatar: RiderAvatarLike, look: AvatarLook, seed: number, female: boolean): V3Visual | undefined {
+/** Maillot imposé à un coureur V3 (course : son équipe porte le même), pièce du catalogue et coupe des manches. */
+export type V3TeamJersey = { piece: NonNullable<V3Equipment['kit']>[string]; zip?: number };
+
+/** Maillots du Tour de France du catalogue V3 (jaune, vert, à pois, blanc) : réservés aux leaders du tour à étapes. */
+const TDF_JERSEY_IDS = new Set([450, 451, 452, 453]);
+/** Maillot V3 de leader du tour : jaune (général), vert (points), à pois (montagne). */
+export const LEADER_V3_JERSEY = { gc: 453, points: 450, kom: 451 } as const;
+
+/**
+ * Maillot V3 d'une équipe adverse (course) : celui d'un coureur du film d'accueil, un par équipe, jamais celui du joueur.
+ */
+export function rivalV3Jersey(team: number, mineId?: number): V3TeamJersey | undefined {
+  const pieces = [...new Map(CINEMATIC_V3.map((e) => e.kit?.CYCLING_JERSEY).filter((p): p is NonNullable<typeof p> => !!p && p.id !== mineId && !TDF_JERSEY_IDS.has(p.id)).map((p) => [p.id, p])).values()];
+  const piece = pieces[((team % pieces.length) + pieces.length) % pieces.length];
+  return piece ? { piece } : undefined;
+}
+
+export function crowdV3(avatar: RiderAvatarLike, look: AvatarLook, seed: number, female: boolean, jersey?: V3TeamJersey): V3Visual | undefined {
   if (!V3_STYLE || !(avatar instanceof GltfRiderAvatar)) return undefined;
   const list = female && FEMALE.length ? FEMALE : MALE.length ? MALE : CINEMATIC_V3;
-  const equipment = list[((seed % list.length) + list.length) % list.length];
-  if (!equipment) return undefined;
+  const base = list[((seed % list.length) + list.length) % list.length];
+  if (!base) return undefined;
+  const equipment: V3Equipment = jersey ? { ...base, kit: { ...base.kit, CYCLING_JERSEY: jersey.piece }, ...(jersey.zip !== undefined ? { zip: jersey.zip } : {}) } : base;
   const visual = new V3Visual(hiddenV3Mount(avatar), () => {}, (error) => console.warn('[V3] coureur IA', error));
   visual.set(look, equipment);
   return visual;

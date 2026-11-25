@@ -92,6 +92,11 @@ export type PhoneCommand =
   | { kind: 'pace'; delta: -1 | 1 }
   /** « Attendez-moi » et forme du peloton (auto, file, deux files, bordure). */
   | { kind: 'waitMe' }
+  /** Ordres aux équipiers IA : « attaque ! » (le plus frais attaque) et « roule pour moi » (il roule devant le joueur). */
+  | { kind: 'teamAttack' }
+  | { kind: 'teamPull' }
+  /** Course locale ou contre-la-montre : donner le départ (le jeu attend que le joueur soit installé). */
+  | { kind: 'startRace' }
   | { kind: 'formation' }
   /**
    * Micro du téléphone pour le chat vocal de la sortie. `req` : le téléphone n'a pas encore de jeton et
@@ -145,6 +150,8 @@ export function energyPercent(fraction: number): number {
 /** État du jeu vu par le téléphone. */
 export interface PairState {
   phase: 'menu' | 'ride' | 'paused';
+  /** Départ en attente du joueur (course locale, contre-la-montre) : le téléphone montre « Lancer ». */
+  awaitingStart?: 'race' | 'tt';
   /** Nom de l'itinéraire, de la route en monde ouvert. */
   routeName?: string;
   road?: string;

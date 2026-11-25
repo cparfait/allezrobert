@@ -33,6 +33,9 @@ export interface InterpolatedRider {
   dir: 1 | -1;
   /** Vrai si la position est extrapolée (instantané manquant). */
   extrapolated: boolean;
+  /** IA du serveur : énergie (0–100) et état notable. */
+  energy?: number;
+  effort?: RiderSnapshot['effort'];
 }
 
 interface BufferedSnapshot {
@@ -165,6 +168,8 @@ export class SnapshotBuffer {
     };
     const hr = k < 0.5 ? a.hr : b.hr;
     if (hr !== undefined) out.hr = hr;
+    if (b.energy !== undefined) out.energy = b.energy;
+    if (b.effort !== undefined) out.effort = b.effort;
     let ua = this.unwrap(a);
     const ub = this.unwrap(b);
     // Garde-fou : un saut énorme (repositionnement serveur) n'est pas interpolé ; ni un demi-tour (autre repère).

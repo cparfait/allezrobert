@@ -165,6 +165,10 @@ function shortcutsHtml(): string {
     [['N'], 'Morceau suivant', 'Next track'],
     [['M'], 'Couper le son', 'Mute sound'],
     [['Q'], 'Code de l’appli compagnon', 'Companion app code'],
+    [['R'], 'Équipiers : « Ralentissez ! »', 'Teammates: “Ease up!”'],
+    [['K'], 'Équipiers : « Attendez-moi »', 'Teammates: “Wait for me”'],
+    [['A'], 'Équipiers : « Attaque ! » (le plus frais part)', 'Teammates: “Attack!” (the freshest goes)'],
+    [['E'], 'Équipiers : « Roule pour moi » (il roule devant toi)', 'Teammates: “Pull for me” (rides in front of you)'],
     [[fr ? 'Espace' : 'Space', fr ? 'Échap' : 'Esc'], 'Pause / reprendre', 'Pause / resume'],
   ];
   return `<div class="pause-keys">${keys.map(([k, f, e]) => `<span>${k.map((x) => `<kbd>${x}</kbd>`).join(' ')}</span><span>${fr ? f : e}</span>`).join('')}</div>`;

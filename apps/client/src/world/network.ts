@@ -330,6 +330,14 @@ export class RoadNetwork {
   }
 
   addTile(tile: LoadedTile): void {
+    for (const _ of this.addTileSteps(tile));
+  }
+
+  /**
+   * Routes d'une tuile en quelques pas (index des rues, chaussées, devantures, garde-corps) pour la file de travail du
+   * monde (workQueue.ts) : d'un bloc, plus de 200 ms. Rien n'est enregistré avant le dernier pas (tuile déchargée en route).
+   */
+  *addTileSteps(tile: LoadedTile): Generator<void> {
     if (this.tiles.has(tile.id)) return;
     const objs: THREE.Object3D[] = [];
     // Voies OSM empruntées par l'itinéraire (le ruban les dessine) : leurs copies au nom d'un autre itinéraire
@@ -349,22 +357,28 @@ export class RoadNetwork {
       return true;
     });
     roads = longchampInfieldRoads(tile, roads);
+    let walkIndex: ReturnType<typeof indexWalk> | null = null;
+    let lampsOut: LampSpot[] | null = null;
+    let bollardsOut: LampSpot[] | null = null;
     if (roads.length) {
       const lamps: LampSpot[] = [];
       const bollards: LampSpot[] = [];
       // Trottoirs, lampadaires, stores et terrasses dans les deux styles (LP-T1) ; décalques et potelets : réaliste seulement (buildRoads).
+      yield;
       const street = ROAD_FX ? new StreetIndex(tile, roads, this.shopWallsOf(tile.id)) : null;
       const walk: number[] = [];
-      const geo = buildRoads(roads, this.footprint, street, lamps, this.groundAt, bollards, walk);
-      if (walk.length) this.walks.set(tile.id, indexWalk(walk));
+      yield;
+      const geo = yield* buildRoads(roads, this.footprint, street, lamps, this.groundAt, bollards, walk);
+      if (walk.length) walkIndex = indexWalk(walk);
       if (geo) {
         const mesh = new THREE.Mesh(geo, this.roadMat);
         mesh.receiveShadow = true;
         mesh.name = `roads_${tile.id}`;
         objs.push(mesh);
       }
-      this.lamps.set(tile.id, lamps);
-      this.bollards.set(tile.id, bollards);
+      lampsOut = lamps;
+      bollardsOut = bollards;
+      yield;
       // Stores bannes et terrasses devant les vitrines (ombres portées sur le trottoir).
       const props = street ? buildShopProps(this.shopWallsOf(tile.id), street, this.groundAt) : null;
       if (props) {
@@ -378,6 +392,7 @@ export class RoadNetwork {
     // Garde-corps des ponts (bridgeRailings.ts) : tous les tronçons « pont » de la tuile, itinéraire actif compris
     // (sa chaussée est dessinée ailleurs, mais ses bords sont ici) ; le style low poly a ses parapets.
     if (!LOW_POLY) {
+      yield;
       const rails = buildBridgeRailings(tile.features.roads);
       if (rails) {
         const mesh = new THREE.Mesh(rails, this.railingMat);
@@ -387,6 +402,10 @@ export class RoadNetwork {
         objs.push(mesh);
       }
     }
+    if (this.tiles.has(tile.id)) return;
+    if (walkIndex) this.walks.set(tile.id, walkIndex);
+    if (lampsOut) this.lamps.set(tile.id, lampsOut);
+    if (bollardsOut) this.bollards.set(tile.id, bollardsOut);
     objs.forEach((o) => this.group.add(o));
     this.tiles.set(tile.id, objs);
   }
@@ -502,8 +521,11 @@ function taperedHalves(s: { left: number[]; right: number[]; along: number[] }, 
   return out;
 }
 
-/** Rubans de toutes les routes d'une tuile, fusionnés (un seul appel de dessin). */
-function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null, bollards: LampSpot[] = [], walk: number[] = []): THREE.BufferGeometry | null {
+/**
+ * Rubans de toutes les routes d'une tuile, fusionnés (un seul appel de dessin). Générateur : un pas par chaîne de
+ * tronçons (file de travail du monde), la géométrie en valeur de retour.
+ */
+function* buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street: StreetIndex | null, lamps: LampSpot[], groundAt: ((x: number, z: number) => number) | null, bollards: LampSpot[] = [], walk: number[] = []): Generator<void, THREE.BufferGeometry | null> {
   const lampGrid = new Map<number, LampSpot[]>();
   const sink: MeshSink = { pos: [], uvs: [], info: [], lit: [], decal: [], dsize: [], side: [], index: [], walk };
   const { pos, uvs, info, lit, decal, dsize, side, index } = sink;
@@ -518,6 +540,7 @@ function buildRoads(roads: TileRoad[], footprint: RouteFootprint | null, street:
     });
   // Tronçons du graphe mis bout à bout : rives continues aux nœuds, pointillé sans à-coup.
   for (const c of chainPieces(pieces)) {
+    yield;
     const { half, marked, unpaved, bridge } = pieces[c.piece] as (typeof pieces)[number];
     const surfaceCode = unpaved + bridge * 0.25;
     // Bords à demi-largeur + 0,6 m de bas-côté fondu ; découpe contre l'itinéraire actif.

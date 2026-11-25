@@ -1181,7 +1181,7 @@ export class RideSimulation {
       // Quelqu'un en face : la séparation ne repousse pas sur sa moitié une IA déjà revenue sur la sienne.
       const own = clampToOwnHalf(-b.left, 1, -b.left, b.right);
       const minLateral = r.facing && r.lateralM >= own ? own : -b.left;
-      bodies.push({ distM: r.state.distM, lateral: r.lateralM, speedMs: r.state.speedMs, minLateral, maxLateral: b.right, ...(r.kind === 'ai' ? {} : { fixed: true }) });
+      bodies.push({ distM: r.state.distM, lateral: r.lateralM, speedMs: r.state.speedMs, minLateral, maxLateral: b.right, ...(r.kind === 'ai' ? {} : { fixed: true, passThrough: true }) });
     }
     separateRiders(bodies, this.halfRoad(), dt);
     list.forEach((r, i) => {
@@ -1278,6 +1278,13 @@ export class RideSimulation {
     row.cadence = r.cadence;
     row.draftPct = r.draft * 100;
     row.pose = pose;
+    // IA : énergie et état pour l'affichage des joueurs (« À proximité », compagnon).
+    if (r.ai) {
+      row.energy = Math.round(Math.max(0, Math.min(1, r.ai.wPrime.fraction)) * 100);
+      const st = r.ai.state;
+      if (st === 'attack' || st === 'chase' || st === 'cracked') row.effort = st;
+      else delete row.effort;
+    }
     if (r.shareHr && r.hr !== undefined) row.hr = r.hr;
     else delete row.hr;
   }

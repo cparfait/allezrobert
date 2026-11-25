@@ -736,6 +736,7 @@ function ctrlHtml(): string {
   const st = S.st!;
   // Vitesses (− rapport +) : seulement avec des manettes de vitesses appairées.
   return `<section class="ctrl">
+    <button class="btn huge" data-cmd="start-race" id="c-start"${st.awaitingStart ? '' : ' hidden'} style="width:100%;margin-bottom:12px;background:var(--accent, #ffd23f);color:#0a0e16;font-weight:800">${esc(st.awaitingStart === 'tt' ? t.startTt : t.startRace)}</button>
     <div class="cg" id="c-gears"${st.shifter ? '' : ' hidden'}>
       <h2>${esc(t.ctrlGears)}</h2>
       <div class="shift">
@@ -773,7 +774,7 @@ function ctrlHtml(): string {
     </div>
     ${
       st.team
-        ? `<div class="cg"><h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div><div class="grp-list" id="c-grp-list"></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div></div>`
+        ? `<div class="cg"><h2>${esc(t.team)} <small id="c-grp-pace"></small></h2><div class="grp"><div class="grp-radar"><i class="grp-track"></i><div id="c-grp-dots"></div><i class="grp-me"></i></div><div class="grp-scale"><span>${esc(t.groupBehind)}</span><span>${esc(t.groupYou)}</span><span>${esc(t.groupAhead)}</span></div><div class="grp-list" id="c-grp-list"></div></div><div class="row3"><button class="btn big" data-cmd="pace-down">${esc(t.paceDown)}</button><button class="btn big" data-cmd="slowdown">${esc(t.slowDown)}</button><button class="btn big" data-cmd="pace-up">${esc(t.paceUp)}</button></div><div class="row3"><button class="btn big" data-cmd="waitme">${esc(t.waitMe)}</button><button class="btn big" data-cmd="formation">${esc(t.formation)}</button></div><div class="row3"><button class="btn big" data-cmd="team-attack">${esc(t.teamAttack)}</button><button class="btn big" data-cmd="team-pull">${esc(t.teamPull)}</button></div></div>`
         : ''
     }
   </section>`;
@@ -821,6 +822,11 @@ function updateCtrl(st: PairState): void {
   if (gn) gn.textContent = `${m.gearIndex + 1} / ${m.gearCount}`;
   const p = document.getElementById('c-pause');
   if (p) p.textContent = st.phase === 'paused' ? t.resume : t.pause;
+  const go = document.getElementById('c-start');
+  if (go) {
+    go.hidden = !st.awaitingStart;
+    go.textContent = st.awaitingStart === 'tt' ? t.startTt : t.startRace;
+  }
   const h = document.getElementById('c-hud');
   if (h) h.textContent = st.hudVisible === false ? t.hudOff : t.hudOn;
   const look = document.getElementById('c-look');
@@ -1260,6 +1266,9 @@ app.addEventListener('click', (e) => {
     else if (d.cmd === 'uturn') send({ kind: 'uturn' });
     else if (d.cmd === 'slowdown') send({ kind: 'slowDown' });
     else if (d.cmd === 'waitme') send({ kind: 'waitMe' });
+    else if (d.cmd === 'team-attack') send({ kind: 'teamAttack' });
+    else if (d.cmd === 'start-race') send({ kind: 'startRace' });
+    else if (d.cmd === 'team-pull') send({ kind: 'teamPull' });
     else if (d.cmd === 'formation') send({ kind: 'formation' });
     else if (d.cmd === 'pace-up') send({ kind: 'pace', delta: 1 });
     else if (d.cmd === 'pace-down') send({ kind: 'pace', delta: -1 });

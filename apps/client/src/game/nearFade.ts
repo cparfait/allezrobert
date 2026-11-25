@@ -90,17 +90,29 @@ export function fadeStep(current: number, target: number, dt: number): number {
   return Math.abs(next - target) < 0.02 ? target : next;
 }
 
-interface Faded {
-  opacity: number;
+interface Twins {
   /** Jumeau → matériau d'origine. */
   twins: Map<THREE.Material, THREE.Material>;
   /** Matériau d'origine → jumeau. */
   byOrig: Map<THREE.Material, THREE.Material>;
 }
 
+interface Faded extends Twins {
+  opacity: number;
+  /** Copies préparées au chargement (prewarmNearFade) : gardées d'un fondu à l'autre, jamais détruites en route. */
+  kept: boolean;
+}
+
 const state = new WeakMap<THREE.Object3D, Faded>();
 /** Coureurs en cours de fondu (pour les rendre s'ils ne sont plus passés à update). */
 const active = new Set<THREE.Object3D>();
+/**
+ * Copies préparées au chargement, par coureur. three.js libère le pipeline d'un shader dès que plus aucun matériau ne
+ * s'en sert : détruire les copies à la fin de chaque fondu faisait recompiler en direct la variante tramée au fondu
+ * suivant (jusqu'à 2 s d'image figée au départ, quand le peloton se met en place autour de la caméra). Tant que ces
+ * copies vivent, toute autre copie de même shader (cyclistes d'ambiance, autres coureurs) retrouve son pipeline.
+ */
+const kept = new Map<THREE.Object3D, Twins>();
 const enabled = typeof location === 'undefined' || new URLSearchParams(location.search).get('nearfade') !== '0';
 
 const _cam = new THREE.Vector3();
@@ -140,9 +152,45 @@ function restore(root: THREE.Object3D, f: Faded): void {
     if (!mesh.isMesh || !mesh.material) return;
     mesh.material = Array.isArray(mesh.material) ? mesh.material.map(back) : back(mesh.material);
   });
-  for (const t of f.twins.keys()) t.dispose();
+  if (!f.kept) for (const t of f.twins.keys()) t.dispose();
   state.delete(root);
   active.delete(root);
+}
+
+/**
+ * Au chargement de la sortie : doubles des pièces de `roots` (mêmes géométries et squelettes, à leur place) portant
+ * leurs copies tramées, tous niveaux de détail compris. Posés dans la scène pendant la précompilation, ils font compiler
+ * les variantes tramées en même temps que le reste (sur les fils de Dawn), au lieu d'une seconde passe de près de 3 s.
+ * Les copies restent gardées (voir `kept`) jusqu'à `releaseNearFade` ; le groupe se retire ensuite de la scène.
+ */
+export function nearFadeProxies(roots: Iterable<THREE.Object3D>): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'near-fade-proxies';
+  if (!enabled) return g;
+  for (const root of roots) {
+    const t = kept.get(root) ?? { twins: new Map(), byOrig: new Map() };
+    kept.set(root, t);
+    const f: Faded = { opacity: 1, kept: true, ...t };
+    root.updateWorldMatrix(true, true);
+    root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.material) return;
+      const c = mesh.clone(false) as THREE.Mesh;
+      c.material = Array.isArray(mesh.material) ? mesh.material.map((m) => twinOf(f, m)) : twinOf(f, mesh.material);
+      c.matrixAutoUpdate = false;
+      c.matrix.copy(mesh.matrixWorld);
+      c.visible = true;
+      g.add(c);
+    });
+  }
+  return g;
+}
+
+/** Fin de la sortie : copies gardées détruites (les coureurs en plein fondu retrouvent d'abord leurs matériaux). */
+export function releaseNearFade(): void {
+  for (const root of [...active]) restore(root, state.get(root)!);
+  for (const t of kept.values()) for (const m of t.twins.keys()) m.dispose();
+  kept.clear();
 }
 
 /**
@@ -162,7 +210,8 @@ export function updateNearFade(dt: number, camera: THREE.Camera, subject: THREE.
     const want = root.visible ? fadeTarget(_cam, target, _center.copy(root.position).setY(root.position.y + BODY_Y), _forward) : 1;
     if (!f) {
       if (want >= 1) continue;
-      f = { opacity: 1, twins: new Map(), byOrig: new Map() };
+      const t = kept.get(root);
+      f = { opacity: 1, kept: !!t, ...(t ?? { twins: new Map(), byOrig: new Map() }) };
       state.set(root, f);
       active.add(root);
     }

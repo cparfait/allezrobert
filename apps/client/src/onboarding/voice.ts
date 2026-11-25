@@ -19,7 +19,7 @@ const bakedVoice = (): Promise<Record<string, string>> =>
     .catch(() => ({})));
 
 /** Voix de qualité (Cartesia) : fichier livré avec le jeu, sinon le serveur qui garde la clé ; null si indisponible. */
-function cartesiaUrl(display: string, lang: 'fr' | 'en'): Promise<string | null> {
+export function cartesiaUrl(display: string, lang: 'fr' | 'en'): Promise<string | null> {
   const text = spoken(display, lang);
   const key = `${lang}|${text}`;
   let p = audioCache.get(key);

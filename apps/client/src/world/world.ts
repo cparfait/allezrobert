@@ -194,25 +194,26 @@ export class World {
       this.soundSources.set(tile.id, soundSourcesForTile(tile));
       const priority = this.terrain.distTo(tile.tx, tile.tz);
       for (const [label, step] of [
-        ['bâtiments', () => this.buildings.addTile(tile)],
+        ['bâtiments', () => this.buildings.addTileSteps(tile)],
         [
           'routes',
-          () => {
-            this.network.addTile(tile);
+          function* (this: World) {
+            yield* this.network.addTileSteps(tile);
             this.roadHeight?.addTile(tile);
-          },
+          }.bind(this),
         ],
         [
           'végétation',
-          () => {
-            this.vegetation.addTile(tile);
+          function* (this: World) {
+            yield* this.vegetation.addTileSteps(tile);
             this.vegReady.add(tile.id);
-          },
+          }.bind(this),
         ],
         ['eau', () => this.water.addTile(tile)],
         ['rails', () => this.railways.addTile(tile)],
       ] as const)
-        this.terrain.work.defer(() => alive() && step(), priority, label);
+        // Étape découpée (itérateur) : la tuile doit être encore chargée à chaque reprise, sinon elle est abandonnée.
+        this.terrain.work.defer(() => (alive() ? whileAlive(step(), alive) : undefined), priority, label);
     };
     this.terrain.onTileUnloaded = (tile) => {
       this.soundSources.delete(tile.id);
@@ -547,4 +548,14 @@ export function freezeStatic(group: THREE.Object3D): void {
 /** Densités du décor des abords (style jeu vidéo) selon la qualité graphique. */
 function lifeDensity(q: QualitySettings): LifeDensity {
   return { props: q.propDensity, people: (q.trafficDensity + q.crowdDensity) / 2 };
+}
+
+/** Fait avancer `steps` (s'il s'agit d'un itérateur) tant que `alive()` reste vrai. */
+function* whileAlive(steps: unknown, alive: () => boolean): Generator<void> {
+  const it = steps as Iterator<unknown> | undefined;
+  if (!it || typeof it.next !== 'function') return;
+  while (alive()) {
+    if (it.next().done) return;
+    yield;
+  }
 }

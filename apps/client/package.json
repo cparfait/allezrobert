@@ -19,6 +19,7 @@
     "@allezrobert/shared": "workspace:*",
     "@colyseus/sdk": "^0.18.5",
     "@mediapipe/tasks-vision": "1.1.1",
+    "@mintplex-labs/piper-tts-web": "1.0.5",
     "livekit-client": "^2.23.0",
     "three": "^0.186.1",
     "uqr": "^0.1.3"

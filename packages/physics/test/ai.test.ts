@@ -117,4 +117,15 @@ describe('coureurs IA', () => {
     }
     expect(out!.watts).toBeLessThanOrEqual(250);
   });
+  it('attaque sur ordre : part tout de suite, refusée si l’IA est à bout', () => {
+    const ctx = { gradePercent: 0, speedMs: 10, groupPaceWkg: 3, gapAheadM: 0.6, speedAheadMs: 10, positionInGroup: 1, groupSize: 5 };
+    const ai = new AiRider({ id: 'y', profile: 'rouleur', ftpWatts: 250, params: paramsFromBike(70), seed: 2 });
+    expect(ai.orderAttack()).toBe(true);
+    const out = ai.update(ctx, 0.1);
+    expect(out.state).toBe('attack');
+    expect(ai.orderAttack()).toBe(false);
+    const tired = new AiRider({ id: 'z', profile: 'rouleur', ftpWatts: 250, params: paramsFromBike(70), seed: 3 });
+    tired.wPrime.balance = tired.wPrime.wPrime * 0.2;
+    expect(tired.orderAttack()).toBe(false);
+  });
 });

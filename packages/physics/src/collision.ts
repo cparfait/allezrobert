@@ -51,10 +51,9 @@ export function separateRiders(bodies: Body[], halfRoadM: number, dt: number): v
         const front = a.distM >= b.distM ? a : b;
         const rear = front === a ? b : a;
         if (front.distM - rear.distM >= BIKE_LENGTH_M) continue;
-        // Dépassement en cours par qui traverse (écart de vitesse, ou déjà engagé l'un dans l'autre) : ni écart ni retenue,
-        // dans un sens comme dans l'autre (une fois à moitié passé, l'autre devient « derrière » et ne doit pas reculer d'un
-        // bond). Côte à côte à la même vitesse, la séparation latérale normale reprend.
-        if ((a.passThrough || b.passThrough) && !(a.fixed && b.fixed) && passing(front, rear)) continue;
+        // Dépassement net (plus de 0,3 m/s d'écart) par qui traverse : ni écart ni retenue, jusqu'à ce qu'il soit passé
+        // (à mi-chemin, l'autre devient « derrière » mais ne recule pas d'un bond). À vitesses égales, séparation normale.
+        if (Math.abs(a.speedMs - b.speedMs) > 0.3 && (a.speedMs > b.speedMs ? a : b).passThrough && !(a.fixed && b.fixed)) continue;
         const overlap = BIKE_WIDTH_M - Math.abs(front.lateral - rear.lateral);
         if (overlap <= 0) continue;
         // Qui s'écarte : celui qui arrive de derrière (il double), sauf s'il est mené par un humain ou imposé :
@@ -98,11 +97,6 @@ export function separateRiders(bodies: Body[], halfRoadM: number, dt: number): v
       }
     }
   }
-}
-
-/** Deux coureurs en train de se dépasser : vitesses différentes, ou décalés de plus d'un quart de vélo. */
-function passing(front: Body, rear: Body): boolean {
-  return Math.abs(front.speedMs - rear.speedMs) > 0.3 || front.distM - rear.distM > BIKE_LENGTH_M / 4;
 }
 
 /** Décale `r` de `delta` (m) dans la chaussée ; renvoie ce dont il a réellement bougé. */

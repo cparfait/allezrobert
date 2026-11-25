@@ -240,6 +240,19 @@ export class AiRider {
     this.stateDuration = durationS;
   }
 
+  /**
+   * Attaque sur ordre (équipier commandé par le joueur) : part tout de suite, pour une attaque un peu plus longue que
+   * les siennes. Refusée s'il est déjà à bout (cramé, en récupération) ou trop entamé (W′ sous 30 %). Pas de tirage :
+   * le déterminisme client/serveur n'est touché que si l'ordre est donné.
+   */
+  orderAttack(): boolean {
+    if (this.state === 'cracked' || this.state === 'recover' || this.state === 'attack' || this.wPrime.fraction < 0.3) return false;
+    this.setState('attack', this.profile.attackDurationS * AI_TACTICS[this.tactic].attackLength * 1.2);
+    this.sinceAttack = 0;
+    this.escaped = false;
+    return true;
+  }
+
   /** FTP du moment : celle du jour, qui s'érode au-delà de ~800 kJ de travail (jusqu'à −12 %). */
   get ftpNow(): number {
     const kj = this.workJ / 1000;

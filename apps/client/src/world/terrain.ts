@@ -14,6 +14,8 @@ import { frameStats } from '../engine/frameStats.ts';
 import { ROAD_FX } from './roadSurface.ts';
 import { SIDEWALK_MAX_M, builtCells, isBuiltUp } from './sidewalks.ts';
 import { EDGE_FIELD_RES, EDGE_MAX_M, EDGE_MIN_M, edgeFieldUv, edgeRoads, roadEdgeField } from './roadEdgeField.ts';
+/** Hiver enneigé en plaine (sinon simple givre) : ?neige=0 pour couper. */
+const WINTER_SNOW = typeof location === 'undefined' || new URLSearchParams(location.search).get('neige') !== '0';
 
 /** Orthophotos (prises en été) selon la saison : teinte et saturation. Partagé avec le relief lointain. */
 export const ORTHO_SEASON: Record<Season, [string, number]> = { spring: ['#f4fff0', 1.05], summer: ['#fffbf2', 1], autumn: ['#fbead2', 0.9], winter: ['#dde2e6', 0.5] };
@@ -337,7 +339,8 @@ export class TerrainManager {
   setSeason(season: Season): void {
     const c = (LOW_POLY ? LOWPOLY_GROUND : SEASON_GROUND)[season];
     for (const k of Object.keys(c) as Array<keyof typeof c>) this.seasonColors[k].set(c[k]);
-    this.frost.value = season === 'winter' ? 0.25 : 0;
+    // Hiver (idée NCT Ride) : sol enneigé en plaine, ?neige=0 pour garder le simple givre d'avant.
+    this.frost.value = season === 'winter' ? (WINTER_SNOW ? 0.85 : 0.25) : 0;
     this.snowLine.value = SNOW_LINE_M[season];
     this.alpineMeadow.set(ALPINE_MEADOW[season]);
     this.orthoTint.set(ORTHO_SEASON[season][0]);

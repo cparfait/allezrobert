@@ -55,4 +55,35 @@ describe('WorkQueue', () => {
     q.flush();
     expect(order).toEqual(['suite']);
   });
+  it('reprend une tâche découpée (générateur) d’une image à l’autre, dans le budget', () => {
+    const c = clock();
+    const q = new WorkQueue();
+    const steps: number[] = [];
+    q.defer(function* () {
+      for (let k = 0; k < 5; k++) {
+        steps.push(k);
+        c.spend(2);
+        yield;
+      }
+    });
+    q.defer(() => steps.push(99));
+    q.pump(5, c.now);
+    expect(steps).toEqual([0, 1, 2]); // 2 + 2 + 2 ms : le budget de 5 ms est dépassé au troisième pas
+    expect(q.size).toBe(2);
+    q.pump(5, c.now);
+    expect(steps).toEqual([0, 1, 2, 3, 4, 99]);
+    expect(q.size).toBe(0);
+  });
+  it('flush termine les tâches découpées', () => {
+    const q = new WorkQueue();
+    let n = 0;
+    q.defer(function* () {
+      while (n < 10) {
+        n++;
+        yield;
+      }
+    });
+    q.flush();
+    expect(n).toBe(10);
+  });
 });
