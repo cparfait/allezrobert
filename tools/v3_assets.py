@@ -50,7 +50,7 @@ def source_image(source, converter, work, hue=0):
 
 
 def keep_stored_normals(converter):
-    """Normales lissées du modèle Zwift gardées (sinon recalculées par face : surfaces en facettes)."""
+    """Normales lissées du modèle v3/beta gardées (sinon recalculées par face : surfaces en facettes)."""
     orient = converter.orient_and_normals
     if getattr(orient, "keeps_stored", False):
         return
