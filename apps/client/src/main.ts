@@ -1319,6 +1319,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const myGear: GearKind = ttKeep ? 'race' : gearKind;
   const riderLook = withHeadgear({ ...s.look, ...(myLead ? { jersey: LEADER_COLORS[myLead][0], jerseyAccent: LEADER_COLORS[myLead][1] } : {}), heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' }, myGear, 1, { keepCap: true, bikeIndex: 0 });
   const avatar = createAvatar(riderLook);
+  avatar.setFootDown?.(true);
   engine.scene.add(avatar.root);
   const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(hiddenV3Mount(avatar)) : undefined;
   if (myLead) {
@@ -3201,7 +3202,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     avatar.root.rotateX(-pitch);
     avatar.setEffort?.(ride.inputs.watts / Math.max(50, s.ftpWatts), ride.inputs.hr !== undefined ? ride.inputs.hr / 190 : undefined);
     (avatar as { setSprint?(on: boolean): void }).setSprint?.(ride.segment?.seg.kind === 'sprint' || ride.inputs.watts > 1.4 * s.ftpWatts);
-    avatar.update(dt, ride.inputs.cadence, ride.state.speedMs, ride.pose, bank);
+    // À l'arrêt, la cadence du capteur ou du simulateur arrive déjà : elle ne fait pas pédaler le coureur (pied à terre).
+    const halted = summitShown || (ride.paused && ride.state.speedMs < 0.4);
+    avatar.update(dt, halted ? 0 : ride.inputs.cadence, halted ? 0 : ride.state.speedMs, ride.pose, bank);
     // Voix de course : speaker au départ, mi-parcours et dernier kilomètre (itinéraire), cris du public.
     if (!ride.paused) {
       if (!voiceFlags.start && ride.elapsedS > 1.5) {

@@ -324,6 +324,7 @@ export class Multiplayer {
         // Casque toujours, obligatoire en course, chrono en contre-la-montre (game/headgear.ts).
         const look = withHeadgear(r.avatar, this.gearKind, 1, { keepCap: true, bikeIndex: hashId(r.id) });
         const avatar = createAvatar(look);
+        avatar.setFootDown?.(true);
         // Bêta : sans cela, les autres coureurs (joueurs et IA du serveur) restaient en coureurs du mode Réel.
         // Leur équipement V3 n'est pas transmis : profil validé choisi d'après leur identifiant.
         const seed = hashId(r.id);
@@ -369,7 +370,8 @@ export class Multiplayer {
         const lean = this.track.leanAt(r.unwrappedM, r.speedMs, r.dir === -1 ? -1 : 1);
         const bank = (this.banks.get(r.id) ?? 0) + (lean - (this.banks.get(r.id) ?? 0)) * Math.min(1, dt * 3);
         this.banks.set(r.id, bank);
-        rem.avatar.update(dt, r.cadence, r.speedMs, r.pose, bank);
+        // À l'arrêt (salon, grille), la cadence envoyée ne fait pas pédaler : pied à terre.
+        rem.avatar.update(dt, r.speedMs < 0.3 ? 0 : r.cadence, r.speedMs, r.pose, bank);
         rem.v3?.update(dt, r.cadence, r.speedMs, r.pose, { effort: r.watts / 250, transitions: true });
         // Corps et tenue V3 (maillages à squelette) : jamais masqués « hors champ ». Leur sphère englobante, calculée
         // une fois, pouvait être fausse : tout près de la caméra, seuls la tête et le vélo restaient (22/11/2026).

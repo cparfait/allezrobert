@@ -1,6 +1,7 @@
 import { AERO_COAST_FULL, AERO_SPEED, AERO_SPEED_OUT, FOREARMS_IN, FOREARMS_OUT, HARD_EFFORT, HARD_EFFORT_OUT } from './poseThresholds.ts';
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { FOOT_CRANK, FOOT_HIP_AHEAD_M, FOOT_HIP_SIDE_M, FOOT_LEAN, FootDown, crankToward, footGround, footPath, hipDrop } from './footDown.ts';
 import { BIKE_REFERENCE, bikeOfLook, lookSex, type AvatarLook, type BikeBuild, type WheelType } from '@allezrobert/shared';
 import { GltfRiderAvatar, type RiderAvatarLike, type RiderGesture, type RiderPose } from './gltfAvatar.ts';
 import { SweptBody, makeJoints, type BodyLook } from './sweptBody.ts';
@@ -673,6 +674,9 @@ export class LowPolyRider implements RiderAvatarLike {
   private turtleOn = false;
   private turtleBlend = 0;
   private celebrate = 0;
+  private readonly footDown = new FootDown();
+  private readonly ground = new THREE.Vector3();
+  private readonly foot = new THREE.Vector3();
   private celebrating = false;
   private shadows = true;
   private bareHead = false;
@@ -1345,7 +1349,11 @@ export class LowPolyRider implements RiderAvatarLike {
     this.poseBlend += ((pose === 'standing' ? 1 : 0) - this.poseBlend) * k;
     this.coastBlend += ((pose === 'coasting' || cadence < 5 ? 1 : 0) - this.coastBlend) * k;
     this.celebrate += ((this.celebrating ? 1 : 0) - this.celebrate) * k;
-    if (this.coastBlend > 0.5 && cadence < 5) {
+    const fd = this.footDown.update(dt, cadence, speed);
+    if (this.footDown.isDown) {
+      // Pied à terre : pied droit sur sa pédale, manivelle devant.
+      this.crankAngle = crankToward(this.crankAngle, FOOT_CRANK, fd >= 1 ? 1 : 1 - Math.exp(-dt * 7));
+    } else if (this.coastBlend > 0.5 && cadence < 5) {
       // Roue libre : manivelles ramenées à l'horizontale.
       const target = Math.round((this.crankAngle - Math.PI / 2) / Math.PI) * Math.PI + Math.PI / 2;
       this.crankAngle += (target - this.crankAngle) * k * 0.5;
@@ -1366,12 +1374,14 @@ export class LowPolyRider implements RiderAvatarLike {
     this.sprintBlend += ((this.sprintOn ? 1 : 0) - this.sprintBlend) * (1 - Math.exp(-dt * 4));
     const sprint = this.sprintBlend * stand;
     const rock = -Math.sin(this.crankAngle) * (0.16 * stand + 0.12 * sprint + 0.009 * (1 - stand)) * pedaling * (1 - 0.6 * fast * (1 - sprint));
-    this.lean.rotation.z = tilt + rock;
+    // Pied à terre : vélo incliné vers le pied posé.
+    const footLean = FOOT_LEAN * fd;
+    this.lean.rotation.z = tilt + rock - footLean;
     /**
      * Décalage latéral (repère du vélo) d'un point du buste à la hauteur `y` : en danseuse, le buste pivote autour du
      * bassin (resté dans l'axe du vélo) pour revenir presque d'aplomb ; il reste droit, sans pliure. Assis : aucun.
      */
-    const upright = (y: number) => 0.95 * stand * rock * (y - this.hip.y);
+    const upright = (y: number) => (0.95 * stand * rock - 0.7 * footLean) * (y - this.hip.y);
     // Roulis des épaules assis : l'épaule du côté de la jambe qui appuie (manivelle vers l'avant, sin < 0 à
     // gauche) descend d'environ 1 cm et le buste glisse un peu vers elle.
     // Les pros restent immobiles du haut à haute cadence : roulis réduit de moitié de 80 à 120 tr/min.
@@ -1417,6 +1427,14 @@ export class LowPolyRider implements RiderAvatarLike {
     // Danseuse : bassin monté de 16 cm et avancé vers le pédalier ; il reste à l'aplomb pendant que le vélo bascule.
     // Sprint : bassin hors de la selle mais bas, au-dessus du bec de selle.
     const hip = this.hip.set(0, SADDLE_PRISM.y + this.seatDy + 0.07 + 0.16 * stand - 0.07 * sprint, SADDLE_PRISM.z + 0.02 + 0.23 * stand - 0.12 * sprint - 0.02 * aero);
+    if (fd > 0) {
+      // Bassin hors de selle, vers l'avant et le pied posé, descendu juste ce qu'il faut (footDown.ts).
+      footGround(this.lean.rotation.z, this.bb.z, this.ground);
+      hip.z += FOOT_HIP_AHEAD_M * fd;
+      hip.x += FOOT_HIP_SIDE_M * fd;
+      const joint = hip.clone().setX(hip.x + 0.09);
+      hip.y -= hipDrop(joint, this.ground.clone().add(v3(0, 0.065, -0.05)), THIGH + SHIN) * fd;
+    }
     const up = this.celebrate;
     // Les bras levés ou la danseuse annulent la position de chrono (on se redresse).
     const fitK = 1 - Math.max(up, stand * 0.6);
@@ -1432,7 +1450,10 @@ export class LowPolyRider implements RiderAvatarLike {
     // Chrono : buste relevé sur les cornes ; tortue : dos encore plus bas.
     shoulder.y += 0.1 * horns - 0.03 * turtle;
     shoulder.z += -0.07 * horns + 0.02 * turtle;
-    shoulder.x += upright(shoulder.y);
+    // Pied à terre : buste redressé, au-dessus du bassin avancé.
+    shoulder.y += 0.03 * fd;
+    shoulder.z += 0.05 * fd;
+    shoulder.x += upright(shoulder.y) + FOOT_HIP_SIDE_M * fd;
     const chestBase = hip.clone().add(v3(0, 0.06, 0.02));
     this.torso.set(chestBase, shoulder);
     for (const b of this.bands) b.seg.set(chestBase.clone().lerp(shoulder, b.from), chestBase.clone().lerp(shoulder, b.to));
@@ -1459,7 +1480,10 @@ export class LowPolyRider implements RiderAvatarLike {
       const pedal = v3(0.125 * leg.side, this.bb.y - Math.cos(a) * CRANK, this.bb.z - Math.sin(a) * CRANK);
       const pm = this.pedals[leg.side > 0 ? 0 : 1];
       if (pm) pm.position.copy(pedal).setX(this.pedalX === null ? pedal.x : this.pedalX * leg.side);
-      const ankle = pedal.clone().add(v3(0, 0.065, -0.05));
+      // Pied gauche posé au sol : il quitte sa pédale.
+      const planted = leg.side > 0 && !this.bindPose ? fd : 0;
+      const foot = planted > 0 ? footPath(pedal, this.ground, planted, this.foot) : pedal;
+      const ankle = foot.clone().add(v3(0, 0.065, -0.05));
       const hipJ = hip.clone().setX(hip.x + 0.09 * leg.side);
       const knee = new THREE.Vector3();
       // Genoux légèrement ouverts (naturel), qui montent et descendent sans balayer.
@@ -1476,8 +1500,9 @@ export class LowPolyRider implements RiderAvatarLike {
       leg.knee.set(hem, knee);
       leg.shin.set(knee, ankle);
       leg.sock.set(ankle.clone().add(v3(0, this.sockLen, 0.015)), ankle);
-      leg.shoe.position.copy(pedal).add(v3(0, 0.033, 0));
-      leg.shoe.rotation.x = 0.15 + Math.sin(a) * 0.12;
+      leg.shoe.position.copy(foot).add(v3(0, 0.033, 0));
+      leg.shoe.rotation.x = (0.15 + Math.sin(a) * 0.12) * (1 - planted) + 0.04 * planted;
+      leg.shoe.rotation.z = footLean * planted;
     }
     for (const arm of this.arms) {
       // Seule l'articulation de l'épaule descend un peu du côté de la jambe qui appuie (±6 mm), buste immobile.
@@ -1548,6 +1573,10 @@ export class LowPolyRider implements RiderAvatarLike {
 
   setCelebrating(on: boolean): void {
     this.celebrating = on;
+  }
+
+  setFootDown(on: boolean): void {
+    this.footDown.enabled = on;
   }
 
   setBareHead(on: boolean): void {

@@ -9,6 +9,7 @@ import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { V3_SWAY } from '../v3/sway.ts';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
+import { FOOT_CRANK, FOOT_HIP_AHEAD_M, FOOT_HIP_SIDE_M, FOOT_LEAN, FOOT_UPRIGHT, FootDown, crankToward, footGround, footPath, hipDrop } from './footDown.ts';
 import { BIKE_REFERENCE, HAIR_STYLE_COUNT, PLAIN_BIKE_FAMILY, bikeOfLook, decodeFace, lookSex, type AvatarLook, type BikeBuild, type BikeFamily, type HelmetShape } from '@allezrobert/shared';
 import { RiderAvatar } from './avatar.ts';
 import { buildBikeKit, roadPartsReplaced, type BikeType } from './bikeKits.ts';
@@ -115,6 +116,8 @@ export interface RiderAvatarLike {
   setLook(look: AvatarLook): void;
   /** Bras levés en V (victoire à la ligne d'arrivée). */
   setCelebrating?(on: boolean): void;
+  /** Pied à terre à l'arrêt (sortie seulement : ni garage, ni aperçu, ni film) ; voir footDown.ts. */
+  setFootDown?(on: boolean): void;
   /** Tête nue (aperçu de l'éditeur de visage). */
   setBareHead?(on: boolean): void;
   /** Effort du coureur (puissance / FTP, FC / FC max) : expressions du visage (avatar MPFB). */
@@ -1383,6 +1386,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
   private wheelAngle = 0;
   private poseBlend = 0; // 0 assis → 1 danseuse
   private coastBlend = 0;
+  private readonly footDown = new FootDown();
+  private readonly foot = new THREE.Vector3();
+  private readonly ground = new THREE.Vector3();
   private gesture: RiderGesture = {};
   private time = Math.random() * 10;
   private shadows = true;
@@ -1910,6 +1916,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.celebrating = on;
   }
 
+  setFootDown(on: boolean): void {
+    this.footDown.enabled = on;
+  }
+
   update(dt: number, cadence: number, speed: number, pose: RiderPose, bank = 0): void {
     // Coureur remplacé par son modèle V3 : squelette invisible, sa pose n'est calculée que si on la demande.
     const hidden = this.v3RiderHidden && !this.forcePose;
@@ -1926,7 +1936,11 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const k = 1 - Math.exp(-dt * 4);
     this.poseBlend += ((pose === 'standing' ? 1 : 0) - this.poseBlend) * k;
     this.coastBlend += ((pose === 'coasting' || cadence < 5 ? 1 : 0) - this.coastBlend) * k;
-    if (this.coastBlend > 0.5 && cadence < 5) {
+    const fd = this.footDown.update(dt, cadence, speed);
+    if (this.footDown.isDown) {
+      // Pied à terre : pied droit sur sa pédale, manivelle devant.
+      this.crankAngle = crankToward(this.crankAngle, FOOT_CRANK, fd >= 1 ? 1 : 1 - Math.exp(-dt * 7));
+    } else if (this.coastBlend > 0.5 && cadence < 5) {
       // Roue libre : manivelles ramenées à l'horizontale.
       const target = Math.round((this.crankAngle - Math.PI / 2) / Math.PI) * Math.PI + Math.PI / 2;
       this.crankAngle += (target - this.crankAngle) * k * 0.5;
@@ -1985,7 +1999,9 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const seatedRock = 0.014 + 0.01 * THREE.MathUtils.clamp(this.ftpFrac - 0.6, 0, 0.6);
     const rock = -Math.sin(a) * (0.11 * stand + seatedRock * (1 - stand) * (1 - this.coastBlend));
     // Remplacé par son modèle V3 : balancement réduit (voir v3/sway.ts) ; l'inclinaison en virage est gardée entière.
-    this.lean.rotation.z = bank + rock * (this.v3RiderHidden ? V3_SWAY : 1);
+    // Pied à terre : vélo incliné vers le pied posé (le modèle V3 a sa propre pose d'arrêt).
+    const footLean = this.v3RiderHidden ? 0 : FOOT_LEAN * fd;
+    this.lean.rotation.z = bank + rock * (this.v3RiderHidden ? V3_SWAY : 1) - footLean;
     if (hidden) {
       this.poseFresh = false;
       const last = (this.lastPose ??= { cadence, speed, pose, bank });
@@ -2007,7 +2023,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const roll = 0.02 * Math.sin(a) * (1 - stand) * (1 - coast);
     const race = DROPS_BEND * drops + AERO_BEND * aero + RELAX_BEND * relax + (this.kind === 'tripo' || this.kind === 'tripo-femme' ? 0 : HOODS_BEND) * hoods + HOODS_AERO_BEND * hoodsAero + this.forearmTuck * forearms + this.clipTuck * clip + TURTLE_BEND * turtle;
     const tuck = this.tuck * (1 - 0.6 * stand) * (1 - HORNS_UNTUCK * horns) + race;
-    const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck;
+    const tilt = -0.09 * stand - 0.05 * coast + TUCK_HIPS * tuck - FOOT_UPRIGHT * fd;
     _q1.setFromAxisAngle(Z_AXIS, counter + roll);
     _q2.setFromAxisAngle(X_AXIS, tilt);
     _q3.multiplyQuaternions(_q1, _q2).multiply(hipsR.modelQ);
@@ -2023,6 +2039,19 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       const { y, z } = SEAT_FROM_HIPS;
       _v4.y += -y * Math.cos(r) + z * Math.sin(r) + y;
       _v4.z += -y * Math.sin(r) - z * Math.cos(r) + z;
+    }
+    if (fd > 0) {
+      // Pied à terre (footDown.ts) : bassin hors de selle, vers l'avant et le pied posé, descendu juste ce qu'il faut.
+      const leg = t.legs.L;
+      const size = this.size;
+      footGround(this.lean.rotation.z, (this.fit?.bb ?? t.bb).z, this.ground);
+      // Du repère du vélo à celui du coureur (échelle et décalage du niveau de détail, voir applySize).
+      this.ground.sub(this.lod.position).divideScalar(size);
+      _v4.z += FOOT_HIP_AHEAD_M * fd;
+      _v4.x += FOOT_HIP_SIDE_M * fd;
+      _v1.copy(t.bones[leg.upper].modelP).sub(hipsR.modelP).add(_v4);
+      _v2.copy(t.ankleFlat.L).add(this.ground);
+      _v4.y -= hipDrop(_v1, _v2, leg.l1 + leg.l2) * fd;
     }
     _v4.applyAxisAngle(Z_AXIS, counter);
     const hips = this.bones.hips;
@@ -2041,7 +2070,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.fk('spine2');
     }
     _q1.multiplyQuaternions(this.mQ[t.bones.chest.parent ?? 'spine'], t.bones.chest.localQ);
-    _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9);
+    _q2.setFromAxisAngle(Z_AXIS, -roll * 0.9 + footLean * 0.7);
     if (tuck !== 0) _q2.multiply(_q3.setFromAxisAngle(X_AXIS, TUCK_CHEST * tuck));
     // Regard de côté : les épaules suivent un peu la tête.
     const yaw = this.gesture.yaw ?? 0;
@@ -2052,7 +2081,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     this.bones.neck.quaternion.copy(t.bones.neck.localQ);
     this.fk('neck');
     const look = 0.06 * Math.sin(this.time * 0.37) * Math.sin(this.time * 0.13) + yaw;
-    _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter));
+    _q1.setFromAxisAngle(Z_AXIS, -(0.7 * bank + rock + counter) + footLean);
     // Tête : relevée vers la route en chrono ; en position de course, basse dans l'alignement du dos ;
     // buste relevé : regard inchangé.
     if (tuck !== 0) _q1.multiply(_q3.setFromAxisAngle(X_AXIS, -TUCK_HEAD * (tuck - race) + RACE_HEAD * Math.max(race, 0) + TURTLE_HEAD * turtle));
@@ -2150,11 +2179,18 @@ export class GltfRiderAvatar implements RiderAvatarLike {
         else p.position.copy(this.pedal);
         p.quaternion.setFromAxisAngle(X_AXIS, pitch);
       }
-      this.target.copy(t.ankleFlat[s]).applyAxisAngle(X_AXIS, pitch).add(this.pedal);
+      // Pied gauche posé au sol : il quitte sa pédale, à plat.
+      const planted = s === 'L' ? fd : 0;
+      if (planted > 0) {
+        pitch += (0.06 - pitch) * planted;
+        footPath(this.pedal, this.ground, planted, this.foot);
+      } else this.foot.copy(this.pedal);
+      this.target.copy(t.ankleFlat[s]).applyAxisAngle(X_AXIS, pitch).add(this.foot);
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
       this.solveChain(c, this.target);
       _q1.setFromAxisAngle(X_AXIS, pitch - t.pedalPitch);
+      if (planted > 0) _q1.premultiply(_q3.setFromAxisAngle(Z_AXIS, footLean * planted));
       this.setModelQ(c.end, _q2.multiplyQuaternions(_q1, t.bones[c.end].modelQ));
     }
   }
