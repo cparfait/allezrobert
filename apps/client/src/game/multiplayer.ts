@@ -1,3 +1,4 @@
+import { withHeadgear, type GearKind } from './headgear.ts';
 import * as THREE from 'three/webgpu';
 import type { CompanionCommand, PublicPick, RideMode, RideWeather, RouteTrack, WelcomeMsg } from '@allezrobert/shared';
 import type { RiderState, RouteBuildingCollision, RouteObstaclePose } from '@allezrobert/physics';
@@ -107,6 +108,8 @@ function friendMarker(name: string): THREE.Sprite {
  * coureurs interpolés (150 ms), réconciliation douce de sa propre position, commandes du compagnon.
  */
 export class Multiplayer {
+  /** Sortie en cours (casque, course, chrono) : couvre-chef des autres coureurs (game/headgear.ts). */
+  gearKind: GearKind = 'ride';
   readonly net: RideNetClient;
   private readonly scene: THREE.Scene;
   private readonly track: RouteTrack;
@@ -318,11 +321,13 @@ export class Multiplayer {
       this.gaps.set(r.id, gapAlongRoute(r.unwrappedM, refM, L, !!this.track.route.loop));
       let rem = this.remotes.get(r.id);
       if (!rem) {
-        const avatar = createAvatar(r.avatar);
+        // Casque toujours, obligatoire en course, chrono en contre-la-montre (game/headgear.ts).
+        const look = withHeadgear(r.avatar, this.gearKind, 1, { keepCap: true, bikeIndex: hashId(r.id) });
+        const avatar = createAvatar(look);
         // Bêta : sans cela, les autres coureurs (joueurs et IA du serveur) restaient en coureurs du mode Réel.
         // Leur équipement V3 n'est pas transmis : profil validé choisi d'après leur identifiant.
         const seed = hashId(r.id);
-        const v3 = crowdV3(avatar, r.avatar, seed >> 1, (seed & 1) === 1);
+        const v3 = crowdV3(avatar, look, seed >> 1, (seed & 1) === 1);
         rem = { avatar, label: null, ...(v3 ? { v3 } : {}) };
         this.scene.add(rem.avatar.root);
         this.remotes.set(r.id, rem);

@@ -49,6 +49,8 @@ interface TileEntry {
   textures: THREE.DataTexture[];
   /** Orthophoto affichée : texture, côté demandé au décodage (0 = taille d'origine) et côté en cours de décodage. */
   ortho?: { tex: THREE.Texture; px: number; pending: number | null };
+  /** Maillage en cours de reconstruction par pas (voir buildGeometrySteps) : pas de seconde reconstruction en même temps. */
+  building?: boolean;
 }
 
 /**
@@ -466,24 +468,51 @@ export class TerrainManager {
         if (existing) {
           this.resizeOrtho(existing, key, tx, tz);
           // Niveau de détail : maillage refait plus tard, dans le budget de l'image (plusieurs tuiles changent d'un coup).
-          if (existing.lod !== this.lodAt(tx, tz))
-            this.work.defer(() => {
-              const lod = this.lodAt(tx, tz);
-              if (this.tiles.get(key) === existing && existing.lod !== lod) this.rebuild(existing, lod);
+          // Maillage construit par pas (30 à 50 ms d'un bloc sinon) et remplacé seulement au dernier.
+          if (existing.lod !== this.lodAt(tx, tz) && !existing.building) {
+            existing.building = true;
+            const terrain = this;
+            this.work.defer(function* () {
+              try {
+                // Le coureur a avancé pendant la construction : niveau voulu relu, refait tant qu'il a changé.
+                for (let lod = terrain.lodAt(tx, tz); terrain.tiles.get(key) === existing && existing.lod !== lod; lod = terrain.lodAt(tx, tz)) {
+                  const geo = yield* terrain.buildGeometrySteps(existing.tile, lod);
+                  if (terrain.tiles.get(key) !== existing || terrain.disposed) return geo.dispose();
+                  existing.mesh.geometry.dispose();
+                  existing.mesh.geometry = geo;
+                  existing.lod = lod;
+                }
+              } finally {
+                existing.building = false;
+              }
             }, this.distTo(tx, tz), 'terrain (détail)');
+          }
         } else if (!this.loading.has(key)) {
           this.loading.add(key);
           jobs.push(
             this.fetchTile(tx, tz)
               .then((tile) => {
                 // Construction différée : la tuile n'est plus voulue (coureur rapide) ou déjà là, on passe.
-                if (tile)
-                  this.work.defer(() => {
-                    if (!this.tiles.has(key) && this.wanted.has(key)) this.add(tile, this.lodAt(tx, tz));
-                  }, this.distTo(tx, tz), 'terrain');
+                if (!tile || this.disposed) return void this.loading.delete(key);
+                const terrain = this;
+                this.work.defer(function* () {
+                  // `loading` tenu jusqu'au bout : la construction s'étale sur plusieurs images, la tuile ne doit pas être
+                  // redemandée (et construite une seconde fois) pendant ce temps.
+                  try {
+                    if (terrain.tiles.has(key) || !terrain.wanted.has(key)) return;
+                    const lod = terrain.lodAt(tx, tz);
+                    const geo = yield* terrain.buildGeometrySteps(tile, lod);
+                    if (terrain.tiles.has(key) || !terrain.wanted.has(key) || terrain.disposed) return geo.dispose();
+                    terrain.add(tile, lod, geo);
+                  } finally {
+                    terrain.loading.delete(key);
+                  }
+                }, this.distTo(tx, tz), 'terrain');
               })
-              .catch((err) => console.warn(`Tuile ${key} indisponible`, err))
-              .finally(() => this.loading.delete(key)),
+              .catch((err) => {
+                this.loading.delete(key);
+                console.warn(`Tuile ${key} indisponible`, err);
+              }),
           );
         }
       }
@@ -637,7 +666,7 @@ export class TerrainManager {
     this.forgetLast();
   }
 
-  private add(tile: LoadedTile, lod: number): void {
+  private add(tile: LoadedTile, lod: number, geometry?: THREE.BufferGeometry): void {
     if (this.disposed) return;
     if (!tile.splat) tile.splat = rasterizeSplat(tile, this.activeRoute);
     const textures = this.splatTextures(tile);
@@ -664,7 +693,7 @@ export class TerrainManager {
     const edge = this.roadEdge ? this.roadEdgeTexture(tile) : null;
     if (edge) textures.push(edge);
     const material = this.createMaterial(textures, ortho, edge);
-    const mesh = new THREE.Mesh(this.buildGeometry(tile, lod), material);
+    const mesh = new THREE.Mesh(geometry ?? this.buildGeometry(tile, lod), material);
     mesh.position.set(tile.x0 + tile.size / 2, 0, tile.z0 + tile.size / 2);
     mesh.receiveShadow = true;
     mesh.castShadow = false;
@@ -677,14 +706,17 @@ export class TerrainManager {
     this.onTileLoaded?.(tile, () => this.tiles.get(key) === entry);
   }
 
-  private rebuild(e: TileEntry, lod: number): void {
-    e.mesh.geometry.dispose();
-    e.mesh.geometry = this.buildGeometry(e.tile, lod);
-    e.lod = lod;
-  }
-
   /** Grille régulière centrée + jupe de 6 m sur les bords pour masquer les fissures entre LOD. */
   private buildGeometry(tile: LoadedTile, lod: number): THREE.BufferGeometry {
+    const it = this.buildGeometrySteps(tile, lod);
+    for (;;) {
+      const r = it.next();
+      if (r.done) return r.value;
+    }
+  }
+
+  /** Comme `buildGeometry`, en plusieurs pas pour la file de travail (paquets de lignes, abaissement sous les routes, normales). */
+  private *buildGeometrySteps(tile: LoadedTile, lod: number): Generator<void, THREE.BufferGeometry> {
     const seg = lod === FINE_LOD ? Math.max(this.q.terrainSegmentsPerTile, Math.min(Math.ceil(tile.size / FINE_CELL_M), tile.n * 2)) : Math.max(16, Math.min(this.q.terrainSegmentsPerTile >> lod, tile.n * 2));
     const s = tile.size;
     const vertsPerRow = seg + 1;
@@ -730,7 +762,8 @@ export class TerrainManager {
       }
       return Number.NaN;
     };
-    for (let j = 0; j <= seg; j++)
+    for (let j = 0; j <= seg; j++) {
+      if (j % 48 === 47) yield;
       for (let i = 0; i <= seg; i++) {
         const k = j * vertsPerRow + i;
         const u = i / seg;
@@ -742,10 +775,13 @@ export class TerrainManager {
         uvs[k * 2] = u;
         uvs[k * 2 + 1] = v;
       }
+    }
+    yield;
     // Style jeu vidéo : sol abaissé sous toutes les routes de la tuile (réseau OSM, itinéraire des mondes
     // ouverts), comme sous le ruban de l'itinéraire. Sans orthophoto pour peindre la route, les facettes du
     // maillage (plus grossier que la tranchée creusée par le générateur) se voyaient en vert sur la chaussée.
     clampUnderRoads(pos, tile, seg, reach, axisGround, neighbours);
+    yield;
     // Tableaux typés et normales tirées des hauteurs voisines (grille régulière) : `computeVertexNormals`
     // de three.js, générique, prenait ≈ 75 ms par tuile en qualité haute (saccade au changement de détail).
     const border: number[] = [];

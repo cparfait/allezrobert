@@ -70,6 +70,8 @@ export const NOT_CONTACTED = {
   'http://www.garmin.com': 'espace de noms des extensions GPX / TCX',
   'https://open-meteo.com': "lien d'attribution, ouvert dans le navigateur",
   'https://developer.spotify.com': 'lien de documentation, ouvert dans le navigateur',
+  'https://github.com': 'projet cité dans un commentaire (Piper)',
+  'https://huggingface.co': 'adresse des voix Piper, redirigée vers /piper/voices/ (directorVoice.ts)',
   'https://www.specialized.com': 'source citée dans un commentaire ou une fiche',
   'https://www.matosvelo.fr': 'source citée dans un commentaire ou une fiche',
 };

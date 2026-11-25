@@ -67,13 +67,17 @@ export function polarLetters(label: string, r0: number, r1: number, fill = 0.8):
   const reps = 2;
   const L = (2 * Math.PI * mid) / reps;
   const turn = atan(p.z, p.y).mul(reps / (2 * Math.PI)).add(0.5);
-  const s = fract(turn).sub(0.5).mul(L);
+  // Mesures propres à la roue et à la marque passées en uniformes, pas en constantes : toutes les jantes partagent ainsi
+  // le même shader. Constantes, chaque roue ou marque encore jamais vue (cycliste d'ambiance qui arrive) en compilait un
+  // nouveau en pleine sortie.
+  const s = fract(turn).sub(0.5).mul(uniform(L));
   // Sens de lecture rétabli sur le flanc gauche (miroir).
   const textH = (r1 - r0) * fill;
+  const midU = uniform(mid);
   const letters = (t: THREE.Texture, asp: number, k: number) => {
     const tw = Math.min(textH * k * asp, L * 0.8);
-    const u = s.mul(sign(p.x).negate()).div(tw).add(0.5);
-    const v = r.sub(mid).div(textH * k).add(0.5);
+    const u = s.mul(sign(p.x).negate()).div(uniform(tw)).add(0.5);
+    const v = r.sub(midU).div(uniform(textH * k)).add(0.5);
     const inside = step(abs(u.sub(0.5)), float(0.5)).mul(step(abs(v.sub(0.5)), float(0.5)));
     return texture(t, vec2(u, v)).a.mul(inside);
   };
@@ -94,9 +98,10 @@ export function polarLetters(label: string, r0: number, r1: number, fill = 0.8):
 export function crankLetters(text: string, at = 0.1, h = 0.0125): THREE.Node<'float'> {
   const { tex, aspect } = wordTexture(text);
   const p = positionGeometry;
+  // Longueur du mot (selon la marque) en uniforme : un seul shader pour toutes les manivelles (voir polarLetters).
   const L = h * aspect;
-  const u = abs(p.y).sub(at - L / 2).div(L);
-  const v = float(0.5).sub(p.z.div(h));
+  const u = abs(p.y).sub(uniform(at - L / 2)).div(uniform(L));
+  const v = float(0.5).sub(p.z.div(uniform(h)));
   const inside = step(abs(u.sub(0.5)), float(0.5)).mul(step(abs(v.sub(0.5)), float(0.5)));
   const outer = step(float(0.062), abs(p.x)).mul(step(float(0.5), normalGeometry.x.mul(sign(p.x))));
   return texture(tex, vec2(u, v)).a.mul(inside).mul(outer) as unknown as THREE.Node<'float'>;

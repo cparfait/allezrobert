@@ -4,18 +4,20 @@ import * as THREE from 'three/webgpu';
  * Fondu des coureurs proches (idée vue dans NCT Ride) : un coureur collé à la caméra, ou qui passe entre la caméra
  * et mon coureur, s'estompe pour dégager la vue, puis revient quand il s'éloigne.
  *
- * Tramé (`alphaHash`) et non vraie transparence : le coureur reste dessiné comme un objet opaque (pas de tri entre
- * coureurs qui se chevauchent, fusion des pièces de riderMerge.ts conservée, qui refuse les matériaux transparents).
+ * Vraie transparence (fondu lisse), pas de tramé (`alphaHash` donnait un flou par points, moins agréable) : les
+ * copies sont `transparent` mais gardent l'écriture de profondeur et un seul passage par pièce (`forceSinglePass` :
+ * sans lui, three.js dessine les pièces double face deux fois, dos puis face, avec deux shaders de plus). La fusion des pièces (riderMerge.ts,
+ * qui refuse les matériaux transparents) a lieu avant et n'est pas touchée : les copies ne vivent que pendant le fondu.
  *
  * Les trois styles (Bêta, réaliste, poly) partagent des matériaux entre coureurs (cache des modèles, pièces `shared`
- * du vélo poly) : pendant le fondu, chaque pièce du coureur reçoit une copie de son matériau (« jumeau ») tramée,
+ * du vélo poly) : pendant le fondu, chaque pièce du coureur reçoit une copie de son matériau (« jumeau ») transparente,
  * propre à ce coureur ; revenu à pleine opacité, il retrouve ses matériaux et les copies sont détruites.
  *
  * Coupé par `?nearfade=0`.
  */
 
-/** Opacité la plus basse : la silhouette reste lisible (on voit encore qui est là). */
-export const FADE_MIN = 0.25;
+/** Opacité la plus basse : presque effacé, juste un voile pour deviner qui est là (0,25 au départ, trop présent). */
+export const FADE_MIN = 0.1;
 /** Distance caméra–coureur (m) : en deçà de NEAR_FULL, fondu complet ; au-delà de NEAR_NONE, aucun. */
 const NEAR_FULL = 1.3;
 const NEAR_NONE = 3.2;
@@ -108,7 +110,7 @@ const state = new WeakMap<THREE.Object3D, Faded>();
 const active = new Set<THREE.Object3D>();
 /**
  * Copies préparées au chargement, par coureur. three.js libère le pipeline d'un shader dès que plus aucun matériau ne
- * s'en sert : détruire les copies à la fin de chaque fondu faisait recompiler en direct la variante tramée au fondu
+ * s'en sert : détruire les copies à la fin de chaque fondu faisait recompiler en direct la variante transparente au fondu
  * suivant (jusqu'à 2 s d'image figée au départ, quand le peloton se met en place autour de la caméra). Tant que ces
  * copies vivent, toute autre copie de même shader (cyclistes d'ambiance, autres coureurs) retrouve son pipeline.
  */
@@ -125,15 +127,17 @@ function twinOf(f: Faded, m: THREE.Material): THREE.Material {
   let t = f.byOrig.get(m);
   if (!t) {
     t = m.clone();
-    t.alphaHash = true;
-    t.userData = { ...m.userData, nearFadeBase: m.opacity };
+    t.transparent = true;
+    t.depthWrite = true;
+    t.forceSinglePass = true;
+    t.userData = { ...m.userData, nearFadeBase: m.opacity, nearFadeAlphaTest: m.alphaTest };
     f.byOrig.set(m, t);
     f.twins.set(t, m);
   }
   return t;
 }
 
-/** Copies tramées posées sur toutes les pièces du coureur (originaux et pièces fusionnées), opacité appliquée. */
+/** Copies transparentes posées sur toutes les pièces du coureur (originaux et pièces fusionnées), opacité appliquée. */
 function apply(root: THREE.Object3D, f: Faded): void {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
@@ -141,7 +145,13 @@ function apply(root: THREE.Object3D, f: Faded): void {
     // Une pièce changée pendant le fondu (garde-robe, niveau de détail) reçoit aussi sa copie.
     mesh.material = Array.isArray(mesh.material) ? mesh.material.map((m) => twinOf(f, m)) : twinOf(f, mesh.material);
   });
-  for (const t of f.twins.keys()) t.opacity = (t.userData.nearFadeBase as number) * f.opacity;
+  for (const t of f.twins.keys()) {
+    t.opacity = (t.userData.nearFadeBase as number) * f.opacity;
+    // Le seuil de découpe (cheveux, rayons) se compare à l'alpha déjà estompé : il baisse avec lui, sinon la pièce
+    // disparaît d'un coup au milieu du fondu. Jamais à 0 (même shader).
+    const cut = t.userData.nearFadeAlphaTest as number;
+    if (cut > 0) t.alphaTest = cut * f.opacity;
+  }
 }
 
 /** Matériaux d'origine rendus, copies détruites. */
@@ -159,8 +169,8 @@ function restore(root: THREE.Object3D, f: Faded): void {
 
 /**
  * Au chargement de la sortie : doubles des pièces de `roots` (mêmes géométries et squelettes, à leur place) portant
- * leurs copies tramées, tous niveaux de détail compris. Posés dans la scène pendant la précompilation, ils font compiler
- * les variantes tramées en même temps que le reste (sur les fils de Dawn), au lieu d'une seconde passe de près de 3 s.
+ * leurs copies transparentes, tous niveaux de détail compris. Posés dans la scène pendant la précompilation, ils font compiler
+ * les variantes transparentes en même temps que le reste (sur les fils de Dawn), au lieu d'une seconde passe de près de 3 s.
  * Les copies restent gardées (voir `kept`) jusqu'à `releaseNearFade` ; le groupe se retire ensuite de la scène.
  */
 export function nearFadeProxies(roots: Iterable<THREE.Object3D>): THREE.Group {

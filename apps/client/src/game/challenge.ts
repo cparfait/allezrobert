@@ -91,6 +91,8 @@ export interface ChallengeResult {
   timeS: number;
   previousS: number | null;
   isRecord: boolean;
+  /** Temps retenu ; faux au simulateur (affiché, mais pas gardé comme record). */
+  counted: boolean;
 }
 
 /**
@@ -114,6 +116,8 @@ export class KomChallenge {
   private readonly trace: number[] = [];
   private readonly sample = { x: 0, y: 0, z: 0, dirX: 1, dirZ: 0, grade: 0, d: 0 };
   onDone?: (r: ChallengeResult) => void;
+  /** Le temps compte-t-il comme record ? Faux au simulateur (réglé par la sortie). */
+  counts: () => boolean = () => true;
 
   private reGhost = 0;
 
@@ -151,9 +155,10 @@ export class KomChallenge {
         // Temps au sommet interpolé sur le dernier pas.
         const timeS = this.elapsed;
         const previousS = this.record?.timeS ?? null;
-        const isRecord = previousS === null || timeS < previousS;
+        const counted = this.counts();
+        const isRecord = counted && (previousS === null || timeS < previousS);
         if (isRecord) writeKomRecord(this.routeId, this.seg.id, { timeS, dist: [...this.trace, this.len], date: new Date().toISOString() });
-        this.onDone?.({ name: this.seg.name, timeS, previousS, isRecord });
+        this.onDone?.({ name: this.seg.name, timeS, previousS, isRecord, counted });
       }
     }
     // Fantôme : visible dès le pied, au rythme du record.

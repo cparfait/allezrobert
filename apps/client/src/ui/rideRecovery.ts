@@ -30,6 +30,7 @@ const S = strings(
     saved: 'Enregistrée dans l’historique',
     xp: '+{n} XP',
     failed: 'Échec de l’enregistrement : {e}',
+    stillThere: 'Sortie enregistrée, mais son brouillon n’a pas pu être effacé : s’il est reproposé, choisis « Effacer ».',
     close: 'Fermer',
     later: 'Échap : décider au prochain lancement',
   },
@@ -52,6 +53,7 @@ const S = strings(
     saved: 'Saved to your history',
     xp: '+{n} XP',
     failed: 'Could not save: {e}',
+    stillThere: 'Ride saved, but its draft could not be deleted: if it is offered again, choose “Delete”.',
     close: 'Close',
     later: 'Esc: decide next time',
   },
@@ -72,6 +74,26 @@ const duration = (s: number): string => {
   return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 };
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+
+/**
+ * Sortie récupérée et enregistrée : son brouillon est effacé ; à défaut, marqué « enregistré » pour n'être plus proposé.
+ * Faux si ni l'un ni l'autre n'a réussi. Ne lève jamais d'erreur : la sortie, elle, est bien enregistrée.
+ */
+export async function forgetDraft(store: DraftStore, draft: RideDraft): Promise<boolean> {
+  try {
+    await store.remove(draft.startT);
+    return true;
+  } catch {
+    try {
+      const { records: _records, ...meta } = draft;
+      await store.putMeta({ ...meta, recordedCount: draft.count });
+      return true;
+    } catch (e) {
+      console.warn('Brouillon enregistré mais non effacé', e);
+      return false;
+    }
+  }
+}
 
 /** Propose, l'une après l'autre, les sorties interrompues (la plus récente d'abord). */
 export async function offerRideRecovery(store: DraftStore, actions: RecoveryActions): Promise<void> {
@@ -165,7 +187,8 @@ function showDraft(store: DraftStore, draft: RideDraft, actions: RecoveryActions
       save.textContent = S('saving');
       try {
         const { xp, account } = await actions.save(draft);
-        await store.remove(draft.startT);
+        // Enregistrée : rien ne doit la proposer une seconde fois (XP comptée deux fois), même si l'effacement échoue.
+        const gone = await forgetDraft(store, draft);
         // Ce qui vient d'être acquis : l'historique et l'XP, puis le sort du FIT (compte ou seulement cet appareil).
         const fr = getLang() === 'fr';
         const h = saveView('saved', fr);
@@ -174,7 +197,7 @@ function showDraft(store: DraftStore, draft: RideDraft, actions: RecoveryActions
           const v = accountView(account, fr);
           setState('account', v.tone, v.word, account === 'sent' ? v.detail : fr ? 'Le FIT n’est pas sur ton compte : télécharge-le maintenant, il ne sera plus proposé.' : 'The FIT is not on your account: download it now, it will not be offered again.');
         }
-        msg.textContent = '';
+        msg.textContent = gone ? '' : S('stillThere');
         btn('ignore').remove();
         save.disabled = false;
         save.textContent = S('close');

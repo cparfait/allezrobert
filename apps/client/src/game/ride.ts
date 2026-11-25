@@ -501,6 +501,22 @@ export class RideSession {
     }
   }
 
+  /**
+   * Arrivée d'un itinéraire aller simple : la sortie s'arrête au bout de la route, avant que le segment en cours
+   * (montée qui finit au sommet) ait été dépassé. On le clôt au temps présent s'il se termine à moins de `marginM`
+   * de l'arrivée ; renvoie le résultat (ou null).
+   */
+  closeSegmentAtFinish(marginM = 5): SegmentResult | null {
+    const seg = this.segment?.seg;
+    if (!this.segment || !seg || this.opts.track.route.loop) return null;
+    if (seg.endM < this.opts.track.length - marginM) return null;
+    const res = { seg, timeS: (this.startT + this.elapsedS * 1000 - this.segment.startT) / 1000, avgWatts: this.segWatts / Math.max(this.segSamples, 1) };
+    this.segmentResults.push(res);
+    this.segment = null;
+    this.onSegmentDone?.(res);
+    return res;
+  }
+
   private updateSegments(now: number): void {
     const track = this.opts.track;
     // À contresens : segment en cours abandonné, aucun nouveau.

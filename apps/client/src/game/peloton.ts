@@ -1,3 +1,4 @@
+import { withHeadgear, type GearKind } from './headgear.ts';
 import { shadowCasters } from './shadowBudget.ts';
 import { AnimBudget } from './animBudget.ts';
 import { disposeRiderMerge, updateRiderMerge } from './riderMerge.ts';
@@ -528,7 +529,7 @@ export class Peloton {
   private readonly animBudgets = new WeakMap<PelotonRider, AnimBudget>();
   private animFrame = 0;
 
-  constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number, teams?: RaceTeams) {
+  constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number, teams?: RaceTeams, gearKind: GearKind = teams ? 'race' : 'ride') {
     this.scene = scene;
     this.track = track;
     const r = rng(42);
@@ -542,7 +543,9 @@ export class Peloton {
       const color = lead ? LEADER_COLORS[lead][0] : team === undefined ? (JERSEYS[i % JERSEYS.length] as string) : team === 0 ? teams!.jersey : rivalColor(team, teams!.jersey);
       // Un sur deux est une femme (voir botFace) : prénom, nom et nationalité cohérents.
       const identity = aiIdentity(i, i % 2 === 1);
-      const look: AvatarLook = {
+      // Couvre-chef et vélo selon la sortie (game/headgear.ts) : tirage propre, sans toucher la suite de r().
+      const gearRoll = (i * 0.618034 + 0.137) % 1;
+      const look: AvatarLook = withHeadgear({
         ...DEFAULT_LOOK,
         nationality: identity.nationality,
         jersey: color,
@@ -555,7 +558,7 @@ export class Peloton {
         ...crowdShoes(i),
         ...botFace(i, r),
         heightCm: 160 + ((i * 13) % 36),
-      };
+      }, gearKind, gearRoll, { bikeIndex: i });
       const avatar = createAvatar(look);
       scene.add(avatar.root);
       skipHiddenMatrixUpdates(avatar.root);

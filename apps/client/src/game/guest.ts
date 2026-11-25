@@ -1,5 +1,5 @@
 import type { ShiftAction, TrainerCommand } from '@allezrobert/shared';
-import type { InputSource, RideInputs } from './inputs.ts';
+import { onFocusLost, type InputSource, type RideInputs } from './inputs.ts';
 
 /** Puissance virtuelle maximale d'un invité (W/kg) : il peut attaquer, pas tout écraser. */
 export const GUEST_MAX_WKG = 3.5;
@@ -23,9 +23,14 @@ export class GuestInputSource implements InputSource {
     if (e.key === 'Shift') this.attack = false;
   };
   private last = performance.now();
+  private readonly offFocus: () => void;
 
   constructor(massKg: number) {
     this.massKg = massKg;
+    this.offFocus = onFocusLost(() => {
+      this.keys.clear();
+      this.attack = false;
+    });
     window.addEventListener('keydown', this.onDown);
     window.addEventListener('keyup', this.onUp);
   }
@@ -59,6 +64,7 @@ export class GuestInputSource implements InputSource {
   }
 
   dispose(): void {
+    this.offFocus();
     window.removeEventListener('keydown', this.onDown);
     window.removeEventListener('keyup', this.onUp);
   }

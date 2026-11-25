@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { l93ToWgs84 } from '@allezrobert/shared';
 import { FRANCE_OUTLINE } from '../src/world/franceOutline.ts';
 import { ZONE_SPOTS } from '../src/world/zoneMap.ts';
-import { WORLD_LIST } from '../src/world/worlds.ts';
+import { GRAPHIC_STYLE } from '../src/engine/style.ts';
+import { WORLD_LIST, worldAvailableInStyle } from '../src/world/worlds.ts';
 
 /** Point dans un polygone (lon, lat), par parité des croisements. */
 function inside(lon: number, lat: number, ring: Array<[number, number]>): boolean {
@@ -17,7 +18,8 @@ function inside(lon: number, lat: number, ring: Array<[number, number]>): boolea
 
 describe('carte de France des zones', () => {
   it('chaque zone du menu a sa place sur la carte', () => {
-    for (const w of WORLD_LIST) expect(ZONE_SPOTS.some((s) => s.id === w.id), w.id).toBe(true);
+    // L'île de Robert n'est proposée qu'en Poly : seules les zones du style en cours ont une place.
+    for (const w of WORLD_LIST.filter((x) => worldAvailableInStyle(x.id, GRAPHIC_STYLE))) expect(ZONE_SPOTS.some((s) => s.id === w.id), w.id).toBe(true);
     expect(new Set(ZONE_SPOTS.map((s) => s.id)).size).toBe(ZONE_SPOTS.length);
   });
 

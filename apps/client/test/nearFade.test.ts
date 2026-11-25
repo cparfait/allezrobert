@@ -75,15 +75,30 @@ describe('fondu des coureurs proches : matériaux', () => {
     for (let i = 0; i < 30; i++) updateNearFade(1 / 60, camera, meGround, [near, far]);
     const nearMat = (near.children[0] as THREE.Mesh).material as THREE.Material;
     expect(nearMat).not.toBe(shared);
-    expect(nearMat.alphaHash).toBe(true);
+    expect(nearMat.transparent).toBe(true);
     expect(nearMat.opacity).toBeCloseTo(FADE_MIN);
-    expect(shared.alphaHash).toBe(false);
+    expect(shared.transparent).toBe(false);
     expect(shared.opacity).toBe(1);
     expect((far.children[0] as THREE.Mesh).material).toBe(shared);
     // Il s'éloigne : matériau d'origine rendu.
     near.position.set(0, 0, 20);
     for (let i = 0; i < 60; i++) updateNearFade(1 / 60, camera, meGround, [near, far]);
     expect((near.children[0] as THREE.Mesh).material).toBe(shared);
+  });
+
+  it('pièce double face ajourée : un seul passage, seuil de découpe baissé avec l’opacité, original intact', () => {
+    const hair = new THREE.MeshStandardNodeMaterial();
+    hair.side = THREE.DoubleSide;
+    hair.alphaTest = 0.5;
+    const near = rider(hair);
+    near.position.set(0, 1.3, -3.6);
+    for (let i = 0; i < 30; i++) updateNearFade(1 / 60, camera, meGround, [near]);
+    const m = (near.children[0] as THREE.Mesh).material as THREE.Material;
+    expect(m.forceSinglePass).toBe(true);
+    expect(m.alphaTest).toBeCloseTo(0.5 * FADE_MIN);
+    expect(m.alphaTest).toBeGreaterThan(0);
+    expect(hair.alphaTest).toBe(0.5);
+    updateNearFade(1 / 60, camera, meGround, []);
   });
 
   it('coureur retiré de la liste en plein fondu : matériau rendu', () => {

@@ -57,6 +57,23 @@ export interface InputSource {
  * Entrées clavier communes à toutes les sources : ↑/↓ vitesses, ←/→ direction,
  * PageUp/PageDown plateau. Les commandes matérielles (Click, Di2…) passent par le DeviceManager.
  */
+/**
+ * Fenêtre quittée (Alt+Tab, autre onglet) : le relâchement des touches n'arrive jamais, elles resteraient enfoncées.
+ * Renvoie de quoi retirer les écouteurs.
+ */
+export function onFocusLost(release: () => void): () => void {
+  const doc = typeof document === 'undefined' ? null : document;
+  const onHidden = () => {
+    if (doc?.visibilityState === 'hidden') release();
+  };
+  window.addEventListener('blur', release);
+  doc?.addEventListener('visibilitychange', onHidden);
+  return () => {
+    window.removeEventListener('blur', release);
+    doc?.removeEventListener('visibilitychange', onHidden);
+  };
+}
+
 export class KeyboardControls {
   steer = 0;
   /** Flèches réservées à autre chose (caméra libre) : ni changement de vitesse ni direction. */
@@ -77,8 +94,10 @@ export class KeyboardControls {
     }
   };
   private readonly onUp = (e: KeyboardEvent) => this.keys.delete(e.key);
+  private readonly offFocus: () => void;
 
   constructor() {
+    this.offFocus = onFocusLost(() => this.keys.clear());
     window.addEventListener('keydown', this.onDown);
     window.addEventListener('keyup', this.onUp);
   }
@@ -97,6 +116,7 @@ export class KeyboardControls {
   }
 
   dispose(): void {
+    this.offFocus();
     window.removeEventListener('keydown', this.onDown);
     window.removeEventListener('keyup', this.onUp);
   }

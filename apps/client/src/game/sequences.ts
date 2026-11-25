@@ -111,9 +111,10 @@ export class RideSequences {
   }
 
   /** Segment terminé : temps, record personnel (stockage local). */
-  segment(res: SegmentResult, riderName: string, routeId: string, rank: number, total: number): void {
+  segment(res: SegmentResult, riderName: string, routeId: string, rank: number, total: number, counted = true): void {
     const prev = readZonedTime('ar.pr', routeId, res.seg.id) ?? NaN;
-    const pr = !Number.isFinite(prev) || res.timeS < prev;
+    // Au simulateur (`counted` faux) : temps affiché, mais ni record gardé ni annonce de record.
+    const pr = counted && (!Number.isFinite(prev) || res.timeS < prev);
     if (pr) writeZonedTime('ar.pr', routeId, res.seg.id, res.timeS);
     if (!this.enabled || this.tvActive) return;
     void this.player.play(res.seg.kind === 'sprint' ? 'sprint' : 'kom', {

@@ -1,3 +1,4 @@
+import { withHeadgear } from '../game/headgear.ts';
 import * as THREE from 'three/webgpu';
 import { DEFAULT_BIKE, DEFAULT_LOOK, type AvatarLook, type RouteTrack } from '@allezrobert/shared';
 import { KEEP_RIGHT_M, draftReductionSingle, facingWithin, oncomingLookM, paramsFromBike, rightLaneM, sharedRoadCorridor, steadyStateSpeed, type LaneBody, type RouteBuildingCollision, type RiderPhysicsParams } from '@allezrobert/physics';
@@ -181,7 +182,9 @@ export class AmbientCyclists {
       const i = this.serial++;
       const jersey = club ? kit[0] : (JERSEYS[Math.floor(this.r() * JERSEYS.length)] as string);
       if (k === 0) firstJersey = jersey;
-      const look: AvatarLook = {
+      // Toujours un casque ; une casquette de temps en temps (game/headgear.ts).
+      const gearRoll = this.r();
+      const look: AvatarLook = withHeadgear({
         ...DEFAULT_LOOK,
         jersey,
         jerseyAccent: club ? kit[1] : (JERSEYS[(i + 3) % JERSEYS.length] as string),
@@ -193,7 +196,7 @@ export class AmbientCyclists {
         build: this.r(),
         ...crowdShoes(Math.floor(this.r() * 1000)),
         heightCm: 160 + ((i * 17) % 36),
-      };
+      }, 'ride', gearRoll);
       const avatar = createAvatar(look);
       scene.add(avatar.root);
       skipHiddenMatrixUpdates(avatar.root);

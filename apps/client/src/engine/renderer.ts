@@ -30,7 +30,50 @@ function sharedSceneContext(renderer: THREE.WebGPURenderer, sceneTarget: () => T
   const get = contexts.get.bind(contexts);
   contexts.get = (rt, mrt, depth = 0) => get(rt, mrt, rt !== null && rt === sceneTarget() && depth >= 0 ? 1 : depth);
 }
+/**
+ * Compilation en arrière-plan (`compileObject`) : three.js construit les shaders après des `await`, quand la cible et le
+ * MRT de la passe de scène ont déjà été remis à zéro. Le shader sortait alors sans ses sorties MRT : pipeline refusé par
+ * le GPU, objet jamais dessiné (coureurs en fondu). Hors `compilePass` (qui garde la cible et suspend le rendu), ces
+ * shaders sont construits d'un trait, cible et MRT de la passe en place.
+ */
+function buildWithSceneState(renderer: THREE.WebGPURenderer, scenePass: () => ReturnType<typeof pass> | null): void {
+  type RenderObject = { context: { mrt: unknown } };
+  const nodes = (renderer as unknown as { _nodes: { getForRender(o: RenderObject): unknown; getForRenderAsync(o: RenderObject): Promise<unknown> } })._nodes;
+  const buildAsync = nodes.getForRenderAsync.bind(nodes);
+  nodes.getForRenderAsync = (o) => {
+    const p = scenePass();
+    const passMrt = p?.getMRT() ?? null;
+    if (!p || compiling || passMrt === null || o.context.mrt !== passMrt) return buildAsync(o);
+    const target = renderer.getRenderTarget();
+    const m = renderer.getMRT();
+    renderer.setRenderTarget(p.renderTarget);
+    renderer.setMRT(passMrt);
+    try {
+      return Promise.resolve(nodes.getForRender(o));
+    } catch (e) {
+      return Promise.reject(e instanceof Error ? e : new Error(String(e)));
+    } finally {
+      renderer.setRenderTarget(target);
+      renderer.setMRT(m);
+    }
+  };
+}
 export const isCompiling = (): boolean => compiling > 0;
+
+/**
+ * Pipelines et shaders gardés toute la session. three.js les libère dès que plus aucun matériau ne s'en sert : un
+ * cycliste d'ambiance qui s'en va emportait les siens, et le suivant, aux shaders identiques, les recompilait en direct
+ * (image figée à chaque apparition, une dizaine de shaders). Pareil pour les trains, la végétation d'une espèce, les
+ * copies du fondu. Ce sont de petits objets du GPU ; leur nombre reste borné par la variété des matériaux. ?keeppipelines=0
+ * pour revenir au comportement de three.js.
+ */
+function keepPipelines(renderer: THREE.WebGPURenderer): void {
+  if (new URLSearchParams(location.search).get('keeppipelines') === '0') return;
+  const p = (renderer as unknown as { _pipelines?: { _releasePipeline?: unknown; _releaseProgram?: unknown } })._pipelines;
+  if (!p) return;
+  p._releasePipeline = () => undefined;
+  p._releaseProgram = () => undefined;
+}
 
 /**
  * Échelle de rendu de la scène avec reconstruction temporelle (TAAU) : 1 = coupé (défaut) ; ?taau=0.75 ou
@@ -241,7 +284,9 @@ export async function createEngine(canvas: HTMLCanvasElement, q: QualitySettings
   initTextureLoading(renderer);
   const backend = (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend ? 'webgpu' : 'webgl2';
   if (backend === 'webgpu') instrumentDevice((renderer.backend as unknown as { device: GPUDevice }).device);
+  keepPipelines(renderer);
   sharedSceneContext(renderer, () => scenePass?.renderTarget ?? null);
+  buildWithSceneState(renderer, () => scenePass);
   // Pipelines créés en parallèle pendant la précompilation (patch de three.js, compileAsync) : ?compileconc=N pour essayer.
   (renderer as unknown as { compileConcurrency: number }).compileConcurrency = compileConcurrency();
   renderer.toneMapping = THREE.AgXToneMapping;

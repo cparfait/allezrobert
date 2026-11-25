@@ -37,7 +37,7 @@ export interface SummaryData {
   withGroup: boolean;
   guest: boolean;
   /** Défi KOM terminé : temps, record d'avant. */
-  challenge?: { name: string; timeS: number; previousS: number | null; isRecord: boolean };
+  challenge?: { name: string; timeS: number; previousS: number | null; isRecord: boolean; counted: boolean };
   /** Trophées gagnés par cette sortie. */
   trophies?: Array<{ name: string; description: string; xp: number }>;
   /** Test FTP : le bilan parle de la FTP (résultat, choix, zones) au lieu du parcours. */
@@ -148,6 +148,7 @@ const S = strings(
     guest: 'Invité',
     noRankingsXpOr: 'Sortie hors classements, sans XP ni export.',
     challenge: 'Défi',
+    simulatedTime: 'Temps simulé, non retenu comme record',
     firstRecordSet: 'Premier record établi',
     recordBeatenBy: 'Record battu de',
     best: 'Record',
@@ -232,6 +233,7 @@ const S = strings(
     guest: 'Guest',
     noRankingsXpOr: 'No rankings, XP or export.',
     challenge: 'Challenge',
+    simulatedTime: 'Simulated time, not kept as a record',
     firstRecordSet: 'First record set',
     recordBeatenBy: 'Record beaten by',
     best: 'Best',
@@ -385,7 +387,9 @@ export function showRideSummary(root: HTMLElement, d: SummaryData, a: SummaryAct
         ${
           d.challenge
             ? `<section class="sum-card sum-challenge">${blockHead(IC.flag, `${S('challenge')} · ${esc(d.challenge.name)}`)}<span class="ab-val"><b>${hms(d.challenge.timeS)}</b></span><p>${
-                d.challenge.isRecord
+                !d.challenge.counted
+                  ? S('simulatedTime')
+                  : d.challenge.isRecord
                   ? d.challenge.previousS === null
                     ? S('firstRecordSet')
                     : `🏆 ${S('recordBeatenBy')} ${Math.round(d.challenge.previousS - d.challenge.timeS)} s`

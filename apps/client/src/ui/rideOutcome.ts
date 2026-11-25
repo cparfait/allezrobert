@@ -101,7 +101,7 @@ export function saveView(state: SaveState, fr: boolean): StateView {
     case 'too_short':
       return { word: fr ? 'Non enregistrée' : 'Not saved', detail: fr ? 'Moins d’une minute : rien n’est gardé.' : 'Under a minute: nothing is kept.', tone: 'warn' };
     case 'failed':
-      return { word: fr ? 'Échec' : 'Failed', detail: fr ? 'Historique non écrit : télécharge le FIT.' : 'History not written: download the FIT.', tone: 'bad' };
+      return { word: fr ? 'Échec' : 'Failed', detail: fr ? 'Historique non écrit : la sortie te sera proposée au prochain lancement. Télécharge le FIT par sécurité.' : 'History not written: the ride will be offered at the next launch. Download the FIT to be safe.', tone: 'bad' };
     case 'guest':
       return { word: fr ? 'Non enregistrée' : 'Not saved', detail: fr ? 'Sortie en invité : ni historique, ni XP, ni FIT.' : 'Guest ride: no history, XP or FIT.', tone: 'warn' };
     default:
