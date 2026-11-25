@@ -25,3 +25,4 @@ export * from './building-collision.ts';
 export * from './collision-manifest.ts';
 export * from './overtake.ts';
 export * from './lanes.ts';
+export * from './start-grid.ts';

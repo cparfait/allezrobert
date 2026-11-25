@@ -35,8 +35,10 @@
 .mp-tiles .ab-tile { grid-template-columns: 1fr; grid-template-areas: 'name' 'detail' 'val'; padding: 16px 18px 14px; }
 .mp-tiles .ab-val small { font-size: 16px; }
 .ab-val b.mp-code { font-family: var(--mono, ui-monospace, monospace); letter-spacing: 0.12em; color: var(--ar-accent); }
-.mp-roster { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 14px; font-size: 15px; }
-.mp-roster .ab-state { font-size: 14px; }
+.mp-roster { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 14px; font-size: 15px; }
+/* `grid-area: auto` : `ab-state` vise la zone « state » d'un bloc ; ici tous les états s'empilaient dans une même case. */
+.mp-roster .ab-state { grid-area: auto; font-size: 14px; }
+.mp-roster > span:first-child, .mp-roster > span:nth-child(odd) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-note { margin: 0; font-size: 15px; line-height: 1.4; color: #c3cddb; }
 .ab-btn.mp-discord { display: inline-flex; align-items: center; background: #5865f2; color: #fff; text-decoration: none; }
 .ab-btn.mp-discord:hover { background: #4752c4; }
@@ -57,7 +59,16 @@
 .mp-gear-name small { color: var(--ar-muted); font-size: 14px; }
 .mp-gear-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #6b7280; }
 /* Gros blocs des capteurs dans le salon (comme « Prêt à rouler ? ») et ligne de l'appli compagnon. */
-.mp-gear .hw-tiles { gap: 10px; }
+/* Salon plus étroit que l'écran « Prêt à rouler ? » : blocs sur deux colonnes, plus petits, sans débordement. */
+.mp-gear .hw-tiles { gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mp-gear .hw-tiles .ab-tile { min-height: 0; grid-template-columns: auto minmax(0, 1fr); gap: 2px 12px; padding: 22px 14px 12px; border-radius: 18px; }
+.mp-gear .ab-ico { width: 48px; height: 48px; border-radius: 14px; }
+.mp-gear .ab-ico svg { width: 28px; height: 28px; }
+.mp-gear .ab-name { font-size: 17px; }
+.mp-gear .ab-val { min-height: 0; }
+.mp-gear .ab-val b { font-size: 24px; }
+.mp-gear .ab-tag { top: 8px; right: 12px; }
+@media (max-width: 560px) { .mp-gear .hw-tiles { grid-template-columns: minmax(0, 1fr); } }
 .mp-gear-phone { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 15px; color: var(--ar-muted, #9aa5b1); }
 .mp-gear-phone b { color: var(--ar-fg, #f5f7fa); }
 .mp-gear-dot.ok { background: #22c55e; }

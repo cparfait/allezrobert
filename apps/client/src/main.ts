@@ -1493,6 +1493,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Course hors ligne : les IA roulent à 82 % de leur propre FTP (niveau × FTP du joueur), pas à l'allure du joueur.
   if (s.mode === 'race' && aiCount > 0) peloton.paceFtpPct = 0.82 * (s.aiLevel ?? 1);
   if (timeTrial) peloton.setTimeTrial(startD, raceLengthM, 30);
+  // Course locale : tout le monde sur la grille, sur la largeur de la route.
+  else if (s.mode === 'race' && aiCount > 0) ride.lateral = peloton.placeOnGrid(startD);
   /** Contre-la-montre : rampe de départ et compte à rebours de 10 s (?ramp=0 pour s'en passer). */
   const startRamp = timeTrial && params.get('ramp') !== '0' ? new StartRamp(engine.scene, track, startD, ride.lateral) : null;
   if (tour) peloton.setRaceLog(startD, raceLengthM);
@@ -1556,8 +1558,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
   const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z), (ax, ay, az, bx, by, bz) => world.buildings.footprints.firstHit(ax, ay, az, bx, by, bz));
   engine.scene.add(banners.group);
-  // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0.
-  const alive = params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
+  // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0. Jamais en course : route fermée, seuls
+  // les participants (et la moto des écarts) y roulent.
+  const alive = s.mode !== 'race' && params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
   // Voitures, camions et tracteurs (modèles chargés à la demande ; primitives si indisponibles). Pas en style
   // Beta (V3) : seulement des cyclistes sur la route (demande du 17/11/2026).
   const vehiclesOn = alive && !V3_STYLE;
@@ -1911,7 +1914,6 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         lang: getLang(),
         toast: (m) => hud.toast(m),
         voice: voiceCfg,
-        ...(devicePanel ? { gear: { panel: devicePanel, phones: () => (companion.connected ? companion.presence.phones : null) } } : {}),
       });
       room = roomUi;
       // Course pas lancée : le coureur reste sur la grille (le serveur le tient immobile).
@@ -2946,7 +2948,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (room?.holding) {
       ride.paused = true;
       const me = mp?.net.getSelfSnapshot();
-      if (me && !pilotCollision) ride.state.distM = me.lap * track.length + me.distM;
+      if (me && !pilotCollision) {
+        ride.state.distM = me.lap * track.length + me.distM;
+        // Ma place sur la largeur aussi (start-grid.ts) : la direction envoyée au départ part de là.
+        ride.lateral = me.lateralM;
+      }
     }
     lap('conditions');
     banners.setLap(ride.lap, s.mode === 'race' ? s.raceLaps : undefined);

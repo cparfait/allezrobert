@@ -10,7 +10,7 @@ import { SMALL_PARTS_CULL, cullSmallParts } from './smallParts.ts';
 import { castsShadow, detailGroup, lightColorOf } from './riderDetail.ts';
 import { LATERAL_CRUISE, LATERAL_PASSING, LATERAL_SPRING, stepLateral, syncLateral, type LateralMotion } from './lateralSpring.ts';
 import * as THREE from 'three/webgpu';
-import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, LANE_PACE, LaneRotator, Overtaker, aheadAlongM, clampToOwnHalf, facingWithin, keepRightM, oncomingLookM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
+import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, GRID_HOLD_M, GRID_RELEASE_M, GRID_ROW_M, GRID_SAME_LINE_M, fromCentre, gridBlend, gridColumns, LANE_PACE, LaneRotator, Overtaker, aheadAlongM, clampToOwnHalf, facingWithin, keepRightM, oncomingLookM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
 import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { brakeForCorners, cornerGrip } from './cornerBrake.ts';
@@ -392,6 +392,35 @@ export class Peloton {
    * Passe en contre-la-montre : chaque IA est partie `gapS` secondes avant la suivante, le joueur en dernier. Elle est
    * placée là où son allure l'a menée depuis son départ ; son temps = horloge de la course + son avance au départ.
    */
+  /**
+   * Grille de départ d'une course locale : IA réparties sur toute la largeur, autour du joueur (à sa hauteur, devant et
+   * derrière, hors du couloir de la caméra de poursuite). Renvoie la place latérale du joueur, au centre de sa rangée.
+   */
+  placeOnGrid(startD: number): number {
+    const half = roadHalfM(this.track.route.roadWidthM);
+    const b = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, startD, 0, 1, this.bounds);
+    const cols = gridColumns(-Math.min(half, b.left), Math.min(half, b.right));
+    const order = fromCentre(cols.length);
+    const mine = cols[order[0] as number] as number;
+    let k = 0;
+    // Rangées : la mienne, puis une devant, une derrière, et ainsi de suite.
+    for (let n = 0; k < this.riders.length; n++) {
+      const row = n === 0 ? 0 : n % 2 ? (n + 1) / 2 : -n / 2;
+      for (const c of order) {
+        if (k >= this.riders.length) break;
+        const lateralM = cols[c] as number;
+        if (row === 0 && lateralM === mine) continue;
+        if (row < 0 && -row * GRID_ROW_M < CAMERA_CLEAR_BACK_M && Math.abs(lateralM - mine) < CAMERA_CLEAR_SIDE_M) continue;
+        const r = this.riders[k++] as PelotonRider;
+        r.state.distM = startD + row * GRID_ROW_M;
+        r.state.speedMs = 0;
+        r.lateral = lateralM;
+        this.grid.set(r, { lateralM, distM: r.state.distM });
+      }
+    }
+    return mine;
+  }
+
   setTimeTrial(startD: number, lengthM: number, gapS = 30): void {
     const n = this.riders.length;
     const offsets = new Map<PelotonRider, number>();
@@ -528,6 +557,8 @@ export class Peloton {
   /** Budget d'animation : coureurs lointains animés une image sur 2 à 4 (animBudget.ts). */
   private readonly animBudgets = new WeakMap<PelotonRider, AnimBudget>();
   private animFrame = 0;
+  /** Départ de course (start-grid.ts) : ligne de chaque IA, gardée au début puis rejointe du peloton. */
+  private readonly grid = new Map<PelotonRider, { lateralM: number; distM: number }>();
 
   constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number, teams?: RaceTeams, gearKind: GearKind = teams ? 'race' : 'ride') {
     this.scene = scene;
@@ -696,10 +727,15 @@ export class Peloton {
       r.heading = 0;
       // Coureur juste devant (IA dans le sens de marche, ou joueur).
       let ahead: { distM: number; speedMs: number; lateral: number; isPlayer?: boolean } | null = null;
+      const grid = this.grid.get(r);
+      const onGrid = !!grid && r.state.distM - grid.distM < GRID_HOLD_M;
+      if (grid && r.state.distM - grid.distM >= GRID_RELEASE_M) this.grid.delete(r);
       const myLane = this.lanes.laneOf(r.id);
       // Deux files : on suit le coureur de sa propre file (ou le joueur), pas celui de l'autre file.
       const peers = this.riders.filter((x) => x !== r && !x.uturn.active && (!double || this.lanes.laneOf(x.id) === myLane));
       for (const o of [...peers.map((x) => ({ distM: x.state.distM, speedMs: x.state.speedMs, lateral: x.lateral })), { distM: player.distM, speedMs: player.speedMs, lateral: player.lateral, isPlayer: true }]) {
+        // Grille de départ : les voisins de rangée ne sont pas « devant » (ils le feraient freiner).
+        if (onGrid && Math.abs(o.lateral - r.lateral) >= GRID_SAME_LINE_M) continue;
         if (o.distM > r.state.distM + 0.01 && (!ahead || o.distM < ahead.distM)) ahead = o;
       }
       // « Roule pour moi » : il suit un point fictif devant le joueur, sur sa ligne (sa roue arrière à ~0,6 m de la mienne).
@@ -765,7 +801,8 @@ export class Peloton {
       if (comingClose && plan.passing) this.passHeld.add(r);
       else if (!comingClose) this.passHeld.delete(r);
       const abortPass = plan.lateralM !== null && plan.passing && this.passHeld.has(r);
-      if (plan.lateralM !== null && !abortPass) targetLat = plan.lateralM;
+      if (plan.lateralM !== null && !abortPass && !onGrid) targetLat = plan.lateralM;
+      else if (grid) targetLat = gridBlend(grid.lateralM, targetLat, r.state.distM - grid.distM);
       // Rester sur la chaussée réelle du tronçon (et, en pilote, contourner les façades à venir).
       const bounds = (this.collision ?? sharedRoadCorridor()).steeringBounds(this.track, r.state.distM, r.state.speedMs, 1, this.bounds);
       targetLat = THREE.MathUtils.clamp(targetLat, -bounds.left, bounds.right);

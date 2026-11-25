@@ -36,6 +36,12 @@ import {
   aheadAlongM,
   clampToOwnHalf,
   facingWithin,
+  GRID_HOLD_M,
+  GRID_ROW_M,
+  GRID_SAME_LINE_M,
+  fromCentre,
+  gridBlend,
+  gridColumns,
   keepRightM,
   oncomingLookM,
   FOOT_DOWN_SPEED_MS,
@@ -176,6 +182,8 @@ export class SimRider {
   shareHr: boolean;
   lateralM = 0;
   lateralTarget = 0;
+  /** Ligne de départ d'une course (start-grid.ts) : gardée au début, puis rejointe du peloton. */
+  grid: { lateralM: number; distM: number } | undefined;
   /** Quelqu'un arrive en face (dernier pas) : borné à sa moitié de chaussée. */
   facing = false;
   /** Sens de marche : -1 après un demi-tour (distM mesurée sur l'itinéraire inversé). */
@@ -567,7 +575,8 @@ export class RideSimulation {
     r.lastTelemetryMs = now;
     r.gear = msg.gear;
     const halfRoad = this.halfRoad();
-    r.lateralTarget = Math.min(Math.max(msg.steer, -halfRoad), halfRoad);
+    // Course pas encore lancée : chacun reste à sa place sur la grille (le jeu reprend cette position, voir main.ts).
+    if (!(this.holding && r.grid)) r.lateralTarget = Math.min(Math.max(msg.steer, -halfRoad), halfRoad);
     if (r.kind === 'guest') {
       // Invité : aucune puissance mesurée acceptée, uniquement l'accélérateur virtuel.
       r.guestThrottle = msg.guestThrottle === undefined ? undefined : Math.min(Math.max(msg.guestThrottle, 0), 1);
@@ -688,18 +697,31 @@ export class RideSimulation {
     return Math.max(1, (this.route.roadWidthM || 6) / 2 - 0.4);
   }
 
-  /** Grille de départ : rangées de 6 coureurs, 2,2 m entre rangées, en arrière de la ligne. */
+  /** Place n° `i` de la grille : rangées sur toute la largeur de la chaussée, en arrière de la ligne, les premiers au centre. */
+  private gridPlace(r: SimRider, i: number): void {
+    const half = this.halfRoad();
+    // Largeur réelle de la chaussée sur la ligne de départ (une route large peut partir d'une piste étroite).
+    const b = this.corridor.steeringBounds(this.trackOf(r), 0, 0, 1, this.bounds);
+    const cols = gridColumns(-Math.min(half, b.left), Math.min(half, b.right));
+    r.state.distM = -Math.floor(i / cols.length) * GRID_ROW_M;
+    r.lateralM = r.lateralTarget = cols[fromCentre(cols.length)[i % cols.length]!]!;
+    this.clearSpawn(r);
+    r.grid = this.options.mode === 'race' ? { lateralM: r.lateralM, distM: r.state.distM } : undefined;
+  }
+
+  /** Grille de départ (start-grid.ts). */
   private placeOnGrid(): void {
-    const perRow = 6;
-    const span = Math.min(this.halfRoad() * 2, 5);
-    const humansFirst = [...this.riders].sort((a, b) => Number(a.kind === 'ai') - Number(b.kind === 'ai') || a.n - b.n);
-    humansFirst.forEach((r, i) => {
-      const row = Math.floor(i / perRow);
-      const col = i % perRow;
-      r.state.distM = -row * 2.2;
+    // Humains au milieu du peloton, au début d'une rangée (donc au centre) : des IA devant eux et derrière eux.
+    const byN = [...this.riders].sort((a, b) => a.n - b.n);
+    const ai = byN.filter((r) => r.kind === 'ai');
+    const humans = byN.filter((r) => r.kind !== 'ai');
+    const half = this.halfRoad();
+    const b = this.corridor.steeringBounds(this.track, 0, 0, 1, this.bounds);
+    const perRow = gridColumns(-Math.min(half, b.left), Math.min(half, b.right)).length;
+    const front = humans.length ? Math.round(ai.length / 2 / perRow) * perRow : ai.length;
+    [...ai.slice(0, front), ...humans, ...ai.slice(front)].forEach((r, i) => {
+      this.gridPlace(r, i);
       r.state.speedMs = 0;
-      r.lateralM = r.lateralTarget = -span / 2 + (span * (col + 0.5)) / perRow;
-      this.clearSpawn(r);
       r.activeSegments.clear();
       r.lap = this.lapOf(r.state.distM);
       r.finishMs = undefined;
@@ -719,12 +741,9 @@ export class RideSimulation {
   private placeOnJoin(r: SimRider): void {
     const others = this.present.filter((x) => x !== r);
     if (this.holding || others.length === 0) {
-      const i = others.length;
-      const perRow = 6;
-      const span = Math.min(this.halfRoad() * 2, 5);
-      r.state.distM = -Math.floor(i / perRow) * 2.2;
-      r.lateralM = r.lateralTarget = -span / 2 + (span * ((i % perRow) + 0.5)) / perRow;
+      this.gridPlace(r, others.length);
     } else {
+      r.grid = undefined;
       const fwd = others.filter((x) => x.dir === 1);
       const dists = (fwd.length ? fwd : others).map((x) => x.state.distM).sort((a, b) => a - b);
       const median = dists[Math.floor(dists.length / 2)]!;
@@ -1114,7 +1133,12 @@ export class RideSimulation {
     for (let i = a; i <= b; i++) groupSpeed += order[i]!.state.speedMs;
     groupSpeed /= b - a + 1;
 
-    const ahead = p > 0 ? order[p - 1] : undefined;
+    let ahead = p > 0 ? order[p - 1] : undefined;
+    // Grille de départ : les voisins de rangée ne sont pas « devant » (ils le feraient freiner).
+    if (this.onGridLine(r)) {
+      ahead = undefined;
+      for (let q = p - 1; q >= 0 && !ahead; q--) if (Math.abs(order[q]!.lateralM - r.lateralM) < GRID_SAME_LINE_M && order[q]!.state.distM > me.distM + 0.01) ahead = order[q];
+    }
     // Pas de roue à suivre pendant un dépassement : l'IA garde son allure jusqu'à être passée.
     const passing = r.overtaker.passing;
     const gapAhead = ahead && !passing && ahead.state.distM - me.distM < 200 ? ahead.state.distM - me.distM - BIKE_LENGTH_M : Infinity;
@@ -1159,8 +1183,14 @@ export class RideSimulation {
     const near: LaneBody[] = [];
     for (const o of this.order) if (o !== r && Math.abs(o.state.distM - r.state.distM) < 60) near.push({ id: o.id, distM: o.state.distM, lateralM: o.lateralM, speedMs: o.state.speedMs });
     const plan = r.overtaker.update({ id: r.id, distM: r.state.distM, lateralM: r.lateralM, speedMs: r.state.speedMs }, near, half);
-    if (plan.lateralM !== null) return plan.lateralM;
-    return Math.min(Math.max(base + offset, keepRightM(half)), half);
+    if (plan.lateralM !== null && !this.onGridLine(r)) return plan.lateralM;
+    const target = Math.min(Math.max(base + offset, keepRightM(half)), half);
+    return r.grid ? gridBlend(r.grid.lateralM, target, r.state.distM - r.grid.distM) : target;
+  }
+
+  /** Départ de course : encore sur sa ligne de grille. */
+  private onGridLine(r: SimRider): boolean {
+    return !!r.grid && r.state.distM - r.grid.distM < GRID_HOLD_M;
   }
 
   /** Un coureur de l'autre sens arrive en face de `r` (entre 8 m derrière et la portée de lanes.ts devant). */

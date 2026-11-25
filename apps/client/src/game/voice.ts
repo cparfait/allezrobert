@@ -73,7 +73,9 @@ export class VoiceChat {
     try {
       const r = await fetch(`${apiBase()}/rides/${encodeURIComponent(roomId)}/voice-token`, { credentials: 'include' });
       if (!r.ok) {
-        this.onState?.('unavailable', r.status === 404 ? 'voix non configurée sur le serveur' : `HTTP ${r.status}`);
+        // Le détail technique reste dans la console : l'écran dit « voix indisponible » dans la langue du joueur.
+        console.warn('Voix indisponible', r.status === 404 ? 'non configurée sur le serveur' : `HTTP ${r.status}`);
+        this.onState?.('unavailable');
         return false;
       }
       const { url, token } = (await r.json()) as { url: string; token: string };
@@ -120,7 +122,8 @@ export class VoiceChat {
       this.onState?.('connected');
       return true;
     } catch (e) {
-      this.onState?.('unavailable', String((e as Error).message ?? e));
+      console.warn('Voix indisponible', e);
+      this.onState?.('unavailable');
       return false;
     }
   }

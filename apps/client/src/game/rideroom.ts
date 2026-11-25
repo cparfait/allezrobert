@@ -5,7 +5,6 @@ import type { RideEventMsg, RideResult, RouteTrack } from '@allezrobert/shared';
 import { flagSvg } from '../ui/flagSvg.ts';
 import type { RideNetClient } from '../net/index.ts';
 import type { VoiceConfig } from './voice.ts';
-import { bindGear, gearHtml, gearKey, type GearSource } from './gearList.ts';
 import { countdownLabel, formatGap, formatRaceTime, liveStandings, paceBand, selfRaceInfo, statusLabel, type LiveRider, type StandingRow } from './race.ts';
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -195,8 +194,6 @@ export interface RideRoomUiOptions {
   lang: 'fr' | 'en';
   toast: (text: string) => void;
   voice: Promise<VoiceConfig>;
-  /** Matériel du poste, listé dans la salle d'attente de la course (état, reconnexion). */
-  gear?: GearSource;
 }
 
 /**
@@ -487,11 +484,10 @@ export class RideRoomUi {
   }
 
   private renderLobby(): void {
-    const fr = this.fr;
     const w = this.w!;
     const riders = [...this.net.roster.values()];
     const host = this.net.roster.get(this.net.hostId)?.name ?? '';
-    const key = `${riders.map((r) => `${r.id}${r.connected ? 1 : 0}`).join(',')}|${this.net.hostId}|${this.discord}|${this.o.gear ? gearKey(this.o.gear) : ''}`;
+    const key = `${riders.map((r) => `${r.id}${r.connected ? 1 : 0}`).join(',')}|${this.net.hostId}|${this.discord}`;
     if (key === this.lobbyKey && this.overlay.querySelector('.mp-lobby')) return;
     this.lobbyKey = key;
     const laps = w.route.loop ? (w.options.laps ?? 1) : 1;
@@ -511,7 +507,6 @@ export class RideRoomUi {
           return `<span>${this.flag(r.id)}${esc(r.name)}${r.id === this.net.selfId ? S('youSuffix') : ''}</span><span class="ab-state ${cls}"><i></i>${label}</span>`;
         })
         .join('')}</div></section>
-      ${this.o.gear ? gearHtml(this.o.gear, fr) : ''}
       <p class="mp-note">${this.net.isHost ? S('hostHint') : fill(S('waitingHost'), { name: esc(host) })}</p>
       <div class="ab-foot">
         <button type="button" class="ab-btn" data-act="leave">${S('leave')}</button>
@@ -520,7 +515,6 @@ export class RideRoomUi {
           ${this.net.isHost ? `<button type="button" class="ab-btn ab-go" data-act="start">${S('start')}</button>` : ''}
         </div>
       </div></div>`;
-    if (this.o.gear) bindGear(this.overlay, this.o.gear);
     this.overlay.querySelector('[data-act="start"]')?.addEventListener('click', () => this.net.startCountdown(10));
     this.overlay.querySelector('[data-act="leave"]')?.addEventListener('click', () => this.onLeave?.());
   }
