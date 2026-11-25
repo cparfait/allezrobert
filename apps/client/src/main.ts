@@ -37,7 +37,8 @@ import { StartRamp } from './world/startRamp.ts';
 import { awaitedStart, triggerStart, waitForStart } from './ui/startButton.ts';
 import { addStage, currentStage, loadTour, newTour, saveTour, stagePlan, stageResult, standings as standingsOf, tourDone, tourLeaders, type StageKind, type StageResult, type Tour } from './game/stageRace.ts';
 import { raceReport } from './game/raceReport.ts';
-import { withHeadgear, type GearKind } from './game/headgear.ts';
+import { ttMissing, withHeadgear, type GearKind } from './game/headgear.ts';
+import { askTtGear, rememberTtChoice, takeTtKeep } from './ui/ttGear.ts';
 import { showTourPanel } from './ui/tourPanel.ts';
 /** Le joueur traverse en fondu les coureurs qu'il rattrape (?traverser=0 : ils s'écartent comme avant). */
 const PASS_THROUGH = new URLSearchParams(location.search).get('traverser') !== '0';
@@ -748,7 +749,19 @@ async function boot(): Promise<void> {
   }, 8000);
 
   const menu = new MainMenu(ui, settings, scene.source.routes, devices.panel, {
-    onStart: (s, extras) => {
+    onStart: function begin(s, extras, ttAsked = false) {
+      // Contre-la-montre sans matériel de chrono : proposé avant de charger la sortie (une fois par départ).
+      if (!ttAsked) rememberTtChoice(false);
+      const ttGear = V3_STYLE ? null : ttMissing(s.look);
+      if (!ttAsked && isTtRide(s, scene.engine.quality.aiRidersMax, !!extras.publicRoom) && (V3_STYLE || ttGear)) {
+        void askTtGear(ttGear).then((choice) => {
+          if (choice === 'cancel') return;
+          if (choice === 'garage') return menu.show('garage');
+          rememberTtChoice(choice === 'keep');
+          begin(s, extras, true);
+        });
+        return;
+      }
       // L'installation de fond d'une zone d'office laisse le réseau et le disque au chargement de la sortie.
       pauseBackgroundZones();
       saveSettings(s);
@@ -1212,6 +1225,14 @@ function collisionVersionMessage(reason = COLLISION_VERSION_ERROR): string {
   return getLang() === 'fr' ? COLLISION_VERSION_ERROR : 'Obstacle data is missing or incompatible. Update the game and the map.';
 }
 
+/** Sortie jouée en contre-la-montre (format chrono ou étape chrono du tour, en local contre des IA, comme `timeTrial`). */
+function isTtRide(s: Settings, aiMax: number, publicRoom: boolean): boolean {
+  if (s.mode !== 'race' || publicRoom || Math.min(s.aiRiders, aiMax) <= 0) return false;
+  if (s.raceFormat !== 'tour') return s.raceFormat === 'tt';
+  const tour = loadTour();
+  return (tour && !tourDone(tour) ? tour.stages[currentStage(tour)] : stagePlan(s.tourStages ?? 3)[0]) === 'tt';
+}
+
 async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras: { workoutFile?: { name: string; content: string }; inviteCode?: string; inviteFriends?: string[]; tutorial?: boolean; openStart?: { x: number; z: number }; publicRoom?: boolean; nearFriend?: string }, overlay?: HTMLElement): Promise<void> {
   const { engine, world, source } = scene;
   rideActive = true;
@@ -1290,13 +1311,12 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Couvre-chef et vélo selon la sortie (game/headgear.ts) : casque toujours ; en course, casque obligatoire ; en
   // contre-la-montre (format chrono ou étape chrono du tour, joué contre les IA comme `timeTrial`), casque et vélo de
   // chrono pour tous.
-  const ttStage =
-    s.mode === 'race' &&
-    !extras.publicRoom &&
-    Math.min(s.aiRiders, engine.quality.aiRidersMax) > 0 &&
-    (s.raceFormat === 'tt' || (s.raceFormat === 'tour' && (tourBefore && !tourDone(tourBefore) ? tourBefore.stages[currentStage(tourBefore)] : stagePlan(s.tourStages ?? 3)[0]) === 'tt'));
+  const ttStage = isTtRide(s, engine.quality.aiRidersMax, !!extras.publicRoom);
+  /** « Partir comme ça » : le joueur roule le chrono avec son matériel (casque obligatoire, comme en course). */
+  const ttKeep = takeTtKeep() && ttStage;
   const gearKind: GearKind = s.mode === 'race' ? (ttStage ? 'tt' : 'race') : 'ride';
-  const riderLook = withHeadgear({ ...s.look, ...(myLead ? { jersey: LEADER_COLORS[myLead][0], jerseyAccent: LEADER_COLORS[myLead][1] } : {}), heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' }, gearKind, 1, { keepCap: true, bikeIndex: 0 });
+  const myGear: GearKind = ttKeep ? 'race' : gearKind;
+  const riderLook = withHeadgear({ ...s.look, ...(myLead ? { jersey: LEADER_COLORS[myLead][0], jerseyAccent: LEADER_COLORS[myLead][1] } : {}), heightCm: s.heightCm, bikeType: profile.bike.tyre ?? 'road' }, myGear, 1, { keepCap: true, bikeIndex: 0 });
   const avatar = createAvatar(riderLook);
   engine.scene.add(avatar.root);
   const v3 = V3_STYLE && avatar instanceof GltfRiderAvatar ? new V3Visual(hiddenV3Mount(avatar)) : undefined;
@@ -1485,7 +1505,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     setTimeout(() => hud.toast(`🏆 ${t.name} — ${L ? 'étape' : 'stage'} ${k}/${t.stages.length} : ${kind}${leader ? ` · 🟡 ${leader}` : ''}`), 4000);
   }
   if (pilotCollision) peloton.enableBuildingCollisions(pilotCollision);
-  const ghost = new Ghost(engine.scene, track, track.route.id, startD, withHeadgear({ ...s.look, heightCm: s.heightCm }, gearKind, 1, { keepCap: true, bikeIndex: 0 }));
+  const ghost = new Ghost(engine.scene, track, track.route.id, startD, withHeadgear({ ...s.look, heightCm: s.heightCm }, myGear, 1, { keepCap: true, bikeIndex: 0 }));
   // Fantôme d'un ami (compte connecté, tour complet depuis le départ) : son meilleur tour sur cette boucle.
   // Et son propre record est envoyé au serveur pour que ses amis le retrouvent.
   const ghostable = !s.guest && !mp && !nav && !workout && !challenge && startD === 0 && !track.route.id.startsWith(ITINERARY_PREFIX);
