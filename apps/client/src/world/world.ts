@@ -17,7 +17,11 @@ import { RoadMesh, SHOULDER } from './road.ts';
 import { RouteFootprint } from './ribbon.ts';
 import { LandProbe } from './lowPolyKit.ts';
 import { PolyRoads } from './polyRoads.ts';
-import { RoadNetwork, setTrailVerge } from './network.ts';
+import { RoadNetwork, setTrailVerge, setTrailWet } from './network.ts';
+import { setIslandGraph } from './polyOutdoor.ts';
+import { IslandDiscovery } from './islandDiscover.ts';
+import { ROBERT_ISLAND } from './worlds.ts';
+import { getLang } from '../i18n/index.ts';
 import { RoadHeightField, setCurrentRoadHeight } from './roadHeight.ts';
 import { Rain } from './weather.ts';
 import { GrassField } from './grass.ts';
@@ -52,6 +56,8 @@ export class World {
   readonly life: RoadsideLife | null = null;
   /** Style jeu vidéo : marquages au sol et panneaux, d'après le graphe routier (null ailleurs). */
   private readonly polyRoads: PolyRoads | null = null;
+  /** Lieux à découvrir de l'île (médailles), mode Poly sur l'île seulement. */
+  private readonly discovery: IslandDiscovery | null = null;
   /** Style jeu vidéo : joggeurs, promeneurs, enfants, pêcheurs, footballeurs. */
   readonly people: RoadsidePeople | null = null;
   /** Style jeu vidéo : oiseaux et papillons. */
@@ -100,6 +106,7 @@ export class World {
     if (Number.isFinite(low)) this.env.setMistBase(low + 10);
     this.terrain = new TerrainManager(source, q, envState.season);
     setTrailVerge(envState.season);
+    setIslandGraph(() => source.open?.graph);
     // Emprise du ruban : terrain abaissé dessous, réseau OSM découpé à son bord. Monde ouvert :
     // toutes les routes sont déjà creusées et dessinées par le réseau, pas de ruban d'itinéraire.
     const open = !!source.open;
@@ -173,6 +180,7 @@ export class World {
       scene.add(this.people.group);
       if (source.open) {
         this.polyRoads = new PolyRoads(new LandProbe(lifeTile, standAt), () => source.open?.graph, () => source.open?.places ?? []);
+        if (source.id === ROBERT_ISLAND) this.discovery = new IslandDiscovery(getLang() === 'en' ? 'en' : 'fr');
         this.polyRoads.setTaken(townSignSpots(track));
         scene.add(this.polyRoads.group);
       }
@@ -326,11 +334,13 @@ export class World {
     if (frameStats.enabled) frameStats.add('végétation (détail)', performance.now() - tv);
     this.grass.update(focus);
     this.updateLife(dt, focus);
+    this.discovery?.check(focus.x, focus.z);
     this.updateVillageProps(focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;
     // Réglage « forcer la pluie » (?reglages) : chaussée mouillée quel que soit le ciel.
     this.network.wetness.value = Math.max(w.rain, tuned('pluie.forcer', 0));
+    setTrailWet(this.network.wetness.value);
     this.network.night.value = this.nightFactor() > 0.3 ? 1 : 0;
     this.network.updateLights(dt, focus);
     this.terrain.wetness.value = w.rain * 0.8;

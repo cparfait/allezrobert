@@ -30,8 +30,16 @@ const MARKED = new Set(['primary', 'secondary', 'tertiary', 'trunk', 'primary_li
 /** Herbe des bords de chemin (style Poly), accordée au talus de la saison (terrain.ts) ; blanchie par la neige. */
 const VERGE: Record<Season, string> = { spring: '#8ed376', summer: '#97d67a', autumn: '#97d67a', winter: '#e6eeea' };
 const vergeColor = uniform(new THREE.Color(VERGE.summer));
+/** Saison des chemins : feuilles mortes à l'automne (1), neige tassée l'hiver (2). */
+const trailSeason = uniform(0);
+/** Pluie sur les chemins (0–1, network.wetness) : boue plus sombre, flaques. */
+const trailWet = uniform(0);
+export function setTrailWet(wet: number): void {
+  trailWet.value = wet;
+}
 export function setTrailVerge(season: Season): void {
   vergeColor.value.set(VERGE[season]);
+  trailSeason.value = season === 'autumn' ? 1 : season === 'winter' ? 2 : 0;
 }
 
 /**
@@ -92,7 +100,23 @@ function trailColor(across: THREE.Node<'float'>, along: THREE.Node<'float'>, hal
   const d = max(dx.add(dy.mul(0.55)), dy.add(dx.mul(0.35)));
   const stone = float(1).sub(smoothstep(r.sub(pix), r.add(pix), d)).mul(step(float(1).sub(pick((l) => l.stones)), hash(id.add(777)))).mul(float(1).sub(smoothstep(0.12, 0.5, pix)));
   const stoneCol = mix(vec3(0.3, 0.285, 0.26), vec3(0.64, 0.61, 0.55), h1).mul(mix(vec3(1, 1, 1), own.mul(2), 0.35));
-  return mix(col, stoneCol, stone.mul(float(1).sub(fringe)));
+  col = mix(col, stoneCol, stone.mul(float(1).sub(fringe)));
+  // Automne : feuilles mortes éparses, plus nombreuses au bord.
+  const autumn = float(1).sub(step(0.5, abs(trailSeason.sub(1))));
+  const leafCell = vec2(across, along).div(0.22);
+  const leafId = floor(leafCell.x).add(256).add(floor(leafCell.y).add(65536).mul(53));
+  const leafOn = step(mix(float(0.86), float(0.6), smoothstep(half.mul(0.3), half, ax)), hash(leafId.add(31)));
+  const leaf = float(1).sub(smoothstep(0.18, 0.32, max(abs(fract(leafCell.x).sub(0.5)), abs(fract(leafCell.y).sub(0.5)).mul(0.7)))).mul(leafOn).mul(float(1).sub(smoothstep(0.1, 0.4, pix)));
+  col = mix(col, mix(vec3(0.62, 0.27, 0.07), vec3(0.78, 0.55, 0.12), hash(leafId)), leaf.mul(autumn));
+  // Hiver : neige tassée, traces des roues plus sombres.
+  const winter = step(1.5, trailSeason);
+  const snow = mix(vec3(0.86, 0.89, 0.92), vec3(0.7, 0.72, 0.75), max(rut.mul(pick((l) => l.ruts)), worn.mul(pick((l) => l.worn))).mul(0.8)).mul(big.mul(0.04).add(1));
+  col = mix(col, snow, winter.mul(0.92));
+  // Pluie : terre mouillée plus sombre, flaques bleutées dans les creux (ornières, trace usée).
+  const hollow = max(rut.mul(pick((l) => l.ruts)), worn.mul(pick((l) => l.worn))).mul(0.6).add(mid.mul(0.5)).add(big.mul(0.35));
+  const puddle = over(hollow, 0.42).mul(smoothstep(0.15, 0.6, trailWet)).mul(float(1).sub(fringe)).mul(float(1).sub(winter));
+  col = col.mul(float(1).sub(trailWet.mul(0.35).mul(float(1).sub(fringe))));
+  return mix(col, vec3(0.2, 0.24, 0.28).add(fine.mul(0.03)), puddle.mul(0.85));
 }
 
 /** Aspect d'une matière de chemin : teinte, ornières, trace usée, herbe au milieu, part des pierres. */
@@ -115,6 +139,29 @@ const TRAIL_LOOKS: readonly TrailLook[] = [
   { rgb: [0.38, 0.35, 0.32], ruts: 0, worn: 0.3, crown: 0, stones: 0.85 },
 ];
 const TRAIL_CODE: Readonly<Record<string, number>> = { pebblestone: 1, fine_gravel: 2, dirt: 3, ground: 3, earth: 4, sand: 5, grass: 6, rock: 7 };
+
+/** Prolonge de `m` mètres une route qui s'arrête sur le bord de sa tuile (dans l'axe de son dernier segment). */
+export function overlapTileEdge(r: TileRoad, tile: Pick<LoadedTile, 'x0' | 'z0' | 'size'>, m = 0.25): TileRoad {
+  const p = r.pts3;
+  if (!p || p.length < 6) return r;
+  const onEdge = (x: number, z: number) => Math.min(Math.abs(x - tile.x0), Math.abs(x - tile.x0 - tile.size), Math.abs(z - tile.z0), Math.abs(z - tile.z0 - tile.size)) < 0.05;
+  const n = p.length;
+  const head = onEdge(p[0]!, p[2]!);
+  const tail = onEdge(p[n - 3]!, p[n - 1]!);
+  if (!head && !tail) return r;
+  const q = p.slice();
+  const push = (i: number, j: number) => {
+    const dx = q[i]! - q[j]!;
+    const dz = q[i + 2]! - q[j + 2]!;
+    const L = Math.hypot(dx, dz);
+    if (L < 1e-6) return;
+    q[i] = q[i]! + (dx / L) * m;
+    q[i + 2] = q[i + 2]! + (dz / L) * m;
+  };
+  if (head) push(0, 3);
+  if (tail) push(n - 3, n - 6);
+  return { ...r, pts3: q };
+}
 
 const UNPAVED = new Set(['unpaved', 'gravel', 'dirt', 'ground', 'compacted', 'fine_gravel', 'grass', 'sand']);
 /** Pavés (secteurs de Paris–Roubaix, vieilles rues) : mêmes valeurs OSM que la physique et le son. */
@@ -499,6 +546,8 @@ export class RoadNetwork {
       return true;
     });
     roads = longchampInfieldRoads(tile, roads);
+    // Style Poly : les rubans coupés au bord de la tuile débordent de 25 cm (sinon un filet clair entre deux tuiles).
+    if (LOW_POLY) roads = roads.map((r) => overlapTileEdge(r, tile));
     let walkIndex: ReturnType<typeof indexWalk> | null = null;
     let lampsOut: LampSpot[] | null = null;
     let bollardsOut: LampSpot[] | null = null;

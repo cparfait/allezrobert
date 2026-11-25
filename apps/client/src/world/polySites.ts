@@ -5,6 +5,7 @@ import { box, MeshBuilder, part, prism, template, type LandProbe, type Template 
 import { KERBROU_HARBOUR, ROBERTVILLE_HARBOUR, buildHarbour, harbourCorners, harbourTemplates, type HarbourSite, type HarbourTemplates } from './polyHarbour.ts';
 import type { BirdPerch, LifeChunk, PersonSpot } from './roadsideLife.ts';
 import { ROBERT_ISLAND } from './worlds.ts';
+import { outdoorSites } from './polyOutdoor.ts';
 
 /**
  * Lieux phares de l'île (mode Poly) : ports de Robertville et de Kerbrou, circuit de l'Anneau et fête en son centre,
@@ -14,7 +15,7 @@ import { ROBERT_ISLAND } from './worlds.ts';
 const WHITE = new THREE.Color(0xffffff);
 const UP = new THREE.Vector3(0, 1, 0);
 const C = (...list: string[]) => list.map((c) => new THREE.Color(c));
-const GAY = C('#e2604f', '#f4d35e', '#2f9c95', '#5c6bc0', '#ef8fb0', '#ff8a3d', '#4fa3d9', '#7fb069');
+export const GAY = C('#e2604f', '#f4d35e', '#2f9c95', '#5c6bc0', '#ef8fb0', '#ff8a3d', '#4fa3d9', '#7fb069');
 
 /** Circuit (tools/island/src/design.ts, ANNEAU). */
 export const RING = { x: -4700, z: 900, half: 560, radius: 215 } as const;
@@ -43,7 +44,7 @@ interface Built {
   z: number;
 }
 
-interface SiteContext {
+export interface SiteContext {
   mesh: MeshBuilder;
   probe: LandProbe;
   season: Season;
@@ -57,7 +58,7 @@ interface SiteContext {
   flush(): void;
 }
 
-interface Site {
+export interface Site {
   id: string;
   x: number;
   z: number;
@@ -200,7 +201,7 @@ function cone(r: number, h: number): THREE.BufferGeometry {
   return new THREE.ConeGeometry(r, h, 7);
 }
 
-function meshOf(parts: Array<{ t: Template; x: number; y: number; z: number; yaw?: number; s?: number; c?: THREE.Color }>, mat: THREE.Material): THREE.Mesh {
+export function meshOf(parts: Array<{ t: Template; x: number; y: number; z: number; yaw?: number; s?: number; c?: THREE.Color }>, mat: THREE.Material): THREE.Mesh {
   const b = new MeshBuilder(1024);
   for (const p of parts) b.put(p.t, p.x, p.y, p.z, p.yaw ?? 0, p.s ?? 1, p.s ?? 1, p.s ?? 1, p.c ?? WHITE);
   const m = new THREE.Mesh(b.geometry() ?? new THREE.BufferGeometry(), mat);
@@ -363,7 +364,7 @@ const harbourSite = (id: string, h: HarbourSite, reach: number, templates: () =>
 });
 
 /** Parcours de promeneur : boucle fermée sur elle-même, un point tous les 4 m environ. */
-function strollPath(c: SiteContext, pts: ReadonlyArray<readonly [number, number]>, seed: number, kind: 'walker' | 'jogger' = 'walker'): void {
+export function strollPath(c: SiteContext, pts: ReadonlyArray<readonly [number, number]>, seed: number, kind: 'walker' | 'jogger' = 'walker'): void {
   const out: number[] = [];
   for (let i = 0; i + 1 < pts.length; i++) {
     const [ax, az] = pts[i]!;
@@ -670,7 +671,7 @@ export class IslandSites {
     this.group.name = 'ile-lieux';
     const k = () => (this.templates ??= kit());
     const h = () => (this.harbours ??= harbourTemplates());
-    this.sites = [harbourSite('port-robertville', ROBERTVILLE_HARBOUR, 750, h), harbourSite('port-kerbrou', KERBROU_HARBOUR, 700, h), anneau(k), market(k)];
+    this.sites = [harbourSite('port-robertville', ROBERTVILLE_HARBOUR, 750, h), harbourSite('port-kerbrou', KERBROU_HARBOUR, 700, h), anneau(k), market(k), ...outdoorSites()];
   }
 
   /** Personnages et oiseaux des lieux construits. */

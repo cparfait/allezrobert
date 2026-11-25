@@ -1491,8 +1491,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const aiCount = workout || mp || challenge || (s.mode !== 'free' && s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(wantedAi, 0), engine.quality.aiRidersMax);
   // Course : les IA sont réparties en équipes ; la mienne porte mon maillot (Réel, Poly et V3).
   const myV3Jersey = readV3Equipment();
+  /** Graine du tour (son nom) : les mêmes coureurs à chaque étape. */
+  const tourSeed = (name: string) => [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 1_000_003, 7);
   const raceTeams: RaceTeams | undefined =
-    s.mode === 'race' ? { jersey: s.look.jersey, jerseyAccent: s.look.jerseyAccent, leaders: tourJerseys, ...(myV3Jersey.kit?.CYCLING_JERSEY ? { v3: { piece: myV3Jersey.kit.CYCLING_JERSEY, ...(myV3Jersey.zip !== undefined ? { zip: myV3Jersey.zip } : {}) } } : {}) } : undefined;
+    s.mode === 'race' ? { jersey: s.look.jersey, jerseyAccent: s.look.jerseyAccent, leaders: tourJerseys, ...(tourBefore ? { seed: tourSeed(tourBefore.name) } : {}), ...(myV3Jersey.kit?.CYCLING_JERSEY ? { v3: { piece: myV3Jersey.kit.CYCLING_JERSEY, ...(myV3Jersey.zip !== undefined ? { zip: myV3Jersey.zip } : {}) } } : {}) } : undefined;
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * raceAiLevel, raceTeams, gearKind);
   /** Contre-la-montre local (idée NCT Ride) : départs décalés de 30 s, le joueur part en dernier, sans aspiration. */
   // Tour à étapes local (game/stageRace.ts) : étape à courir du tour créé dans le menu (ui/tourMenu.ts).

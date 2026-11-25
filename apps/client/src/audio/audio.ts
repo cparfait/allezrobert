@@ -124,11 +124,13 @@ export class GameAudio {
     rainDrops: Layer;
     rainLeaves: Layer;
     water: Layer;
+    surf: Layer;
     crowdLow: Layer;
     crowdHigh: Layer;
     breath: Layer;
   };
   private waterPan!: StereoPannerNode;
+  private surfPan!: StereoPannerNode;
   /** Envoi vers la réverbération (rues, sous-bois). */
   private reverbSend!: GainNode;
   private breathVca!: GainNode;
@@ -245,6 +247,8 @@ export class GameAudio {
     const b = this.buf;
     this.waterPan = ctx.createStereoPanner();
     this.waterPan.connect(B.ambience);
+    this.surfPan = ctx.createStereoPanner();
+    this.surfPan.connect(B.ambience);
     this.breathVca = ctx.createGain();
     this.breathVca.gain.value = 0;
     this.breathVca.connect(B.breath);
@@ -261,6 +265,8 @@ export class GameAudio {
       rainDrops: layer(b.drops, B.ambience, 'highpass', 1500),
       rainLeaves: layer(b.pink, B.ambience, 'bandpass', 1200, 0.8),
       water: layer(b.whiteMono, this.waterPan, 'bandpass', 1800, 0.6),
+      // Ressac : bruit grave qui enfle et retombe avec les vagues.
+      surf: layer(b.pink, this.surfPan, 'lowpass', 700),
       crowdLow: layer(b.pink, B.crowd, 'bandpass', 650, 0.9),
       crowdHigh: layer(b.pink, B.crowd, 'bandpass', 1800, 1.2),
       breath: layer(b.pinkMono, this.breathVca, 'bandpass', 1000, 1.1),
@@ -483,6 +489,8 @@ export class GameAudio {
     // Sons positionnés (OSM) : eau continue ; cloches, vaches, proximité des villages.
     let water = 0;
     let waterPan = 0;
+    let surf = 0;
+    let surfPan = 0;
     let villageNear = 0;
     const bellsOk = s.env.hour >= 7 && s.env.hour <= 21.5;
     const amb0 = this.lastAmbience;
@@ -494,6 +502,13 @@ export class GameAudio {
         if (d > src.range) continue;
         const gain = Math.min(1, (1 - d / src.range) ** 2 * (40 / Math.max(d, 40)) * 1.5);
         const pan = panFor(dx, dz, s.heading);
+        if (src.kind === 'surf') {
+          if (gain > surf) {
+            surf = gain;
+            surfPan = pan;
+          }
+          continue;
+        }
         if (src.kind === 'water') {
           if (gain > water) {
             water = gain;
@@ -533,6 +548,12 @@ export class GameAudio {
       }
     }
     this.set(this.L.water.gain.gain, water * 0.06, 0.5);
+    // Vagues toutes les 7 s environ ; mouettes et goélands au-dessus du rivage le jour.
+    const swell = 0.45 + 0.55 * Math.max(0, Math.sin(now * 0.9)) ** 2 * (0.7 + 0.3 * Math.sin(now * 0.23));
+    this.set(this.L.surf.gain.gain, surf * 0.11 * swell, 0.35);
+    this.set(this.L.surf.filter.frequency, 420 + 520 * swell, 0.35);
+    this.set(this.surfPan.pan, surfPan * 0.7, 0.4);
+    if (surf > 0.12 && s.env.night < 0.5 && Math.random() < eventChance(3 * surf, dt)) bird(ctx(this), this.buses.ambience, this.buf.whiteMono, now + 0.05, 'gull', 0.5 + 0.5 * surf, Math.random() * 1.6 - 0.8, 9000);
     this.set(this.waterPan.pan, waterPan, 0.3);
 
     const a = ambienceMix({

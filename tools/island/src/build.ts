@@ -348,6 +348,9 @@ const TRAILS: Trail[] = [
   { name: 'Sentier des Coteaux', mtb: true, at: [-300, 7300], r: 900, n: 8 },
   { name: 'Sentier des Buttes', mtb: true, at: [-7200, 5300], r: 1000, n: 8 },
   { name: 'Sentier du Plateau', mtb: true, at: [14300, 1600], r: 1000, n: 8 },
+  // Petites boucles : cyclo-cross de Bois-Joli (prés, sable, planches) et bike park des Bois (bosses, virages relevés).
+  { name: 'Circuit de cyclo-cross', at: [-7600, -1450], r: 340, n: 6 },
+  { name: 'Bike park des Bois', mtb: true, at: [-9050, -3250], r: 380, n: 7, seed: 3 },
 ];
 
 /**
@@ -376,6 +379,8 @@ const SKIN: Record<string, Array<[surface: string, width: number]>> = {
   'Sentier des Coteaux': [['earth', 2.2], ['dirt', 1.9], ['rock', 2.4]],
   'Sentier des Buttes': [['sand', 2.6], ['dirt', 2], ['grass', 2.4]],
   'Sentier du Plateau': [['grass', 2.6], ['earth', 2.2], ['rock', 1.9]],
+  'Circuit de cyclo-cross': [['grass', 3], ['sand', 2.8], ['dirt', 2.6], ['grass', 3.2]],
+  'Bike park des Bois': [['dirt', 2.4], ['earth', 2.2], ['rock', 2.4]],
 };
 
 const LANE_NAMES = ['des Tilleuls', 'du Vieux Puits', 'des Quatre Vents', 'de la Croix Blanche', 'du Bois Rond', 'des Alouettes', 'du Lavoir', 'de la Butte', 'des Genêts', 'du Grand Pré', 'de la Fontaine', 'des Peupliers', 'du Moulin Brûlé', 'de la Hulotte', 'des Merisiers', 'du Calvaire', 'de la Garenne', 'des Ajoncs', 'du Pont Neuf', 'de la Forge', 'des Vergers', 'du Coteau', 'de la Pie', 'des Bruyères', 'du Chêne Creux', 'de la Mare', 'des Coquelicots', 'du Berger'];
@@ -1101,6 +1106,8 @@ function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; f
     { id: 'vtt-des-coteaux', name: 'VTT des Coteaux', nameEn: 'Hills MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Coteaux', landmarks: [{ name: 'Les Coteaux', x: -300, z: 7300 }] },
     { id: 'vtt-des-buttes', name: 'VTT des Buttes', nameEn: 'Mounds MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Buttes', landmarks: [{ name: 'Les Buttes', x: -7200, z: 5300 }] },
     { id: 'vtt-du-plateau', name: 'VTT du Plateau', nameEn: 'Plateau MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Plateau', landmarks: [{ name: 'Le Plateau', x: 14300, z: 1600 }] },
+    { id: 'cyclo-cross-de-bois-joli', name: 'Le cyclo-cross de Bois-Joli', nameEn: 'Bois-Joli cyclocross', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Circuit de cyclo-cross', landmarks: [{ name: 'Cyclo-cross', x: -7600, z: -1450 }] },
+    { id: 'bike-park-des-bois', name: 'Le bike park des Bois', nameEn: 'Woods bike park', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Bike park des Bois', landmarks: [{ name: 'Bike park', x: -9050, z: -3250 }] },
     { id: 'gravel-de-la-lagune', name: 'Gravel de la Lagune', nameEn: 'Lagoon gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [[-8600, 8200], [-10500, 7500], [-9000, 6500]], landmarks: [{ name: 'La Lagune', x: -10400, z: 7400 }] },
   ];
 }

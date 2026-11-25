@@ -116,11 +116,29 @@ Les autres cyclistes (IA et ambiance) prennent un VTT sur les parcours VTT, un g
 
 Vérifié par sauts, son coupé. Pas de sortie continue, temps GPU non mesuré.
 
+## Cinquième lot (25-26 novembre, nuit)
+
+Les huit propositions faites d'une traite, plus les demandes arrivées en route.
+
+| Sujet | Fait |
+| --- | --- |
+| Cyclo-cross et bike park | Deux petites boucles (`TRAILS`) et deux parcours (40 en tout) : prés, sable et terre balisés de rubalise, bottes de paille, arche, tentes et public ; bike park avec virages relevés, tremplins et tour de départ (`world/polyOutdoor.ts`). |
+| Balises | Piquets de couleur sur tous les chemins (vert, bleu, rouge, noir selon la difficulté, violet au cyclo-cross) et panneau de départ là où un chemin quitte la route (`polyRoadPlan.ts`, `TRAIL_LEVEL`). |
+| Saisons et météo | Feuilles mortes à l'automne, neige tassée l'hiver, terre plus sombre et flaques sous la pluie (`network.ts`). Flaques encore discrètes. |
+| Lieux à découvrir | 16 lieux (phare, chapelle, écluse, belvédère, bike park…) : médaille à l'écran au premier passage, compte et étoiles sur la carte de l'île (`world/islandDiscover.ts`). |
+| Décor et vie | Écluse de la Robe (maison éclusière, portes), belvédère des falaises de Kerbrou, régates au large de Robertville, petit train dans l'Anneau, cerfs près du sentier des Biches. |
+| Oiseaux | Volées plus fréquentes et plus basses, goélands blancs, petits oiseaux qui traversent devant le coureur (`skyLife.ts`). |
+| Sons | Ressac sur toutes les côtes et goélands (`audio/spatial.ts`, `audio.ts`, `voices.ts`). Non écouté. |
+| Course | Ta place (« 3e / 11 ») dans la liste des coureurs, HUD compact et complet ; coureurs IA, profils et tactiques tirés à chaque course (fixes pendant un tour) ; messages d'attaque du directeur variés. |
+| Finition | Rubans du réseau qui débordent de 25 cm au bord des tuiles (plus de trait clair). Devantures : celles des bâtiments existent déjà (vitrines des archétypes), rien ajouté. |
+
+Le fantôme personnel et les groupes à allure choisie existaient déjà : rien à ajouter.
+
 ## Questions ouvertes
 
 1. **Publication** : tuiles et pack de l'île à renvoyer sur le serveur, et serveur à redéployer pour la description Strava.
 2. **Suite du plan** : finir Robertville (devantures, sons), falaises, écluses et ruine des Bois, fantôme et groupes à allure choisie.
-3. **Trait clair aux bords de tuile** : un filet d'un pixel traverse parfois une moitié de chaussée, là où le ruban du réseau est coupé (vu à Saint-Robert, km 0,3 de la boucle). Antérieur à ce lot, non corrigé.
+3. **Trait clair aux bords de tuile** : corrigé au cinquième lot (à confirmer en roulant).
 
 ## Repères pour reprendre le chantier
 

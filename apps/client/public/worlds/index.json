@@ -3530,8 +3530,8 @@
      "id": "gravel-des-bois",
      "name": "Gravel des Bois",
      "nameEn": "Woods gravel loop",
-     "lengthM": 26400.17,
-     "elevationGainM": 433.08,
+     "lengthM": 26381.44,
+     "elevationGainM": 433.11,
      "loop": true,
      "bike": "gravel"
     },
@@ -3701,8 +3701,8 @@
      "id": "grande-traversee",
      "name": "La Grande Traversée",
      "nameEn": "Great gravel traverse",
-     "lengthM": 43114.76,
-     "elevationGainM": 616.16,
+     "lengthM": 43132.93,
+     "elevationGainM": 616.27,
      "loop": false,
      "bike": "gravel"
     },
@@ -3779,6 +3779,24 @@
      "bike": "mtb"
     },
     {
+     "id": "cyclo-cross-de-bois-joli",
+     "name": "Le cyclo-cross de Bois-Joli",
+     "nameEn": "Bois-Joli cyclocross",
+     "lengthM": 2467.46,
+     "elevationGainM": 51.98,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "bike-park-des-bois",
+     "name": "Le bike park des Bois",
+     "nameEn": "Woods bike park",
+     "lengthM": 3338.47,
+     "elevationGainM": 51,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
      "id": "gravel-de-la-lagune",
      "name": "Gravel de la Lagune",
      "nameEn": "Lagoon gravel",
@@ -3789,10 +3807,10 @@
     }
    ],
    "pack": {
-    "version": "ed353b4ab299",
-    "bytes": 383471613,
+    "version": "80bd0ee8598f",
+    "bytes": 383550026,
     "files": 2650,
-    "gzBytes": 44490599
+    "gzBytes": 44538372
    },
    "l93": {
     "minE": 76000,

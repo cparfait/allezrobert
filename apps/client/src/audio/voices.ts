@@ -52,7 +52,7 @@ function burst(ctx: BaseAudioContext, noise: AudioBuffer, out: AudioNode, at: nu
 
 // ————————————————————————————————————————————— Oiseaux
 
-export type BirdKind = 'warble' | 'tit' | 'chiff' | 'chip' | 'skylark' | 'cuckoo' | 'pigeon' | 'woodpecker' | 'crow' | 'owl';
+export type BirdKind = 'warble' | 'tit' | 'chiff' | 'chip' | 'skylark' | 'cuckoo' | 'pigeon' | 'woodpecker' | 'crow' | 'owl' | 'gull';
 
 /** Note sifflée : glissando et petite enveloppe. */
 function whistleNote(ctx: BaseAudioContext, out: AudioNode, t0: number, f0: number, f1: number, dur: number, gain: number): void {
@@ -101,6 +101,19 @@ export function bird(ctx: BaseAudioContext, out: AudioNode, noise: AudioBuffer, 
       const a = between(5600, 6200);
       for (let i = 0; i < n; i++) whistleNote(ctx, o, at + i * 0.33, i % 2 ? a * 0.82 : a, (i % 2 ? a * 0.82 : a) * 0.9, 0.08, g * 0.6);
       return n * 0.33;
+    }
+    case 'gull': {
+      // Goéland : deux à quatre « kiaou » rauques qui retombent.
+      const n = 2 + Math.floor(r() * 3);
+      let t = at;
+      for (let i = 0; i < n; i++) {
+        const f = between(1350, 1700);
+        const d = between(0.22, 0.34);
+        whistleNote(ctx, o, t, f, f * 0.62, d, g * 0.9);
+        whistleNote(ctx, o, t + 0.01, f * 2.02, f * 1.2, d * 0.9, g * 0.35);
+        t += d + between(0.08, 0.2);
+      }
+      return t - at;
     }
     case 'chip': {
       // Cri de contact (rouge-gorge, mésange l'hiver) : « tsit » bref, une ou deux fois.

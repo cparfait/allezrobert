@@ -25,7 +25,7 @@ describe('directeur sportif', () => {
   });
   it('annonce une attaque tout de suite, une seule fois par délai', () => {
     const ds = new DirecteurSportif();
-    expect(ds.update(0.1, { ...base, attacks: ['Steve'] })[0]?.fr).toContain('Attaque de Steve');
+    expect(ds.update(0.1, { ...base, attacks: ['Steve'] })[0]?.fr).toContain('Steve');
     expect(ds.update(0.1, { ...base, attacks: ['Léa'] })).toHaveLength(0);
   });
   it('200 m de la ligne : à fond', () => {

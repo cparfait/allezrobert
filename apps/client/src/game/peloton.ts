@@ -42,6 +42,8 @@ export interface RaceTeams {
   v3?: V3TeamJersey;
   /** Tour à étapes : maillots distinctifs gagnés aux étapes précédentes (identifiant de l'IA → maillot). */
   leaders?: Partial<Record<string, 'gc' | 'points' | 'kom'>>;
+  /** Tirage des coureurs (noms, profils, tactiques) : fixe pendant tout un tour, nouveau à chaque course sinon. */
+  seed?: number;
 }
 /** Couleurs des maillots distinctifs (styles Réel et Poly) : jaune, vert, blanc à pois rouges. */
 export const LEADER_COLORS = { gc: ['#ffd23f', '#ffd23f'], points: ['#3fa65a', '#3fa65a'], kom: ['#f2f2ee', '#d63a2f'] } as const;
@@ -579,7 +581,9 @@ export class Peloton {
   constructor(scene: THREE.Scene, track: RouteTrack, count: number, startDistM: number, ftpRef: number, teams?: RaceTeams, gearKind: GearKind = teams ? 'race' : 'ride') {
     this.scene = scene;
     this.track = track;
-    const r = rng(42);
+    // Nouveau tirage à chaque course (même équipe tout un tour) : noms, nations, profils, forces et tactiques changent.
+    const seed = teams?.seed ?? Math.floor(Math.random() * 1e6);
+    const r = rng(42 + seed);
     for (let i = 0; i < count; i++) {
       const massKg = 58 + r() * 30;
       // FTP de chaque IA autour du niveau choisi (± 10 %).
@@ -589,7 +593,7 @@ export class Peloton {
       const lead = teams?.leaders?.[`ai-${i}`];
       const color = lead ? LEADER_COLORS[lead][0] : team === undefined ? (JERSEYS[i % JERSEYS.length] as string) : team === 0 ? teams!.jersey : rivalColor(team, teams!.jersey);
       // Un sur deux est une femme (voir botFace) : prénom, nom et nationalité cohérents.
-      const identity = aiIdentity(i, i % 2 === 1);
+      const identity = aiIdentity(i + (seed % 997), i % 2 === 1);
       // Couvre-chef et vélo selon la sortie (game/headgear.ts) : tirage propre, sans toucher la suite de r().
       const gearRoll = (i * 0.618034 + 0.137) % 1;
       // Chemins et sentiers : gravel ou VTT, jamais un vélo de route.
@@ -625,7 +629,7 @@ export class Peloton {
         // Départ groupé : en file indienne juste devant le joueur et derrière lui, hors du champ de la caméra de poursuite.
         state: createRiderState({ distM: startDistM + (i % 2 ? 2 + Math.floor(i / 2) * 2.2 : -(CAMERA_CLEAR_BACK_M + 1 + Math.floor(i / 2) * 2.2)), speedMs: 0 }),
         lateral: Math.min(((i % 3) - 1) * 0.7 + 1.2, roadHalfM(track.route.roadWidthM)),
-        ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[i % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919, aggressiveness: 0.35 }),
+        ai: new AiRider({ id: `ai-${i}`, profile: PROFILES[(i + seed) % PROFILES.length] as AiProfileName, ftpWatts: ftp, params, riderMassKg: massKg, seed: i * 7919 + seed * 31, aggressiveness: 0.2 + r() * 0.35 }),
         avatar,
         ...(v3 ? { v3 } : {}),
         label,

@@ -733,6 +733,8 @@ body:has(.ob-preview) .subtitle { left: 2vw; right: auto; transform: none; max-w
 .hud.compact .riders .rd-head { justify-content: flex-start; gap: calc(var(--u) * 5); padding: calc(var(--u) * 2) calc(var(--u) * 4); font-size: calc(var(--u) * 10.5); cursor: pointer; user-select: none; }
 .hud.compact .riders .rd-head b { font-weight: 700; }
 .hud.compact .riders .rd-count { margin-right: auto; padding: 0 calc(var(--u) * 5); border-radius: 999px; background: rgba(255, 255, 255, 0.1); color: var(--ar-fg); font-size: calc(var(--u) * 10.5); }
+.rd-rank { margin-left: auto; font-weight: 800; color: #ffd76d; font-size: 1.05em; }
+.rd-rank small { color: rgba(255, 255, 255, 0.6); font-weight: 600; font-size: 0.8em; }
 .hud.compact .riders .rd-caret { display: inline-block; font-style: normal; transition: transform 0.2s ease; }
 .hud.compact .riders.cx-folded .rd-caret { transform: rotate(-90deg); }
 .hud.compact .riders .row { grid-template-columns: calc(var(--u) * 7) minmax(0, 1fr) auto calc(var(--u) * 38); gap: calc(var(--u) * 6); margin-top: calc(var(--u) * 2); padding: calc(var(--u) * 3) calc(var(--u) * 5); border: 0; border-radius: calc(var(--u) * 5); background: rgba(255, 255, 255, 0.04); }

@@ -78,7 +78,13 @@ export class DirecteurSportif {
       if ((this.cool.get('attack') ?? -Infinity) > 0) break;
       this.cool.set('attack', 20);
       const far = s.gapAheadM === null;
-      say({ fr: `Attaque de ${n} ! ${far ? 'Ne réponds pas à tout.' : 'Pas de panique, ça va revenir.'}`, en: `${n} attacks! ${far ? 'Don’t chase everything.' : 'Don’t panic, it’ll come back.'}`, urgent: true });
+      const k = Math.floor(Math.random() * 4);
+      const fr = [`Attaque de ${n} !`, `${n} sort du groupe !`, `Ça bouge devant : ${n} accélère.`, `${n} tente sa chance !`][k];
+      const en = [`${n} attacks!`, `${n} jumps out of the group!`, `Move up front: ${n} goes.`, `${n} tries his luck!`][k];
+      const fr2 = far ? ['Ne réponds pas à tout.', 'Laisse-le partir, il reviendra.', 'Garde des forces pour la fin.'] : ['Pas de panique, ça va revenir.', 'Reste dans les roues.', 'Si tu as les jambes, prends sa roue.'];
+      const en2 = far ? ['Don’t chase everything.', 'Let him go, he’ll come back.', 'Save something for the end.'] : ['Don’t panic, it’ll come back.', 'Stay on the wheels.', 'If you have the legs, take his wheel.'];
+      const j = Math.floor(Math.random() * 3);
+      say({ fr: `${fr} ${fr2[j]}`, en: `${en} ${en2[j]}`, urgent: true });
     }
     for (const n of s.cracks) {
       if ((this.cool.get('crack') ?? -Infinity) > 0) break;

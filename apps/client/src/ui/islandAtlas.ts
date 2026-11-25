@@ -1,5 +1,6 @@
 import { routeBike, type RouteBike, type RouteData, type RoutePoint } from '@allezrobert/shared';
 import type { WorldRouteRef, WorldRoutes } from '../world/routeStore.ts';
+import { ISLAND_PLACES, foundPlaces } from '../world/islandDiscover.ts';
 import './islandAtlas.css';
 
 const ISLAND_BOUNDS = { minX: -19000, minZ: -13000, width: 38000, height: 26000 };
@@ -22,8 +23,8 @@ const PLACES: ReadonlyArray<{ x: number; z: number; label: string; labelEn: stri
 ];
 
 const COPY = {
-  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné', about: 'environ', paved: 'bitume', boards: 'planches', offroad: 'chemins', bikes: { road: 'Parcours route', gravel: 'Parcours gravel', mtb: 'Parcours VTT' }, withBike: 'Autre vélo au garage :', other: { road: '# parcours route', gravel: '# gravel', mtb: '# VTT' }, climbs: 'côte', sprints: 'sprint' },
-  en: { title: 'Robert’s Island', mode: 'POLY MODE', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route', about: 'about', paved: 'tarmac', boards: 'boardwalk', offroad: 'off-road', bikes: { road: 'Road routes', gravel: 'Gravel routes', mtb: 'MTB trails' }, withBike: 'With another garage bike:', other: { road: '# road', gravel: '# gravel', mtb: '# MTB' }, climbs: 'climb', sprints: 'sprint' },
+  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné', about: 'environ', paved: 'bitume', boards: 'planches', offroad: 'chemins', bikes: { road: 'Parcours route', gravel: 'Parcours gravel', mtb: 'Parcours VTT' }, withBike: 'Autre vélo au garage :', other: { road: '# parcours route', gravel: '# gravel', mtb: '# VTT' }, climbs: 'côte', sprints: 'sprint', found: 'Lieux découverts', foundHint: 'Passe près d’un lieu pour le découvrir' },
+  en: { title: 'Robert’s Island', mode: 'POLY MODE', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route', about: 'about', paved: 'tarmac', boards: 'boardwalk', offroad: 'off-road', bikes: { road: 'Road routes', gravel: 'Gravel routes', mtb: 'MTB trails' }, withBike: 'With another garage bike:', other: { road: '# road', gravel: '# gravel', mtb: '# MTB' }, climbs: 'climb', sprints: 'sprint', found: 'Places discovered', foundHint: 'Ride near a place to discover it' },
 } as const;
 
 interface AtlasOptions {
@@ -161,6 +162,8 @@ export class IslandAtlas {
     const sorted = [...routes].sort((a, b) => order(a.id) - order(b.id));
     if (!available.has(this.activeId)) this.activeId = sorted[0]?.id ?? '';
     const km = new Intl.NumberFormat(lang, { maximumFractionDigits: 1 });
+    const found = foundPlaces();
+    const stars = ISLAND_PLACES.map((p) => `<span class="ia-star${found.has(p.id) ? ' is-found' : ''}" style="left:${(mapX(p.x) * 100).toFixed(2)}%;top:${(mapZ(p.z) * 100).toFixed(2)}%" title="${found.has(p.id) ? esc(p.name[lang]) : '?'}" aria-hidden="true">${found.has(p.id) ? '★' : '·'}</span>`).join('');
     const marker = PLACES.map((p) => {
       const name = lang === 'fr' ? p.label : p.labelEn;
       const at = `left:${(mapX(p.x) * 100).toFixed(2)}%;top:${(mapZ(p.z) * 100).toFixed(2)}%`;
@@ -180,12 +183,12 @@ export class IslandAtlas {
         <div class="ia-map-panel">
           <header class="ia-heading"><div><span class="ia-mode">${copy.mode}</span><h2 id="ia-title">${copy.title}</h2></div></header>
           <div class="ia-view" role="region" aria-label="${copy.map}">
-            <div class="ia-plane"><img src="/worlds/ile-de-robert/carte.png" alt="" width="${MAP_W}" height="${MAP_H}"><canvas class="ia-trace" width="${MAP_W}" height="${MAP_H}" aria-hidden="true"></canvas>${marker}</div>
+            <div class="ia-plane"><img src="/worlds/ile-de-robert/carte.png" alt="" width="${MAP_W}" height="${MAP_H}"><canvas class="ia-trace" width="${MAP_W}" height="${MAP_H}" aria-hidden="true"></canvas>${stars}${marker}</div>
             <div class="ia-compass" title="${copy.north}" aria-label="${copy.north}">N<span aria-hidden="true">▲</span></div>
             <div class="ia-map-tools"><button type="button" data-ia-zoom aria-pressed="false" disabled>${copy.zoom}</button></div>
             <span class="ia-scale" aria-hidden="true">5 km</span>
           </div>
-          <div class="ia-legend"><span class="ia-line-key">${copy.trace}</span><span class="ia-start-key">${copy.start}</span><span class="ia-load" data-ia-status role="status"></span></div>
+          <div class="ia-legend"><span class="ia-line-key">${copy.trace}</span><span class="ia-start-key">${copy.start}</span><span class="ia-found" title="${copy.foundHint}">★ ${copy.found} ${found.size}/${ISLAND_PLACES.length}</span><span class="ia-load" data-ia-status role="status"></span></div>
         </div>
         <div class="ia-side">
           <header class="ia-side-head"><h3>${copy.bikes[bike]} <small>${routes.length}</small></h3><button type="button" class="mm-x" data-picker-close aria-label="${copy.close}">×</button></header>

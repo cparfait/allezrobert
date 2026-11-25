@@ -270,6 +270,17 @@ function writeFlag(key: string, on: boolean): void {
   }
 }
 
+/** Ma place parmi les coureurs de la sortie (le plus avancé en tête), « 3e / 11 » ; vide seul ou sans coureur. */
+function rankHtml(s: { riders: ReadonlyArray<{ me?: boolean; distM: number; ambient?: unknown }> }): string {
+  const field = s.riders.filter((r) => !r.ambient);
+  const me = field.find((r) => r.me);
+  if (!me || field.length < 2) return '';
+  const place = 1 + field.filter((r) => !r.me && r.distM > me.distM).length;
+  const fr = getLang() === 'fr';
+  const ord = fr ? (place === 1 ? '1er' : `${place}e`) : `${place}${place % 10 === 1 && place !== 11 ? 'st' : place % 10 === 2 && place !== 12 ? 'nd' : place % 10 === 3 && place !== 13 ? 'rd' : 'th'}`;
+  return `<span class="rd-rank num" title="${fr ? 'Ta place' : 'Your position'}">${ord}<small> / ${field.length}</small></span>`;
+}
+
 /** Image du fond de carte et emprise qu'elle couvre (repère du monde, m). */
 interface BaseTile {
   img: HTMLImageElement;
@@ -1707,7 +1718,7 @@ export class Hud {
     const i = pool.indexOf(me);
     const shown = pool.slice(Math.max(0, i - 5), i + 6);
     const speed = Math.max(s.speedKmh / 3.6, 2);
-    const head = `<div class="rd-head"><b>${S('nearby')}</b></div>`;
+    const head = `<div class="rd-head"><b>${S('nearby')}</b>${rankHtml(s)}</div>`;
     const rows = shown
       .map((r) => {
         // Ligne serrée : à gauche le niveau en barres (couleur du coureur) et l'écart en temps ; à droite le nom
@@ -1752,7 +1763,7 @@ export class Hud {
     const me = s.riders.find((r) => r.me);
     if (!me) return '';
     const others = s.riders.filter((r) => !r.me);
-    const head = `<div class="rd-head" data-rfold title="${S('fold')}"><i class="rd-caret">▾</i><b>${S('nearby')}</b><span class="rd-count num">${others.length}</span></div>`;
+    const head = `<div class="rd-head" data-rfold title="${S('fold')}"><i class="rd-caret">▾</i><b>${S('nearby')}</b>${rankHtml(s) || `<span class="rd-count num">${others.length}</span>`}</div>`;
     if (this.ridersFolded) return head;
     const near = others.sort((a, b) => Math.abs(a.distM - me.distM) - Math.abs(b.distM - me.distM)).slice(0, 3);
     const speed = Math.max(s.speedKmh / 3.6, 2);

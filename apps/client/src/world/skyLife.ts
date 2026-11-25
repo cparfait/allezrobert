@@ -96,6 +96,7 @@ const CROW = new THREE.Color('#17171a');
 const PIGEON = new THREE.Color('#7f8590');
 const GULL = new THREE.Color('#f1f1ec');
 const GOOSE = new THREE.Color('#5b5650');
+const SWALLOW = new THREE.Color('#26303c');
 const BUTTERFLY_COLS = ['#f7f4ea', '#f4d23a', '#ff8a2a', '#5a8cff', '#d94f7a', '#f2f2a0'].map((c) => new THREE.Color(c));
 
 export class SkyLife {
@@ -110,7 +111,9 @@ export class SkyLife {
   private readonly perched = new Map<BirdPerch, Bird[]>();
   private readonly spent = new WeakSet<BirdPerch>();
   private perches: BirdPerch[] = [];
-  private nextFlock = 8 + Math.random() * 15;
+  private nextFlock = 4 + Math.random() * 8;
+  /** Petits oiseaux qui traversent bas devant le coureur. */
+  private nextSwoop = 3 + Math.random() * 6;
 
   private readonly flyMesh: THREE.InstancedMesh;
   private readonly fAnchor: THREE.InstancedBufferAttribute;
@@ -301,37 +304,57 @@ export class SkyLife {
   /** Volées en V, haut dans le ciel, qui traversent devant le coureur. */
   private updateFlocks(dt: number, f: THREE.Vector3): void {
     this.nextFlock -= dt;
-    if (this.nextFlock <= 0 && this.flocks.length < 2 && this.birdsOn) {
-      this.nextFlock = 25 + Math.random() * 45;
+    this.nextSwoop -= dt;
+    if (this.nextSwoop <= 0 && this.flocks.length < 5 && this.birdsOn) {
+      this.nextSwoop = 7 + Math.random() * 12;
+      this.spawnFlock(f, true);
+    }
+    if (this.nextFlock <= 0 && this.flocks.length < 5 && this.birdsOn) {
+      this.nextFlock = 14 + Math.random() * 22;
+      this.spawnFlock(f, false);
+    }
+    this.moveFlocks(dt, f);
+  }
+
+  /** Volée en V haut dans le ciel, ou (`low`) deux à quatre petits oiseaux qui traversent bas, devant le coureur. */
+  private spawnFlock(f: THREE.Vector3, low: boolean): void {
+    {
       const hx = this.heading.x;
       const hz = this.heading.y;
       const side = Math.random() < 0.5 ? -1 : 1;
       // à droite du coureur : (−hz, hx)
-      const ahead = 250 + Math.random() * 200;
-      const x = f.x + hx * ahead + -hz * side * 380;
-      const z = f.z + hz * ahead + hx * side * 380;
+      const ahead = low ? 50 + Math.random() * 60 : 150 + Math.random() * 150;
+      const across = low ? 70 : 260;
+      const x = f.x + hx * ahead + -hz * side * across;
+      const z = f.z + hz * ahead + hx * side * across;
       let dx = hz * side + hx * 0.3;
       let dz = -hx * side + hz * 0.3;
       const L = Math.hypot(dx, dz) || 1;
       dx /= L;
       dz /= L;
-      const flock: Flock = { x, y: f.y + 60 + Math.random() * 50, z, dx, dz, speed: 12 + Math.random() * 4, birds: [] };
-      const n = 7 + Math.floor(Math.random() * 7);
+      const flock: Flock = { x, y: f.y + (low ? 4 + Math.random() * 7 : 28 + Math.random() * 30), z, dx, dz, speed: low ? 9 + Math.random() * 3 : 12 + Math.random() * 4, birds: [] };
+      const n = low ? 2 + Math.floor(Math.random() * 3) : 7 + Math.floor(Math.random() * 7);
+      // Une volée sur trois : goélands blancs.
+      const flockGull = !low && Math.random() < 0.33;
       for (let i = 0; i < n; i++) {
         const b = this.allocBird();
         if (!b) break;
         const rank = Math.ceil(i / 2);
         b.state = 2;
-        b.back = rank * 2.6 + (Math.random() - 0.5) * 0.4;
-        b.lat = (i % 2 ? 1 : -1) * rank * 2.2;
-        b.scale = 1.9 + Math.random() * 0.3;
-        b.rate = 2 + Math.random() * 0.4;
-        this.bCol.setXYZ(b.slot, GOOSE.r, GOOSE.g, GOOSE.b);
+        b.back = low ? i * 1.6 + Math.random() * 1.2 : rank * 2.6 + (Math.random() - 0.5) * 0.4;
+        b.lat = low ? (Math.random() - 0.5) * 3 : (i % 2 ? 1 : -1) * rank * 2.2;
+        b.scale = low ? 0.8 + Math.random() * 0.25 : 1.9 + Math.random() * 0.3;
+        b.rate = low ? 5 + Math.random() * 2 : 2 + Math.random() * 0.4;
+        const col = low ? SWALLOW : flockGull ? GULL : GOOSE;
+        this.bCol.setXYZ(b.slot, col.r, col.g, col.b);
         flock.birds.push(b);
       }
       this.bCol.needsUpdate = true;
       this.flocks.push(flock);
     }
+  }
+
+  private moveFlocks(dt: number, f: THREE.Vector3): void {
     for (let i = this.flocks.length - 1; i >= 0; i--) {
       const fl = this.flocks[i] as Flock;
       fl.x += fl.dx * fl.speed * dt;
@@ -341,7 +364,7 @@ export class SkyLife {
       for (const b of fl.birds) {
         b.x = fl.x - fl.dx * b.back + Math.cos(yaw) * b.lat;
         b.z = fl.z - fl.dz * b.back - Math.sin(yaw) * b.lat;
-        b.y = fl.y + Math.sin(this.t * 0.7 + b.lat) * 0.4;
+        b.y = fl.y + Math.sin(this.t * (fl.speed < 12.5 && b.scale < 1.2 ? 2.3 : 0.7) + b.lat) * (b.scale < 1.2 ? 1.1 : 0.4);
         b.yaw = yaw;
       }
       if (Math.hypot(fl.x - f.x, fl.z - f.z) > 1100 || !this.birdsOn) {

@@ -43,6 +43,31 @@ export interface PlannedTown extends Placed {
   exit: boolean;
 }
 
+/** Balise de sentier (poteau de bois, plaque à la couleur de la difficulté) ; `head` : panneau de départ du sentier. */
+export interface PlannedTrailMark extends Placed {
+  colour: string;
+  head: boolean;
+}
+
+/**
+ * Difficulté des chemins et sentiers de l'île (couleur des balises, comme dans les espaces VTT) : vert facile, bleu
+ * moyen, rouge difficile, noir très difficile ; violet pour le cyclo-cross.
+ */
+export const TRAIL_LEVEL: Readonly<Record<string, string>> = {
+  'Sentier des Biches': '#3fa34d',
+  'Sentier du Plateau': '#3fa34d',
+  'Sentier des Buttes': '#3fa34d',
+  'Sentier VTT des Bois': '#2f6fd1',
+  'Sentier des Coteaux': '#2f6fd1',
+  'Sentier du Renard': '#d6332f',
+  'Sentier du Phare': '#d6332f',
+  'Descente du Phare': '#17181b',
+  'Bike park des Bois': '#17181b',
+  'Circuit de cyclo-cross': '#8a3fc8',
+};
+/** Chemins gravel : balises bleues. */
+const GRAVEL_MARK = '#2f6fd1';
+
 /** Balise de virage (poteau blanc à bande sombre). */
 export interface PlannedPost {
   x: number;
@@ -61,6 +86,7 @@ export interface RoadCell {
   panels: PlannedPanel[];
   towns: PlannedTown[];
   posts: PlannedPost[];
+  trails: PlannedTrailMark[];
 }
 
 export interface PlanPlace {
@@ -232,7 +258,7 @@ class Planner {
   private cell(x: number, z: number): RoadCell {
     const k = cellKeyOf(x, z);
     let c = this.cells.get(k);
-    if (!c) this.cells.set(k, (c = { marks: [], axis: [], signs: [], panels: [], towns: [], posts: [] }));
+    if (!c) this.cells.set(k, (c = { marks: [], axis: [], signs: [], panels: [], towns: [], posts: [], trails: [] }));
     return c;
   }
 
@@ -255,6 +281,22 @@ class Planner {
         }
       }
     return false;
+  }
+
+  /** Balises tous les 180 m, en alternant les côtés, et panneau de départ là où le sentier quitte une route. */
+  private trailMarks(line: Line): void {
+    const e = line.e;
+    const colour = TRAIL_LEVEL[e.name ?? ''] ?? GRAVEL_MARK;
+    for (let d = 60, k = 0; d < line.length - 40; d += 180, k++) {
+      const p = this.roadside(line, d, k % 2 === 1, 1.1, 3);
+      if (p) this.cell(p.x, p.z).trails.push({ ...p, colour, head: false });
+    }
+    for (const atStart of [true, false]) {
+      const fromRoad = (this.nodes[atStart ? e.a : e.b] ?? []).some((b) => b.line.road);
+      if (!fromRoad || line.length < 60) continue;
+      const p = this.roadside(line, 14, !atStart, 1.2, 4);
+      if (p) this.cell(p.x, p.z).trails.push({ ...p, colour, head: true });
+    }
   }
 
   /** Place au bord droit, reculée jusqu'à un emplacement hors de toute chaussée ; null s'il n'y en a pas. */
@@ -358,6 +400,7 @@ class Planner {
       }
       return;
     }
+    if (e.kind === 'track' && e.name) this.trailMarks(line);
     if (!line.road) return;
     this.curves(line);
     this.slopes(line);

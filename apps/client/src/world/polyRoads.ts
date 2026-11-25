@@ -3,7 +3,7 @@ import { vec3 } from 'three/tsl';
 import type { RoadGraphData } from '@allezrobert/shared';
 import { MeshBuilder, box, flatVertexMaterial, part, prism, template, type LandProbe, type Template } from './lowPolyKit.ts';
 import { NAME_H, NAME_W, glyphRect, nameRect, roadAtlas, signRect, type Glyph, type RoadAtlas, type UvRect } from './polyRoadAtlas.ts';
-import { CELL_M, planRoads, type PlanPlace, type PlannedPanel, type PlannedSign, type PlannedTown, type RoadCell, type RoadPlan, type SignKind } from './polyRoadPlan.ts';
+import { CELL_M, planRoads, type PlanPlace, type PlannedPanel, type PlannedSign, type PlannedTown, type PlannedTrailMark, type RoadCell, type RoadPlan, type SignKind } from './polyRoadPlan.ts';
 import { NETWORK_ROAD_LIFT, currentRoadHeight } from './roadHeight.ts';
 
 /**
@@ -24,6 +24,7 @@ const PAINT = new THREE.Color(0.86, 0.86, 0.82);
 const WHITE = new THREE.Color(0xffffff);
 const RED = new THREE.Color('#c8102e');
 const BACK = new THREE.Color('#9aa0a4');
+const WOOD = new THREE.Color('#9c7a52');
 const RIM = new THREE.Color('#2c4a63');
 const SQUARE = new Set<SignKind>(['zone30', 'pedestrians', 'chevronLeft', 'chevronRight']);
 
@@ -75,6 +76,8 @@ function parts() {
     triangleDown: tri(true),
     delineator: template([part(box(0.14, 1.2, 0.1, 0, 0.3), '#f2f1ea'), part(box(0.15, 0.2, 0.11, 0, 0.68), '#2b2f33'), part(box(0.06, 0.12, 0.13, 0, 0.68), '#e2553f')]),
     board: template([part(box(1, 1, 0.05, 0, 0, -0.04), '#ffffff', 1)]),
+    stake: template([part(box(0.11, 1.15, 0.11, 0, 0.575), '#8a6a45')]),
+    trailPlate: template([part(box(0.15, 0.15, 0.13, 0, 0), '#ffffff')]),
   };
 }
 type Parts = ReturnType<typeof parts>;
@@ -178,7 +181,7 @@ export class PolyRoads {
   }
 
   private ready(cell: RoadCell, cx: number, cz: number): boolean {
-    for (const list of [cell.signs, cell.panels, cell.towns, cell.posts]) for (const p of list) if (!this.probe.tileAt(p.x, p.z) || !Number.isFinite(this.probe.heightAt(p.x, p.z))) return false;
+    for (const list of [cell.signs, cell.panels, cell.towns, cell.posts, cell.trails]) for (const p of list) if (!this.probe.tileAt(p.x, p.z) || !Number.isFinite(this.probe.heightAt(p.x, p.z))) return false;
     return !!this.probe.tileAt(cx, cz);
   }
 
@@ -227,6 +230,7 @@ export class PolyRoads {
     const atlas = (this.atlas ??= roadAtlas(this.plan!.places));
     this.builder.reset();
     for (const p of cell.posts) if (!this.blocked(p.x, p.z)) this.builder.put(kit.delineator, p.x, this.probe.heightAt(p.x, p.z), p.z, 0, 1, 1, 1, WHITE);
+    for (const t of cell.trails) this.trailMark(t, kit, faces);
     for (const s of cell.signs) this.sign(s, kit, faces);
     for (const p of cell.panels) this.panel(p, kit, faces, atlas);
     for (const t of cell.towns) this.town(t, kit, faces, atlas);
@@ -265,6 +269,22 @@ export class PolyRoads {
 
   private blocked(x: number, z: number): boolean {
     return this.probe.buildingNear(x, z, 0.5);
+  }
+
+  /** Balise de sentier : piquet de bois et plaque de couleur ; au départ, panneau avec pictogramme vélo et bande de couleur. */
+  private trailMark(t: PlannedTrailMark, kit: Parts, faces: FaceSink): void {
+    if (this.blocked(t.x, t.z)) return;
+    const f = frameOf(t, this.probe.heightAt(t.x, t.z));
+    const colour = new THREE.Color(t.colour);
+    if (!t.head) {
+      this.put(kit.stake, f, 0, 0, 0, 1, 1);
+      this.put(kit.trailPlate, f, 0, 1.0, 0.02, 1, 1, colour);
+      return;
+    }
+    for (const a of [-0.45, 0.45]) this.put(kit.stake, f, a, 0, -0.05, 1, 1.75);
+    this.put(kit.board, f, 0, 1.45, 0, 1.15, 0.8, WOOD);
+    this.put(kit.board, f, 0, 1.12, 0.01, 1.05, 0.14, colour);
+    face(faces, f, -0.27, 1.25, 0.27, 1.79, 0.014, signRect('cyclists'));
   }
 
   private sign(s: PlannedSign, kit: Parts, faces: FaceSink): void {
