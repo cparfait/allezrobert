@@ -26,6 +26,8 @@ import { KeyboardControls, type InputSource } from './game/inputs.ts';
 import { Peloton } from './game/peloton.ts';
 import { updateNearFade } from './game/nearFade.ts';
 import { aiEffortTag, energyPercent } from '@allezrobert/shared';
+import { MotoSchedule, RaceMoto, gapsLine, raceGroups } from './world/raceMoto.ts';
+import { RaceGapsChip } from './ui/raceGaps.ts';
 /** Le joueur traverse en fondu les coureurs qu'il rattrape (?traverser=0 : ils s'écartent comme avant). */
 const PASS_THROUGH = new URLSearchParams(location.search).get('traverser') !== '0';
 import { separateRiders, type Body } from './game/collision.ts';
@@ -1409,6 +1411,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   const wantedAi = s.mode === 'free' ? (s.soloAiRiders ?? 0) : s.aiRiders;
   const aiCount = workout || mp || challenge || (s.mode !== 'free' && s.mode !== 'group' && s.mode !== 'race') ? 0 : Math.min(Math.max(wantedAi, 0), engine.quality.aiRidersMax);
   const peloton = new Peloton(engine.scene, track, aiCount, startD, s.ftpWatts * (s.aiLevel ?? 1));
+  /** Moto chrono (world/raceMoto.ts) : en sortie de groupe ou course avec des IA (?moto=0 pour l'enlever). */
+  const raceMoto = aiCount > 0 && new URLSearchParams(location.search).get('moto') !== '0' ? new RaceMoto(engine.scene, track) : null;
+  /** La moto passe de temps en temps ; les écarts restent affichés discrètement tant que la course est cassée. */
+  const motoSchedule = new MotoSchedule();
+  const raceGaps = aiCount > 0 ? new RaceGapsChip() : null;
   // Course hors ligne : les IA roulent à 82 % de leur propre FTP (niveau × FTP du joueur), pas à l'allure du joueur.
   if (s.mode === 'race' && aiCount > 0) peloton.paceFtpPct = 0.82 * (s.aiLevel ?? 1);
   if (pilotCollision) peloton.enableBuildingCollisions(pilotCollision);
@@ -2005,6 +2012,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     void mp?.dispose();
     void voice?.disconnect();
     coach?.voice.stop();
+    raceMoto?.dispose();
+    raceGaps?.dispose();
     tutorial?.stop();
     audio.dispose();
     input.sendTrainer({ kind: 'simulation', gradePercent: 0 });
@@ -2876,6 +2885,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (v3) applyRiderShadows(avatar.root, true, (v3 as unknown as { group: THREE.Object3D }).group);
     lap('mon coureur');
     peloton.render(dt, engine.camera);
+    // Moto chrono (world/raceMoto.ts) : de temps en temps devant mon groupe quand la course est cassée ;
+    // écarts en une ligne discrète à l'écran.
+    if (raceMoto || raceGaps) {
+      const groups = ride.dir > 0 ? raceGroups([{ distM: ride.state.distM, me: true }, ...peloton.riders.filter((r) => !r.uturn.active).map((r) => ({ distM: r.state.distM }))]) : null;
+      const visit = motoSchedule.update(dt, groups !== null);
+      raceMoto?.update(dt, visit ? groups : null, ride.state.speedMs, ride.lateral);
+      raceGaps?.set(gapsLine(groups, ride.state.speedMs, getLang() === 'fr'));
+    }
     lap('coureurs IA (animation)');
     // Poussière des roues sur les chemins non revêtus (coureur et coureurs IA), voir world/dust.ts.
     if (!ride.paused) {
@@ -3079,6 +3096,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     const hourNow = weatherAt(rideWeather, weatherElapsedS(rideWeather, ride.elapsedS, mp?.net.serverNow())).hour;
     nightLights.start(world.nightFactor() > 0 || nightWithin((h) => sunDirection(h, season).y, hourNow));
   }
+  // Moto chrono : modèle chargé et montré le temps de la compilation (sinon à-coup à sa première apparition).
+  if (raceMoto) {
+    await raceMoto.ready;
+    raceMoto.root.visible = true;
+  }
   await engine.compileScene(tileStage(startOverlay, 0.85, 1));
   performance.mark('ar:départ : objets compilés');
   // Laisse l'écran d'attente se peindre, puis fait les premières images (lentes) derrière lui : la première
@@ -3086,6 +3108,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   await new Promise<void>((r) => setTimeout(r, 50));
   for (let i = 0; i < 4; i++) engine.renderManual();
   performance.mark('ar:premières images');
+  if (raceMoto) raceMoto.root.visible = false;
   // Désormais, ce qui arrive dans la scène (tuiles, cyclistes) est compilé à l'avance avant d'être dessiné.
   engine.watchNewObjects(true);
   // Coureurs : niveau de détail choisi d'après la caméra de la sortie, niveaux masqués non recalculés.
