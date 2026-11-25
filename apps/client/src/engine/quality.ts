@@ -85,7 +85,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     reedDensity: 0,
     propDensity: 0.3,
     dustParticles: 0,
-    aiRidersMax: 2,
+    aiRidersMax: 40,
     trafficDensity: 0.34,
     crowdDensity: 0.5,
     shadowEvery: 2,
@@ -126,7 +126,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     reedDensity: 0.5,
     propDensity: 0.7,
     dustParticles: 384,
-    aiRidersMax: 8,
+    aiRidersMax: 40,
     trafficDensity: 0.67,
     crowdDensity: 0.75,
     // Ombres redessinées à chaque image : une image sur deux, l'ombre d'un coureur restait à sa position précédente
