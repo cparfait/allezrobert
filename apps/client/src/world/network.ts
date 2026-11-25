@@ -446,10 +446,12 @@ export class RoadNetwork {
    * Hauteur du dessus d'un trottoir en (x, z) (le plus haut s'ils se recouvrent), NaN hors trottoir :
    * les spectateurs y sont posés au lieu d'être enfoncés sous la dalle, qui monte au-dessus du terrain.
    */
-  walkHeightAt(x: number, z: number): number {
+  walkHeightAt(x: number, z: number, tileId?: string): number {
     let y = Number.NaN;
     const key = Math.floor(x / WALK_CELL) * 100003 + Math.floor(z / WALK_CELL);
-    for (const idx of this.walks.values()) {
+    const one = tileId === undefined ? undefined : this.walks.get(tileId);
+    if (tileId !== undefined && !one) return y;
+    for (const idx of one ? [one] : this.walks.values()) {
       const list = idx.cells.get(key);
       if (!list) continue;
       for (const o of list) {

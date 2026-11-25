@@ -11,6 +11,7 @@ import { UNPAVED_SURFACES } from './dust.ts';
 import { buildLowPolyVehicle, pickLowPolyPaint, pickLowPolyTractor, pickLowPolyVariant, type LowPolyVariant } from './lowPolyVehicles.ts';
 import { buildDriver, loadDriverModels } from './vehicleDriver.ts';
 import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
+import { ringDistance } from './polySites.ts';
 import { CAR_AXLE_M, roadPose, type RoadPose } from './roadHeight.ts';
 
 const _pose: RoadPose = { y: 0, pitch: 0 };
@@ -707,6 +708,11 @@ export class Traffic {
       v.onTrack = surface !== undefined && UNPAVED_SURFACES.has(surface);
       // Pistes cyclables (Longchamp…) et voies étroites : pas de voiture sous 4,8 m de large.
       if (!v.onTrack && !outside && this.narrowAt(((v.d % L) + L) % L)) v.onTrack = true;
+      // Circuit de l'Anneau (île, mode Poly) : sans voitures.
+      if (LOW_POLY && !v.onTrack && !outside) {
+        const q = this.track.positionAt(((v.d % L) + L) % L, 0, this.sample);
+        if (ringDistance(q.x, q.z) < 6) v.onTrack = true;
+      }
       // Pas de tracteur près d'une commune : il disparaît à moins de 1,2 km d'un bourg ou d'une ville.
       if (v.kind === 'tractor' && !v.onTrack && !outside && (this.urban.length || this.townAt)) {
         // Vérifié tous les 30 m : la position change peu, et il y a une grille de bâtiments à parcourir.

@@ -16,14 +16,18 @@ import { fbm, rng } from './noise.ts';
 import { CELL, CLASSES, CLASS_BY_RANK, Grid, type RoadClass } from './planner.ts';
 import { runPool } from './pool.ts';
 import { ATTRIBUTION, RoadIndex, buildGraph, joinCrossings, makeRoad, nodeHeight, profile, r2, snapEnds, type Road, type RoadSpec } from './roads.ts';
-import { planRoute, type RouteSpec } from './routes.ts';
+import { planRoute, timedSegments, type RouteSpec } from './routes.ts';
+import { harbourPoint, portRoads } from './ports.ts';
+import { encodeRoute } from '../../../packages/shared/src/routeCodec.ts';
 import { ANNEAU_GATES, Builder, farmBuildings, farmSites, landmarks, roadsideHouses, seasideBuildings, townCentre, townLayout, type TownLayout } from './settle.ts';
 import type { Area } from './types.ts';
 import { verifyWorld } from './verify.ts';
 import { switchbacks } from './climb.ts';
 import { publishIsland } from './catalogue.ts';
 
-const OUT = resolve(import.meta.dirname, '../../../apps/client/public/worlds', ISLAND.id);
+/** Dossier du monde ; ISLAND_OUT : essai ailleurs (catalogue et cartes du jeu laissés tels quels). */
+const TRIAL = process.env.ISLAND_OUT;
+const OUT = TRIAL ? resolve(TRIAL) : resolve(import.meta.dirname, '../../../apps/client/public/worlds', ISLAND.id);
 const T = ISLAND.tileSizeM;
 const log = (s: string) => console.log(`[${((Date.now() - T0) / 1000).toFixed(0).padStart(4)} s] ${s}`);
 const T0 = Date.now();
@@ -177,6 +181,14 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
 
 // ── 2. Grille de tracé ──
 
+/** Méandres et petites routes : 1 = valeurs du jeu. */
+const MEANDER_K = Number(process.env.ISLAND_MEANDER ?? 1);
+const MESH_M = Number(process.env.ISLAND_MESH ?? 2100);
+const TRACK_WOB = Number(process.env.ISLAND_TRACK_WOB ?? 0.4);
+/** Coût qui varie d'un endroit à l'autre : les routes serpentent au lieu de filer droit (amplitude, taille en m). */
+const WOB = Number(process.env.ISLAND_WOB ?? 0.38);
+const WOB_M = Number(process.env.ISLAND_WOB_M ?? 440);
+
 export async function planningGrid(designed: Road[], gates: Array<{ p: Vec2; dir: Vec2 }>, farms: Array<{ x: number; z: number; gate: Vec2 }>): Promise<Grid> {
   const grid = new Grid(ISLAND.minX, ISLAND.minZ, ISLAND.maxX - ISLAND.minX, ISLAND.maxZ - ISLAND.minZ);
   const bands = 48;
@@ -194,7 +206,7 @@ export async function planningGrid(designed: Road[], gates: Array<{ p: Vec2; dir
       const sd = shoreDist(x, z);
       if (sd < 60 || inLake(x, z, 1.25) || inHarbour(x, z, 25)) grid.water[c] = 1;
       else if (inRiver(x, z, 4)) grid.water[c] = 2;
-      grid.wob[c] = 0.8 + 0.4 * (0.5 + 0.5 * fbm(x / 700, z / 700, 2, 61));
+      grid.wob[c] = 1 + WOB * Math.max(-0.75, Math.min(1.6, 2.2 * fbm(x / WOB_M, z / WOB_M, 2, 61)));
     }
   // Villes, Anneau et cours de ferme réservés : on n'y passe que par les rues dessinées.
   const reserve = (x: number, z: number, r: number) => {
@@ -312,6 +324,54 @@ export function saddle(): Vec2 {
   return best;
 }
 
+const LANE_NAMES = ['des Tilleuls', 'du Vieux Puits', 'des Quatre Vents', 'de la Croix Blanche', 'du Bois Rond', 'des Alouettes', 'du Lavoir', 'de la Butte', 'des Genêts', 'du Grand Pré', 'de la Fontaine', 'des Peupliers', 'du Moulin Brûlé', 'de la Hulotte', 'des Merisiers', 'du Calvaire', 'de la Garenne', 'des Ajoncs', 'du Pont Neuf', 'de la Forge', 'des Vergers', 'du Coteau', 'de la Pie', 'des Bruyères', 'du Chêne Creux', 'de la Mare', 'des Coquelicots', 'du Berger'];
+
+/** Petites routes sur toute l'île : semis irrégulier de carrefours, reliés à leurs plus proches voisins. */
+function meshRoads(P: Plan): void {
+  if (!(MESH_M > 0)) return;
+  const r = rng(90210);
+  const pts: Vec2[] = [];
+  const steepAt = (x: number, z: number) => {
+    const h = terrain(x, z);
+    return Math.max(...[[80, 0], [-80, 0], [0, 80], [0, -80]].map(([dx, dz]) => Math.abs(terrain(x + dx!, z + dz!) - h))) / 80;
+  };
+  for (let z = ISLAND.minZ; z < ISLAND.maxZ; z += MESH_M * 0.87)
+    for (let x = ISLAND.minX; x < ISLAND.maxX; x += MESH_M) {
+      const px = x + (r() - 0.5) * MESH_M * 0.7;
+      const pz = z + (r() - 0.5) * MESH_M * 0.6;
+      const c = P.grid.cellAt(px, pz);
+      if (shoreDist(px, pz) < 550 || P.grid.water[c] || P.grid.block[c] || P.grid.occ[c] || inRiver(px, pz, 60) || inLake(px, pz, 1.6)) continue;
+      if (TOWNS.some((t) => Math.hypot(t.x - px, t.z - pz) < t.r * 1.5) || steepAt(px, pz) > 0.13) continue;
+      if (Math.hypot(px - ANNEAU.cx, pz - ANNEAU.cz) < 1250) continue;
+      pts.push([px, pz]);
+    }
+  const links = new Set<string>();
+  const before = P.failed.length;
+  let made = 0;
+  pts.forEach((a, i) => {
+    const near = pts.map((b, j) => ({ j, d: Math.hypot(a[0] - b[0], a[1] - b[1]) })).filter((q) => q.j !== i && q.d < MESH_M * 1.9).sort((p, q) => p.d - q.d);
+    for (const { j } of near.slice(0, 2 + (r() < 0.45 ? 1 : 0))) {
+      const key = i < j ? `${i}_${j}` : `${j}_${i}`;
+      if (links.has(key)) continue;
+      links.add(key);
+      const name = `Route ${LANE_NAMES[(i * 7 + j * 3) % LANE_NAMES.length]}`;
+      const s = P.grid.cellAt(a[0], a[1]);
+      const g = P.grid.cellAt(pts[j]![0], pts[j]![1]);
+      if (P.grid.water[g] || P.grid.block[g] || s === g) continue;
+      const [gx, gz] = P.grid.center(g);
+      const goal = P.grid.occ[g] ? (c: number) => P.grid.occ[c]! > 0 && Math.hypot(P.grid.center(c)[0] - gx, P.grid.center(c)[1] - gz) < 300 : g;
+      const path = P.grid.search(s, goal, CLASSES.lane, { box: 60, toward: g, maxExp: 400_000 });
+      if (!path) continue;
+      P.grid.commit(path, CLASSES.lane, name);
+      made++;
+    }
+    // Aucun cul-de-sac isolé : chaque carrefour touche le reste du réseau.
+    if (P.grid.occ[P.grid.cellAt(a[0], a[1])]) spur(P, a, CLASSES.lane, 5, `Route ${LANE_NAMES[(i * 7) % LANE_NAMES.length]}`, 90);
+  });
+  P.failed.length = before;
+  log(`maillage : ${pts.length} carrefours, ${made} petites routes`);
+}
+
 export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, farms: Array<{ gate: Vec2 }>): { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; foot: Vec2 } {
   const C = CLASSES;
   const town = (id: string) => TOWNS.find((t) => t.id === id)!;
@@ -385,6 +445,10 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   // f. Chemins des fermes.
   for (const f of farms) spur(P, f.gate, C.lane, 5, 'Chemin rural');
   // g. Gravel : boucle des Bois, chemins des vignes et du plateau.
+  // f bis. Maillage : petites routes de campagne sur toute l'île, en réseau (chaque carrefour relié à deux ou trois voisins).
+  meshRoads(P);
+  // Les chemins suivent le relief, déjà marqué dans les Bois : peu de détours imposés.
+  for (let c = 0; c < P.grid.N; c++) P.grid.wob[c] = 1 + (P.grid.wob[c]! - 1) * TRACK_WOB;
   const r = rng(31337);
   const loopPts = (cx: number, cz: number, R: number, n: number, jit: number): Vec2[] =>
     Array.from({ length: n }, (_, k) => {
@@ -574,6 +638,65 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
     }
     chains.push(ch);
   }
+  /**
+   * Méandres : la courbe ondule de part et d'autre de son tracé (amplitude et longueur d'onde selon la catégorie), sans
+   * bouger aux carrefours, près d'une autre route, de l'eau ou d'une emprise réservée, et moins à flanc de pente raide.
+   */
+  const meander = (d: Vec2[], own: ReadonlySet<number>, pins: ReadonlyArray<Vec2>, A: number, L: number): Vec2[] => {
+    const n = d.length;
+    if (n < 60 || A <= 0) return d;
+    const free = new Float32Array(n).fill(1);
+    const reach = Math.ceil((A + 26) / grid.cs);
+    for (let i = 0; i < n; i++) {
+      const c = grid.cellAt(d[i]![0], d[i]![1]);
+      const ci = c % grid.n;
+      const cj = Math.floor(c / grid.n);
+      for (let dj = -reach; dj <= reach && free[i]; dj++)
+        for (let di = -reach; di <= reach; di++) {
+          const q = (cj + dj) * grid.n + ci + di;
+          if (ci + di < 0 || cj + dj < 0 || ci + di >= grid.n || cj + dj >= grid.m) continue;
+          if (grid.water[q] || grid.block[q] || (grid.occ[q] && !own.has(q))) {
+            free[i] = 0;
+            break;
+          }
+        }
+      if (free[i] && i % 4 === 0) {
+        const a = d[Math.max(0, i - 1)]!;
+        const b = d[Math.min(n - 1, i + 1)]!;
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        const nx = -(b[1] - a[1]) / l;
+        const nz = (b[0] - a[0]) / l;
+        const cross = Math.abs(terrain(d[i]![0] + nx * A, d[i]![1] + nz * A) - terrain(d[i]![0] - nx * A, d[i]![1] - nz * A)) / (2 * A);
+        if (cross > 0.16) for (let k = i; k < Math.min(n, i + 4); k++) free[k] = Math.min(free[k]!, 0.35);
+      }
+    }
+    // Virage déjà marqué : il garde son dessin.
+    for (let i = 12; i < n - 12; i++) {
+      const t = Math.abs(Math.atan2(d[i + 12]![1] - d[i]![1], d[i + 12]![0] - d[i]![0]) - Math.atan2(d[i]![1] - d[i - 12]![1], d[i]![0] - d[i - 12]![0]));
+      if (Math.min(t, 2 * Math.PI - t) > 0.4) for (let k = i - 10; k <= i + 10; k++) free[k] = Math.min(free[k]!, 0.1);
+    }
+    for (const p of pins) {
+      let best = 0;
+      for (let i = 1; i < n; i++) if (Math.hypot(d[i]![0] - p[0], d[i]![1] - p[1]) < Math.hypot(d[best]![0] - p[0], d[best]![1] - p[1])) best = i;
+      for (let i = Math.max(0, best - 8); i <= Math.min(n - 1, best + 8); i++) free[i] = 0;
+    }
+    free[0] = free[n - 1] = 0;
+    // Retour progressif (70 m) vers les points tenus, puis lissage.
+    const ramp = 2 / 70;
+    for (let i = 1; i < n; i++) free[i] = Math.min(free[i]!, free[i - 1]! + ramp);
+    for (let i = n - 2; i >= 0; i--) free[i] = Math.min(free[i]!, free[i + 1]! + ramp);
+    const smooth = (v: number) => v * v * (3 - 2 * v);
+    const ph = (Math.abs(Math.round(d[0]![0] * 13 + d[0]![1] * 7)) % 628) / 100;
+    return d.map(([x, z], i) => {
+      const a = d[Math.max(0, i - 3)]!;
+      const b = d[Math.min(n - 1, i + 3)]!;
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      const s = i * 2;
+      const o = A * smooth(free[i]!) * (0.8 * Math.sin((2 * Math.PI * s) / L + ph + 1.1 * Math.sin((2 * Math.PI * s) / (L * 3.1) + ph * 2)) + 0.35 * Math.sin((2 * Math.PI * s) / (L * 1.9) + ph * 3));
+      return [x - ((b[1] - a[1]) / l) * o, z + ((b[0] - a[0]) / l) * o] as Vec2;
+    });
+  };
+  const MEANDER: Record<string, [number, number]> = { secondary: [20, 400], tertiary: [20, 320], lane: [18, 240], cycleway: [11, 230], track: [13, 170], mtb: [8, 110] };
   // Lissage d'une chaîne : marches retirées, virages arrondis, puis points tous les 2 m ; position finale
   // des nœuds intérieurs (point le plus proche de la courbe).
   const moved = new Map<number, Vec2>();
@@ -587,11 +710,15 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
     // Tolérance de simplification : plus large pour les grandes routes (côtés plus longs, virages plus amples).
     const tol = opts.tol ?? Math.max(...ch.edges.map(({ k }) => ({ secondary: 10, tertiary: 9, lane: 8, cycleway: 8, track: 6, mtb: 5 })[CLASS_BY_RANK[edges[k]!.rank]!.id] ?? 7));
     const hard = [0, ...ch.inner.filter((n) => fixed.has(n.c)).map((n) => n.at), pts.length - 1];
+    const own = new Set(ch.cells);
+    const [amp, wave] = opts.designed ? [0, 1] : MEANDER[CLASS_BY_RANK[Math.max(...ch.edges.map(({ k }) => edges[k]!.rank))]!.id] ?? [0, 1];
+    const pins = ch.inner.map((n) => pts[n.at]!);
     const dense: Vec2[] = [];
     const hardAt = new Map<number, number>();
     for (let t = 0; t + 1 < hard.length; t++) {
       const seg = pts.slice(hard[t]!, hard[t + 1]! + 1);
-      const d = seg.length >= 2 ? resample(chaikin(fillet(simplifyPath(seg, tol), R), 2), 2) : seg;
+      const base = seg.length >= 2 ? resample(chaikin(fillet(simplifyPath(seg, tol), R), 2), 2) : seg;
+      const d = seg.length >= 2 ? resample(meander(base, own, pins, amp * MEANDER_K, wave), 2) : seg;
       for (let i = dense.length ? 1 : 0; i < d.length; i++) dense.push(d[i]!);
       hardAt.set(hard[t + 1]!, dense.length - 1);
     }
@@ -703,16 +830,29 @@ function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; f
   const east = ang - 0.055;
   const west = ang + 0.145;
   return [
-    { id: 'boucle-de-saint-robert', name: 'La boucle de Saint-Robert', nameEn: 'Saint-Robert loop', loop: true, mode: 'road', waypoints: [t('saint-robert'), ANNEAU_GATES[0]!, ANNEAU_GATES[3]!, t('les-vignes')], landmarks: [{ name: 'Saint-Robert', x: t('saint-robert')[0], z: t('saint-robert')[1] }, { name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }, { name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }] },
-    { id: 'robertville-plage', name: 'Robertville par les Coteaux', nameEn: 'Robertville via the hills', loop: true, mode: 'road', waypoints: [t('saint-robert'), t('les-vignes'), coastPoint(west + 0.06, 500), coastPoint(east, 185), t('vallon')], landmarks: [{ name: 'Les Coteaux', x: -1500, z: 5300 }, { name: 'Front de mer', x: rv.x, z: rv.z }, { name: 'Vallon-sur-Robe', x: t('vallon')[0], z: t('vallon')[1] }] },
-    { id: 'front-de-mer', name: 'Le front de mer de Robertville', nameEn: 'Robertville seafront', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], landmarks: [{ name: 'Les Planches', x: coastPoint(ang, 125)[0], z: coastPoint(ang, 125)[1] }, { name: 'Casino', x: coastPoint(ang + 0.018, 230)[0], z: coastPoint(ang + 0.018, 230)[1] }] },
+    { id: 'boucle-de-saint-robert', name: 'La boucle de Saint-Robert', nameEn: 'Saint-Robert loop', loop: true, mode: 'road', waypoints: [t('saint-robert'), ANNEAU_GATES[0]!, ANNEAU_GATES[3]!, t('les-vignes')], sprints: [{ name: 'Sprint des Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }], landmarks: [{ name: 'Saint-Robert', x: t('saint-robert')[0], z: t('saint-robert')[1] }, { name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }, { name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }] },
+    { id: 'robertville-plage', name: 'Robertville par les Coteaux', nameEn: 'Robertville via the hills', loop: true, mode: 'road', waypoints: [t('saint-robert'), t('les-vignes'), coastPoint(west + 0.06, 500), coastPoint(east, 185), t('vallon')], sprints: [{ name: 'Sprint du Casino', x: coastPoint(ang + 0.018, 185)[0], z: coastPoint(ang + 0.018, 185)[1] }, { name: 'Sprint de Vallon', x: t('vallon')[0], z: t('vallon')[1] }], landmarks: [{ name: 'Les Coteaux', x: -1500, z: 5300 }, { name: 'Front de mer', x: rv.x, z: rv.z }, { name: 'Vallon-sur-Robe', x: t('vallon')[0], z: t('vallon')[1] }] },
+    { id: 'front-de-mer', name: 'Le front de mer de Robertville', nameEn: 'Robertville seafront', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], sprints: [{ name: 'Sprint des Planches', x: coastPoint(ang + 0.1, 125)[0], z: coastPoint(ang + 0.1, 125)[1], lengthM: 400 }], landmarks: [{ name: 'Les Planches', x: coastPoint(ang, 125)[0], z: coastPoint(ang, 125)[1] }, { name: 'Casino', x: coastPoint(ang + 0.018, 230)[0], z: coastPoint(ang + 0.018, 230)[1] }] },
     // Traversée : montée sud en lacets, col, descente en lacets côté nord (la montée au Phare bifurque avant le col).
-    { id: 'col-du-phare', name: 'La traversée du Col du Phare', nameEn: 'Lighthouse pass traverse', loop: false, mode: 'road', waypoints: [t('le-col'), net.col, net.foot], hairpins: true, landmarks: [{ name: 'Le Hameau du Col', x: t('le-col')[0], z: t('le-col')[1] }, { name: 'Col du Phare', x: net.col[0], z: net.col[1] }, { name: 'Versant nord', x: net.foot[0], z: net.foot[1] }] },
-    { id: 'phare', name: 'La montée au Phare', nameEn: 'Lighthouse climb', loop: false, mode: 'road', waypoints: [t('le-col'), MASSIF.phare], hairpins: true, landmarks: [{ name: 'Phare de Robert', x: MASSIF.phare[0], z: MASSIF.phare[1] }] },
-    { id: 'tour-de-l-ile', name: "Le Tour de l'Île", nameEn: 'Round the island', loop: true, mode: 'road', waypoints: net.ring.filter((_, k) => k % 3 === 0), landmarks: TOWNS.filter((x) => shoreDist(x.x, x.z) < 1500).map((x) => ({ name: x.name, x: x.x, z: x.z })) },
+    { id: 'col-du-phare', name: 'La traversée du Col du Phare', nameEn: 'Lighthouse pass traverse', loop: false, mode: 'road', waypoints: [t('le-col'), net.col, net.foot], hairpins: true, climbNames: ['Col du Phare, versant sud'], landmarks: [{ name: 'Le Hameau du Col', x: t('le-col')[0], z: t('le-col')[1] }, { name: 'Col du Phare', x: net.col[0], z: net.col[1] }, { name: 'Versant nord', x: net.foot[0], z: net.foot[1] }] },
+    { id: 'phare', name: 'La montée au Phare', nameEn: 'Lighthouse climb', loop: false, mode: 'road', waypoints: [t('le-col'), MASSIF.phare], hairpins: true, climbNames: ['Montée au Phare'], landmarks: [{ name: 'Phare de Robert', x: MASSIF.phare[0], z: MASSIF.phare[1] }] },
+    { id: 'tour-de-l-ile', name: "Le Tour de l'Île", nameEn: 'Round the island', loop: true, mode: 'road', waypoints: net.ring.filter((_, k) => k % 3 === 0), sprints: [{ name: 'Sprint de Kerbrou', x: t('kerbrou')[0], z: t('kerbrou')[1] }, { name: 'Sprint de Saint-Pierre', x: t('saint-pierre')[0], z: t('saint-pierre')[1] }], landmarks: TOWNS.filter((x) => shoreDist(x.x, x.z) < 1500).map((x) => ({ name: x.name, x: x.x, z: x.z })) },
     { id: 'piste-verte', name: 'La Piste verte', nameEn: 'The green way', loop: false, mode: 'cycle', waypoints: [t('saint-robert'), ANNEAU_GATES[2]!, ANNEAU_GATES[1]!, t('saint-pierre')], landmarks: [{ name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }] },
-    { id: 'gravel-des-bois', name: 'Gravel des Bois', nameEn: 'Woods gravel loop', loop: true, mode: 'gravel', bike: 'gravel', waypoints: net.bois, landmarks: [{ name: 'Les Bois', x: -10300, z: -5000 }, { name: 'Étang des Bois', x: -9400, z: -4600 }] },
-    { id: 'vtt-des-bois', name: 'VTT des Bois', nameEn: 'Woods MTB loop', loop: true, mode: 'mtb', bike: 'mtb', waypoints: net.mtb, landmarks: [{ name: 'Chapelle en ruine', x: -10600, z: -5600 }] },
+    { id: 'gravel-des-bois', name: 'Gravel des Bois', nameEn: 'Woods gravel loop', loop: true, mode: 'gravel', bike: 'gravel', waypoints: net.bois, along: 'Chemin des Bois', landmarks: [{ name: 'Les Bois', x: -10300, z: -5000 }, { name: 'Étang des Bois', x: -9400, z: -4600 }] },
+    { id: 'vtt-des-bois', name: 'VTT des Bois', nameEn: 'Woods MTB loop', loop: true, mode: 'mtb', bike: 'mtb', waypoints: net.mtb, along: 'Sentier VTT des Bois', landmarks: [{ name: 'Chapelle en ruine', x: -10600, z: -5600 }] },
+    // Sorties courtes et chronos.
+    { id: 'criterium-saint-robert', name: 'Le critérium de Saint-Robert', nameEn: 'Saint-Robert criterium', loop: true, mode: 'road', waypoints: [[-39, -227], [316, -422], [641, -173], [280, 22]], sprints: [{ name: 'Sprint de la rue des Écoles', x: 480, z: 10 }], landmarks: [{ name: 'Rue du Lavoir', x: 150, z: -430 }, { name: 'Rue des Écoles', x: 420, z: 20 }] },
+    { id: 'anneau-piste-verte', name: "L'Anneau par la Piste verte", nameEn: 'The Ring by the greenway', loop: true, mode: 'cycle', waypoints: [t('saint-robert'), ANNEAU_GATES[2]!, ANNEAU_GATES[0]!], landmarks: [{ name: "L'Anneau", x: ANNEAU.cx, z: ANNEAU.cz }, { name: 'Saint-Robert', x: t('saint-robert')[0], z: t('saint-robert')[1] }] },
+    { id: 'port-de-robertville', name: 'Planches et port de Robertville', nameEn: 'Boardwalk and harbour', loop: true, mode: 'cycle', waypoints: [coastPoint(west - 0.006, 125), coastPoint(ang, 125), harbourPoint('port-robertville', 22, 110), harbourPoint('port-robertville', -100, 106), coastPoint(east, 185), coastPoint(ang, 185), coastPoint(west - 0.006, 185)], sprints: [{ name: 'Sprint du Boulevard', x: coastPoint(ang + 0.09, 185)[0], z: coastPoint(ang + 0.09, 185)[1], lengthM: 350 }], landmarks: [{ name: 'Les Planches', x: coastPoint(ang, 125)[0], z: coastPoint(ang, 125)[1] }, { name: 'Le Port', x: harbourPoint('port-robertville', -60, 106)[0], z: harbourPoint('port-robertville', -60, 106)[1] }] },
+    { id: 'chrono-du-plateau', name: 'Le chrono du Plateau', nameEn: 'Plateau time trial', loop: false, mode: 'road', waypoints: [t('les-granges'), t('port-sable')], landmarks: [{ name: 'Les Granges', x: t('les-granges')[0], z: t('les-granges')[1] }, { name: 'Port-Sable', x: t('port-sable')[0], z: t('port-sable')[1] }] },
+    { id: 'voie-verte-de-la-robe', name: 'La voie verte de la Robe', nameEn: 'Robe greenway', loop: false, mode: 'cycle', waypoints: [t('vallon'), t('port-sable')], landmarks: [{ name: 'Vallon-sur-Robe', x: t('vallon')[0], z: t('vallon')[1] }] },
+    { id: 'velomaritime', name: 'La Vélomaritime', nameEn: 'Coast greenway', loop: false, mode: 'cycle', waypoints: [t('robertville'), t('la-pointe')], landmarks: [{ name: 'La Pointe', x: t('la-pointe')[0], z: t('la-pointe')[1] }] },
+    { id: 'phare-versant-nord', name: 'Le Phare par le versant nord', nameEn: 'Lighthouse from the north', loop: false, mode: 'road', waypoints: [net.foot, net.col, MASSIF.phare], hairpins: true, climbNames: ['Le Phare, versant nord'], landmarks: [{ name: 'Col du Phare', x: net.col[0], z: net.col[1] }, { name: 'Phare de Robert', x: MASSIF.phare[0], z: MASSIF.phare[1] }] },
+    { id: 'kerbrou-et-le-port', name: 'Kerbrou et Bois-Joli', nameEn: 'Kerbrou and Bois-Joli', loop: true, mode: 'road', waypoints: [t('kerbrou'), harbourPoint('port-kerbrou', -70, 87), harbourPoint('port-kerbrou', -169, 0), t('bois-joli')], sprints: [{ name: 'Sprint de Bois-Joli', x: t('bois-joli')[0], z: t('bois-joli')[1] }], landmarks: [{ name: 'Kerbrou', x: t('kerbrou')[0], z: t('kerbrou')[1] }, { name: 'Port de Kerbrou', x: harbourPoint('port-kerbrou', -70, 87)[0], z: harbourPoint('port-kerbrou', -70, 87)[1] }, { name: 'Bois-Joli', x: t('bois-joli')[0], z: t('bois-joli')[1] }] },
+    { id: 'tour-des-coteaux', name: 'Le tour des Coteaux', nameEn: 'Hills loop', loop: true, mode: 'road', waypoints: [t('les-vignes'), t('robertville')], sprints: [{ name: 'Sprint de la République', x: coastPoint(ang, 800)[0], z: coastPoint(ang, 800)[1] }], landmarks: [{ name: 'Les Vignes', x: t('les-vignes')[0], z: t('les-vignes')[1] }, { name: 'Robertville-sur-Mer', x: rv.x, z: rv.z }] },
+    { id: 'gravel-du-plateau', name: 'Gravel du Plateau', nameEn: 'Plateau gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin du Plateau', landmarks: [{ name: 'Les Granges', x: t('les-granges')[0], z: t('les-granges')[1] }] },
+    { id: 'gravel-des-vignes', name: 'Gravel des Vignes', nameEn: 'Vineyard gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Vignes', landmarks: [{ name: 'Moulin des Coteaux', x: -3600, z: 5000 }] },
+    { id: 'gravel-de-la-lagune', name: 'Gravel de la Lagune', nameEn: 'Lagoon gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [[-8600, 8200], [-10500, 7500], [-9000, 6500]], landmarks: [{ name: 'La Lagune', x: -10400, z: 7400 }] },
   ];
 }
 
@@ -746,7 +886,8 @@ async function main(): Promise<void> {
   log(`réseau tracé (${grid.links.size} liens)${P.failed.length ? `, ${P.failed.length} tracés impossibles` : ''}`);
   for (const f of P.failed) console.log(`   · impossible : ${f}`);
   const netRoads = networkRoads(grid, D.roads, D.gates);
-  const roads = [...D.roads, ...netRoads];
+  const quays = portRoads([...D.roads, ...netRoads]);
+  const roads = [...D.roads, ...netRoads, ...quays];
   const nx = joinCrossings(roads);
   log(`${roads.length} routes (${netRoads.length} tracées), ${(roads.reduce((s, r) => s + r.pts.length * 2, 0) / 1000).toFixed(0)} km, ${nx} croisements`);
 
@@ -757,9 +898,13 @@ async function main(): Promise<void> {
     if (lay.town.seaside) seasideBuildings(B, lay);
   });
   landmarks(B);
+  for (const [id, name] of [['port-robertville', 'Le Port'], ['port-kerbrou', 'Port de Kerbrou']] as const) {
+    const [x, z] = harbourPoint(id, -60, id === 'port-kerbrou' ? 87 : 106);
+    B.places.push({ name, kind: 'locality', x, z });
+  }
   // Maisons des rues.
   const byTown = new Map(D.layouts.map((l) => [l.town.id, l]));
-  for (const r of D.roads) {
+  for (const r of [...D.roads, ...quays]) {
     const tid = TOWNS.find((t) => r.id.startsWith(`${t.id}-`));
     if (!tid) continue;
     const lay = byTown.get(tid.id)!;
@@ -768,7 +913,7 @@ async function main(): Promise<void> {
     const inside = (x: number, z: number) => Math.hypot(x - t.x, z - t.z) < t.r * (t.seaside ? 2 : 1.15);
     const palette = t.seaside ? 'villa' : t.port ? 'breton' : 'village';
     const core = t.size === 'ville' || t.size === 'bourg';
-    B.street(r, { spacing: core ? 13 : 16, setback: core ? 3 : 4.5, depth: [8, 12], len: [8, 13], levels: core ? [2, 3] : [1, 2], palette, inside, seed: r.id.length * 131 + Math.round(t.x), apartments: core ? 0.15 : 0, ...(r.id.endsWith('boulevard') ? { sides: [1] } : {}) });
+    B.street(r, { spacing: core ? 13 : 16, setback: core ? 3 : 4.5, depth: [8, 12], len: [8, 13], levels: core ? [2, 3] : [1, 2], palette, inside, seed: r.id.length * 131 + Math.round(t.x), apartments: core ? 0.15 : 0, ...(r.id.endsWith('boulevard') ? { sides: [1] } : r.id.endsWith('-quai') ? { sides: [-1] } : {}) });
   }
   farmBuildings(B, farms);
   roadsideHouses(B, netRoads);
@@ -807,7 +952,7 @@ async function main(): Promise<void> {
   });
   const anLen = acc + Math.hypot(anPoints[0]!.x - anPoints[anPoints.length - 1]!.x, anPoints[0]!.z - anPoints[anPoints.length - 1]!.z);
   void dd;
-  routes.push({ id: 'anneau', name: "L'Anneau", nameEn: 'The Ring', loop: true, lengthM: r2(anLen), elevationGainM: 0, points: anPoints, segments: [], roadWidthM: ANNEAU.widthM, attribution: ATTRIBUTION, roadWidths: [{ startM: 0, endM: r2(anLen), widthM: ANNEAU.widthM }], surfaces: [{ startM: 0, endM: r2(anLen), surface: 'asphalt' }], landmarks: [{ name: 'Tribunes', d: 0 }], stepM: 2, minElevationM: ANNEAU.level, maxElevationM: ANNEAU.level, maxGradePct: 0, markings: 'full' });
+  routes.push({ id: 'anneau', name: "L'Anneau", nameEn: 'The Ring', loop: true, lengthM: r2(anLen), elevationGainM: 0, points: anPoints, segments: timedSegments({ id: 'anneau', sprints: [{ name: 'Sprint de la ligne opposée', x: ANNEAU.cx + 60, z: ANNEAU.cz - ANNEAU.radius, lengthM: 400 }, { name: 'Sprint des Tribunes', x: ANNEAU.cx + 30, z: ANNEAU.cz + ANNEAU.radius, lengthM: 400 }] }, { points: anPoints, lengthM: r2(anLen) } as RouteData), roadWidthM: ANNEAU.widthM, attribution: ATTRIBUTION, roadWidths: [{ startM: 0, endM: r2(anLen), widthM: ANNEAU.widthM }], surfaces: [{ startM: 0, endM: r2(anLen), surface: 'asphalt' }], landmarks: [{ name: 'Tribunes', d: 0 }], stepM: 2, minElevationM: ANNEAU.level, maxElevationM: ANNEAU.level, maxGradePct: 0, markings: 'full' });
   for (const spec of routeSpecs(net)) {
     const r = planRoute(graph, spec);
     if (!r) {
@@ -816,9 +961,11 @@ async function main(): Promise<void> {
     }
     routes.push(r);
   }
-  for (const r of routes) writeFileSync(join(OUT, 'routes', `${r.id}.json`), JSON.stringify(r));
-  for (const r of routes) log(`  ${r.id} : ${(r.lengthM / 1000).toFixed(1)} km, D+ ${r.elevationGainM.toFixed(0)} m, pente max ${r.maxGradePct} %${r.hairpins?.length ? `, ${r.hairpins.length} lacets` : ''}`);
+  for (const r of routes) writeFileSync(join(OUT, 'routes', `${r.id}.json`), JSON.stringify(encodeRoute(r)));
+  for (const r of routes) log(`  ${r.id} : ${(r.lengthM / 1000).toFixed(1)} km, D+ ${r.elevationGainM.toFixed(0)} m, pente max ${r.maxGradePct} %, ${r.segments.map((s) => `${s.kind} « ${s.name} » ${(s.endM - s.startM).toFixed(0)} m`).join(', ') || 'aucun segment'}${r.hairpins?.length ? `, ${r.hairpins.length} lacets` : ''}`);
 
+  // Réglage du relief : ISLAND_PLAN=1 s'arrête au tracé (30 s).
+  if (process.env.ISLAND_PLAN) return log('tracé seul');
   // Tuiles : altitudes et bois en parallèle, entités ici.
   const tiles: Array<{ id: string; tx: number; tz: number }> = [];
   for (let tx = Math.floor(ISLAND.minX / T); tx < Math.ceil(ISLAND.maxX / T); tx++) for (let tz = Math.floor(ISLAND.minZ / T); tz < Math.ceil(ISLAND.maxZ / T); tz++) tiles.push({ id: `${tx}_${tz}`, tx, tz });
@@ -928,7 +1075,7 @@ async function main(): Promise<void> {
   log(report.ok ? 'contrôles au vert' : 'contrôles en échec');
   if (!report.ok) process.exitCode = 1;
   // Menu du jeu : catalogue des zones et pack de tuiles ; carte de l'île (menu, mini-carte, carte complète).
-  else {
+  else if (!TRIAL) {
     publishIsland(OUT);
     execFileSync('npx', ['tsx', join(import.meta.dirname, 'map.ts'), '--px', '25', '--out', join(OUT, 'carte.png')], { stdio: 'inherit', shell: true });
     execFileSync('npx', ['tsx', join(import.meta.dirname, 'map.ts'), '--px', '40', '--style', 'flat', '--out', join(OUT, 'vignette.png')], { stdio: 'inherit', shell: true });

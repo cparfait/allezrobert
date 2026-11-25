@@ -1,0 +1,9 @@
+.cp { position: relative; min-width: min(280px, 60vw); }
+.cp .mm-input { width: 100%; padding-right: 40px; }
+.cp-clear { position: absolute; top: 50%; right: 6px; width: 30px; height: 30px; border: 0; border-radius: 10px; color: #c3cddb; background: transparent; font-size: 20px; line-height: 1; cursor: pointer; transform: translateY(-50%); }
+.cp-clear:hover, .cp-clear:focus-visible { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.cp-list { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; right: 0; max-height: 300px; margin: 0; padding: 6px; overflow: auto; list-style: none; border: 2px solid rgba(255, 255, 255, 0.14); border-radius: 16px; background: #141b28; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5); }
+.cp-list li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 10px; cursor: pointer; }
+.cp-list li[aria-selected='true'], .cp-list li[role='option']:hover { color: #171a20; background: var(--ar-accent, #ffd23f); }
+.cp-list small { color: inherit; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.cp-list .cp-none { color: #aeb7c3; cursor: default; }

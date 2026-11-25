@@ -85,6 +85,7 @@ import { COLLISION_PILOT_DISABLED, COLLISION_PILOT_ERROR, COLLISION_VERSION_CLOS
 import { loadRideCollisionData } from './net/collision-version.ts';
 import { Onboarding, RideTutorial } from './onboarding/onboarding.ts';
 import { fetchRealWeather } from './game/realWeather.ts';
+import { activityTitle, weatherPoint } from './game/virtualRide.ts';
 import { addXp, awardRide, loadProgress, tunedBike } from './ui/garage.ts';
 import { AtelierHost, slotOfPicked, type AtelierState } from './ui/atelier.ts';
 import { rimGlow } from './rider/rimDecal.ts';
@@ -338,7 +339,7 @@ async function saveRecoveredRide(d: RideDraft): Promise<{ xp: number; account: A
   // Le FIT part aussi sur le compte (et de là vers Strava / intervals.icu) : après cet écran, le brouillon est effacé
   // et le fichier ne pourrait plus être refait. Hors ligne ou sans compte : l'écran dit de le télécharger.
   const sent = await uploadRideFit(recoveredFit(d), {
-    name: `Allez Robert ! — ${d.name}`,
+    name: activityTitle(d.name, d.originL93),
     routeId: d.routeId,
     skipStrava: d.skipStrava,
     clientRideId: rideClientId(d.startT),
@@ -1359,7 +1360,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Météo réelle du jour au départ, à l'heure choisie (Open-Meteo) ; sans réseau : conditions réglées.
   if (s.realWeather && source.originL93) {
     const p0 = track.positionAt(startD, 0);
-    const { lat, lon } = worldToWgs84(p0.x, p0.z, source.originL93);
+    const l93 = source.originL93;
+    const { lat, lon, city } = weatherPoint(l93, () => worldToWgs84(p0.x, p0.z, l93), s.city);
     const real = await fetchRealWeather(lat, lon, startHour);
     const L = getLang() === 'fr';
     if (real) Object.assign(myWeather, real, { evolving: false });
@@ -1368,8 +1370,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         hud.toast(
           real
             ? L
-              ? `Météo du jour : nuages ${Math.round(real.clouds * 100)} %, vent ${Math.round(real.windMs * 3.6)} km/h`
-              : `Today's weather: clouds ${Math.round(real.clouds * 100)} %, wind ${Math.round(real.windMs * 3.6)} km/h`
+              ? `Météo du jour${city ? ` à ${city}` : ''} : nuages ${Math.round(real.clouds * 100)} %, vent ${Math.round(real.windMs * 3.6)} km/h`
+              : `Today's weather${city ? ` in ${city}` : ''}: clouds ${Math.round(real.clouds * 100)} %, wind ${Math.round(real.windMs * 3.6)} km/h`
             : L
               ? 'Météo réelle indisponible : conditions réglées'
               : 'Real weather unavailable: custom conditions',

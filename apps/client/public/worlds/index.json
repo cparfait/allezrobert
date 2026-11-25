@@ -3460,6 +3460,7 @@
   {
    "id": "ile-de-robert",
    "name": "L'île de Robert",
+   "region": "Monde imaginaire · Jeu vidéo",
    "routes": [
     {
      "id": "anneau",
@@ -3473,16 +3474,16 @@
      "id": "boucle-de-saint-robert",
      "name": "La boucle de Saint-Robert",
      "nameEn": "Saint-Robert loop",
-     "lengthM": 15131.09,
-     "elevationGainM": 50.63,
+     "lengthM": 15445.67,
+     "elevationGainM": 115.38,
      "loop": true
     },
     {
      "id": "robertville-plage",
      "name": "Robertville par les Coteaux",
      "nameEn": "Robertville via the hills",
-     "lengthM": 58485.55,
-     "elevationGainM": 251.59,
+     "lengthM": 55629.57,
+     "elevationGainM": 382.77,
      "loop": true
     },
     {
@@ -3490,63 +3491,159 @@
      "name": "Le front de mer de Robertville",
      "nameEn": "Robertville seafront",
      "lengthM": 4652.11,
-     "elevationGainM": 3.39,
+     "elevationGainM": 8.49,
      "loop": true
     },
     {
      "id": "col-du-phare",
      "name": "La traversée du Col du Phare",
      "nameEn": "Lighthouse pass traverse",
-     "lengthM": 14301.19,
-     "elevationGainM": 339.47,
+     "lengthM": 14470.2,
+     "elevationGainM": 334.43,
      "loop": false
     },
     {
      "id": "phare",
      "name": "La montée au Phare",
      "nameEn": "Lighthouse climb",
-     "lengthM": 7459.06,
-     "elevationGainM": 457.81,
+     "lengthM": 7635.28,
+     "elevationGainM": 449.85,
      "loop": false
     },
     {
      "id": "tour-de-l-ile",
      "name": "Le Tour de l'Île",
      "nameEn": "Round the island",
-     "lengthM": 90974.37,
-     "elevationGainM": 363.91,
+     "lengthM": 89768.97,
+     "elevationGainM": 613.23,
      "loop": true
     },
     {
      "id": "piste-verte",
      "name": "La Piste verte",
      "nameEn": "The green way",
-     "lengthM": 17190.24,
-     "elevationGainM": 42.14,
+     "lengthM": 19831.49,
+     "elevationGainM": 81.35,
      "loop": false
     },
     {
      "id": "gravel-des-bois",
      "name": "Gravel des Bois",
      "nameEn": "Woods gravel loop",
-     "lengthM": 54213.87,
-     "elevationGainM": 543.71,
+     "lengthM": 18577.35,
+     "elevationGainM": 289.73,
      "loop": true
     },
     {
      "id": "vtt-des-bois",
      "name": "VTT des Bois",
      "nameEn": "Woods MTB loop",
-     "lengthM": 18493.62,
-     "elevationGainM": 244.92,
+     "lengthM": 17304.51,
+     "elevationGainM": 234.67,
+     "loop": true
+    },
+    {
+     "id": "criterium-saint-robert",
+     "name": "Le critérium de Saint-Robert",
+     "nameEn": "Saint-Robert criterium",
+     "lengthM": 1997.5,
+     "elevationGainM": 0.07,
+     "loop": true
+    },
+    {
+     "id": "anneau-piste-verte",
+     "name": "L'Anneau par la Piste verte",
+     "nameEn": "The Ring by the greenway",
+     "lengthM": 11179.62,
+     "elevationGainM": 40.54,
+     "loop": true
+    },
+    {
+     "id": "port-de-robertville",
+     "name": "Planches et port de Robertville",
+     "nameEn": "Boardwalk and harbour",
+     "lengthM": 6228.87,
+     "elevationGainM": 11.33,
+     "loop": true
+    },
+    {
+     "id": "chrono-du-plateau",
+     "name": "Le chrono du Plateau",
+     "nameEn": "Plateau time trial",
+     "lengthM": 7282.04,
+     "elevationGainM": 53.59,
+     "loop": false
+    },
+    {
+     "id": "voie-verte-de-la-robe",
+     "name": "La voie verte de la Robe",
+     "nameEn": "Robe greenway",
+     "lengthM": 7864.29,
+     "elevationGainM": 19.98,
+     "loop": false
+    },
+    {
+     "id": "velomaritime",
+     "name": "La Vélomaritime",
+     "nameEn": "Coast greenway",
+     "lengthM": 10555.46,
+     "elevationGainM": 12.22,
+     "loop": false
+    },
+    {
+     "id": "phare-versant-nord",
+     "name": "Le Phare par le versant nord",
+     "nameEn": "Lighthouse from the north",
+     "lengthM": 9677.45,
+     "elevationGainM": 630.39,
+     "loop": false
+    },
+    {
+     "id": "kerbrou-et-le-port",
+     "name": "Kerbrou et Bois-Joli",
+     "nameEn": "Kerbrou and Bois-Joli",
+     "lengthM": 30329.53,
+     "elevationGainM": 330.83,
+     "loop": true
+    },
+    {
+     "id": "tour-des-coteaux",
+     "name": "Le tour des Coteaux",
+     "nameEn": "Hills loop",
+     "lengthM": 23014.36,
+     "elevationGainM": 235.26,
+     "loop": true
+    },
+    {
+     "id": "gravel-du-plateau",
+     "name": "Gravel du Plateau",
+     "nameEn": "Plateau gravel",
+     "lengthM": 18386.41,
+     "elevationGainM": 192.22,
+     "loop": true
+    },
+    {
+     "id": "gravel-des-vignes",
+     "name": "Gravel des Vignes",
+     "nameEn": "Vineyard gravel",
+     "lengthM": 9887.29,
+     "elevationGainM": 197.21,
+     "loop": true
+    },
+    {
+     "id": "gravel-de-la-lagune",
+     "name": "Gravel de la Lagune",
+     "nameEn": "Lagoon gravel",
+     "lengthM": 9578.14,
+     "elevationGainM": 79.7,
      "loop": true
     }
    ],
    "pack": {
-    "version": "eb87edfbde93",
-    "bytes": 378817669,
+    "version": "ef9d9dc45e61",
+    "bytes": 378914959,
     "files": 2650,
-    "gzBytes": 38006330
+    "gzBytes": 40896750
    },
    "l93": {
     "minE": 76000,

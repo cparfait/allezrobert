@@ -61,13 +61,13 @@ describe('Open-Meteo → curseurs du jeu', () => {
 describe('appel Open-Meteo', () => {
   beforeEach(() => clearRealWeatherCache());
 
-  it('adresse : position arrondie à 0,01°, vent en m/s, heure de Paris, sans clé', () => {
+  it('adresse : position arrondie à 0,01°, vent en m/s, heure locale du point, sans clé', () => {
     const u = new URL(openMeteoUrl(48.40123, 2.70456));
     expect(u.origin).toBe('https://api.open-meteo.com');
     expect(u.searchParams.get('latitude')).toBe('48.40');
     expect(u.searchParams.get('longitude')).toBe('2.70');
     expect(u.searchParams.get('wind_speed_unit')).toBe('ms');
-    expect(u.searchParams.get('timezone')).toBe('Europe/Paris');
+    expect(u.searchParams.get('timezone')).toBe('auto');
     expect(u.searchParams.has('apikey')).toBe(false);
   });
 

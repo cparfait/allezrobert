@@ -4,7 +4,8 @@
  */
 import type { RoadGraphData } from '../../../packages/shared/src/roadgraph.ts';
 import type { RouteBike, RouteData, RouteHairpin } from '../../../packages/shared/src/route.ts';
-import type { Vec2 } from './design.ts';
+import { TOWNS, type Vec2 } from './design.ts';
+import { detectClimbs } from '../../terrain/src/profile.ts';
 import { ATTRIBUTION, STEP, r2 } from './roads.ts';
 
 export type Mode = 'road' | 'cycle' | 'gravel' | 'mtb';
@@ -19,6 +20,24 @@ export interface RouteSpec {
   bike?: RouteBike;
   landmarks?: Array<{ name: string; x: number; z: number }>;
   hairpins?: boolean;
+  /** Boucle qui suit un chemin nommé : points de passage pris sur ses propres carrefours. */
+  along?: string;
+  /** Sprints chronométrés : ligne au plus près de (x, z), lancée `lengthM` mètres avant. */
+  sprints?: Array<{ name: string; x: number; z: number; lengthM?: number }>;
+  /** Noms des côtes, dans l'ordre (sinon d'après le lieu le plus proche du sommet). */
+  climbNames?: string[];
+}
+
+/** Bouts des grands tronçons (≥ 1 km) d'un chemin nommé, autour de leur centre : points de passage d'une boucle qui le suit. */
+function waypointsAlong(graph: RoadGraphData, name: string, count = 6): Vec2[] {
+  const ids = new Set<number>();
+  for (const e of graph.edges) if (e.name === name && e.len >= 1000) ids.add(e.a).add(e.b);
+  const pts = [...ids].map((k) => [graph.nodes[k * 3]!, graph.nodes[k * 3 + 2]!] as Vec2);
+  if (pts.length < 2) return pts;
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+  const cz = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  pts.sort((a, b) => Math.atan2(a[1] - cz, a[0] - cx) - Math.atan2(b[1] - cz, b[0] - cx));
+  return pts.length <= count ? pts : Array.from({ length: count }, (_, k) => pts[Math.floor((k * pts.length) / count)]!);
 }
 
 function edgeFactor(mode: Mode, kind: string, surface: string): number {
@@ -37,6 +56,21 @@ function edgeFactor(mode: Mode, kind: string, surface: string): number {
 }
 
 export function planRoute(graph: RoadGraphData, spec: RouteSpec): RouteData | null {
+  // Chemin nommé : la boucle qui reste le plus sur les chemins, selon le nombre de points de passage.
+  if (spec.along) {
+    const { along, ...rest } = spec;
+    let best: RouteData | null = null;
+    let bestShare = 0;
+    for (const count of [12, 9, 7, 6, 5, 4, 3, 2]) {
+      const route = planRoute(graph, { ...rest, waypoints: waypointsAlong(graph, along, count) });
+      if (!route) continue;
+      const off = (route.surfaces ?? []).reduce((s, q) => s + (q.surface === 'asphalt' ? 0 : q.endM - q.startM), 0);
+      if (off / route.lengthM <= bestShare) continue;
+      bestShare = off / route.lengthM;
+      best = route;
+    }
+    return best;
+  }
   const nNodes = graph.nodes.length / 3;
   const adj: Array<Array<{ e: number; to: number }>> = Array.from({ length: nNodes }, () => []);
   graph.edges.forEach((e, i) => {
@@ -68,6 +102,7 @@ export function planRoute(graph: RoadGraphData, spec: RouteSpec): RouteData | nu
     while (wps.length > 1 && wps[wps.length - 1] === wps[0]) wps.pop();
     wps.push(wps[0]!);
   }
+  if (wps.length < 2 || (spec.loop && wps.length < 3)) return null;
   // Cap d'une arête au départ de chacune de ses extrémités (sur ≈ 6 m, comme le contrôle des demi-tours).
   const heading = (e: number, fromA: boolean): number => {
     const p = graph.edges[e]!.pts;
@@ -229,7 +264,10 @@ export function planRoute(graph: RoadGraphData, spec: RouteSpec): RouteData | nu
     if (dd >= 8) maxGrade = Math.max(maxGrade, (Math.abs(points[j]!.y - points[i]!.y) / dd) * 100);
   }
   const ys = points.map((p) => p.y);
-  const minWidth = Math.min(...widths.map((w) => w.widthM));
+  // Largeur de repli : médiane pondérée par la longueur, comme les autres zones (le jeu suit `roadWidths` tronçon par tronçon).
+  const byWidth = [...widths].sort((a, b) => a.widthM - b.widthM);
+  let left = total / 2;
+  const typical = (byWidth.find((w) => (left -= w.endM - w.startM) <= 0) ?? byWidth[byWidth.length - 1]!).widthM;
   const route: RouteData = {
     id: spec.id,
     name: spec.name,
@@ -239,8 +277,7 @@ export function planRoute(graph: RoadGraphData, spec: RouteSpec): RouteData | nu
     elevationGainM: r2(gain),
     points,
     segments: [],
-    // Le jeu place le coureur d'après cette largeur sur tout le parcours : la plus étroite traversée.
-    roadWidthM: minWidth,
+    roadWidthM: typical,
     attribution: ATTRIBUTION,
     roadWidths: widths,
     surfaces,
@@ -253,7 +290,56 @@ export function planRoute(graph: RoadGraphData, spec: RouteSpec): RouteData | nu
     ...(spec.bike ? { bike: spec.bike } : {}),
   };
   if (spec.hairpins) route.hairpins = hairpins(points);
+  route.segments = timedSegments(spec, route);
   return route;
+}
+
+const SPOTS = [...TOWNS.map((t) => ({ name: t.name, x: t.x, z: t.z })), { name: 'Les Bois', x: -10300, z: -5000 }, { name: 'Les Coteaux', x: -1500, z: 5300 }, { name: 'La Lagune', x: -10400, z: 7400 }, { name: 'Le Plateau', x: 12300, z: 2600 }, { name: 'Le Moulin', x: -3600, z: 5000 }, { name: "L'Anneau", x: -4700, z: 900 }];
+
+/** « Côte de Kerbrou », « des Vignes », « du Moulin », « de l'Anneau »… */
+function climbName(x: number, z: number): string {
+  const n = SPOTS.reduce((best, p) => (Math.hypot(p.x - x, p.z - z) < Math.hypot(best.x - x, best.z - z) ? p : best)).name;
+  const of = /^Les /.test(n) ? `des ${n.slice(4)}` : /^Le /.test(n) ? `du ${n.slice(3)}` : /^La /.test(n) ? `de la ${n.slice(3)}` : /^L'/.test(n) ? `de ${n.replace(/^L'/, "l'")}` : `de ${n}`;
+  return `Côte ${of}`;
+}
+
+/** Côtes (≥ 500 m à ≥ 3 %) et sprints d'un parcours, sans chevauchement, dans l'ordre. */
+export function timedSegments(spec: Pick<RouteSpec, 'id' | 'sprints' | 'climbNames'>, route: RouteData): RouteData['segments'] {
+  const { points, lengthM } = route;
+  const step = 10;
+  const at = (d: number) => {
+    let lo = 0;
+    let hi = points.length - 1;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (points[m]!.d < d) lo = m + 1;
+      else hi = m;
+    }
+    return points[lo]!;
+  };
+  const hs = Array.from({ length: Math.floor(points[points.length - 1]!.d / step) + 1 }, (_, i) => at(i * step).y);
+  const out: RouteData['segments'] = detectClimbs(hs, step, 500, 3).map((c, i) => {
+    const endM = r2(c.endIdx * step);
+    const top = at(endM);
+    const name = spec.climbNames?.[i] ?? climbName(top.x, top.z);
+    return { id: `${spec.id}-kom-${i + 1}`, kind: 'kom' as const, name, startM: r2(c.startIdx * step), endM, avgGrade: r2(c.avgGrade) };
+  });
+  // Deux côtes du même nom : numérotées.
+  for (const g of out) {
+    const same = out.filter((o) => o.name === g.name);
+    if (same.length > 1) same.forEach((o, k) => (o.name = `${o.name} ${k + 1}`));
+  }
+  (spec.sprints ?? []).forEach((s, i) => {
+    const line = points.reduce((best, p) => (Math.hypot(p.x - s.x, p.z - s.z) < Math.hypot(best.x - s.x, best.z - s.z) ? p : best));
+    if (Math.hypot(line.x - s.x, line.z - s.z) > 120) return;
+    const L = s.lengthM ?? 300;
+    // Ligne trop près du départ : le sprint n'aurait pas la place de se lancer.
+    const endM = r2(Math.min(line.d < L + 40 ? L + 40 : line.d, lengthM - 5));
+    const startM = r2(endM - L);
+    if (startM < 20 || out.some((g) => startM < g.endM + 60 && endM > g.startM - 60)) return;
+    out.push({ id: `${spec.id}-sprint-${i + 1}`, kind: 'sprint', name: s.name, startM, endM, avgGrade: r2(((at(endM).y - at(startM).y) / L) * 100) });
+  });
+  return out.sort((a, b) => a.startM - b.startM);
 }
 
 /** Lacets : virages de plus de 150° sur 60 m, numérotés du haut (1) vers le bas, comme à l'Alpe d'Huez. */

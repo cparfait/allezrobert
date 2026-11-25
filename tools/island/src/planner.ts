@@ -21,12 +21,17 @@ export interface RoadClass {
   rank: number;
 }
 
+/** Peu de pénalité : les routes passent les bosses au lieu de les contourner (3 auparavant : 66 % du réseau sous 1 %). */
+const PEN = Number(process.env.ISLAND_PEN ?? 0.5);
+
+const TRACK_PEN = Number(process.env.ISLAND_TRACK_PEN ?? 1.5);
+
 export const CLASSES = {
-  secondary: { id: 'secondary', kind: 'secondary', width: 7, surface: 'asphalt', gmax: 0.075, gpen: 3, reuse: 0.3, rank: 7 },
-  tertiary: { id: 'tertiary', kind: 'tertiary', width: 6, surface: 'asphalt', gmax: 0.09, gpen: 2.5, reuse: 0.35, rank: 6 },
-  lane: { id: 'lane', kind: 'unclassified', width: 4.5, surface: 'asphalt', gmax: 0.11, gpen: 2, reuse: 0.4, rank: 5 },
+  secondary: { id: 'secondary', kind: 'secondary', width: 7, surface: 'asphalt', gmax: 0.072, gpen: PEN, reuse: 0.3, rank: 7 },
+  tertiary: { id: 'tertiary', kind: 'tertiary', width: 6, surface: 'asphalt', gmax: 0.09, gpen: PEN * 0.8, reuse: 0.35, rank: 6 },
+  lane: { id: 'lane', kind: 'unclassified', width: 4.5, surface: 'asphalt', gmax: 0.11, gpen: PEN * 0.7, reuse: 0.4, rank: 5 },
   cycleway: { id: 'cycleway', kind: 'cycleway', width: 4, surface: 'asphalt', gmax: 0.04, gpen: 4, reuse: 0.45, rank: 4 },
-  track: { id: 'track', kind: 'track', width: 3.2, surface: 'gravel', gmax: 0.13, gpen: 1.5, reuse: 0.5, rank: 3 },
+  track: { id: 'track', kind: 'track', width: 3.2, surface: 'gravel', gmax: 0.13, gpen: TRACK_PEN, reuse: 0.5, rank: 3 },
   mtb: { id: 'mtb', kind: 'track', width: 2.4, surface: 'dirt', gmax: 0.2, gpen: 0.8, reuse: 0.6, rank: 2 },
 } satisfies Record<string, RoadClass>;
 

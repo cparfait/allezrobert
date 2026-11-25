@@ -319,6 +319,16 @@
       "url": "http://127.0.0.1:5297"
     },
     {
+      "name": "lidar-seam",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --config ../../out/lidar-seam/vite.config.mts"
+      ],
+      "port": 5305,
+      "url": "http://127.0.0.1:5305"
+    },
+    {
       "name": "recul-camera",
       "runtimeExecutable": "cmd",
       "runtimeArgs": [
@@ -337,6 +347,43 @@
       ],
       "port": 5310,
       "url": "http://127.0.0.1:5310"
+    },
+    {
+      "name": "longchamp-hippodrome",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& pnpm --filter @allezrobert/client exec vite --config ../../out/longchamp-hippodrome/vite.config.mts"
+      ],
+      "port": 5321
+    },
+    {
+      "name": "bilans-fin",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& set VITE_WORLDS_URL=https://allezrobert.cparfait.ovh&& pnpm --filter @allezrobert/client exec vite --port 5336 --strictPort"
+      ],
+      "port": 5336
+    },
+    {
+      "name": "strava-profil",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "cd apps\\server&& set PORT=2610&& set DATABASE_URL=memory&& set DEV_LOGIN=true&& set PUBLIC_URL=http://localhost:5331&& set API_PUBLIC_URL=http://localhost:2610&& set CORS_ORIGINS=http://localhost:5331&& set STRAVA_CLIENT_ID=000000&& set STRAVA_CLIENT_SECRET=essai-local&& start /b node --env-file-if-exists=.env --import tsx src/main.ts&& cd ..\\..&& set AR_HMR=0&& set VITE_SERVER_URL=http://localhost:2610&& pnpm --filter @allezrobert/client exec vite --port 5331 --strictPort"
+      ],
+      "port": 5331
+    },
+    {
+      "name": "perso-bras-croises",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set AR_HMR=0&& set VITE_WORLDS_URL=https://allezrobert.cparfait.ovh&& pnpm --filter @allezrobert/client exec vite --config ../../out/perso-bras-croises/vite.config.mts"
+      ],
+      "port": 5342,
+      "url": "http://127.0.0.1:5342"
     }
   ]
 }

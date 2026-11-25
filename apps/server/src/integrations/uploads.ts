@@ -111,7 +111,7 @@ export class UploadService {
     form.set('name', name);
     form.set('trainer', '1');
     form.set('external_id', `allezrobert-${activityId}`);
-    form.set('description', 'Allez Robert !');
+    form.set('description', 'Sortie virtuelle, Allez Robert !');
     const res = await this.fetchFn('https://www.strava.com/api/v3/uploads', { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: form, signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS) });
     if (!res.ok) return { status: 'failed', error: `Strava ${res.status}` };
     const j = (await res.json()) as Record<string, any>;

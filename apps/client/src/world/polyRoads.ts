@@ -10,8 +10,8 @@ import { NETWORK_ROAD_LIFT } from './roadHeight.ts';
  * de peinture, un de poteaux et un de faces de panneaux (atlas partagé). Les cases arrivent une par mise à jour et
  * attendent que le terrain soit là.
  */
-const BUILD_M = 420;
-const FORGET_M = 520;
+const BUILD_M = 340;
+const FORGET_M = 430;
 const SHADOW_M = 90;
 /** Peinture au-dessus du ruban des routes (polylignes du graphe, voir roadHeight.ts). */
 const PAINT_LIFT = NETWORK_ROAD_LIFT + 0.012;

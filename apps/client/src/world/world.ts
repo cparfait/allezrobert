@@ -161,7 +161,9 @@ export class World {
       // Trottoirs compris (dalles au-dessus du terrain) : animaux, bornes, poubelles et passants y posaient les pieds dessous.
       const standAt = (x: number, z: number) => {
         const g = groundAt(x, z);
-        const w = this.network.walkHeightAt(x, z);
+        // tuile du point seulement : appelé des milliers de fois par tronçon
+        const id = this.terrain.getTile(...this.terrain.tileCoord(x, z))?.id;
+        const w = id ? this.network.walkHeightAt(x, z, id) : Number.NaN;
         return w > g ? w : g;
       };
       this.life = new RoadsideLife(track, standAt, lifeTile, lifeDensity(q), (a, b, c, d) => this.treesIn(a, b, c, d), envState.season);

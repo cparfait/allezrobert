@@ -54,6 +54,7 @@ import { RoutePlanner } from './routePlanner.ts';
 import { companionQr } from './companionQr.ts';
 import { FranceMap, type MapZone } from './franceMap.ts';
 import { IslandAtlas } from './islandAtlas.ts';
+import { bindCityPicker, cityPickerHtml } from './cityPicker.ts';
 import { bindStartPicker, loadRouteBoards, routeDetailHtml } from './routeDetail.ts';
 import { canMoveStart, canReverse, reversedOf, routeKey, snapStartM, startedOf } from '../game/direction.ts';
 import { ZONE_SPOTS } from '../world/zoneMap.ts';
@@ -3853,6 +3854,7 @@ export class MainMenu {
         ${row(t('name'), '', `<input id="m-name" class="mm-input" value="${esc(s.name)}" />`, 'm-name').replace('class="mm-opt"', 'class="mm-opt mm-opt-first"')}
         ${row(S('iAm'), '', `<div class="row">${(['male', 'female'] as const).map((x) => `<button class="btn small ${lookSex(s.look) === x ? 'primary' : ''}" data-sex="${x}">${x === 'male' ? (S('aMan')) : S('aWoman')}</button>`).join('')}</div>`)}
         ${row(S('nationality'), S('yourFlagNextTo'), this.nationHtml())}
+        ${row(getLang() === 'fr' ? 'Ma ville' : 'My town', getLang() === 'fr' ? 'Donne la météo du jour sur l’île de Robert (Paris sinon).' : 'Gives today’s weather on Robert’s Island (Paris otherwise).', cityPickerHtml(s.city, getLang()), 'm-city')}
         ${row(t('weight'), S('countsOnTheClimbs'), this.stepper('m-mass', 30, 200, s.massKg, 0.5), 'm-mass')}
         ${row(t('height'), S('countsForYourDrag'), this.stepper('m-height', 120, 220, s.heightCm), 'm-height')}
         ${row(t('ftp'), S('setsWorkoutsAndZones'), this.stepper('m-ftp', 50, 600, s.ftpWatts), 'm-ftp')}
@@ -5313,6 +5315,12 @@ export class MainMenu {
     );
     on<HTMLInputElement>('m-name', 'change', (el) => {
       s.name = el.value.trim().slice(0, 24) || 'Robert';
+      changed();
+      this.render();
+    });
+    bindCityPicker(this.root, getLang(), () => s.city, (city) => {
+      if (city) s.city = city;
+      else delete s.city;
       changed();
       this.render();
     });

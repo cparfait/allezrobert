@@ -53,6 +53,8 @@ export function robertvilleBuilding(building: TileBuilding): TileBuilding {
     const i = Math.abs(Math.round(building.pts[0]! / 2.7));
     return { ...building, colour: '#fdfcf8', height: 3.5, roof: 'gabled', roofHeight: 1, roofMaterial: 'metal', roofColour: CABIN_ROOFS[i % CABIN_ROOFS.length]!, roofOverhang: 0.16 };
   }
+  // Hangars des tribunes de l'Anneau : remplacés par de vrais gradins (polySites.ts).
+  if (building.kind === 'industrial' && Math.abs(building.pts[0]! + 4700) < 90 && Math.abs(building.pts[1]! - 1139) < 12) return { ...building, pts: [] };
   if (building.kind !== 'house' || building.pts.length < 6) return building;
   let x = 0;
   let z = 0;

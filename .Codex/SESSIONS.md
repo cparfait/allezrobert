@@ -141,3 +141,45 @@
 - Chantier : versionner le démarrage fractionné de la boucle de 20 km à Boulogne depuis un worktree basé sur origin/main, puis pousser ce seul commit.
 - Fichiers réservés dans le worktree uniquement : apps/client/src/world/world.ts et workQueue.ts. Aucun build de zones ni opération sur le main local partagé.
 - État : en cours.
+
+## Moto chrono autonome
+
+- Chantier : deux modèles 3D de moto chrono, rendu comparatif et aperçu autonome.
+- Fichiers réservés : out/moto-chrono/ uniquement. Aucun build du jeu ni mesure GPU.
+- État : en cours.
+- État final : deux GLB et deux Blender livrés, rendus vérifiés et aperçu hors ligne testé dans Chromium. Fichiers libérés.
+
+## Roulage de la moto chrono autonome
+
+- Chantier : aperçu en mouvement et retrait de la plaque latérale sur les deux modèles.
+- Fichiers réservés : out/moto-chrono/ uniquement. Aucun build du jeu ni mesure GPU.
+- État : en cours.
+- État final : plaque retirée des deux GLB et Blender, quatre vues recalculées, les deux variantes testées en roulage dans Chromium. Aperçu local ouvert. Fichiers libérés.
+
+## Essai des motos chrono dans Allez Robert
+
+- Chantier : vérifier le rendu des deux motos sur le Tourmalet avec un client local isolé, en Poly, Réel et Bêta.
+- Fichiers réservés : out/moto-chrono/ uniquement. Les points de branchement du jeu sont lus et transformés en mémoire. Aucun build de zones ni mesure GPU.
+- État : en cours.
+- État final : captures WebGPU Poly, Réel et Bêta sur le Tourmalet à 6 et 16 m. Chrono négatif contrôlé. Serveur local 5376 laissé ouvert. Fichiers libérés.
+
+## Île de Robert réservée au mode Poly
+
+- Chantier : carte de France seule en Réel et Bêta, île en Poly et premier décor des Planches de Robertville.
+- Fichiers réservés : apps/client/src/world/worlds.ts, zoneMap.ts, loader.ts, packs.ts, roadsideLife.ts et robertville.ts, apps/client/src/ui/openWorld.ts, apps/client/src/platform/offlineZones.ts et tests ciblés.
+- État : en cours. Aucun build ni modification de données de zones.
+- Extension : une ligne dans ASSETS_LICENSES.md consacrée au décor procédural original de Robertville. La ligne des motos chrono reste réservée à son chantier.
+- Extension saisons et public Poly : apps/client/src/world/crowd.ts, crowdLowPoly.ts et, dans world.ts, uniquement le branchement RoadsideLife et la méthode setSeason. Étapes de montage des tuiles, fonctions de densité et autres sections partagées laissées à leurs chantiers.
+- Banc de vérification : apps/client/src/crowd-test.ts, ajout de la largeur au faux itinéraire, et fichiers temporaires out/poly-*. Aucun relevé GPU.
+Extension publicites Poly : apps/client/src/world/polySponsors.ts, raccords dans crowd.ts et robertville.ts.
+- Suivi demandé : nouveau fichier docs/SUIVI_MONDE_POLY.md.
+- État final : lot intégré localement. Sélecteur vérifié en Réel, Bêta et Poly, TypeScript et trois tests ciblés réussis, neuf décors et panneaux vérifiés sur les tuiles existantes. Public et nouvelles publicités affichés en été et hiver dans un aperçu WebGL isolé. Suivi et contrôles de roulage restants dans docs/SUIVI_MONDE_POLY.md. Aucun build de zones. Fichiers libérés.
+- Retouche utilisateur en cours : palettes de vêtements dans crowdLowPoly.ts et bilan dans docs/SUIVI_MONDE_POLY.md.
+- Retouche terminée : vêtements et bonnets Poly plus vifs, suivi Markdown actualisé. TypeScript et aperçus WebGL été et hiver vérifiés. Fichiers libérés.
+
+## Présentation du monde Poly et bâti de Robertville
+
+- Chantier : carte de l’île, écran de sélection Poly et diversité des maisons de Robertville.
+- Réservations : tools/island/src/map.ts et ses sorties carte.png et vignette.png ; menu.ts uniquement imports et sections du sélecteur de zone, nouveau ui/islandAtlas.ts et .css ; world/worlds.ts, platform/offlineZones.ts, test/worldStyle.test.ts ; world/buildings.ts uniquement l’adaptation de l’enregistrement de la maison avant son maillage, nouveau world/robertvilleBuildings.ts et son test ; docs/SUIVI_MONDE_POLY.md et la ligne procédurale Robertville de ASSETS_LICENSES.md. Essais dans out/robertville-atlas/.
+- État : en cours. Lecture des tuiles existantes, seules les deux cartes sont régénérées. Aucun relevé GPU.
+- État final : atlas Poly, fond topographique et sept familles de maisons intégrés localement. Carte vérifiée en Chromium sur ordinateur et mobile, bâti vérifié sur deux tuiles dans un aperçu WebGL isolé, TypeScript et cinq tests ciblés réussis. Captures dans out/robertville-atlas/. Fichiers libérés.

@@ -227,6 +227,11 @@ export class Builder {
     }
   }
 
+  /** Emprise gardée libre de maisons (place). */
+  reserve(poly: Vec2[]): void {
+    this.occ.add(poly);
+  }
+
   area(kind: string, layer: Area['layer'], ring: Vec2[], name?: string): void {
     this.areas.push({ id: `a${this.areas.length}`, kind, layer, ring, ...(name ? { name } : {}) });
   }
@@ -259,6 +264,8 @@ export function townCentre(B: Builder, lay: TownLayout, k: number): void {
     const p = P(a, b);
     B.add({ kind: 'commercial', height: 9, levels: 2, roof: { shape: 'gabled', height: 3, material: 'tiles' }, colour: ['#f4c9a8', '#e9d8b6', '#cfe3e0'][k % 3]!, pts: orientedRect(p[0], p[1], 7, 6, ang), name }, 2);
   }
+  // Place du bourg : les maisons des rues s'arrêtent à ses bords (marché, terrasse et fontaine : polySites.ts).
+  if (t.size === 'bourg') B.reserve(orientedRect(cx, cz, 27, 23, ang));
   // Stade et cimetière en lisière.
   const st = P(0.75 * t.r, 0.55 * t.r);
   const stade = orientedRect(st[0], st[1], 52, 34, ang);

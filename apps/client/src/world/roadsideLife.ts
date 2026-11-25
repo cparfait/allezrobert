@@ -9,6 +9,8 @@ import { LandProbe, MeshBuilder, dist2Seg, flatVertexMaterial, segmentsIn } from
 import { lifeTemplates, type LifeTemplates } from './lowPolyProps.ts';
 import { CRITTER_COLOURS, critterTemplates, type CritterTemplates } from './lowPolyCritters.ts';
 import { FarmAnimals, farmAnimalsReady, loadFarmAnimals, type AnimalSpec } from './farmAnimals.ts';
+import { onQuay } from './polyHarbour.ts';
+import { IslandSites, ringDistance } from './polySites.ts';
 import { RobertvilleScenery, isRobertville } from './robertville.ts';
 
 /**
@@ -248,9 +250,11 @@ export class RoadsideLife {
   private density: LifeDensity;
   private tpl: LifeTemplates | null = null;
   private readonly chunks = new Map<number, Chunk>();
-  private readonly list: Chunk[] = [];
+  private readonly list: LifeChunk[] = [];
   private readonly staticMat = flatVertexMaterial(0.9);
   private readonly robertville: RobertvilleScenery;
+  private readonly sites: IslandSites;
+  private sitesVersion = 0;
   private readonly wetMat = wetMaterial();
   private readonly wireMat = new THREE.LineBasicNodeMaterial({ vertexColors: true });
   private readonly animalMat = animalMaterial();
@@ -287,8 +291,9 @@ export class RoadsideLife {
     this.track = track;
     this.probe = new LandProbe(tileAt, heightAt);
     this.robertville = new RobertvilleScenery(this.probe, this.staticMat, season);
+    this.sites = new IslandSites(new LandProbe(tileAt, heightAt), this.staticMat, season);
     this.density = density;
-    this.group.add(this.farm.group, this.robertville.group);
+    this.group.add(this.farm.group, this.robertville.group, this.sites.group);
     // Animaux animés : dès que les modèles sont chargés, les tronçons déjà peuplés (avec des troupeaux en
     // blocs) sont refaits, pour que les premiers troupeaux soient animés eux aussi.
     void loadFarmAnimals().then((ok) => {
@@ -323,6 +328,7 @@ export class RoadsideLife {
 
   setSeason(season: Season): void {
     this.robertville.setSeason(season);
+    this.sites.setSeason(season);
     if (season === this.season) return;
     this.season = season;
     for (const k of [...this.chunks.keys()]) this.drop(k);
@@ -336,6 +342,11 @@ export class RoadsideLife {
     this.animateHerds(dt, focus);
     this.farm.update(dt, focus);
     this.robertville.update(focus.x, focus.z, this.density.props);
+    this.sites.update(dt, focus.x, focus.z, this.density.props);
+    if (this.sites.version !== this.sitesVersion) {
+      this.sitesVersion = this.sites.version;
+      this.afterChange();
+    }
     const lengthChanged = this.centresLength !== this.track.length;
     // Revu tous les 15 m parcourus, ou à chaque image tant qu'un tronçon proche attend son terrain.
     if (!this.pending && !lengthChanged && this.last.distanceToSquared(focus) < 225) return;
@@ -390,6 +401,7 @@ export class RoadsideLife {
       this.list.push(c);
       sources.push(...c.sources);
     }
+    this.list.push(...this.sites.chunks);
     this.sources = sources;
     this.version++;
   }
@@ -501,6 +513,8 @@ export class RoadsideLife {
     const mid = (d0 + d1) / 2;
     const bushes = seasonal(BUSH, this.season);
     const bloom = this.season === 'spring' || this.season === 'summer';
+    /** Circuit de l'Anneau et quais : ni clôtures ni haies de campagne. */
+    const circuit = ringDistance(sig[2]!, sig[3]!) < 30 || onQuay(sig[2]!, sig[3]!);
     const promenade = track.surfaceAt(mid) === 'wood' && isRobertville(probe, sig[2]!, sig[3]!);
     const halfAt = (d: number) => track.widthAt(d) / 2;
     const tmpC = new THREE.Color();
@@ -629,7 +643,7 @@ export class RoadsideLife {
       // haie : seule (sans clôture) ou doublant une clôture en bois
       const hedge = pr() < (type === 0 ? 0.45 : type === 2 ? 0.25 : 0.08) * Math.min(1, 0.4 + props);
       const hr = rng(k * 131 + (side > 0 ? 17 : 5));
-      if (type && !promenade) {
+      if (type && !promenade && !circuit) {
         const col = type === 1 ? WHITE : WOOD;
         let px = 0;
         let py = 0;
@@ -657,7 +671,7 @@ export class RoadsideLife {
           has = true;
         }
       }
-      if (hedge && !promenade) {
+      if (hedge && !promenade && !circuit) {
         for (let d = d0; d < d1; d += 1.7) {
           track.positionAt(d, side * (halfAt(d) + (type ? 3.4 : 2.7) + hr() * 0.3), s);
           const y = ground(s.x, s.z);
@@ -1006,18 +1020,20 @@ export class RoadsideLife {
           sb.put(tpl.mailbox, s.x, y, s.z, yaw, 1, 1, 1, MAILBOX[Math.floor(hr() * MAILBOX.length)] as THREE.Color);
           (used[side] as number[]).push(dm);
         }
-        // Poubelles : seules ou par deux, au bord de la rue (≈ une maison sur quatre).
+        // Poubelles : de une à trois (couvercles gris, vert, jaune), au bord de la rue (≈ une maison sur quatre).
         if (hr() < 0.28 * Math.min(1, props + 0.2)) {
           const db = dm + (hr() < 0.5 ? -1 : 1) * (2 + hr() * 1.5);
           if (free(side, db, 1.6) && !inSpan(db, 3)) {
-            const pair = hr() < 0.55 ? 2 : 1;
+            const pair = hr() < 0.3 ? 3 : hr() < 0.6 ? 2 : 1;
+            // De une à trois, jamais deux du même couvercle.
+            const lids = [tpl.binGrey, tpl.binGreen, tpl.binYellow];
+            const first = Math.floor(hr() * 3);
             for (let b = 0; b < pair; b++) {
               const dbi = db + b * 0.78;
               track.positionAt(dbi, side * (half + 0.95), s);
               const by = ground(s.x, s.z);
               if (!Number.isFinite(by) || probe.buildingNear(s.x, s.z, 0.5) || onAnyRoad(s.x, s.z, 0.4)) continue;
-              const pick = hr();
-              const t = b === 1 ? tpl.binYellow : pick < 0.45 ? tpl.binGrey : pick < 0.75 ? tpl.binYellow : pick < 0.88 ? tpl.binGreen : pick < 0.96 ? tpl.binBrown : tpl.binBlue;
+              const t = lids[(first + b) % 3] as (typeof lids)[number];
               sb.put(t, s.x, by, s.z, Math.atan2(s.dirZ * side, -s.dirX * side) + (hr() - 0.5) * 0.3, 1, 1, 1, ONE);
               (used[side] as number[]).push(dbi);
             }
@@ -1453,6 +1469,8 @@ export class RoadsideLife {
     if (d > this.track.length) return null;
     const p = this.track.positionAt(d, side * (this.track.widthAt(d) / 2 + 5.5), this.s2);
     if (this.track.surfaceAt(d) === 'wood' && isRobertville(this.probe, p.x, p.z)) return null;
+    // Pas de poteaux autour de l'Anneau (gradins, portique).
+    if (ringDistance(p.x, p.z) < 40 || onQuay(p.x, p.z)) return null;
     const y = this.probe.heightAt(p.x, p.z);
     const pr = this.probe;
     if (!Number.isFinite(y) || !pr.read(p.x, p.z) || pr.forest > 0.5 || pr.water > 0.2 || pr.road > 0.25 || pr.urban > 0.6 || pr.buildingNear(p.x, p.z, 3)) return null;
@@ -1461,6 +1479,7 @@ export class RoadsideLife {
 
   dispose(): void {
     this.robertville.dispose();
+    this.sites.dispose();
     this.disposed = true;
     for (const k of [...this.chunks.keys()]) this.drop(k);
     this.farm.dispose();

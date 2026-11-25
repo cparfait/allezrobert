@@ -65,16 +65,33 @@ Fichiers ajoutés : `world/polyRoadPlan.ts` (calcul, testé sur le graphe réel)
 | 5 | **Ajouter les objectifs cyclistes** | Chronométrer l’Anneau, les sprints et les deux versants du Phare. Proposer un fantôme personnel, des groupes à allure choisie et des étapes autour de l’île. Constituer progressivement un catalogue de 25 à 35 parcours complémentaires, en réutilisant les liaisons du réseau. |
 | 6 | **Finaliser les sorties fictives** | Vérifier la reprise de sortie et les invitations, définir la météo de l’île et le format d’export d’une activité virtuelle sans faux tracé réel. Fixer les conditions communes des événements et classements. |
 
-La carte actuelle comprend 10 parcours. La seule boucle gravel mesure environ 54 km, dont 26 km en bitume. Les dix parcours générés ont actuellement des listes de segments vides. Ces deux points donnent la priorité aux variantes courtes et aux premiers chronos avant d’allonger le catalogue. [Conception et générateur de l’île](ILE_DE_ROBERT.md)
+La carte comprend 22 parcours depuis le troisième lot. [Conception et générateur de l’île](ILE_DE_ROBERT.md)
+
+## Troisième lot (25 novembre, fin d'après-midi, non commité)
+
+Réponses de l'utilisateur : météo de Paris, sortie annoncée comme virtuelle, enseignes parodiques gardées, une route vers le port, et les trois chantiers suivants.
+
+| Sujet | État |
+| --- | --- |
+| Météo | « Du jour (réelles) » prend sur l'île la météo de la ville du joueur, choisie dans le Profil (« Ma ville »), Paris sinon ; le message nomme la ville. Les 34 969 communes françaises, outre-mer compris, se cherchent par nom ou code postal, hors ligne (`public/geo/communes-fr.txt`, 1,1 Mo, 0,5 Mo compressé ; `tools/communes/build.mjs`). Vérifié en jeu avec Saint-Étienne. |
+| Export | Titre « … (sortie virtuelle) » pour les sorties de l'île, mention dans le GPX et dans la description Strava (côté serveur : redéploiement nécessaire). Le FIT portait déjà « activité virtuelle ». |
+| Port de Robertville | « Quai du Port », du boulevard à la route du Tour de l'Île, et « Promenade du Port » en bois, dans le prolongement des Planches. Routes ajoutées après le tracé du réseau (`tools/island/src/ports.ts`) : les autres routes n'ont pas bougé (seules les deux arêtes raccordées sont coupées en deux). |
+| Kerbrou | « Quai des Pêcheurs », bassin avec pontons, chalutiers, criée, casiers et feux d'entrée. |
+| Saint-Robert | Vraie place (maisons écartées) : marché, terrasse, fontaine, statue du cycliste, cour d'école, sapin l'hiver. |
+| L'Anneau | Gradins, portique, damier, paddock, deux sprints ; au centre, grande roue, manèges, chapiteau, scène, camions, lac et promeneurs, matchs de foot, camping, cerfs-volants et montgolfières animés. Ni voitures, ni clôtures, ni poteaux. |
+| Parcours | Douze nouveaux (22 en tout) : critérium, Anneau par la Piste verte, Planches et port, chrono du Plateau, voie verte, Vélomaritime, Phare par le nord, Kerbrou, Coteaux, trois gravels (celui des Vignes : 10 km, 89 % de chemins). Côtes et sprints chronométrés sur quinze parcours. |
+| Sélecteur | Durée estimée, revêtements et nombre de côtes et de sprints du parcours choisi. |
+| Poubelles | Couvercles gris, verts et jaunes, par une à trois. |
+| Fluidité | Lieux construits par tranches de 2 ms par image, sans nouveau matériau, par morceaux écartés du champ ; ombres à moins de 70 m. Mesuré (processeur) : 0,02 ms par image en moyenne pour les lieux, une pointe de 6,9 ms pendant la construction de l'Anneau ; 55 000 triangles et 22 objets au plus. Temps GPU non mesuré. |
+
+L'ancienne île est sauvegardée dans `D:/zzCACHE_ALLEZROBERT/zones-travail/ile-de-robert-avant-port`. La nouvelle passe tous les contrôles (`verify.ts`) et n'est ni envoyée sur le serveur, ni mise dans le pack hors ligne publié.
 
 ## Questions ouvertes
 
-1. **Météo réelle de l’île** : avec « Du jour (réelles) », le jeu demande la météo d’un point de l’Atlantique (origine fictive 95000, 6815000). Garder, prendre une météo de référence (Deauville, par exemple) ou imposer les conditions réglées.
-2. **Export et Strava** : les activités de l’île portent des coordonnées GPS de ce même point. Format d’une activité virtuelle à choisir.
-3. **Enseignes parodiques** : seize noms dérivés de vraies marques (Pédalidas, Coca-Cadence, Ikécôte…). À garder, ou à remplacer par des marques inventées avant publication.
-4. **Accès au port** : aucune route n’y mène ; une piste demande de régénérer des tuiles (accord nécessaire).
-5. **Ligne provenance** : la ligne « Robertville » de `ASSETS_LICENSES.md` ne cite pas la signalisation, les animaux ni le port (procéduraux, originaux). Fichier réservé ailleurs, non touché.
-6. **Ordre de la suite** : Saint-Robert et l’Anneau, parcours courts et chronos, ou Kerbrou.
+1. **Relief** : hors Phare, l'île est plate (66 % des routes sous 1 %, 5,6 m de D+ par km ; Chevreuse 6 à 10, Annecy 12, Limagne 22 à 28). Deux essais de collines plus hautes (dossier à part, effacés) ne donnent que 10 à 20 % de D+ en plus, car le traceur contourne les bosses, et cassent une à deux routes. Il faut aussi lui faire accepter plus de pente.
+2. **Ligne provenance** : `ASSETS_LICENSES.md` (réservé ailleurs, non touché) ne cite pas la signalisation, les animaux, les ports ni la fête de l'Anneau, tous procéduraux et originaux. Il faut aussi y citer la liste des communes (API Découpage administratif, données INSEE et IGN, Licence Ouverte 2.0 Etalab).
+3. **Publication** : tuiles et pack de l'île à renvoyer sur le serveur, et serveur à redéployer pour la description Strava.
+4. **Suite du plan** : finir Robertville (devantures, sons), falaises, écluses et ruine des Bois, fantôme et groupes à allure choisie.
 
 ## Repères pour reprendre le chantier
 

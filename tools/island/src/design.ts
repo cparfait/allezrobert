@@ -256,6 +256,9 @@ export const HARBOURS: Harbour[] = [harbourAt('port-robertville', 'Port de Rober
 
 const gauss = (x: number, z: number, cx: number, cz: number, sx: number, sz: number) => Math.exp(-(((x - cx) / sx) ** 2 + ((z - cz) / sz) ** 2));
 
+/** Vallonnement (mètres d'amplitude), réglable pour un essai : ISLAND_RELIEF='{"hills":30,…}'. */
+const RELIEF = { wave: 30, hills: 42, knolls: 64, coteaux: 125, plateau: 100, ...(JSON.parse(process.env.ISLAND_RELIEF ?? '{}') as Record<string, number>) };
+
 /** Relief naturel sans les rivières, lacs, ports ni plateaux aplanis. */
 function natural(x: number, z: number): number {
   const ang = Math.atan2(z, x);
@@ -272,16 +275,20 @@ function natural(x: number, z: number): number {
   const cl = cliff * (1 - smoothstep(1500, 4000, d));
   const inland = smoothstep(150, 2400, d) * (1 - cl) + smoothstep(60, 900, d) * cl;
   // Campagne ondulée : grandes ondulations et petites bosses.
-  h += inland * (26 * (fbm(x / 7000, z / 7000, 3, 11) + 0.35) + 9 * fbm(x / 1500, z / 1500, 3, 12) + 2.5 * fbm(x / 350, z / 350, 2, 13));
+  // Buttes et croupes de 1 à 2 km, séparées par des plaines ; plus basses là où le relief est déjà marqué ou doit rester
+  // facile : Anneau et plaine de Saint-Robert, lagune, Bois, dessus du Plateau, massif du Phare.
+  const calm = 1 - 0.75 * Math.max(gauss(x, z, ANNEAU.cx, ANNEAU.cz, 2200, 1500), gauss(x, z, -2100, 250, 3000, 1500), gauss(x, z, lagoonC[0], lagoonC[1], 3000, 2200), gauss(x, z, -10300, -5000, 4600, 3400), gauss(x, z, 12300, 1200, 3600, 2600), gauss(x, z, MASSIF.mont[0], MASSIF.mont[1], 3600, 3600));
+  h += inland * (RELIEF.wave * (fbm(x / 7000, z / 7000, 3, 11) + 0.35) + (9 + (RELIEF.hills - 9) * calm) * fbm(x / 1500, z / 1500, 2, 12) + 2.5 * fbm(x / 350, z / 350, 2, 13));
+  h += inland * calm * RELIEF.knolls * Math.max(0, fbm(x / 2300 + 7, z / 2300 - 3, 2, 14) + 0.08) * 1.6;
   const fade = smoothstep(120, 1200, d);
   // Les Bois (nord-ouest) : collines boisées.
   const bois = gauss(x, z, -10300, -5000, 4200, 3000);
   if (bois > 1e-3) h += fade * bois * (120 + 80 * ridged(x / 2600, z / 2600, 3, 21));
   // Les Coteaux (sud) : longue croupe exposée au sud, vignes.
-  h += fade * 105 * gauss(x, z, -1500, 5300, 3800, 1250) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 22));
+  h += fade * RELIEF.coteaux * gauss(x, z, -1500, 5300, 3800, 1250) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 22));
   // Plateau de l'est : dessus presque plat, rebord en escarpement.
   const pe = Math.hypot((x - 12300) / 5200, (z - 1200) / 3700);
-  h += fade * 88 * (1 - smoothstep(0.62, 1.05, pe)) * (1 + 0.04 * fbm(x / 900, z / 900, 2, 23));
+  h += fade * RELIEF.plateau * (1 - smoothstep(0.62, 1.05, pe)) * (1 + 0.04 * fbm(x / 900, z / 900, 2, 23));
   // Massif du Phare : deux sommets, col entre les deux, arêtes.
   const M = MASSIF;
   const cone = (px: number, pz: number, H: number) => H * Math.exp(-((Math.hypot(x - px, z - pz) / M.spread) ** 1.75));
@@ -453,7 +460,7 @@ function getFlats(): Flat[] {
       c++;
     }
     t.level = Math.max(t.seaside || t.port ? 3.5 : 2, (s / c + carved(t.x, t.z)) / 2);
-    flats.push({ x: t.x, z: t.z, dist: (x, z) => Math.hypot(x - t.x, z - t.z), r0: t.r * (t.seaside ? 1.0 : 0.55), r1: t.r * (t.seaside ? 1.6 : 1.4), level: t.level });
+    flats.push({ x: t.x, z: t.z, dist: (x, z) => Math.hypot(x - t.x, z - t.z), r0: t.r * (t.seaside ? 1.0 : 0.55), r1: t.r * (t.seaside ? 1.6 : 1.4) + (t.seaside ? 0 : 260), level: t.level });
   }
   return flats;
 }

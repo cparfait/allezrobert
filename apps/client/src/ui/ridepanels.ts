@@ -13,6 +13,7 @@ import { renderMusicControls, renderSoundSettings } from './soundSettings.ts';
 import type { QualityLevel } from '../engine/quality.ts';
 import { saveExport } from '../platform/desktop.ts';
 import { exportSaved } from './desktopUi.ts';
+import { activityTitle } from '../game/virtualRide.ts';
 import './blocks.css';
 
 /** Construit le fichier FIT de la sortie (positions GPS reconstruites depuis le repère monde). */
@@ -31,7 +32,7 @@ export function rideToFit(ride: Pick<RideSession, 'startT' | 'records' | 'lapTim
     return out;
   });
   const activity = buildActivity(
-    { id: `ar-${ride.startT}`, name: opts.name, subSport: 'virtualActivity', deviceName: 'Allez Robert !', riderMassKg: opts.massKg, ftpWatts: opts.ftp, skipStrava: opts.skipStrava, startT: ride.startT },
+    { id: `ar-${ride.startT}`, name: activityTitle(opts.name, opts.originL93), subSport: 'virtualActivity', deviceName: 'Allez Robert !', riderMassKg: opts.massKg, ftpWatts: opts.ftp, skipStrava: opts.skipStrava, startT: ride.startT },
     records,
     ride.lapTimes,
   );
@@ -55,10 +56,10 @@ export function rideToGpx(ride: RideSession, opts: { name: string; originL93?: {
     })
     .filter(Boolean)
     .join('\n');
-  const name = opts.name.replace(/[<&>]/g, '');
+  const name = activityTitle(opts.name, opts.originL93).replace(/[<&>]/g, '');
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Allez Robert !" xmlns="http://www.topografix.com/GPX/1/1" xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
-<metadata><name>${name}</name><time>${new Date(ride.startT).toISOString()}</time></metadata>
+<metadata><name>${name}</name><desc>Sortie virtuelle, Allez Robert !</desc><time>${new Date(ride.startT).toISOString()}</time></metadata>
 <trk><name>${name}</name><type>VirtualRide</type><trkseg>
 ${pts}
 </trkseg></trk>
@@ -299,7 +300,7 @@ export async function onlinePanel(box: HTMLElement, ride: RideSession, fit: () =
     b.disabled = true;
     meta?.onAccount?.('sending');
     const sent = await uploadRideFit(fit(), {
-      name: `Allez Robert ! — ${ride.route.name}`,
+      name: activityTitle(ride.route.name),
       routeId: ride.route.id,
       skipStrava: !!st.skipStrava,
       ...(meta ? { clientRideId: meta.clientRideId, kind: meta.kind, ftp: meta.ftp, workoutId: meta.workoutId ?? null, workoutName: meta.workoutName ?? null } : {}),

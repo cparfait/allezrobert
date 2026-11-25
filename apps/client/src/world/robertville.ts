@@ -38,11 +38,7 @@ const SITES: readonly Site[] = [
   { x: 1369.2, z: 10073.1, slope: 0.058 },
   { x: 1499.1, z: 10078.8, slope: -0.024, open: true },
 ];
-/** Bassin du port : centre, cap du large, demi-longueur et demi-largeur (tools/island/src/design.ts). */
-const HARBOUR = { x: 1783.2, z: 10038.6, dir: 1.395, halfLen: 230, halfWid: 90 } as const;
 const BUILD_M = 400;
-/** Les mâts du port se voient de loin. */
-const HARBOUR_BUILD_M = 720;
 const FORGET_EXTRA_M = 120;
 const WHITE = new THREE.Color(0xffffff);
 const SEA_COLOURS = ['#eb7857', '#f1c461', '#4d9eac', '#4c78a9'].map((colour) => new THREE.Color(colour));
@@ -149,75 +145,12 @@ function beachFurniture() {
   };
 }
 
-function harbourFurniture() {
-  return {
-    boat: template([
-      part(prism(0.83, 1.17, -0.23, 0.57, 5).scale(0.98, 1, 2.85), '#ffffff', 1),
-      part(prism(1.17, 1.19, 0.57, 0.68, 5).scale(0.98, 1, 2.85), '#f1ece2'),
-      part(box(1.22, 0.73, 1.28, 0, 1.0, 0.21), '#e8e1d0'),
-      part(box(1.06, 0.29, 0.035, 0, 1.08, 0.87), '#46626b'),
-      part(box(1.36, 0.08, 1.44, 0, 1.41, 0.21), '#d9c7a8'),
-      part(prism(0.032, 0.023, 1.43, 2.85, 5), '#435961'),
-    ]),
-    sailboat: template([
-      part(prism(0.75, 1.2, -0.3, 0.72, 5).scale(1, 1, 3.4), '#ffffff', 1),
-      part(prism(1.2, 1.2, 0.72, 0.82, 5).scale(1, 1, 3.4), '#f3efe4'),
-      part(box(1.15, 0.42, 2.2, 0, 1.02, 0.3), '#efe9da'),
-      part(box(1.17, 0.14, 1.5, 0, 1.06, 0.35), '#3e5a66'),
-      part(prism(0.07, 0.045, 0.8, 11.5, 6, 0, 0.9), '#e9e6dc'),
-      part(prism(0.1, 0.1, -1.7, 1.7, 6).rotateX(Math.PI / 2).translate(0, 1.95, -0.9), '#e4ddca'),
-      part(box(0.9, 0.05, 0.05, 0, 7.6, 0.9), '#c9c6bc'),
-      part(box(0.025, 0.025, 10.9).rotateX(1.32).translate(0, 6.2, 2.25), '#8f9699'),
-    ]),
-    /** Ponton flottant de 6 m (long : z) et ses pieux. */
-    dock: template([
-      part(box(2.3, 0.26, 6.05, 0, 0.18), '#735b48'),
-      ...Array.from({ length: 11 }, (_, i) => part(box(2.32, 0.09, 0.5, 0, 0.35, (i - 5) * 0.54), i % 4 ? '#a88766' : '#b89974')),
-      ...[-1.2, 1.2].map((x) => part(prism(0.14, 0.14, -2.5, 1.5, 6, x, 2.4), '#58483d')),
-    ]),
-    finger: template([part(box(0.85, 0.2, 5, 0, 0.2), '#735b48'), part(box(0.87, 0.06, 5, 0, 0.33), '#b08f6c')]),
-    ramp: template([
-      part(box(1.8, 0.12, 9), '#9a7a58'),
-      ...[-0.9, 0.9].flatMap((x) => [part(box(0.06, 0.06, 9, x, 0.95), '#e9e6dc'), ...[-4.4, 0, 4.4].map((z) => part(box(0.06, 0.95, 0.06, x, 0.5, z), '#e9e6dc'))]),
-    ]),
-    /** Mur de quai (long : z, 10 m), dessus à 0, couronnement clair et bitte d'amarrage. */
-    quay: template([part(box(2.4, 5.4, 10.1, 0, -2.75), '#8f887b'), part(box(2.7, 0.3, 10.1, 0, -0.1), '#c9c2b1'), part(prism(0.16, 0.2, 0.05, 0.5, 6), '#3a3f44')]),
-    crates: template([
-      part(box(1.1, 0.7, 0.8, 0, 0.35), '#3f7f8f'),
-      part(box(1.1, 0.7, 0.8, 1.2, 0.35, 0.1), '#d9643f'),
-      part(box(1.1, 0.7, 0.8, 0.5, 1.05), '#e7c25a'),
-      part(box(0.9, 0.45, 0.9, -1.3, 0.22, 0.2), '#7a6a56'),
-    ]),
-    /** Capitainerie. */
-    office: template([
-      part(box(7, 3.4, 5, 0, 1.7), '#f2eee2'),
-      part(box(7.6, 0.3, 5.6, 0, 3.5), '#2f5d7c'),
-      part(box(3, 2.2, 3, -1.2, 4.7), '#f2eee2'),
-      part(box(3.1, 0.9, 3.1, -1.2, 4.9), '#4a6f83'),
-      part(box(3.5, 0.25, 3.5, -1.2, 5.9), '#2f5d7c'),
-      part(box(1.1, 2.2, 0.06, 1.8, 1.1, 2.52), '#2f5d7c'),
-      part(box(1.5, 1, 0.06, -0.6, 1.9, 2.52), '#4a6f83'),
-      part(box(1.5, 1, 0.06, -2.4, 1.9, 2.52), '#4a6f83'),
-      part(prism(0.05, 0.04, 6, 9.5, 6, -1.2), '#e9e6dc'),
-    ]),
-    beacon: template([
-      part(prism(1.5, 1.2, -1, 1.2, 8), '#c9c2b1'),
-      part(prism(0.85, 0.65, 1.2, 6.2, 8), '#ffffff', 1),
-      part(prism(0.95, 0.95, 6.2, 6.45, 8), '#f2f0e6'),
-      part(prism(0.5, 0.5, 6.45, 7.4, 8), '#f6e7a8'),
-      part(prism(0.65, 0.05, 7.4, 8.1, 8), '#ffffff', 1),
-    ]),
-    flag: flagPole(),
-  };
-}
-
 /** Lots fixes côté mer, indépendants du sens de passage et de l'itinéraire choisi. */
 export class RobertvilleScenery {
   readonly group = new THREE.Group();
   private readonly meshes = new Map<number, THREE.Mesh>();
   private readonly mesh = new MeshBuilder();
   private beach?: ReturnType<typeof beachFurniture>;
-  private harbour?: ReturnType<typeof harbourFurniture>;
   private adMaterial?: THREE.MeshStandardNodeMaterial;
 
   constructor(private readonly probe: LandProbe, private readonly material: THREE.Material, private season: Season = 'summer') {
@@ -227,7 +160,7 @@ export class RobertvilleScenery {
   setSeason(season: Season): void {
     if (this.season === season) return;
     this.season = season;
-    for (const [index, mesh] of this.meshes) if (index < SITES.length) this.drop(index, mesh);
+    for (const [index, mesh] of this.meshes) this.drop(index, mesh);
   }
 
   update(x: number, z: number, density: number): void {
@@ -236,27 +169,24 @@ export class RobertvilleScenery {
       return;
     }
     this.probe.forget();
-    for (let i = 0; i <= SITES.length; i++) {
-      const site = SITES[i];
-      const { x: cx, z: cz } = site ?? HARBOUR;
-      const reach = site ? BUILD_M : HARBOUR_BUILD_M;
+    for (const [i, site] of SITES.entries()) {
+      const { x: cx, z: cz } = site;
       const distance = Math.hypot(x - cx, z - cz);
       const current = this.meshes.get(i);
       if (current) {
-        if (distance > reach + FORGET_EXTRA_M) this.drop(i, current);
-        else current.castShadow = distance < 130;
+        if (distance > BUILD_M + FORGET_EXTRA_M) this.drop(i, current);
+        else current.castShadow = distance < 110;
         continue;
       }
-      if (distance > reach || !(site ? isRobertville(this.probe, cx, cz) : this.harbourReady())) continue;
+      if (distance > BUILD_M || !isRobertville(this.probe, cx, cz)) continue;
       this.mesh.reset();
-      const advertisement = site ? this.buildBeach(site, i, density) : undefined;
-      if (!site) this.buildHarbour();
+      const advertisement = this.buildBeach(site, i, density);
       const geometry = this.mesh.geometry();
       if (!geometry) continue;
       const object = new THREE.Mesh(geometry, this.material);
-      object.name = site ? `robertville-plage-${i}` : 'robertville-port';
+      object.name = `robertville-plage-${i}`;
       object.receiveShadow = true;
-      object.castShadow = distance < 130;
+      object.castShadow = distance < 110;
       object.matrixAutoUpdate = false;
       if (advertisement) object.add(advertisement);
       this.group.add(object);
@@ -264,13 +194,6 @@ export class RobertvilleScenery {
       // Un seul lot construit par mise à jour pendant le chargement initial.
       break;
     }
-  }
-
-  /** Le bassin est à cheval sur plusieurs tuiles : attendre les quatre coins. */
-  private harbourReady(): boolean {
-    const { x, z, halfLen, halfWid } = HARBOUR;
-    for (const dx of [-halfWid - 30, halfWid + 30]) for (const dz of [-halfLen - 20, halfLen + 40]) if (!isRobertville(this.probe, x + dx, z + dz)) return false;
-    return true;
   }
 
   private buildBeach(site: Site, index: number, density: number): THREE.Mesh | undefined {
@@ -402,76 +325,6 @@ export class RobertvilleScenery {
     const advertisement = new THREE.Mesh(geometry, material);
     advertisement.name = 'robertville-publicite';
     return advertisement;
-  }
-
-  /** Port : quais maçonnés, pontons reliés au quai ouest (côté ville), bateaux à quai, capitainerie, feux d'entrée. */
-  private buildHarbour(): void {
-    const kit = (this.harbour ??= harbourFurniture());
-    const { x, z, dir, halfLen, halfWid } = HARBOUR;
-    // u : vers le large ; w : vers l'ouest (la ville).
-    const ux = Math.cos(dir);
-    const uz = Math.sin(dir);
-    const at = (u: number, w: number): [number, number] => [x + ux * u - uz * w, z + uz * u + ux * w];
-    const alongU = Math.atan2(ux, uz);
-    const alongW = Math.atan2(-uz, ux);
-    const height = (u: number, w: number) => this.probe.heightAt(...at(u, w));
-    const put = (t: Template, u: number, w: number, y: number, yaw: number, colour = WHITE, scale = 1) => {
-      const [px, pz] = at(u, w);
-      this.mesh.put(t, px, y, pz, yaw, scale, scale, scale, colour);
-    };
-    const deep = (u: number, w: number) => height(u, w) < -0.6;
-    const land = (u: number, w: number) => {
-      const h = height(u, w);
-      return Number.isFinite(h) && h > 1.2 ? h : NaN;
-    };
-    // Quais : murs le long des trois côtés, là où la terre est bien derrière.
-    for (let u = -halfLen + 5; u < halfLen; u += 10)
-      for (const side of [-1, 1]) {
-        const y = land(u, side * (halfWid + 8));
-        if (Number.isFinite(y)) put(kit.quay, u, side * (halfWid + 0.2), Math.max(2.55, Math.min(y, 3)) + 0.2, alongU);
-      }
-    for (let w = -halfWid + 5; w < halfWid; w += 10) {
-      const y = land(-halfLen - 8, w);
-      if (Number.isFinite(y)) put(kit.quay, -halfLen - 0.2, w, Math.max(2.55, Math.min(y, 3)) + 0.2, alongW);
-    }
-    const random = rng(90817);
-    for (const [line, u] of [-165, -105, -45, 15, 75].entries()) {
-      if (!deep(u, 60)) continue;
-      // Passerelle du quai au ponton flottant : +z local vers l'ouest et vers le haut.
-      const [rx, rz] = at(u, halfWid - 4.6);
-      const pitch = Math.atan2(2.2, 8.7);
-      const c = Math.cos(pitch);
-      const s = Math.sin(pitch);
-      this.mesh.putBasis(kit.ramp, rx, 1.6, rz, ux, 0, uz, uz * s, c, -ux * s, -uz * c, s, ux * c, 1, 1, 1);
-      for (let w = halfWid - 12; w > halfWid - 68; w -= 6) if (deep(u, w)) put(kit.dock, u, w, 0, alongW);
-      for (let i = 0; i < 9; i++) {
-        const w = halfWid - 15 - i * 6;
-        for (const side of [-1, 1]) {
-          if (!deep(u + side * 8, w)) continue;
-          if (i % 2 === 0) put(kit.finger, u + side * 3.6, w + 3, 0, alongU);
-          if (random() < 0.2) continue;
-          const sail = random() < 0.45;
-          const yaw = alongU + (side > 0 ? Math.PI : 0) + (random() - 0.5) * 0.06;
-          put(sail ? kit.sailboat : kit.boat, u + side * (sail ? 6.2 : 5.1), w, 0, yaw, random() < 0.4 ? WHITE : SEA_COLOURS[(i + line) % SEA_COLOURS.length]!, sail ? 1 : 0.9 + random() * 0.25);
-        }
-      }
-    }
-    // Quai ouest : capitainerie, caisses, drapeaux.
-    const office = land(-30, halfWid + 14);
-    if (Number.isFinite(office)) put(kit.office, -30, halfWid + 14, office - 0.1, alongW);
-    for (const [i, u] of [-150, -85, 40, 95].entries()) {
-      const y = land(u, halfWid + 6);
-      if (Number.isFinite(y)) put(kit.crates, u, halfWid + 6, y, alongU + i);
-    }
-    for (const [i, u] of [-130, -60, 0, 60].entries()) {
-      const y = land(u, halfWid + 5);
-      if (Number.isFinite(y)) put(kit.flag, u, halfWid + 5, y, alongU, SEA_COLOURS[i]!);
-    }
-    // Feux d'entrée, au bout des deux quais.
-    for (const [side, colour] of [[-1, '#d2433b'], [1, '#2f8f5b']] as const) {
-      const y = land(halfLen + 25, side * (halfWid + 10));
-      if (Number.isFinite(y)) put(kit.beacon, halfLen + 25, side * (halfWid + 10), y, 0, new THREE.Color(colour));
-    }
   }
 
   private drop(index: number, mesh: THREE.Mesh): void {

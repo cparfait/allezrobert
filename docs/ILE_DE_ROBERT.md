@@ -70,6 +70,10 @@ Les tuiles (`tiles/`, ≈ 400 Mo) ne sont pas versionnées : les régénérer ap
 est présentée à côté de la carte de France (« Hors de France ») ; en direct : `/?world=ile-de-robert&route=anneau`
 (ou un autre identifiant d'itinéraire).
 
+`ISLAND_OUT=<dossier>` génère un essai ailleurs, sans toucher à l'île, au catalogue ni aux cartes du jeu. Les quais des deux
+ports (`ports.ts`) sont ajoutés après le tracé du réseau : ils ne changent aucune autre route. Les itinéraires portent leurs
+côtes et sprints chronométrés (`routes.ts`, `timedSegments`).
+
 Fichiers : `design.ts` (côte, relief, rivières, lacs, ports, lieux), `planner.ts` (recherche de chemin),
 `roads.ts` (profils, sol arasé, graphe), `settle.ts` (villes, station balnéaire, fermes, édifices),
 `land.ts` (bois, parcelles, plages, eau), `routes.ts` (itinéraires), `worker.ts` / `pool.ts` (calcul

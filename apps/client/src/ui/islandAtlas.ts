@@ -5,20 +5,22 @@ import './islandAtlas.css';
 const ISLAND_BOUNDS = { minX: -19000, minZ: -13000, width: 38000, height: 26000 };
 const MAP_W = 1520;
 const MAP_H = 1040;
-const PRIORITY = ['front-de-mer', 'anneau', 'phare', 'gravel-des-bois', 'tour-de-l-ile'];
+const PRIORITY = ['front-de-mer', 'port-de-robertville', 'anneau', 'criterium-saint-robert', 'anneau-piste-verte', 'phare', 'phare-versant-nord', 'chrono-du-plateau', 'kerbrou-et-le-port', 'gravel-des-vignes', 'tour-de-l-ile'];
 const PLACES = [
   { x: 971, z: 9601, label: 'Robertville', labelEn: 'Robertville', route: 'front-de-mer' },
   { x: 300, z: -200, label: 'Saint-Robert', labelEn: 'Saint-Robert', route: 'boucle-de-saint-robert' },
   { x: -4700, z: 900, label: 'L’Anneau', labelEn: 'The Ring', route: 'anneau' },
   { x: 7579, z: -8131, label: 'Col du Phare', labelEn: 'Lighthouse Pass', route: 'phare' },
   { x: -8200, z: -2600, label: 'Bois-Joli', labelEn: 'Bois-Joli', route: 'gravel-des-bois' },
-  { x: -1790, z: -9880, label: 'Kerbrou', labelEn: 'Kerbrou' },
-  { x: 6900, z: 2500, label: 'Vallon-sur-Robe', labelEn: 'Vallon-sur-Robe' },
+  { x: -1790, z: -9880, label: 'Kerbrou', labelEn: 'Kerbrou', route: 'kerbrou-et-le-port' },
+  { x: 6900, z: 2500, label: 'Vallon-sur-Robe', labelEn: 'Vallon-sur-Robe', route: 'voie-verte-de-la-robe' },
+  { x: 12300, z: 900, label: 'Les Granges', labelEn: 'Les Granges', route: 'chrono-du-plateau' },
+  { x: -2300, z: 3900, label: 'Les Vignes', labelEn: 'Les Vignes', route: 'tour-des-coteaux' },
 ] as const;
 
 const COPY = {
-  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', routes: 'Parcours', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné' },
-  en: { title: 'Robert’s Island', mode: 'POLY MODE', routes: 'Routes', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route' },
+  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', routes: 'Parcours', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné', about: 'environ', paved: 'bitume', boards: 'planches', offroad: 'chemins', climbs: 'côte', sprints: 'sprint' },
+  en: { title: 'Robert’s Island', mode: 'POLY MODE', routes: 'Routes', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route', about: 'about', paved: 'tarmac', boards: 'boardwalk', offroad: 'off-road', climbs: 'climb', sprints: 'sprint' },
 } as const;
 
 interface AtlasOptions {
@@ -41,6 +43,10 @@ function routeLabel(id: string, lang: AtlasOptions['lang']): string | undefined 
     'tour-de-l-ile': 'Island Tour', 'boucle-de-saint-robert': 'Saint-Robert Loop',
     'robertville-plage': 'Robertville via the Hills', 'col-du-phare': 'Lighthouse Pass Traverse',
     'piste-verte': 'The Greenway', 'gravel-des-bois': 'Woodland Gravel', 'vtt-des-bois': 'Woodland MTB',
+    'criterium-saint-robert': 'Saint-Robert Criterium', 'anneau-piste-verte': 'The Ring by the Greenway', 'port-de-robertville': 'Boardwalk and Harbour',
+    'chrono-du-plateau': 'Plateau Time Trial', 'voie-verte-de-la-robe': 'Robe Greenway', 'velomaritime': 'Coast Greenway',
+    'phare-versant-nord': 'Lighthouse from the North', 'kerbrou-et-le-port': 'Kerbrou and Bois-Joli', 'tour-des-coteaux': 'Hills Loop',
+    'gravel-du-plateau': 'Plateau Gravel', 'gravel-des-vignes': 'Vineyard Gravel', 'gravel-de-la-lagune': 'Lagoon Gravel',
   };
   return names[id];
 }
@@ -107,6 +113,22 @@ function paintProfile(canvas: HTMLCanvasElement, route: RouteData): void {
   ctx.fill();
 }
 
+/** Durée estimée (27 km/h sur le plat, un peu plus lent en montée et hors bitume), revêtements, segments chronométrés. */
+function routeFacts(route: RouteData, lang: AtlasOptions['lang']): string {
+  const copy = COPY[lang];
+  const share = { asphalt: 0, wood: 0, dirt: 0 };
+  for (const s of route.surfaces ?? []) share[s.surface === 'asphalt' ? 'asphalt' : s.surface === 'wood' ? 'wood' : 'dirt'] += s.endM - s.startM;
+  const total = share.asphalt + share.wood + share.dirt || 1;
+  const min = Math.max(1, Math.round((route.lengthM / 7.5 + route.elevationGainM * 3.2 + share.dirt * 0.07) / 60));
+  const time = min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+  const ground = ([['asphalt', copy.paved], ['wood', copy.boards], ['dirt', copy.offroad]] as const).filter(([k]) => share[k] / total > 0.02).map(([k, name]) => `${name} ${Math.round((share[k] / total) * 100)} %`);
+  const count = (kind: string, name: string) => {
+    const n = route.segments.filter((s) => s.kind === kind).length;
+    return n ? `${n} ${name}${n > 1 ? 's' : ''}` : '';
+  };
+  return [`${copy.about} ${time}`, ...ground, count('kom', copy.climbs), count('sprint', copy.sprints)].filter(Boolean).join(' · ');
+}
+
 function mapFocus(route: RouteData | undefined): { scale: number; x: number; z: number } {
   if (!route?.points.length) return { scale: 1, x: 0, z: 0 };
   let lx = 1, lz = 1, hx = 0, hz = 0;
@@ -154,7 +176,7 @@ export class IslandAtlas {
         <div class="ia-side">
           <header class="ia-side-head"><h3>${copy.routes}</h3><button type="button" class="mm-x" data-picker-close aria-label="${copy.close}">×</button></header>
           <div class="ia-routes">${rows || `<p class="ia-empty">${copy.unavailable}</p>`}</div>
-          ${rows ? `<div class="ia-selection"><canvas class="ia-profile" width="480" height="42" aria-hidden="true"></canvas><button type="button" class="ia-pick" data-routepick="${esc(this.activeId)}">${copy.pick}<span aria-hidden="true"> →</span></button><button type="button" class="ia-detail" data-route="${esc(this.activeId)}">${copy.details}</button></div>` : ''}
+          ${rows ? `<div class="ia-selection"><canvas class="ia-profile" width="480" height="42" aria-hidden="true"></canvas><p class="ia-facts" data-ia-facts></p><button type="button" class="ia-pick" data-routepick="${esc(this.activeId)}">${copy.pick}<span aria-hidden="true"> →</span></button><button type="button" class="ia-detail" data-route="${esc(this.activeId)}">${copy.details}</button></div>` : ''}
           <footer class="ia-actions">${allowFree ? `<button type="button" data-zc="free">${copy.free}</button>` : ''}${allowDraw ? `<button type="button" data-zc="draw">${copy.draw}</button>` : ''}${packAction}</footer>
         </div>
       </div>
@@ -170,6 +192,7 @@ export class IslandAtlas {
     const zoom = atlas.querySelector<HTMLButtonElement>('[data-ia-zoom]')!;
     const scaleBar = atlas.querySelector<HTMLElement>('.ia-scale')!;
     const status = atlas.querySelector<HTMLElement>('[data-ia-status]')!;
+    const facts = atlas.querySelector<HTMLElement>('[data-ia-facts]')!;
     const pick = atlas.querySelector<HTMLButtonElement>('[data-routepick]')!;
     const details = atlas.querySelector<HTMLButtonElement>('[data-route]')!;
     const choices = atlas.querySelectorAll<HTMLButtonElement>('[data-ia-choice]');
@@ -207,6 +230,7 @@ export class IslandAtlas {
       current = undefined;
       zoom.disabled = true;
       status.textContent = '';
+      facts.textContent = '';
       canvas.getContext('2d')?.clearRect(0, 0, canvas.width, canvas.height);
       profile.getContext('2d')?.clearRect(0, 0, profile.width, profile.height);
       const token = ++request;
@@ -216,6 +240,7 @@ export class IslandAtlas {
         zoom.disabled = false;
         paintRoute(canvas, route);
         paintProfile(profile, route);
+        facts.textContent = routeFacts(route, lang);
         scopeMap();
       };
       const loaded = store.get(id);

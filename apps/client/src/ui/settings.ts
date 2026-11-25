@@ -1,3 +1,4 @@
+import type { PlayerCity } from '../game/communes.ts';
 import { DEFAULT_LOOK, ROAD_FEEL, migrateBikeId, type AvatarLook, type RideMode } from '@allezrobert/shared';
 import type { QualityLevel } from '../engine/quality.ts';
 import type { Season } from '../world/environment.ts';
@@ -78,6 +79,8 @@ export interface Settings {
   weatherEvolves: boolean;
   /** Météo réelle du jour au départ (Open-Meteo), à l'heure choisie, au lieu du ciel et du vent réglés. */
   realWeather: boolean;
+  /** Ville du joueur (profil) : météo du jour sur l'île, qui n'existe pas. Absente : Paris. */
+  city?: PlayerCity;
   /** Course sur une boucle : nombre de tours. */
   raceLaps: number;
   /** Course locale : en ligne (départ groupé) ou contre-la-montre (départs décalés, sans aspiration). */

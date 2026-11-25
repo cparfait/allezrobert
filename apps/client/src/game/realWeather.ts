@@ -1,6 +1,6 @@
 /**
  * Météo réelle du jour au lieu de la sortie, d'après Open-Meteo (https://open-meteo.com) : gratuit,
- * sans clé ni compte, données sous licence CC BY 4.0. Seule la position du départ (arrondie à
+ * sans clé ni compte, données sous licence CC BY 4.0. Seule la position du départ, ou celle de la ville du joueur sur l'île (arrondie à
  * 0,01°, ≈ 1 km) quitte le navigateur. La conversion vers les curseurs du jeu est pure et testée.
  */
 
@@ -76,7 +76,8 @@ export function openMeteoUrl(lat: number, lon: number): string {
     longitude: lon.toFixed(2),
     hourly: 'cloud_cover,precipitation,weather_code,visibility,wind_speed_10m,wind_direction_10m',
     wind_speed_unit: 'ms',
-    timezone: 'Europe/Paris',
+    // heure locale du point (villes d'outre-mer)
+    timezone: 'auto',
     forecast_days: '1',
   });
   return `https://api.open-meteo.com/v1/forecast?${q}`;
