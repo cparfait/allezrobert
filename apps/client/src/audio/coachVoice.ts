@@ -19,11 +19,18 @@ interface Queued {
 }
 
 type Table = Record<string, Record<string, string> | undefined>;
-let table: Promise<Table> | null = null;
-const loadTable = (): Promise<Table> =>
-  (table ??= fetch('/voice/coach/coach.json')
-    .then((r) => (r.ok ? (r.json() as Promise<Table>) : {}))
-    .catch((): Table => ({})));
+/** Banques de morceaux (public/voice/<banque>/<banque>.json) : « coach », « ds » (directeur sportif, dsLines.ts). */
+const tables = new Map<string, Promise<Table>>();
+const loadTable = (bank: string): Promise<Table> => {
+  let t = tables.get(bank);
+  if (!t) {
+    t = fetch(`/voice/${bank}/${bank}.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<Table>) : {}))
+      .catch((): Table => ({}));
+    tables.set(bank, t);
+  }
+  return t;
+};
 
 /** Seuil du blanc (≈ −40 dB) et marge gardée autour de la voix (s). */
 const SILENCE = 0.01;
@@ -63,11 +70,19 @@ export class CoachVoice {
   private running = false;
   private stopped = false;
 
+  /** `banks` : banques lues dans l'ordre, la première qui a la clé la donne (le directeur sportif lit « ds » puis « coach »). */
   constructor(
     private readonly out: () => Out | null,
     private readonly lang: 'fr' | 'en',
+    private readonly banks: readonly string[] = ['coach'],
   ) {
-    void loadTable();
+    for (const b of banks) void loadTable(b);
+  }
+
+  /** Toutes ces clés sont-elles enregistrées ? (Sinon l'appelant dit la phrase autrement.) */
+  async has(keys: readonly string[]): Promise<boolean> {
+    const ts = await Promise.all(this.banks.map(loadTable));
+    return keys.every((k) => ts.some((t) => t[this.lang]?.[k]));
   }
 
   /** Décode des morceaux à l'avance (alertes dites sans délai). */
@@ -104,12 +119,13 @@ export class CoachVoice {
   private buffer(key: string): Promise<AudioBuffer | null> {
     let p = this.buffers.get(key);
     if (!p) {
-      p = loadTable().then(async (t) => {
-        const file = t[this.lang]?.[key];
+      p = Promise.all(this.banks.map(loadTable)).then(async (ts) => {
+        const i = ts.findIndex((t) => t[this.lang]?.[key]);
+        const file = i < 0 ? undefined : ts[i]?.[this.lang]?.[key];
         const o = this.out();
         if (!file || !o) return null;
         try {
-          const r = await fetch(`/voice/coach/${file}`);
+          const r = await fetch(`/voice/${this.banks[i]}/${file}`);
           return r.ok ? trimSilence(o.ctx, await o.ctx.decodeAudioData(await r.arrayBuffer())) : null;
         } catch {
           return null;

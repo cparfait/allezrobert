@@ -2627,7 +2627,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   let onTimeTrialFinish = null as ((res: Array<{ name: string; t: number; me?: boolean }>) => void) | null;
   /** Course locale arrivée (étape du tour, contre-la-montre) : de quoi faire le bilan de course du résumé (game/raceReport.ts). */
   let raceForReport: { result: StageResult; segs: ReadonlyArray<{ kind: 'kom' | 'sprint'; name: string; atM: number; lengthM: number }>; riders: Record<string, { name: string; team?: string }> } | null = null;
-  const directorVoice = new DirectorVoice();
+  const directorVoice = new DirectorVoice(() => audio.audio.voiceOut());
   const dsOn = new URLSearchParams(location.search).get('ds') !== '0';
   if (dsOn && peloton.riders.length) directorVoice.warm();
   const aiStates = new Map<string, string>();
@@ -2665,7 +2665,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
           const best = res[0];
           const L = getLang() === 'fr';
           const gap = best && !best.me ? Math.round(ride.elapsedS - best.t) : 0;
-          const l = { fr: rank === 1 ? `Victoire ! Meilleur temps, ${Math.round((res[1]?.t ?? ride.elapsedS) - ride.elapsedS)} secondes d’avance.` : `Tu termines ${rank}e, à ${gap} secondes de ${best?.name}.`, en: rank === 1 ? 'Win! Fastest time.' : `You finish ${rank}th, ${gap} seconds behind ${best?.name}.`, urgent: true };
+          const l = DirecteurSportif.ttFinish(rank, gap, Math.round((res[1]?.t ?? ride.elapsedS) - ride.elapsedS), best?.name);
           hud.toast(`🏁 ${L ? l.fr : l.en}`);
           if (dsOn) directorVoice.say(l);
           onTimeTrialFinish?.(res);

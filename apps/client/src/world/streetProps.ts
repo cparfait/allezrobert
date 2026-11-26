@@ -118,33 +118,121 @@ const TABLE_TOP = [new THREE.Color(0.72, 0.7, 0.65), new THREE.Color(0.08, 0.08,
 const CHAIR = [new THREE.Color(0.42, 0.28, 0.14), new THREE.Color(0.55, 0.08, 0.07), new THREE.Color(0.1, 0.3, 0.18), new THREE.Color(0.5, 0.36, 0.2)];
 const IRON = new THREE.Color(0.05, 0.05, 0.05);
 
-/** Accumule des géométries colorées dans un repère (le long du mur, haut, vers la rue). */
-class PropSink {
-  readonly parts: THREE.BufferGeometry[] = [];
-  private readonly m = new THREE.Matrix4();
-
-  add(g: THREE.BufferGeometry, color: THREE.Color, basis: THREE.Matrix4, at: THREE.Vector3): void {
+/** Sommets d'une pièce de mobilier sans indices (positions, normales), préparés une fois par géométrie. */
+const flatCache = new WeakMap<THREE.BufferGeometry, { pos: Float32Array; nor: Float32Array }>();
+function flat(g: THREE.BufferGeometry): { pos: Float32Array; nor: Float32Array } {
+  let f = flatCache.get(g);
+  if (!f) {
     const ni = g.index ? g.toNonIndexed() : g;
-    if (ni.getAttribute('uv')) ni.deleteAttribute('uv');
-    this.m.copy(basis).setPosition(at);
-    ni.applyMatrix4(this.m);
-    const n = ni.getAttribute('position').count;
-    const col = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) col.set([color.r, color.g, color.b], i * 3);
-    ni.setAttribute('color', new THREE.BufferAttribute(col, 3));
     if (!ni.getAttribute('normal')) ni.computeVertexNormals();
-    this.parts.push(ni);
+    f = { pos: Float32Array.from(ni.getAttribute('position').array), nor: Float32Array.from(ni.getAttribute('normal').array) };
+    flatCache.set(g, f);
+  }
+  return f;
+}
+
+/**
+ * Accumule des pièces colorées (sans indices : positions, normales, couleurs) directement dans des tableaux, au lieu
+ * d'une géométrie three.js par pied de chaise ou bande de store fusionnées ensuite : 4,9 % du processeur en roulant
+ * dans Boulogne à 40 coureurs (copie, transformation et fusion de milliers de petites géométries, 26/11/2026).
+ */
+class PropSink {
+  private pos = new Float32Array(3 * 4096);
+  private nor = new Float32Array(3 * 4096);
+  private col = new Float32Array(3 * 4096);
+  /** Sommets écrits. */
+  count = 0;
+
+  private reserve(n: number): void {
+    const need = (this.count + n) * 3;
+    if (need <= this.pos.length) return;
+    const size = Math.max(need, this.pos.length * 2);
+    for (const k of ['pos', 'nor', 'col'] as const) {
+      const a = new Float32Array(size);
+      a.set(this[k]);
+      this[k] = a;
+    }
   }
 
-  /** Quad (quatre coins dans le monde), une couleur, tourné vers `towards`. */
+  /** Pièce `g` dans le repère orthonormé `basis` (le long du mur, haut, vers la rue), posée en `at`. */
+  add(g: THREE.BufferGeometry, color: THREE.Color, basis: THREE.Matrix4, at: THREE.Vector3): void {
+    const { pos, nor } = flat(g);
+    const n = pos.length / 3;
+    this.reserve(n);
+    const e = basis.elements;
+    const P = this.pos;
+    const N = this.nor;
+    const C = this.col;
+    let o = this.count * 3;
+    for (let i = 0; i < pos.length; i += 3, o += 3) {
+      const x = pos[i] as number;
+      const y = pos[i + 1] as number;
+      const z = pos[i + 2] as number;
+      P[o] = (e[0] as number) * x + (e[4] as number) * y + (e[8] as number) * z + at.x;
+      P[o + 1] = (e[1] as number) * x + (e[5] as number) * y + (e[9] as number) * z + at.y;
+      P[o + 2] = (e[2] as number) * x + (e[6] as number) * y + (e[10] as number) * z + at.z;
+      // Repère orthonormé : les normales tournent comme les positions.
+      const a = nor[i] as number;
+      const b = nor[i + 1] as number;
+      const c = nor[i + 2] as number;
+      N[o] = (e[0] as number) * a + (e[4] as number) * b + (e[8] as number) * c;
+      N[o + 1] = (e[1] as number) * a + (e[5] as number) * b + (e[9] as number) * c;
+      N[o + 2] = (e[2] as number) * a + (e[6] as number) * b + (e[10] as number) * c;
+      C[o] = color.r;
+      C[o + 1] = color.g;
+      C[o + 2] = color.b;
+    }
+    this.count += n;
+  }
+
+  /** Quad (quatre coins dans le monde, deux triangles a-b-c et a-c-d), une couleur. */
   quad(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, color: THREE.Color): void {
+    this.tri(a, b, c, color);
+    this.tri(a, c, d, color);
+  }
+
+  private tri(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, color: THREE.Color): void {
+    this.reserve(3);
+    // Normale du triangle (comme computeVertexNormals sur des sommets non partagés).
+    const ux = b.x - a.x;
+    const uy = b.y - a.y;
+    const uz = b.z - a.z;
+    const vx = c.x - a.x;
+    const vy = c.y - a.y;
+    const vz = c.z - a.z;
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1;
+    nx /= l;
+    ny /= l;
+    nz /= l;
+    let o = this.count * 3;
+    for (const p of [a, b, c]) {
+      this.pos[o] = p.x;
+      this.pos[o + 1] = p.y;
+      this.pos[o + 2] = p.z;
+      this.nor[o] = nx;
+      this.nor[o + 1] = ny;
+      this.nor[o + 2] = nz;
+      this.col[o] = color.r;
+      this.col[o + 1] = color.g;
+      this.col[o + 2] = color.b;
+      o += 3;
+    }
+    this.count += 3;
+  }
+
+  /** Géométrie finale (null si vide). */
+  geometry(): THREE.BufferGeometry | null {
+    if (!this.count) return null;
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, a.x, a.y, a.z, c.x, c.y, c.z, d.x, d.y, d.z], 3));
-    g.computeVertexNormals();
-    const col = new Float32Array(18);
-    for (let i = 0; i < 6; i++) col.set([color.r, color.g, color.b], i * 3);
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    this.parts.push(g);
+    const n = this.count * 3;
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos.slice(0, n), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(this.nor.slice(0, n), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(this.col.slice(0, n), 3));
+    g.computeBoundingSphere();
+    return g;
   }
 }
 
@@ -167,13 +255,9 @@ export function buildShopProps(shopWalls: readonly number[], street: StreetIndex
   const up = new THREE.Vector3(0, 1, 0);
   const basis = new THREE.Matrix4();
   const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
-  // Pièces de mobilier (locales : x le long du mur, y en haut, z vers la rue).
-  const tableTop = new THREE.CylinderGeometry(0.3, 0.3, 0.03, 12);
-  const tableFoot = new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6);
-  const tableBase = new THREE.CylinderGeometry(0.2, 0.22, 0.03, 10);
-  const seat = new THREE.BoxGeometry(0.4, 0.04, 0.4);
-  const back = new THREE.BoxGeometry(0.4, 0.38, 0.035);
-  const leg = new THREE.BoxGeometry(0.03, 0.45, 0.03);
+  const { tableTop, tableFoot, tableBase, seat, back, leg } = furniture();
+  const cb = new THREE.Matrix4();
+  const tmp = new THREE.Vector3();
   for (let i = 0; i + SHOP_WALL_STRIDE - 1 < shopWalls.length; i += SHOP_WALL_STRIDE) {
     const ax = shopWalls[i] as number;
     const az = shopWalls[i + 1] as number;
@@ -235,31 +319,41 @@ export function buildShopProps(shopWalls: readonly number[], street: StreetIndex
         const ground = groundAt(ax + dx * s + nx * out, az + dz * s + nz * out);
         const y = (Number.isFinite(ground) ? ground : g) + CURB_H;
         const p = at(s, out, y);
-        sink.add(tableBase, IRON, basis, p.clone().setY(y + 0.015));
-        sink.add(tableFoot, IRON, basis, p.clone().setY(y + 0.37));
-        sink.add(tableTop, top0, basis, p.clone().setY(y + 0.73));
+        sink.add(tableBase, IRON, basis, tmp.copy(p).setY(y + 0.015));
+        sink.add(tableFoot, IRON, basis, tmp.copy(p).setY(y + 0.37));
+        sink.add(tableTop, top0, basis, tmp.copy(p).setY(y + 0.73));
         for (const side of [-1, 1]) {
           const cp = at(s + side * 0.5, out, y);
           // Chaise tournée vers la table : dossier du côté opposé.
-          const cb = new THREE.Matrix4().makeBasis(v(nx, 0, nz), up, v(dx * side, 0, dz * side));
-          sink.add(seat, chair, cb, cp.clone().setY(y + 0.45));
-          sink.add(back, chair, cb, cp.clone().add(v(dx * side * 0.19, 0, dz * side * 0.19)).setY(y + 0.66));
-          for (const [lx, lz] of [
-            [-0.17, -0.17],
-            [0.17, -0.17],
-            [-0.17, 0.17],
-            [0.17, 0.17],
-          ] as const)
-            sink.add(leg, IRON, cb, cp.clone().add(v(nx * lx + dx * side * lz, 0, nz * lx + dz * side * lz)).setY(y + 0.225));
+          cb.makeBasis(v(nx, 0, nz), up, v(dx * side, 0, dz * side));
+          sink.add(seat, chair, cb, tmp.copy(cp).setY(y + 0.45));
+          sink.add(back, chair, cb, tmp.set(cp.x + dx * side * 0.19, y + 0.66, cp.z + dz * side * 0.19));
+          for (const [lx, lz] of LEGS) sink.add(leg, IRON, cb, tmp.set(cp.x + nx * lx + dx * side * lz, y + 0.225, cp.z + nz * lx + dz * side * lz));
         }
       }
     }
   }
-  if (!sink.parts.length) return null;
-  const merged = mergeGeometries(sink.parts, false);
-  if (!merged) return null;
-  merged.computeBoundingSphere();
-  return merged;
+  return sink.geometry();
+}
+
+const LEGS = [
+  [-0.17, -0.17],
+  [0.17, -0.17],
+  [-0.17, 0.17],
+  [0.17, 0.17],
+] as const;
+
+/** Pièces de mobilier (locales : x le long du mur, y en haut, z vers la rue), créées une fois. */
+let furnitureParts: Record<'tableTop' | 'tableFoot' | 'tableBase' | 'seat' | 'back' | 'leg', THREE.BufferGeometry> | null = null;
+function furniture(): NonNullable<typeof furnitureParts> {
+  return (furnitureParts ??= {
+    tableTop: new THREE.CylinderGeometry(0.3, 0.3, 0.03, 12),
+    tableFoot: new THREE.CylinderGeometry(0.025, 0.025, 0.7, 6),
+    tableBase: new THREE.CylinderGeometry(0.2, 0.22, 0.03, 10),
+    seat: new THREE.BoxGeometry(0.4, 0.04, 0.4),
+    back: new THREE.BoxGeometry(0.4, 0.38, 0.035),
+    leg: new THREE.BoxGeometry(0.03, 0.45, 0.03),
+  });
 }
 
 /** Toiles, tables et chaises : couleurs par sommet, toile visible des deux côtés. */
