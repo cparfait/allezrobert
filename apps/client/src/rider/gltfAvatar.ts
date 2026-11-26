@@ -172,12 +172,12 @@ const AVATAR_KIND: AvatarKind = AVATAR_PARAM === 'classic' || AVATAR_PARAM === '
  * et 7,1 k triangles en tout).
  */
 /**
- * Coureuses : corps des hommes (modèle MPFB de base) auquel le curseur « sex » ajoute poitrine et
- * silhouette féminine, cou ajusté. L'ancien modèle féminin distinct (rider_female*.glb, difforme)
- * reste disponible avec ?femmes=modele.
+ * Coureuses : modèle féminin dédié (rider_female*.glb), ajusté aux mesures d'un corps féminin de référence
+ * depuis le 26/11/2026 (build_avatar.py --variant female, fit_reference). ?femmes=zones : ancien rendu, corps des
+ * hommes auquel le curseur « sex » ajoute tête, cou et poitrine ; ?femmes=sex : curseur « sex » sur tout le corps.
  */
 const FEMALES_PARAM = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('femmes');
-const FEMALE_OWN_MODEL = FEMALES_PARAM === 'modele';
+const FEMALE_OWN_MODEL = FEMALES_PARAM !== 'zones' && FEMALES_PARAM !== 'sex';
 /** Curseur « sex » appliqué en entier à tout le corps (?femmes=sex) : ancien rendu, morphologie féminine complète. */
 const SEX_FULL_BODY = FEMALES_PARAM === 'sex' || FEMALE_OWN_MODEL;
 /**
@@ -1432,7 +1432,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
    * (attendues aussi ; les autres se chargent à la demande). Renvoie false si le coureur ou le
    * vélo de base manque.
    */
-  // Modèle féminin dédié chargé seulement avec ?femmes=modele : sans ce paramètre il ne sert jamais (constructeur).
+  // Modèle féminin dédié chargé par défaut (pas avec ?femmes=zones ni ?femmes=sex).
   static async load(families: readonly BikeFamily[] = [], baseUrl = `${import.meta.env.BASE_URL}models/`, kinds: readonly AvatarKind[] = AVATAR_KIND === 'mpfb' ? (FEMALE_OWN_MODEL ? ['mpfb', 'female'] : ['mpfb']) : [AVATAR_KIND]): Promise<boolean> {
     const extra = Promise.all(families.map((f) => loadBikeFamily(f)));
     const ok = await Promise.all(kinds.map((k) => GltfRiderAvatar.loadKind(k, baseUrl)));

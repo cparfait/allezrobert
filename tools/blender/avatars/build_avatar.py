@@ -62,7 +62,7 @@ ap.add_argument('--height', type=float, default=-1.0)   # macro MPFB « height �
 ap.add_argument('--cup', type=float, default=-1.0)      # macro MPFB « cupsize »
 ap.add_argument('--humerus', type=float, default=-1.0)  # remplace HUMERUS_SCALE
 ap.add_argument('--reach', type=float, default=-1.0)     # remplace ARM_REACH
-ap.add_argument('--forearm', type=float, default=0.855)  # facteur de longueur de l'avant-bras (0,267 → 0,228 m, modèle de référence ; 1,0 avant le 26/11/2026)
+ap.add_argument('--forearm', type=float, default=-1.0)  # facteur de longueur de l'avant-bras ; par défaut 0,855 homme (0,267 → 0,228 m), 1,04 femme (0,232 → 0,241 m), mesures de référence du 26/11/2026
 ap.add_argument('--neck', type=float, default=3.0)      # intensité de FEMALE_NECK (variante féminine)
 ap.add_argument('--glute-flat', type=float, default=-1.0)   # remplace GLUTE_FLAT
 ap.add_argument('--glute-start', type=float, default=-1.0)  # remplace GLUTE_START
@@ -74,6 +74,12 @@ ap.add_argument('--fit', type=float, default=1.0)  # ajustement aux mesures du m
 ap.add_argument('--torso-fill', type=float, default=0.0)  # intensité de TORSO_FILL (premier essai de buste plein, remplacé par --fit), 0 par défaut
 ap.add_argument('--skull', type=float, default=0.8)     # arrière du crâne moins profond (SKULL_BACK), 0 : base MPFB
 args = ap.parse_args(argv)
+# Longueurs des bras des corps de référence (26/11/2026) : homme humérus 0,244 / avant-bras 0,228 (HUMERUS_SCALE, 0,855),
+# femme 0,252 / 0,241 (humérus MPFB 0,262 × 0,962, avant-bras 0,232 × 1,04 ; 0,330 / 0,260 avant).
+if args.forearm <= 0:
+    args.forearm = 1.04 if args.variant == 'female' else 0.855
+if args.humerus <= 0 and args.variant == 'female':
+    args.humerus = 0.962
 OUT = os.path.abspath(args.out)
 os.makedirs(OUT, exist_ok=True)
 
@@ -530,23 +536,40 @@ def fill_lumbar(body, base_m, depth):
 
 
 REFERENCE_BODY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference_body.json')
+REFERENCE_SHAPES = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference_shapes.json')
+# Cibles de carrure ajustées aux corps mince et costaud (curseur « carrure » du jeu : weight − / +).
+SHAPE_KEY_REFS = {'male': {'weight-': 'male_skinny', 'weight+': 'male_big'},
+                  'female': {'weight-': 'female_skinny', 'weight+': 'female_big'}}
+
+
+def reference_for(name):
+    """Mesures d'un corps de référence : « male » (reference_body.json) ou une entrée de reference_shapes.json."""
+    import json
+    path = REFERENCE_BODY if name == 'male' else REFERENCE_SHAPES
+    with open(path, encoding='utf-8') as f:
+        data = json.load(f)
+    return data if name == 'male' else data[name]
 ARM_GROUPS = ('clavicle_', 'upperarm_', 'lowerarm_', 'hand_', 'thumb_', 'index_', 'middle_', 'ring_', 'pinky_')
 HEAD_GROUPS = ('head',)
 LEG_GROUPS = ('thigh_', 'calf_', 'foot_', 'ball_')
 
 
-def fit_reference(body, rig, strength=1.0):
+def fit_reference(body, rig, strength=1.0, ref_name='male', key=None):
     """Corps ajusté aux mesures du modèle de référence (reference_body.json) : le tronc tranche par tranche
     (largeur et profondeur des sections horizontales, hauteurs ramenées aux articulations de la hanche et de
     l'épaule), puis cuisses, mollets, bras et avant-bras section par section le long de leur os. Chaque sommet
     est rapproché ou écarté du centre de sa section, en proportion de son poids sur le tronc ou sur l'os du
-    membre ; le squelette ne bouge pas. Même déplacement dans toutes les cibles."""
-    import json
-    with open(REFERENCE_BODY, encoding='utf-8') as f:
-        ref = json.load(f)
+    membre ; le squelette ne bouge pas. Même déplacement dans toutes les cibles ; avec `key`, seule cette cible est
+    mesurée et ajustée (cibles de carrure : corps mince ou costaud au curseur à fond)."""
+    ref = reference_for(ref_name)
     mw = body.matrix_world
     imw3 = mw.inverted().to_3x3()
     blocks = list(body.data.shape_keys.key_blocks) if body.data.shape_keys else None
+    if key is not None:
+        if not blocks or key not in body.data.shape_keys.key_blocks:
+            print(f'ajustement {ref_name} : cible {key} absente')
+            return
+        blocks = [body.data.shape_keys.key_blocks[key]]
     src = blocks[0].data if blocks else body.data.vertices
     co = [mw @ v.co for v in src]
     names = {g.index: g.name for g in body.vertex_groups}
@@ -708,7 +731,7 @@ def fit_reference(body, rig, strength=1.0):
             if shifts[i].length_squared > 0:
                 v.co = v.co + imw3 @ shifts[i]
     moved = sum(1 for sh in shifts if sh.length > 1e-4)
-    print(f'ajustement au modèle de référence : {moved} sommets déplacés, stature {stature:.3f} m (× {s:.3f})')
+    print(f'ajustement {ref_name}{" / " + key if key else ""} : {moved} sommets déplacés, stature {stature:.3f} m (× {s:.3f})')
     body.data.update()
 
 
@@ -949,8 +972,10 @@ def build_base(HS, TS, LS):
     shape_glutes(body, base_m)
     fill_lumbar(body, base_m, LUMBAR_FILL)
     hollow_nape(body, base_m, NAPE_DEPTH[args.variant])
-    if args.variant == 'male' and args.fit > 0:
-        fit_reference(body, rig, args.fit)
+    if args.fit > 0:
+        fit_reference(body, rig, args.fit, args.variant)
+        for kname, rname in SHAPE_KEY_REFS[args.variant].items():
+            fit_reference(body, rig, args.fit, rname, kname)
     for m in list(body.modifiers):
         if m.type == 'MASK':
             body.modifiers.remove(m)
@@ -2887,7 +2912,7 @@ def main():
     assign_kit(body, rig)
     assign_eyes(eyes, rig)
     lengthen_humerus(body, rig)
-    if args.variant == 'male' and args.fit > 0:
+    if args.fit > 0:
         fit_hands(body, rig)
     stabilize_glutes(body, rig)
     soften_joints(body, rig)

@@ -81,6 +81,8 @@ export interface BodyLook {
   sockLen: number;
   build: number;
   female: boolean;
+  /** Carrure : −1 mince, 0 de base, +1 costaud (curseur « carrure » du coureur, comme les cibles weight−/+ du Réel). */
+  girth?: number;
   /**
    * Motifs du maillot dessinés dans le shader (pois, dégradé, chevrons, logo : jerseyPattern.ts, les mêmes
    * que l'avatar réaliste) ; les aplats (bandes, manches, moitié) restent des couleurs de sommets.
@@ -286,6 +288,33 @@ class Builder {
   }
 }
 
+/** Facteurs de section par région : largeur (W) et profondeur (D) des épaules, du thorax, de la taille, des hanches et des membres. */
+type BodyFactors = Record<'shW' | 'chD' | 'waW' | 'waD' | 'hiW' | 'hiD' | 'thW' | 'thD' | 'caW' | 'caD' | 'uaW' | 'uaD' | 'faW' | 'faD', number>;
+const ONE: BodyFactors = { shW: 1, chD: 1, waW: 1, waD: 1, hiW: 1, hiD: 1, thW: 1, thD: 1, caW: 1, caD: 1, uaW: 1, uaD: 1, faW: 1, faD: 1 };
+/**
+ * Rapports mesurés sur les corps de l'étude (26/11/2026, mesures seulement ; tools/blender/avatars/reference_shapes.json) :
+ * femme par rapport à l'homme, mince et costaud par rapport à leur corps de base.
+ */
+const FEMALE: BodyFactors = { shW: 0.95, chD: 1, waW: 0.886, waD: 0.9, hiW: 1.046, hiD: 0.94, thW: 1.03, thD: 1.05, caW: 0.94, caD: 0.98, uaW: 0.97, uaD: 0.99, faW: 0.86, faD: 0.82 };
+const SKINNY = {
+  male: { shW: 0.94, chD: 0.91, waW: 0.95, waD: 0.85, hiW: 1, hiD: 0.96, thW: 1, thD: 1.02, caW: 0.89, caD: 0.91, uaW: 0.91, uaD: 0.76, faW: 0.88, faD: 0.82 },
+  female: { shW: 0.97, chD: 0.915, waW: 0.887, waD: 0.96, hiW: 0.944, hiD: 0.93, thW: 0.94, thD: 0.89, caW: 0.906, caD: 0.896, uaW: 0.77, uaD: 0.83, faW: 0.936, faD: 0.93 },
+} satisfies Record<string, BodyFactors>;
+const BIG: BodyFactors = { shW: 1.076, chD: 1.1, waW: 1, waD: 1, hiW: 1, hiD: 1.02, thW: 1.02, thD: 1.03, caW: 1.1, caD: 1.2, uaW: 1.23, uaD: 1.18, faW: 1.21, faD: 1.125 };
+
+/** Facteurs du corps : sexe, puis carrure (−1 → mince, +1 → costaud, interpolés depuis le corps de base). */
+export function bodyFactors(female: boolean, girth = 0): BodyFactors {
+  const base = female ? FEMALE : ONE;
+  const g = Math.max(-1, Math.min(1, girth));
+  const to = g < 0 ? SKINNY[female ? 'female' : 'male'] : BIG;
+  const out = { ...base };
+  for (const k of Object.keys(out) as Array<keyof BodyFactors>) out[k] = base[k] * (1 + Math.abs(g) * (to[k] - 1));
+  return out;
+}
+
+/** Section mise à l'échelle : largeur × fw, profondeur (côtés p et n) × fd. */
+const sc = (k: Key, fw: number, fd: number): Key => ({ ...k, w: k.w * fw, p: k.p * fd, n: k.n * fd });
+
 export class SweptBody {
   readonly mesh: THREE.SkinnedMesh;
   private readonly bones: THREE.Bone[];
@@ -297,8 +326,9 @@ export class SweptBody {
     const trunkPts = [rest.seat, rest.hip, rest.mid, rest.shoulder, rest.neck];
     const tr = fractions(trunkPts);
     const T = (i: number, f: number) => (tr[i] as number) + f * ((tr[i + 1] ?? 1) - (tr[i] as number));
-    const chest = look.female ? 0.9 : 1;
-    const hips = look.female ? 1.05 : 1;
+    const F = bodyFactors(look.female, look.girth);
+    const chest = F.shW;
+    const hips = F.hiW;
     // Bas du tronc (selle → bassin) : fessier en bloc ; avec la coque du cuissard (?coque=1, shortsShell.ts),
     // caché sous elle, qui donne seule la forme du fessier, de la taille et du haut des cuisses.
     const trunkKeys: Key[] = [
@@ -317,11 +347,11 @@ export class SweptBody {
           ] as Key[])),
       // Buste plein et droit, d'après le modèle de référence de l'utilisateur (25/11/2026) : à peine plus large
       // à la taille, nettement plus épais (ventre et dos), moins en V vers les épaules.
-      { t: T(1, 0.5), w: 0.155, p: 0.118, n: 0.112, bones: [[0, 1]] },
-      { t: T(2, 0), w: 0.153, p: 0.115, n: 0.11, bones: [[0, 0.5], [1, 0.5]] },
-      { t: T(2, 0.45), w: 0.163 * chest, p: 0.115, n: 0.11, bones: [[1, 1]] },
-      { t: T(2, 0.8), w: 0.178 * chest, p: 0.115, n: 0.11, bones: [[1, 1]] },
-      { t: T(3, 0), w: 0.155 * chest, p: 0.085, n: 0.085, bones: [[1, 1]] },
+      sc({ t: T(1, 0.5), w: 0.155, p: 0.118, n: 0.112, bones: [[0, 1]] }, (F.waW + F.hiW) / 2, (F.waD + F.hiD) / 2),
+      sc({ t: T(2, 0), w: 0.153, p: 0.115, n: 0.11, bones: [[0, 0.5], [1, 0.5]] }, F.waW, F.waD),
+      sc({ t: T(2, 0.45), w: 0.163, p: 0.115, n: 0.11, bones: [[1, 1]] }, (F.waW + chest) / 2, (F.waD + F.chD) / 2),
+      sc({ t: T(2, 0.8), w: 0.178, p: 0.115, n: 0.11, bones: [[1, 1]] }, chest, F.chD),
+      sc({ t: T(3, 0), w: 0.155, p: 0.085, n: 0.085, bones: [[1, 1]] }, chest, F.chD),
       { t: T(3, 0.6), w: 0.066, p: 0.05, n: 0.05, bones: [[1, 1]] },
       { t: 1, w: 0.055, p: 0.046, n: 0.046, bones: [[1, 1]] },
     ];
@@ -378,9 +408,10 @@ export class SweptBody {
               { t: LT(0), w: 0.058, p: 0.058, n: 0.06, bones: [[0, 0.4], [thigh, 0.6]] },
             ] as Key[])),
         // Cuisses et mollets plus forts depuis le 25/11/2026 (modèle de référence de l'utilisateur).
-        { t: LT(0.3), w: 0.097, p: 0.096, n: 0.098, bones: [[thigh, 1]] },
-        { t: LT(0.65), w: 0.085, p: 0.083, n: 0.088, bones: [[thigh, 1]] },
-        { t: 1, w: 0.062, p: 0.062, n: 0.064, bones: [[thigh, 1]] },
+        // Haut de la cuisse : il fait la largeur des hanches (bassin féminin plus large, ≈ + 10 % au ras des hanches).
+        sc({ t: LT(0.3), w: 0.097, p: 0.096, n: 0.098, bones: [[thigh, 1]] }, F.thW * F.hiW ** 2, F.thD),
+        sc({ t: LT(0.65), w: 0.085, p: 0.083, n: 0.088, bones: [[thigh, 1]] }, F.thW, F.thD),
+        sc({ t: 1, w: 0.062, p: 0.062, n: 0.064, bones: [[thigh, 1]] }, (1 + F.thW) / 2, (1 + F.thD) / 2),
       ];
       const shortsEnd = LT((SHORTS_END * thighLen) / (thighLen + KNEE_OVERLAP));
       b.tube(tPts, tKeys, (t) => legColor(t < shortsEnd), look.longLegs ? [] : [shortsEnd], s);
@@ -391,8 +422,8 @@ export class SweptBody {
       const sKeys: Key[] = [
         { t: 0, w: 0.05, p: 0.054, n: 0.05, bones: [[shin, 1]] },
         { t: LS(0), w: 0.05, p: 0.05, n: 0.053, bones: [[shin, 1]] },
-        { t: LS(0.25), w: 0.056, p: 0.076, n: 0.052, bones: [[shin, 1]] },
-        { t: LS(0.55), w: 0.047, p: 0.06, n: 0.043, bones: [[shin, 1]] },
+        sc({ t: LS(0.25), w: 0.056, p: 0.076, n: 0.052, bones: [[shin, 1]] }, F.caW, F.caD),
+        sc({ t: LS(0.55), w: 0.047, p: 0.06, n: 0.043, bones: [[shin, 1]] }, F.caW, F.caD),
         { t: 1, w: 0.029, p: 0.031, n: 0.03, bones: [[shin, 1]] },
       ];
       const sockStart = Math.max(LS(0.3), 1 - look.sockLen / length(sPts));
@@ -410,7 +441,7 @@ export class SweptBody {
     });
     // ── Cuissard : coque d'un seul tenant (bassin, taille, haut des cuisses) par-dessus les tubes ──
     if (SHELL) {
-      const shell = shortsShell(rest, { hemP: pointAt(trunkPts, hem), thighEnd: SHELL_THIGH_END, scale: s, female: look.female });
+      const shell = shortsShell(rest, { hemP: pointAt(trunkPts, hem), thighEnd: SHELL_THIGH_END, scale: s, female: look.female, hipW: hips, waistW: (F.waW + F.hiW) / 2 });
       const base = b.pos.length / 3;
       for (const v of shell.vertices) b.vertex(v.p, look.shorts, v.bones);
       for (const i of shell.index) b.index.push(base + i);
@@ -425,12 +456,12 @@ export class SweptBody {
       const A = (k: number, f: number) => (fr[k] as number) + f * ((fr[k + 1] ?? 1) - (fr[k] as number));
       const keys: Key[] = [
         { t: 0, w: 0.05, p: 0.05, n: 0.05, bones: [[1, 1]] },
-        { t: A(1, 0), w: 0.062, p: 0.06, n: 0.064, bones: [[1, 0.4], [upper, 0.6]] },
-        { t: A(1, 0.35), w: 0.053, p: 0.052, n: 0.053, bones: [[upper, 1]] },
-        { t: A(1, 0.75), w: 0.045, p: 0.044, n: 0.046, bones: [[upper, 1]] },
-        { t: A(2, 0), w: 0.038, p: 0.038, n: 0.038, bones: [[upper, 0.5], [fore, 0.5]] },
-        { t: A(2, 0.3), w: 0.042, p: 0.04, n: 0.041, bones: [[fore, 1]] },
-        { t: 1, w: 0.027, p: 0.024, n: 0.025, bones: [[fore, 1]] },
+        sc({ t: A(1, 0), w: 0.062, p: 0.06, n: 0.064, bones: [[1, 0.4], [upper, 0.6]] }, (chest + F.uaW) / 2, (F.chD + F.uaD) / 2),
+        sc({ t: A(1, 0.35), w: 0.053, p: 0.052, n: 0.053, bones: [[upper, 1]] }, F.uaW, F.uaD),
+        sc({ t: A(1, 0.75), w: 0.045, p: 0.044, n: 0.046, bones: [[upper, 1]] }, F.uaW, F.uaD),
+        sc({ t: A(2, 0), w: 0.038, p: 0.038, n: 0.038, bones: [[upper, 0.5], [fore, 0.5]] }, (F.uaW + F.faW) / 2, (F.uaD + F.faD) / 2),
+        sc({ t: A(2, 0.3), w: 0.042, p: 0.04, n: 0.041, bones: [[fore, 1]] }, F.faW, F.faD),
+        sc({ t: 1, w: 0.027, p: 0.024, n: 0.025, bones: [[fore, 1]] }, (1 + F.faW) / 2, (1 + F.faD) / 2),
       ];
       const sleeve = look.accentSleeves ? look.accent : look.jersey;
       const cuffA = look.longSleeves ? A(2, 0.78) : A(1, 0.5);

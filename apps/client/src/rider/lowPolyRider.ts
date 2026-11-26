@@ -788,8 +788,10 @@ export class LowPolyRider implements RiderAvatarLike {
       longLegs: look.legs === 'long',
       longSleeves: look.sleeves === 'long',
       sockLen: this.sockLen,
-      build: (female ? 0.86 : 0.92) + look.build * 0.3,
+      // Épaisseur commune (celle d'un homme de carrure 0,4 avant le 26/11/2026) ; femme et carrure par région (bodyFactors).
+      build: 1.04,
       female,
+      girth: THREE.MathUtils.clamp((look.build - 0.4) / 0.6, -1, 1),
       pattern,
     });
     this.body.add(this.swept.mesh);

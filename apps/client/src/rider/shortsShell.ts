@@ -32,6 +32,10 @@ export interface ShellParams {
   /** Corpulence (échelle des sections) et bassin féminin (plus large). */
   scale: number;
   female: boolean;
+  /** Largeur des hanches (bassin et haut des cuisses), facteur ; par défaut 1,05 chez la femme. */
+  hipW?: number;
+  /** Largeur de la taille, facteur (bodyFactors). */
+  waistW?: number;
 }
 
 export interface ShellVertex {
@@ -69,7 +73,7 @@ function capsule(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Vector3, ra: numbe
 export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: ShellVertex[]; index: number[] } {
   const H = rest.hip;
   const s = P.scale;
-  const hips = P.female ? 1.05 : 1;
+  const hips = P.hipW ?? (P.female ? 1.05 : 1);
   const up = new THREE.Vector3().subVectors(rest.mid, H).normalize();
   // Fessier : centre un peu sous et derrière le bassin, fond dans l'épaisseur de la selle ; plus profond
   // derrière (fesses) que devant (bas-ventre), plus haut que bas.
@@ -79,7 +83,7 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   // Taille : capsule ovale le long du bas du dos, jusqu'au-dessus de l'ourlet du maillot.
   const top = P.hemP.clone().addScaledVector(up, 0.02);
   const waistR = 0.108 * s;
-  const waistSx = (0.155 * hips) / 0.108;
+  const waistSx = (0.155 * Math.min(hips, 1) * (P.waistW ?? 1)) / 0.108;
   // Cuisses : du cœur du fessier à l'ourlet du cuissard, rayon effilé.
   const legs = rest.legs.map((g, i) => {
     const side = i === 0 ? 1 : -1;

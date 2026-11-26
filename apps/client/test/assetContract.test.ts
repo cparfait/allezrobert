@@ -321,12 +321,13 @@ const AVATARS: AvatarSpec[] = [
     handSym: 1e-3,
   },
   {
-    kind: 'MPFB féminin dédié (?femmes=modele)',
+    kind: 'MPFB féminin dédié (coureuses, par défaut)',
     files: ['avatar/rider_female.glb', 'avatar/rider_female_lod1.glb', 'avatar/rider_female_lod2.glb'],
     rig: 'mpfb',
     joints: ['Root', ...CORE_BONES],
     unweighted: ['Root', 'ball_l', 'ball_r'],
-    hand: [0.2, 0.976, 0.465],
+    // Même prise du cintre que le modèle de base depuis sa reconstruction du 26/11/2026 (cintre avancé et baissé).
+    hand: [0.2, 0.934, 0.515],
     handSym: 1e-3,
   },
   {
