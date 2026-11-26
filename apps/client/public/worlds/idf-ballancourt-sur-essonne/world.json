@@ -48,21 +48,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1166856
+   "bytes": 1166909
   },
   {
    "id": "-8_-7",
    "tx": -8,
    "tz": -7,
-   "baseM": 106,
-   "minM": 107.17,
+   "baseM": 105,
+   "minM": 106.97,
    "maxM": 153.72,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1033021
+   "bytes": 1033057
   },
   {
    "id": "-8_-6",
@@ -76,7 +76,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 868603
+   "bytes": 868579
   },
   {
    "id": "-8_-5",
@@ -84,13 +84,13 @@
    "tz": -5,
    "baseM": 142,
    "minM": 143.87,
-   "maxM": 155.99,
+   "maxM": 156,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 629331
+   "bytes": 629341
   },
   {
    "id": "-8_-4",
@@ -104,7 +104,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 991316
+   "bytes": 991283
   },
   {
    "id": "-8_-3",
@@ -118,7 +118,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1476147
+   "bytes": 1476123
   },
   {
    "id": "-8_-2",
@@ -126,13 +126,13 @@
    "tz": -2,
    "baseM": 59,
    "minM": 60.88,
-   "maxM": 98.69,
+   "maxM": 98.72,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1995017
+   "bytes": 1995179
   },
   {
    "id": "-8_-1",
@@ -140,13 +140,13 @@
    "tz": -1,
    "baseM": 60,
    "minM": 61.29,
-   "maxM": 131.04,
+   "maxM": 131.07,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1340568
+   "bytes": 1340549
   },
   {
    "id": "-8_0",
@@ -160,7 +160,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1200568
+   "bytes": 1200520
   },
   {
    "id": "-8_1",
@@ -174,63 +174,63 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1308136
+   "bytes": 1308114
   },
   {
    "id": "-8_2",
    "tx": -8,
    "tz": 2,
    "baseM": 63,
-   "minM": 64.31,
+   "minM": 64.32,
    "maxM": 129.29,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1538138
+   "bytes": 1538114
   },
   {
    "id": "-8_3",
    "tx": -8,
    "tz": 3,
    "baseM": 71,
-   "minM": 72.31,
+   "minM": 72.34,
    "maxM": 148.18,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1294079
+   "bytes": 1294108
   },
   {
    "id": "-8_4",
    "tx": -8,
    "tz": 4,
    "baseM": 80,
-   "minM": 81.87,
+   "minM": 81.86,
    "maxM": 148.18,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 941777
+   "bytes": 941716
   },
   {
    "id": "-8_5",
    "tx": -8,
    "tz": 5,
    "baseM": 88,
-   "minM": 89.55,
+   "minM": 89.44,
    "maxM": 145.15,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 889829
+   "bytes": 889805
   },
   {
    "id": "-8_6",
@@ -244,7 +244,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 707817
+   "bytes": 707749
   },
   {
    "id": "-8_7",
@@ -258,7 +258,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 659845
+   "bytes": 659820
   },
   {
    "id": "-7_-8",
@@ -300,7 +300,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 765365
+   "bytes": 765464
   },
   {
    "id": "-7_-5",
@@ -482,7 +482,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 790608
+   "bytes": 790585
   },
   {
    "id": "-6_-8",
@@ -706,7 +706,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 703578
+   "bytes": 703626
   },
   {
    "id": "-5_-8",
@@ -930,7 +930,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 645360
+   "bytes": 645361
   },
   {
    "id": "-4_-8",
@@ -1147,7 +1147,7 @@
    "tx": -4,
    "tz": 7,
    "baseM": 111,
-   "minM": 112.66,
+   "minM": 112.63,
    "maxM": 144.29,
    "lods": [
     "lo",
@@ -1378,7 +1378,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 964832
+   "bytes": 964787
   },
   {
    "id": "-2_-8",
@@ -1420,7 +1420,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1364571
+   "bytes": 1364572
   },
   {
    "id": "-2_-5",
@@ -1434,7 +1434,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1314322
+   "bytes": 1314207
   },
   {
    "id": "-2_-4",
@@ -1602,7 +1602,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 993304
+   "bytes": 993324
   },
   {
    "id": "-1_-8",
@@ -1616,7 +1616,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 946874
+   "bytes": 947009
   },
   {
    "id": "-1_-7",
@@ -1644,7 +1644,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1800325
+   "bytes": 1800372
   },
   {
    "id": "-1_-5",
@@ -1820,13 +1820,13 @@
    "tz": 7,
    "baseM": 67,
    "minM": 68.77,
-   "maxM": 122.96,
+   "maxM": 122.98,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 893805
+   "bytes": 893806
   },
   {
    "id": "0_-8",
@@ -2050,7 +2050,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1096621
+   "bytes": 1096619
   },
   {
    "id": "1_-8",
@@ -2274,7 +2274,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1110712
+   "bytes": 1110717
   },
   {
    "id": "2_-8",
@@ -2498,7 +2498,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 703329
+   "bytes": 703309
   },
   {
    "id": "3_-8",
@@ -2722,7 +2722,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 751757
+   "bytes": 751754
   },
   {
    "id": "4_-8",
@@ -2876,7 +2876,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1194514
+   "bytes": 1194492
   },
   {
    "id": "4_3",
@@ -2946,7 +2946,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1025188
+   "bytes": 1025140
   },
   {
    "id": "5_-8",
@@ -2988,7 +2988,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1880648
+   "bytes": 1880718
   },
   {
    "id": "5_-5",
@@ -3170,7 +3170,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 970315
+   "bytes": 970314
   },
   {
    "id": "6_-8",
@@ -3184,7 +3184,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1004310
+   "bytes": 1004424
   },
   {
    "id": "6_-7",
@@ -3394,7 +3394,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1090440
+   "bytes": 1090463
   },
   {
    "id": "7_-8",
@@ -3618,7 +3618,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1118464
+   "bytes": 1118487
   }
  ],
  "routes": [
@@ -3626,8 +3626,8 @@
    "id": "boucle-20-km",
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Ballancourt-sur-Essonne",
-   "lengthM": 18810,
-   "elevationGainM": 158.73,
+   "lengthM": 19900,
+   "elevationGainM": 164.86,
    "loop": false,
    "main": true
   },
@@ -3635,8 +3635,8 @@
    "id": "boucle-30-km",
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Ballancourt-sur-Essonne",
-   "lengthM": 31172,
-   "elevationGainM": 267.6,
+   "lengthM": 31124,
+   "elevationGainM": 270.9,
    "loop": false,
    "main": false
   },
@@ -3644,8 +3644,8 @@
    "id": "boucle-40-km",
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Ballancourt-sur-Essonne",
-   "lengthM": 39424,
-   "elevationGainM": 312.02,
+   "lengthM": 39918,
+   "elevationGainM": 318.68,
    "loop": false,
    "main": false
   },
@@ -3653,8 +3653,8 @@
    "id": "boucle-50-km",
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Ballancourt-sur-Essonne",
-   "lengthM": 49154,
-   "elevationGainM": 449.61,
+   "lengthM": 49714,
+   "elevationGainM": 455.98,
    "loop": false,
    "main": false
   }

@@ -726,15 +726,15 @@
    "id": "-5_-7",
    "tx": -5,
    "tz": -7,
-   "baseM": 55,
-   "minM": 56.08,
+   "baseM": 52,
+   "minM": 53.07,
    "maxM": 122.4,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1092850
+   "bytes": 1092946
   },
   {
    "id": "-5_-6",
@@ -1168,7 +1168,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 717829
+   "bytes": 717855
   },
   {
    "id": "-3_-7",
@@ -1840,7 +1840,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 711723
+   "bytes": 711685
   },
   {
    "id": "0_-7",
@@ -1854,49 +1854,49 @@
     "hi",
     "ortho"
    ],
-   "bytes": 668378
+   "bytes": 668381
   },
   {
    "id": "0_-6",
    "tx": 0,
    "tz": -6,
    "baseM": 195,
-   "minM": 196.06,
+   "minM": 196.07,
    "maxM": 208.08,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 668028
+   "bytes": 668120
   },
   {
    "id": "0_-5",
    "tx": 0,
    "tz": -5,
    "baseM": 194,
-   "minM": 195,
+   "minM": 195.35,
    "maxM": 211.61,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 714067
+   "bytes": 713993
   },
   {
    "id": "0_-4",
    "tx": 0,
    "tz": -4,
    "baseM": 194,
-   "minM": 195.41,
+   "minM": 195.8,
    "maxM": 215.72,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 707069
+   "bytes": 707072
   },
   {
    "id": "0_-3",
@@ -1910,7 +1910,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 715448
+   "bytes": 715473
   },
   {
    "id": "0_-2",
@@ -1932,27 +1932,27 @@
    "tz": -1,
    "baseM": 202,
    "minM": 203.34,
-   "maxM": 215.11,
+   "maxM": 215.47,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 700284
+   "bytes": 700295
   },
   {
    "id": "0_0",
    "tx": 0,
    "tz": 0,
    "baseM": 182,
-   "minM": 183.39,
+   "minM": 183.41,
    "maxM": 210.78,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 694810
+   "bytes": 694876
   },
   {
    "id": "0_1",
@@ -1966,7 +1966,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 841594
+   "bytes": 841730
   },
   {
    "id": "0_2",
@@ -1974,13 +1974,13 @@
    "tz": 2,
    "baseM": 138,
    "minM": 139.7,
-   "maxM": 192.22,
+   "maxM": 192.54,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 714750
+   "bytes": 714969
   },
   {
    "id": "0_3",
@@ -1988,13 +1988,13 @@
    "tz": 3,
    "baseM": 143,
    "minM": 144.72,
-   "maxM": 201.29,
+   "maxM": 201.22,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 748225
+   "bytes": 748183
   },
   {
    "id": "0_4",
@@ -2008,42 +2008,42 @@
     "hi",
     "ortho"
    ],
-   "bytes": 777037
+   "bytes": 777101
   },
   {
    "id": "0_5",
    "tx": 0,
    "tz": 5,
    "baseM": 102,
-   "minM": 103.8,
+   "minM": 103.87,
    "maxM": 188.78,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 698374
+   "bytes": 698350
   },
   {
    "id": "0_6",
    "tx": 0,
    "tz": 6,
    "baseM": 156,
-   "minM": 157.8,
+   "minM": 157.62,
    "maxM": 198.95,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 686450
+   "bytes": 686427
   },
   {
    "id": "0_7",
    "tx": 0,
    "tz": 7,
    "baseM": 180,
-   "minM": 181.9,
+   "minM": 181.98,
    "maxM": 194.13,
    "lods": [
     "lo",
@@ -2064,7 +2064,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1067089
+   "bytes": 1067085
   },
   {
    "id": "1_-7",
@@ -2072,13 +2072,13 @@
    "tz": -7,
    "baseM": 110,
    "minM": 111.31,
-   "maxM": 202.2,
+   "maxM": 202.19,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 896401
+   "bytes": 896400
   },
   {
    "id": "1_-6",
@@ -2086,13 +2086,13 @@
    "tz": -6,
    "baseM": 122,
    "minM": 123.38,
-   "maxM": 203.06,
+   "maxM": 203.17,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 845907
+   "bytes": 845885
   },
   {
    "id": "1_-5",
@@ -2100,13 +2100,13 @@
    "tz": -5,
    "baseM": 143,
    "minM": 144.96,
-   "maxM": 202.7,
+   "maxM": 202.71,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 904151
+   "bytes": 904103
   },
   {
    "id": "1_-4",
@@ -2120,7 +2120,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 693759
+   "bytes": 693733
   },
   {
    "id": "1_-3",
@@ -2128,13 +2128,13 @@
    "tz": -3,
    "baseM": 188,
    "minM": 189.2,
-   "maxM": 213.83,
+   "maxM": 213.81,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 853474
+   "bytes": 853451
   },
   {
    "id": "1_-2",
@@ -2148,7 +2148,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1004226
+   "bytes": 1004153
   },
   {
    "id": "1_-1",
@@ -2162,21 +2162,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 843570
+   "bytes": 843523
   },
   {
    "id": "1_0",
    "tx": 1,
    "tz": 0,
    "baseM": 189,
-   "minM": 190.08,
+   "minM": 190.16,
    "maxM": 218.35,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 725796
+   "bytes": 725776
   },
   {
    "id": "1_1",
@@ -2190,21 +2190,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1140087
+   "bytes": 1140114
   },
   {
    "id": "1_2",
    "tx": 1,
    "tz": 2,
    "baseM": 156,
-   "minM": 157.48,
+   "minM": 157.43,
    "maxM": 206.57,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1148646
+   "bytes": 1148598
   },
   {
    "id": "1_3",
@@ -2218,7 +2218,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 805520
+   "bytes": 805498
   },
   {
    "id": "1_4",
@@ -2253,14 +2253,14 @@
    "tx": 1,
    "tz": 6,
    "baseM": 158,
-   "minM": 159.31,
+   "minM": 159.11,
    "maxM": 194.34,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 825416
+   "bytes": 825392
   },
   {
    "id": "1_7",
@@ -3626,8 +3626,8 @@
    "id": "boucle-20-km",
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Villeneuve-sur-Bellot",
-   "lengthM": 19381.85,
-   "elevationGainM": 262.66,
+   "lengthM": 19381.86,
+   "elevationGainM": 264.26,
    "loop": true,
    "main": true
   },
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Villeneuve-sur-Bellot",
    "lengthM": 29374.7,
-   "elevationGainM": 357.58,
+   "elevationGainM": 359.12,
    "loop": true,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Villeneuve-sur-Bellot",
    "lengthM": 40060.51,
-   "elevationGainM": 498.28,
+   "elevationGainM": 498.49,
    "loop": true,
    "main": false
   },

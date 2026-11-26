@@ -71,6 +71,8 @@ const SIDEPATH_ROADS = /^(primary|secondary|tertiary|unclassified|residential|li
 /** Distance (m) et part de la piste à moins de cette distance d'une route pour qu'elle la « longe ». */
 const SIDEPATH_DIST_M = 15;
 const SIDEPATH_SHARE = 0.6;
+/** Coût d'une piste qui longe une route dans les tours proposés (× sa longueur) : prise seulement si elle est le seul lien. */
+export const SIDEPATH_COST = 6;
 
 /**
  * Marque les pistes cyclables qui longent une route roulable (piste le long d'une départementale, OSM `cycleway`

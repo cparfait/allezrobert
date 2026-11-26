@@ -1804,15 +1804,15 @@
    "id": "-1_6",
    "tx": -1,
    "tz": 6,
-   "baseM": 44,
-   "minM": 45.47,
+   "baseM": 42,
+   "minM": 43.38,
    "maxM": 68.38,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 823081
+   "bytes": 823034
   },
   {
    "id": "-1_7",
@@ -3128,7 +3128,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 829526
+   "bytes": 829600
   },
   {
    "id": "5_5",
@@ -3156,7 +3156,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 736041
+   "bytes": 736146
   },
   {
    "id": "5_7",
@@ -3310,7 +3310,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 712376
+   "bytes": 712504
   },
   {
    "id": "6_2",
@@ -3644,8 +3644,8 @@
    "id": "boucle-40-km",
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Lizy-sur-Ourcq",
-   "lengthM": 35916.21,
-   "elevationGainM": 375.27,
+   "lengthM": 35916.2,
+   "elevationGainM": 376.39,
    "loop": true,
    "main": false
   },

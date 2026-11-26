@@ -272,7 +272,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1008384
+   "bytes": 1008524
   },
   {
    "id": "-7_-7",
@@ -474,15 +474,15 @@
    "id": "-7_7",
    "tx": -7,
    "tz": 7,
-   "baseM": 70,
-   "minM": 71.38,
+   "baseM": 69,
+   "minM": 70.84,
    "maxM": 92.92,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1143765
+   "bytes": 1143815
   },
   {
    "id": "-6_-8",
@@ -510,7 +510,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1383661
+   "bytes": 1383589
   },
   {
    "id": "-6_-6",
@@ -1686,7 +1686,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1096112
+   "bytes": 1096108
   },
   {
    "id": "-1_-2",
@@ -2000,15 +2000,15 @@
    "id": "0_4",
    "tx": 0,
    "tz": 4,
-   "baseM": 82,
-   "minM": 83.82,
+   "baseM": 81,
+   "minM": 82.56,
    "maxM": 97.85,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 754733
+   "bytes": 755085
   },
   {
    "id": "0_5",
@@ -2484,7 +2484,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 901424
+   "bytes": 901121
   },
   {
    "id": "2_7",
@@ -2960,7 +2960,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1131399
+   "bytes": 1131398
   },
   {
    "id": "5_-7",
@@ -2974,7 +2974,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 944779
+   "bytes": 944802
   },
   {
    "id": "5_-6",
@@ -2988,7 +2988,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1018415
+   "bytes": 1018400
   },
   {
    "id": "5_-5",
@@ -3002,7 +3002,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1039274
+   "bytes": 1039297
   },
   {
    "id": "5_-4",
@@ -3016,7 +3016,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1016576
+   "bytes": 1016689
   },
   {
    "id": "5_-3",
@@ -3030,7 +3030,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1061841
+   "bytes": 1061839
   },
   {
    "id": "5_-2",
@@ -3044,21 +3044,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1758490
+   "bytes": 1758488
   },
   {
    "id": "5_-1",
    "tx": 5,
    "tz": -1,
    "baseM": 80,
-   "minM": 81.59,
+   "minM": 81.72,
    "maxM": 100.83,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1278490
+   "bytes": 1278495
   },
   {
    "id": "5_0",
@@ -3072,7 +3072,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 873959
+   "bytes": 873921
   },
   {
    "id": "5_1",
@@ -3086,7 +3086,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 782101
+   "bytes": 782076
   },
   {
    "id": "5_2",
@@ -3107,14 +3107,14 @@
    "tx": 5,
    "tz": 3,
    "baseM": 96,
-   "minM": 97.5,
+   "minM": 97.7,
    "maxM": 103.8,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 756979
+   "bytes": 756980
   },
   {
    "id": "5_4",
@@ -3128,7 +3128,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1132391
+   "bytes": 1132320
   },
   {
    "id": "5_5",
@@ -3142,7 +3142,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 906508
+   "bytes": 906487
   },
   {
    "id": "5_6",
@@ -3156,7 +3156,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 672937
+   "bytes": 672891
   },
   {
    "id": "5_7",
@@ -3170,7 +3170,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 785635
+   "bytes": 785613
   },
   {
    "id": "6_-8",
@@ -3191,14 +3191,14 @@
    "tx": 6,
    "tz": -7,
    "baseM": 95,
-   "minM": 96.64,
+   "minM": 96.62,
    "maxM": 103.31,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 700981
+   "bytes": 701003
   },
   {
    "id": "6_-6",
@@ -3212,7 +3212,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 746113
+   "bytes": 746123
   },
   {
    "id": "6_-5",
@@ -3226,21 +3226,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 710404
+   "bytes": 710408
   },
   {
    "id": "6_-4",
    "tx": 6,
    "tz": -4,
    "baseM": 66,
-   "minM": 67.42,
+   "minM": 67.47,
    "maxM": 111.59,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 770084
+   "bytes": 770141
   },
   {
    "id": "6_-3",
@@ -3254,35 +3254,35 @@
     "hi",
     "ortho"
    ],
-   "bytes": 805328
+   "bytes": 805487
   },
   {
    "id": "6_-2",
    "tx": 6,
    "tz": -2,
    "baseM": 79,
-   "minM": 80.29,
+   "minM": 80.33,
    "maxM": 97,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 694173
+   "bytes": 694197
   },
   {
    "id": "6_-1",
    "tx": 6,
    "tz": -1,
    "baseM": 79,
-   "minM": 80.23,
-   "maxM": 98.5,
+   "minM": 80.35,
+   "maxM": 98.72,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 692770
+   "bytes": 692913
   },
   {
    "id": "6_0",
@@ -3296,7 +3296,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 665558
+   "bytes": 665519
   },
   {
    "id": "6_1",
@@ -3310,14 +3310,14 @@
     "hi",
     "ortho"
    ],
-   "bytes": 748514
+   "bytes": 748553
   },
   {
    "id": "6_2",
    "tx": 6,
    "tz": 2,
    "baseM": 94,
-   "minM": 95.7,
+   "minM": 95.72,
    "maxM": 101.53,
    "lods": [
     "lo",
@@ -3338,7 +3338,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 669768
+   "bytes": 669682
   },
   {
    "id": "6_4",
@@ -3346,27 +3346,27 @@
    "tz": 4,
    "baseM": 83,
    "minM": 84.87,
-   "maxM": 99.15,
+   "maxM": 99.32,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 727590
+   "bytes": 727498
   },
   {
    "id": "6_5",
    "tx": 6,
    "tz": 5,
    "baseM": 70,
-   "minM": 71.5,
+   "minM": 71.7,
    "maxM": 100.9,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 711204
+   "bytes": 711159
   },
   {
    "id": "6_6",
@@ -3380,7 +3380,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 690026
+   "bytes": 689979
   },
   {
    "id": "6_7",
@@ -3394,7 +3394,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 673895
+   "bytes": 673869
   },
   {
    "id": "7_-8",
@@ -3626,8 +3626,8 @@
    "id": "boucle-20-km",
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Vert-Saint-Denis",
-   "lengthM": 21868,
-   "elevationGainM": 106.19,
+   "lengthM": 21824,
+   "elevationGainM": 105.58,
    "loop": false,
    "main": true
   },
@@ -3635,8 +3635,8 @@
    "id": "boucle-30-km",
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Vert-Saint-Denis",
-   "lengthM": 29526,
-   "elevationGainM": 151.29,
+   "lengthM": 29482,
+   "elevationGainM": 150.59,
    "loop": false,
    "main": false
   },
@@ -3644,8 +3644,8 @@
    "id": "boucle-40-km",
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Vert-Saint-Denis",
-   "lengthM": 44360,
-   "elevationGainM": 211.91,
+   "lengthM": 44564,
+   "elevationGainM": 211.87,
    "loop": false,
    "main": false
   },
@@ -3653,8 +3653,8 @@
    "id": "boucle-50-km",
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Vert-Saint-Denis",
-   "lengthM": 50152,
-   "elevationGainM": 258.86,
+   "lengthM": 50360,
+   "elevationGainM": 258.88,
    "loop": false,
    "main": false
   }

@@ -62,7 +62,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1756223
+   "bytes": 1757943
   },
   {
    "id": "-3_0",
@@ -76,7 +76,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2011555
+   "bytes": 2011777
   },
   {
    "id": "-3_1",
@@ -104,7 +104,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1897433
+   "bytes": 1897497
   },
   {
    "id": "-2_-2",
@@ -118,7 +118,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1683790
+   "bytes": 1684106
   },
   {
    "id": "-2_-1",
@@ -132,7 +132,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1925353
+   "bytes": 1926064
   },
   {
    "id": "-2_0",
@@ -160,7 +160,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2206652
+   "bytes": 2206960
   },
   {
    "id": "-2_2",
@@ -174,7 +174,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1897240
+   "bytes": 1897587
   },
   {
    "id": "-1_-2",
@@ -188,7 +188,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2051842
+   "bytes": 2052167
   },
   {
    "id": "-1_-1",
@@ -202,7 +202,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1962053
+   "bytes": 1963259
   },
   {
    "id": "-1_0",
@@ -216,7 +216,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2511293
+   "bytes": 2511314
   },
   {
    "id": "-1_1",
@@ -230,7 +230,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2235254
+   "bytes": 2235232
   },
   {
    "id": "-1_2",
@@ -244,7 +244,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2200865
+   "bytes": 2200888
   },
   {
    "id": "0_-2",
@@ -258,21 +258,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1477088
+   "bytes": 1477501
   },
   {
    "id": "0_-1",
    "tx": 0,
    "tz": -1,
-   "baseM": 36,
-   "minM": 37.49,
+   "baseM": 33,
+   "minM": 34.84,
    "maxM": 58.06,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1550468
+   "bytes": 1550750
   },
   {
    "id": "0_0",
@@ -300,7 +300,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2163291
+   "bytes": 2166284
   },
   {
    "id": "0_2",
@@ -328,7 +328,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1373888
+   "bytes": 1374065
   },
   {
    "id": "1_-1",
@@ -342,7 +342,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1558308
+   "bytes": 1559455
   },
   {
    "id": "1_0",
@@ -356,7 +356,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1818805
+   "bytes": 1819465
   },
   {
    "id": "1_1",
@@ -370,7 +370,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1963757
+   "bytes": 1963667
   },
   {
    "id": "1_2",
@@ -392,8 +392,8 @@
    "id": "butte-montmartre",
    "file": "routes/butte-montmartre.json",
    "name": "La butte Montmartre par la rue Lepic",
-   "lengthM": 5891.44,
-   "elevationGainM": 139.82,
+   "lengthM": 5843.6,
+   "elevationGainM": 139.27,
    "loop": true,
    "main": true
   }

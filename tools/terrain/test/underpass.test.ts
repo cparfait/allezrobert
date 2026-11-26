@@ -75,9 +75,78 @@ describe('lowerUnderpasses : route qui passe sous un pont', () => {
     expect(lowerUnderpasses(g2, new Map<number, P3[]>([[0, street], [1, low]]), new Set([0]), flatDem(100), []).lowered).toBe(0);
     expect(street.every((p) => p[1] === 100)).toBe(true);
   });
+
+  it('pont dans le prolongement de la route : ni le pont ni ses accès ne bougent (marche de 5,1 m, 25/11/2026)', () => {
+    const before = line(-100, 0, 0, 0, () => 100);
+    const deck = line(0, 0, 40, 0, () => 100);
+    const after = line(40, 0, 140, 0, () => 100);
+    const g = { edges: [edge(0, 1, 2, before), edge(1, 2, 3, deck, { bridge: true, width: 8 }), edge(2, 3, 4, after)] } as unknown as RoadGraph;
+    const stats = lowerUnderpasses(g, new Map<number, P3[]>([[0, before], [1, deck], [2, after]]), new Set(), flatDem(95), []);
+    expect(stats.lowered).toBe(0);
+    for (const p of [...before, ...deck, ...after]) expect(p[1]).toBe(100);
+  });
+
+  it('route de montagne à 10 % : l’abaissement s’efface au lieu de remonter jusqu’au col', () => {
+    const street = line(-50, 0, 50, 0, (s) => 100 + s * 0.1);
+    const climb = line(50, 0, 2050, 0, (s) => 110 + s * 0.1);
+    const deck = line(0, -50, 0, 50, () => 107);
+    const g = { edges: [edge(0, 1, 2, street), edge(1, 2, 3, climb), edge(2, 4, 5, deck, { bridge: true, width: 8 })] } as unknown as RoadGraph;
+    const pts = new Map<number, P3[]>([[0, street], [1, climb], [2, deck]]);
+    expect(lowerUnderpasses(g, pts, new Set(), flatDem(100), []).lowered).toBe(1);
+    const low = (p: P3, x0: number, y0: number) => y0 + (p[0] - x0) * 0.1 - p[1];
+    for (const p of [...street.map((q) => low(q, -50, 100)), ...climb.map((q) => low(q, 50, 110))]) {
+      expect(p).toBeGreaterThanOrEqual(-1e-9);
+      expect(p).toBeLessThanOrEqual(6 + 1e-9);
+    }
+    expect(low(climb[0]!, 50, 110)).toBeCloseTo(low(street[street.length - 1]!, -50, 100), 6);
+    for (const p of climb) if (p[0] > 160) expect(low(p, 50, 110)).toBeCloseTo(0, 6);
+  });
+
+  it('bout de pont près d’un passage : la route remonte avant lui, sans marche', () => {
+    // rue sous un pont en x = 0, puis pont de la rue elle-même à partir de x = 60
+    const street = line(-100, 0, 60, 0, () => 100);
+    const own = line(60, 0, 100, 0, () => 100);
+    const deck = line(0, -50, 0, 50, () => 102);
+    const g = { edges: [edge(0, 1, 2, street), edge(1, 2, 3, own, { bridge: true }), edge(2, 4, 5, deck, { bridge: true, width: 8 })] } as unknown as RoadGraph;
+    const stats = lowerUnderpasses(g, new Map<number, P3[]>([[0, street], [1, own], [2, deck]]), new Set(), flatDem(100), []);
+    expect(stats.lowered).toBe(1);
+    expect(street[street.length - 1]![1]).toBe(100);
+    for (let i = 1; i < street.length; i++) expect(Math.abs(street[i]![1] - street[i - 1]![1]) / 4).toBeLessThanOrEqual(0.12 + 1e-6);
+    expect(street.find((p) => Math.abs(p[0]) < 2.1)![1]).toBeLessThanOrEqual(102 - 0.9 - UNDERPASS_CLEARANCE_M + 1e-6);
+  });
 });
 
 describe('lowerRouteUnderpasses : itinéraire gardé sous un pont', () => {
+  it('montée à 10 % et points tenus : abaissement borné, pont de l’itinéraire intact, boucle refermée', () => {
+    const deck = line(0, -50, 0, 50, () => 103);
+    const g = { edges: [edge(0, 1, 2, deck, { bridge: true, width: 8 })] } as unknown as RoadGraph;
+    const ov = overpassesOf(g, new Map<number, P3[]>([[0, deck]]), flatDem(100), []);
+    const points = Array.from({ length: 1001 }, (_, i) => ({ x: -20 + i * 2, y: 99 + i * 0.2, z: 0, d: i * 2 }));
+    const before = points.map((p) => p.y);
+    const pinned = points.map((p) => p.x >= 60 && p.x <= 80);
+    expect(lowerRouteUnderpasses(points, false, ov, undefined, { pinned })).toBe(true);
+    points.forEach((p, i) => {
+      expect(before[i]! - p.y).toBeGreaterThanOrEqual(-1e-9);
+      expect(before[i]! - p.y).toBeLessThanOrEqual(6.01);
+      if (pinned[i] || p.x > 120) expect(p.y).toBeCloseTo(before[i]!, 6);
+    });
+    // passage à la sortie d'un pont de l'itinéraire : pas la place pour la rampe, rien ne bouge
+    const tight = Array.from({ length: 101 }, (_, i) => ({ x: -100 + i * 2, y: 100, z: 0, d: i * 2 }));
+    const stats = { lowered: 0, maxLowerM: 0, skipped: 0, short: 0 };
+    expect(lowerRouteUnderpasses(tight, false, ov, stats, { pinned: tight.map((p) => p.x >= -40 && p.x <= -6) })).toBe(false);
+    expect(stats.short).toBe(1);
+    expect(tight.every((p) => p.y === 100)).toBe(true);
+    // boucle carrée dont le départ est à 10 m du pont : rampe des deux côtés de l’arrivée
+    const ring: Array<{ x: number; y: number; z: number; d: number }> = [];
+    for (let s = 0; s < 1600; s += 2) {
+      const q = (s + 10) % 1600;
+      const [x, z] = q < 400 ? [q, 0] : q < 800 ? [400, q - 400] : q < 1200 ? [1200 - q, 400] : [0, 1600 - q];
+      ring.push({ x: x! - 1, y: 100, z: z! - 200 * 0, d: s });
+    }
+    expect(lowerRouteUnderpasses(ring, true, ov)).toBe(true);
+    for (let i = 0; i < ring.length; i++) expect(Math.abs(ring[(i + 1) % ring.length]!.y - ring[i]!.y) / 2).toBeLessThanOrEqual(0.06 + 0.011);
+  });
+
   it('points abaissés sous le tablier, rampes douces, jamais relevés ; fichier à réécrire', () => {
     const points = Array.from({ length: 101 }, (_, i) => ({ x: -100 + i * 2, y: 100 + 3 * Math.exp(-((((i - 50) * 2) / 10) ** 2)), z: 0, d: i * 2 }));
     const before = points.map((p) => p.y);

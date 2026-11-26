@@ -1510,15 +1510,15 @@
    "id": "3_1",
    "tx": 3,
    "tz": 1,
-   "baseM": 180,
-   "minM": 181.28,
+   "baseM": 179,
+   "minM": 180.87,
    "maxM": 186.54,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 732097
+   "bytes": 732119
   },
   {
    "id": "3_2",
@@ -1538,15 +1538,15 @@
    "id": "3_3",
    "tx": 3,
    "tz": 3,
-   "baseM": 180,
-   "minM": 181.32,
+   "baseM": 179,
+   "minM": 180.83,
    "maxM": 199.04,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1136684
+   "bytes": 1136705
   },
   {
    "id": "3_4",
@@ -1672,14 +1672,14 @@
     "hi",
     "ortho"
    ],
-   "bytes": 989944
+   "bytes": 990078
   },
   {
    "id": "4_2",
    "tx": 4,
    "tz": 2,
-   "baseM": 177,
-   "minM": 178.89,
+   "baseM": 175,
+   "minM": 176.58,
    "maxM": 185.93,
    "lods": [
     "lo",
@@ -1692,29 +1692,29 @@
    "id": "4_3",
    "tx": 4,
    "tz": 3,
-   "baseM": 180,
-   "minM": 181.01,
+   "baseM": 179,
+   "minM": 180.79,
    "maxM": 190.07,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 984501
+   "bytes": 984177
   },
   {
    "id": "4_4",
    "tx": 4,
    "tz": 4,
-   "baseM": 181,
-   "minM": 182.08,
+   "baseM": 180,
+   "minM": 181.95,
    "maxM": 192.68,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1390519
+   "bytes": 1390741
   },
   {
    "id": "4_5",
@@ -1728,7 +1728,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1030374
+   "bytes": 1030490
   }
  ],
  "routes": [
@@ -1736,8 +1736,8 @@
    "id": "route-des-vins",
    "file": "routes/route-des-vins.json",
    "name": "La route des vins de Riquewihr à Kaysersberg",
-   "lengthM": 24832,
-   "elevationGainM": 399.84,
+   "lengthM": 24812,
+   "elevationGainM": 399.65,
    "loop": false,
    "main": true
   }

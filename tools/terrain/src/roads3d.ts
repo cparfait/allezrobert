@@ -66,7 +66,13 @@ export function buildRoads3d(
     const bridgeProfiles = new Map<number, Array<[number, number, number]>>();
     for (const e of g.edges) if (e.road.bridge && !onRoute.has(e.id)) bridgeProfiles.set(e.id, edgeProfile(e, dem, deckOf(e.a), deckOf(e.b)));
     const ov = overpassesOf(g, bridgeProfiles, dem, opts.railBridges ?? []);
-    for (const r of routes) if (lowerRouteUnderpasses(r.route.points, r.route.loop, ov)) routesLowered.add(r.route.id);
+    for (const r of routes) {
+      // nœuds de l'itinéraire (un pont qui part de l'un d'eux n'est pas au-dessus) et points tenus (sur un pont, en tunnel)
+      const nodes = new Set<number>();
+      for (const id of new Set(r.edgeOf)) nodes.add(g.edges[id]!.a).add(g.edges[id]!.b);
+      const pinned = r.edgeOf.map((id) => g.edges[id]!.road.bridge || g.edges[id]!.road.tunnel);
+      if (lowerRouteUnderpasses(r.route.points, r.route.loop, ov, undefined, { nodes, pinned })) routesLowered.add(r.route.id);
+    }
   }
   // 1. itinéraires : couloirs prioritaires, morceaux par arête (attributs OSM)
   for (const r of routes) {
@@ -246,6 +252,12 @@ const RAIL_DECK_M = 1.2;
 const UNDERPASS_GRADE = 0.06;
 /** Abaissement au-delà duquel on se méfie des données (pont mal placé, voie en viaduc) : rien n'est fait. */
 const UNDERPASS_MAX_LOWER_M = 6;
+/** Pente (en plus de celle du terrain) pour remonter à un nœud tenu : bout de pont, de tunnel, itinéraire gardé. */
+const UNDERPASS_PIN_GRADE = 0.12;
+/** Un croisement à moins de cette distance (m) du bout du pont, à un nœud commun, est le raccord de la route au pont. */
+const BRIDGE_END_M = 5;
+/** Hauteur libre (m) sous laquelle un passage abaissé est compté comme trop bas (`short`). */
+const UNDERPASS_SHORT_M = 3;
 
 export interface UnderpassStats {
   /** Croisements sous un pont où la route a été abaissée. */
@@ -254,6 +266,8 @@ export interface UnderpassStats {
   maxLowerM: number;
   /** Croisements laissés tels quels (abaissement trop grand pour être crédible). */
   skipped: number;
+  /** Passages restés sous 3 m libres : un nœud tenu (bout de pont, itinéraire) est trop près pour la rampe. */
+  short?: number;
 }
 
 /** Abscisses (0…1) du croisement du segment ab avec le segment cd, en plan ; null sans croisement. */
@@ -266,11 +280,52 @@ function crossT(a: Pt, b: Pt, c: Pt, d: Pt): { t: number; u: number } | null {
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? { t, u } : null;
 }
 
+/** Point d'où part une rampe : altitude plafonnée `y` et abaissement permis `rel` (m). */
+interface RampState {
+  y: number;
+  rel: number;
+}
+
+/**
+ * Abaissement (m) à `d` mètres d'un point plafonné : le plafond remonte à `UNDERPASS_GRADE` (efface la bosse du MNT
+ * sous le tablier) et l'abaissement lui-même s'efface à la même pente. Sans ce second terme, une route qui monte à
+ * plus de 6 % ne rejoignait jamais son profil et restait abaissée jusqu'au col (Tourmalet, 25/11/2026).
+ */
+const rampLower = (base: number, st: RampState, d: number) => Math.max(0, Math.min(base - (st.y + UNDERPASS_GRADE * d), st.rel - UNDERPASS_GRADE * d));
+
+/** Un croisement le long d'un profil [s0, s1] : abaissement voulu (palier ± flat, puis `rampLower`) et abaissement permis. */
+function crossingRamp(c: UnderpassCrossing, s0: number, s1: number, yAt: (s: number) => number) {
+  const lo = Math.max(s0, c.s - c.flat), hi = Math.min(s1, c.s + c.flat);
+  const rel = (s: number) => Math.max(0, Math.min(UNDERPASS_MAX_LOWER_M, yAt(s) - c.target));
+  const relLo = rel(lo), relHi = rel(hi);
+  return {
+    lower: (s: number, base: number) => {
+      if (s >= lo && s <= hi) return Math.max(0, Math.min(UNDERPASS_MAX_LOWER_M, base - c.target));
+      return s < lo ? rampLower(base, { y: c.target, rel: relLo }, lo - s) : rampLower(base, { y: c.target, rel: relHi }, s - hi);
+    },
+    rel: (s: number) => (s < lo ? relLo - UNDERPASS_GRADE * (lo - s) : s > hi ? relHi - UNDERPASS_GRADE * (s - hi) : rel(s)),
+  };
+}
+
+/** Altitude d'un profil à l'abscisse `d` (abscisses cumulées `s`). */
+function interpAt(s: readonly number[], prof: ReadonlyArray<readonly [number, number, number]>, d: number): number {
+  let lo = 0;
+  let hi = s.length - 1;
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1;
+    if (s[m]! <= d) lo = m;
+    else hi = m;
+  }
+  const t = Math.max(0, Math.min(1, (d - s[lo]!) / (s[hi]! - s[lo]! || 1)));
+  return prof[lo]![1] + (prof[hi]![1] - prof[lo]![1]) * t;
+}
+
 /**
  * Abaisse les routes qui passent sous un pont (routier ou ferroviaire) pour laisser `UNDERPASS_CLEARANCE_M` sous le
  * tablier : palier sous le pont, rampes à `UNDERPASS_GRADE` de part et d'autre, prolongées aux arêtes voisines par
- * les nœuds (profils continus aux carrefours). Le profil n'est jamais relevé. Les arêtes des itinéraires gardés
- * (`frozen`), les ponts et les tunnels ne sont pas touchés. Modifie `edgePts` en place.
+ * les nœuds (profils continus aux carrefours). Le profil n'est jamais relevé, ni abaissé de plus de
+ * `UNDERPASS_MAX_LOWER_M`. Les arêtes des itinéraires gardés (`frozen`), les ponts et les tunnels ne sont pas
+ * touchés, leurs nœuds non plus : la route remonte avant eux (`UNDERPASS_PIN_GRADE`). Modifie `edgePts` en place.
  * Dessous du tablier : profil du pont routier au croisement, ou rail posé sur le MNT de part et d'autre du passage.
  */
 export function lowerUnderpasses(
@@ -280,7 +335,7 @@ export function lowerUnderpasses(
   dem: DemStack,
   railBridges: ReadonlyArray<{ pts: Pt[]; width: number }>,
 ): UnderpassStats {
-  const stats: UnderpassStats = { lowered: 0, maxLowerM: 0, skipped: 0 };
+  const stats: UnderpassStats = { lowered: 0, maxLowerM: 0, skipped: 0, short: 0 };
   const movable = (e: Edge) => !e.road.bridge && !e.road.tunnel && !frozen.has(e.id) && edgePts.has(e.id);
   const ov = overpassesOf(g, edgePts, dem, railBridges);
   if (!ov.overs.length) return stats;
@@ -293,54 +348,104 @@ export function lowerUnderpasses(
       else incident.set(nd, [e.id]);
     }
   }
-  const cum = (prof: Array<[number, number, number]>) => {
-    const s = [0];
-    for (let i = 1; i < prof.length; i++) s.push(s[i - 1]! + Math.hypot(prof[i]![0] - prof[i - 1]![0], prof[i]![2] - prof[i - 1]![2]));
+  const cumOf = new Map<number, number[]>();
+  const cum = (id: number) => {
+    let s = cumOf.get(id);
+    if (!s) {
+      const prof = edgePts.get(id)!;
+      s = [0];
+      for (let i = 1; i < prof.length; i++) s.push(s[i - 1]! + Math.hypot(prof[i]![0] - prof[i - 1]![0], prof[i]![2] - prof[i - 1]![2]));
+      cumOf.set(id, s);
+    }
     return s;
   };
-  /** Plafond imposé aux nœuds (m), propagé ensuite aux arêtes voisines. */
-  const nodeCap = new Map<number, number>();
-  const queue: Array<[number, number]> = [];
-  /** Applique y ≤ cap(s) sur une arête ; une extrémité qui baisse devient le plafond de son nœud. */
-  const capEdge = (e: Edge, cap: (s: number) => number) => {
+  const lenOf = (id: number) => {
+    const s = cum(id);
+    return s[s.length - 1]!;
+  };
+  // Abaissement voulu par point d'arête et rampe aux nœuds ; les profils ne bougent qu'à la fin.
+  const low = new Map<number, Float64Array>();
+  const nodeLow = new Map<number, RampState & { low: number }>();
+  const queue: number[] = [];
+  const lowerEdge = (e: Edge, want: (s: number, base: number) => number, rel: (s: number) => number) => {
     const prof = edgePts.get(e.id)!;
-    const s = cum(prof);
-    for (let i = 0; i < prof.length; i++) prof[i]![1] = Math.min(prof[i]![1], cap(s[i]!));
-    for (const [nd, i] of [[e.a, 0], [e.b, prof.length - 1]] as const) {
-      const y = prof[i]![1];
-      if (y < (nodeCap.get(nd) ?? Infinity) - 1e-3) {
-        nodeCap.set(nd, y);
-        queue.push([nd, y]);
+    const s = cum(e.id);
+    let l = low.get(e.id);
+    for (let i = 0; i < prof.length; i++) {
+      const v = want(s[i]!, prof[i]![1]);
+      if (v <= 0) continue;
+      if (!l) low.set(e.id, (l = new Float64Array(prof.length)));
+      if (v > l[i]!) l[i] = v;
+      if (i > 0 && i < prof.length - 1) continue;
+      const nd = i === 0 ? e.a : e.b;
+      if (v > (nodeLow.get(nd)?.low ?? 0) + 1e-3) {
+        nodeLow.set(nd, { low: v, y: prof[i]![1] - v, rel: Math.max(v, rel(s[i]!)) });
+        queue.push(nd);
       }
     }
   };
-  // Les nœuds gardent d'abord leur altitude d'origine comme plafond (rien ne bouge tant qu'aucun pont ne l'exige).
+  const crossings: Array<{ edge: number; c: UnderpassCrossing }> = [];
   for (const e of g.edges) {
     if (!movable(e)) continue;
     const prof = edgePts.get(e.id)!;
-    for (const [nd, i] of [[e.a, 0], [e.b, prof.length - 1]] as const) if (!nodeCap.has(nd)) nodeCap.set(nd, prof[i]![1]);
-  }
-  for (const e of g.edges) {
-    if (!movable(e)) continue;
-    for (const c of underpassCrossings(edgePts.get(e.id)!, ov, stats)) capEdge(e, (s) => c.target + UNDERPASS_GRADE * Math.max(0, Math.abs(s - c.s) - c.flat));
-  }
-  // Rampes prolongées par les nœuds : chaque arête voisine reçoit le plafond du nœud, qui remonte avec la distance.
-  while (queue.length) {
-    const [nd, cap] = queue.pop()!;
-    if (cap > (nodeCap.get(nd) ?? Infinity) + 1e-6) continue;
-    for (const eid of incident.get(nd) ?? []) {
-      const e = g.edges[eid]!;
-      const len = cum(edgePts.get(eid)!);
-      const L = len[len.length - 1]!;
-      capEdge(e, (s) => cap + UNDERPASS_GRADE * (e.a === nd ? s : L - s));
+    for (const c of underpassCrossings(prof, ov, stats, new Set([e.a, e.b]))) {
+      crossings.push({ edge: e.id, c });
+      const ramp = crossingRamp(c, 0, lenOf(e.id), (d) => interpAt(cum(e.id), prof, d));
+      lowerEdge(e, ramp.lower, ramp.rel);
     }
   }
+  // Rampes prolongées par les nœuds : l'abaissement du nœud s'efface le long de chaque arête voisine.
+  while (queue.length) {
+    const nd = queue.pop()!;
+    const st = nodeLow.get(nd)!;
+    for (const eid of incident.get(nd) ?? []) {
+      const e = g.edges[eid]!;
+      const L = lenOf(eid);
+      const dist = (s: number) => (e.a === nd ? s : L - s);
+      lowerEdge(e, (s, base) => rampLower(base, st, dist(s)), (s) => st.rel - UNDERPASS_GRADE * dist(s));
+    }
+  }
+  // Nœuds tenus (pont, tunnel, itinéraire gardé) : abaissement nul, qui grandit avec la distance par les arêtes.
+  const allow = new Map<number, number>();
+  const pins: number[] = [];
+  for (const e of g.edges) {
+    if (movable(e)) continue;
+    for (const nd of [e.a, e.b])
+      if (!allow.has(nd)) {
+        allow.set(nd, 0);
+        pins.push(nd);
+      }
+  }
+  for (let q = 0; q < pins.length; q++) {
+    const nd = pins[q]!;
+    const v = allow.get(nd)!;
+    for (const eid of incident.get(nd) ?? []) {
+      const e = g.edges[eid]!;
+      const o = e.a === nd ? e.b : e.a;
+      const w = v + UNDERPASS_PIN_GRADE * lenOf(eid);
+      if (w < UNDERPASS_MAX_LOWER_M && w < (allow.get(o) ?? Infinity) - 1e-9) {
+        allow.set(o, w);
+        pins.push(o);
+      }
+    }
+  }
+  for (const [id, l] of low) {
+    const e = g.edges[id]!;
+    const prof = edgePts.get(id)!;
+    const s = cum(id);
+    const L = lenOf(id);
+    const aa = allow.get(e.a) ?? Infinity;
+    const ab = allow.get(e.b) ?? Infinity;
+    for (let i = 0; i < prof.length; i++) prof[i]![1] -= Math.max(0, Math.min(l[i]!, aa + UNDERPASS_PIN_GRADE * s[i]!, ab + UNDERPASS_PIN_GRADE * (L - s[i]!)));
+  }
+  for (const { edge, c } of crossings) if (c.target + UNDERPASS_CLEARANCE_M - interpAt(cum(edge), edgePts.get(edge)!, c.s) < UNDERPASS_SHORT_M) stats.short!++;
   return stats;
 }
 
 /** Ponts (routiers et ferroviaires) : axe en plan, demi-largeur, dessous du tablier au croisement (segment k, abscisse u, point `at`). */
 export interface Overpasses {
-  overs: Array<{ pts: Pt[]; hw: number; under: (k: number, u: number, at: Pt) => number }>;
+  /** `ends` : nœuds des bouts d'un pont routier (rien pour un pont ferroviaire, hors graphe). */
+  overs: Array<{ pts: Pt[]; hw: number; ends?: [number, number]; under: (k: number, u: number, at: Pt) => number }>;
   index: GridIndex<number>;
 }
 
@@ -356,7 +461,7 @@ export function overpassesOf(
     if (!e.road.bridge) continue;
     const prof = profiles.get(e.id);
     if (!prof || prof.length < 2) continue;
-    overs.push({ pts: prof.map((p) => [p[0], p[2]] as Pt), hw: e.road.width / 2, under: (k, u) => prof[k]![1] + (prof[k + 1]![1] - prof[k]![1]) * u - ROAD_DECK_M });
+    overs.push({ ends: [e.a, e.b], pts: prof.map((p) => [p[0], p[2]] as Pt), hw: e.road.width / 2, under: (k, u) => prof[k]![1] + (prof[k + 1]![1] - prof[k]![1]) * u - ROAD_DECK_M });
   }
   for (const r of railBridges) {
     if (r.pts.length < 2) continue;
@@ -393,13 +498,20 @@ export function overpassesOf(
   return { overs, index };
 }
 
+export interface UnderpassCrossing {
+  s: number;
+  target: number;
+  flat: number;
+}
+
 /**
  * Passages sous un pont d'une polyligne 3D (x, y, z) : abscisse curviligne `s` du croisement, altitude visée
  * (dessous du tablier − hauteur libre) et demi-longueur du palier. Seuls ceux où il faut abaisser (de 5 cm à
- * UNDERPASS_MAX_LOWER_M) sont rendus ; `stats` est mis à jour.
+ * UNDERPASS_MAX_LOWER_M) sont rendus ; `stats` est mis à jour. `nodes` : nœuds de la polyligne ; un pont qui part de
+ * l'un d'eux la prolonge, il n'est pas au-dessus (la route était abaissée de 5,1 m au bout de chaque pont, 25/11/2026).
  */
-export function underpassCrossings(prof: ReadonlyArray<readonly [number, number, number]>, ov: Overpasses, stats: UnderpassStats): Array<{ s: number; target: number; flat: number }> {
-  const out: Array<{ s: number; target: number; flat: number }> = [];
+export function underpassCrossings(prof: ReadonlyArray<readonly [number, number, number]>, ov: Overpasses, stats: UnderpassStats, nodes: ReadonlySet<number> = new Set()): UnderpassCrossing[] {
+  const out: UnderpassCrossing[] = [];
   let s0 = 0;
   for (let i = 0; i + 1 < prof.length; i++) {
     const a: Pt = [prof[i]![0], prof[i]![2]];
@@ -412,6 +524,11 @@ export function underpassCrossings(prof: ReadonlyArray<readonly [number, number,
         // croisement sur un point du profil : compté avec le segment suivant (ou au même point de l'ouvrage)
         if (!hit || (hit.t >= 1 && i + 2 < prof.length) || (hit.u >= 1 && k + 2 < o.pts.length)) continue;
         const at: Pt = [a[0] + (b[0] - a[0]) * hit.t, a[1] + (b[1] - a[1]) * hit.t];
+        const atEnd = o.ends?.some((nd, j) => {
+          const q = o.pts[j ? o.pts.length - 1 : 0]!;
+          return nodes.has(nd) && Math.hypot(q[0] - at[0], q[1] - at[1]) < BRIDGE_END_M;
+        });
+        if (atEnd) continue;
         const yRoad = prof[i]![1] + (prof[i + 1]![1] - prof[i]![1]) * hit.t;
         const target = o.under(k, hit.u, at) - UNDERPASS_CLEARANCE_M;
         const lower = yRoad - target;
@@ -435,28 +552,64 @@ export function underpassCrossings(prof: ReadonlyArray<readonly [number, number,
 
 /**
  * Itinéraire gardé qui passe sous un pont : ses points sont abaissés comme une route (palier et rampes, jamais
- * relevés ; boucle : rampes de part et d'autre de l'arrivée). Renvoie vrai si un point a changé.
+ * relevés ; boucle : rampes de part et d'autre de l'arrivée). `touch` : nœuds de l'itinéraire et points tenus (sur un
+ * pont, en tunnel), jamais abaissés. Renvoie vrai si un point a changé.
  */
-export function lowerRouteUnderpasses(points: Array<{ x: number; y: number; z: number; d: number }>, loop: boolean, ov: Overpasses, stats: UnderpassStats = { lowered: 0, maxLowerM: 0, skipped: 0 }): boolean {
-  if (points.length < 2 || !ov.overs.length) return false;
+export function lowerRouteUnderpasses(
+  points: Array<{ x: number; y: number; z: number; d: number }>,
+  loop: boolean,
+  ov: Overpasses,
+  stats: UnderpassStats = { lowered: 0, maxLowerM: 0, skipped: 0 },
+  touch: { nodes?: ReadonlySet<number>; pinned?: ReadonlyArray<boolean> } = {},
+): boolean {
+  const n = points.length;
+  if (n < 2 || !ov.overs.length) return false;
   const prof = points.map((p) => [p.x, p.y, p.z] as [number, number, number]);
   if (loop) prof.push([points[0]!.x, points[0]!.y, points[0]!.z]);
-  const cs = underpassCrossings(prof, ov, stats);
+  const cs = underpassCrossings(prof, ov, stats, touch.nodes);
   if (!cs.length) return false;
   // abscisses curvilignes en plan, comme `underpassCrossings`
   const sAt = [0];
   for (let i = 1; i < prof.length; i++) sAt.push(sAt[i - 1]! + Math.hypot(prof[i]![0] - prof[i - 1]![0], prof[i]![2] - prof[i - 1]![2]));
   const L = sAt[sAt.length - 1]!;
+  const yAt = (s: number) => interpAt(sAt, prof, loop ? ((s % L) + L) % L : s);
+  const ramps = cs.map((c) => ({ s: c.s, ...crossingRamp(c, loop ? -Infinity : 0, loop ? Infinity : L, yAt) }));
+  // distance (m) au point tenu le plus proche le long de l'itinéraire (boucle : deux tours, l'arrivée se referme)
+  const pin = new Float64Array(n).fill(Infinity);
+  if (touch.pinned?.some(Boolean)) {
+    for (let k = 0; k < n; k++) if (touch.pinned[k]) pin[k] = 0;
+    const turns = loop ? 2 : 1;
+    const gap = (i: number) => (i + 1 < n ? sAt[i + 1]! - sAt[i]! : L - sAt[i]!);
+    for (let k = 1; k < n * turns; k++) pin[k % n] = Math.min(pin[k % n]!, pin[(k - 1) % n]! + gap((k - 1) % n));
+    for (let k = n * turns - 2; k >= 0; k--) pin[k % n] = Math.min(pin[k % n]!, pin[(k + 1) % n]! + gap(k % n));
+  }
+  // Itinéraire validé : un passage dont la rampe bute sur un point tenu (sortie de pont, Alpe d'Huez 26/11/2026)
+  // creuserait un creux à 12 % de plus que la pente ; il est laissé tel quel et compté dans `short`.
+  const near = (s: number) => {
+    const w = ((s % L) + L) % L;
+    let k = sAt.findIndex((v) => v >= w);
+    if (k < 0 || k >= n) k = loop ? 0 : n - 1;
+    return k;
+  };
+  const kept = ramps.filter((r) => {
+    const k = near(r.s);
+    if (r.lower(sAt[k]!, points[k]!.y) <= UNDERPASS_PIN_GRADE * pin[k]! + 0.05) return true;
+    stats.short = (stats.short ?? 0) + 1;
+    return false;
+  });
   let changed = false;
-  for (let i = 0; i < points.length; i++) {
-    let cap = Infinity;
-    for (const c of cs) {
-      let d = Math.abs(sAt[i]! - c.s);
-      if (loop) d = Math.min(d, L - d);
-      cap = Math.min(cap, c.target + UNDERPASS_GRADE * Math.max(0, d - c.flat));
+  for (let i = 0; i < n; i++) {
+    const base = points[i]!.y;
+    let l = 0;
+    for (const r of kept) {
+      let s = sAt[i]!;
+      if (loop && s - r.s > L / 2) s -= L;
+      else if (loop && r.s - s > L / 2) s += L;
+      l = Math.max(l, r.lower(s, base));
     }
-    if (cap < points[i]!.y - 1e-4) {
-      points[i]!.y = Math.round(cap * 100) / 100;
+    l = Math.min(l, UNDERPASS_PIN_GRADE * pin[i]!);
+    if (l > 1e-4) {
+      points[i]!.y = Math.round((base - l) * 100) / 100;
       changed = true;
     }
   }

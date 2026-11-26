@@ -94,7 +94,7 @@
    "tz": -1,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.12,
    "lods": [
     "lo",
     "hi",
@@ -178,13 +178,13 @@
    "tz": 5,
    "baseM": 0,
    "minM": 1.31,
-   "maxM": 140.89,
+   "maxM": 131.46,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1411514
+   "bytes": 1411382
   },
   {
    "id": "-7_-5",
@@ -244,7 +244,7 @@
    "tz": -1,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.45,
    "lods": [
     "lo",
     "hi",
@@ -394,7 +394,7 @@
    "tz": -1,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.5,
    "lods": [
     "lo",
     "hi",
@@ -531,7 +531,7 @@
    "tz": -2,
    "baseM": -7,
    "minM": -6,
-   "maxM": -5,
+   "maxM": -4.9,
    "lods": [
     "lo",
     "hi"
@@ -544,7 +544,7 @@
    "tz": -1,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.48,
    "lods": [
     "lo",
     "hi",
@@ -681,7 +681,7 @@
    "tz": -2,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.51,
    "lods": [
     "lo",
     "hi"
@@ -831,7 +831,7 @@
    "tz": -2,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.52,
    "lods": [
     "lo",
     "hi"
@@ -864,7 +864,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1527630
+   "bytes": 1527589
   },
   {
    "id": "-3_1",
@@ -878,7 +878,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1213789
+   "bytes": 1213745
   },
   {
    "id": "-3_2",
@@ -981,7 +981,7 @@
    "tz": -2,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.44,
    "lods": [
     "lo",
     "hi",
@@ -1015,7 +1015,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1704064
+   "bytes": 1704143
   },
   {
    "id": "-2_1",
@@ -1132,7 +1132,7 @@
    "tz": -2,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.46,
    "lods": [
     "lo",
     "hi",
@@ -1180,7 +1180,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2090785
+   "bytes": 2090760
   },
   {
    "id": "-1_2",
@@ -1270,7 +1270,7 @@
    "tz": -3,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.3,
    "lods": [
     "lo",
     "hi"
@@ -1317,7 +1317,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1695881
+   "bytes": 1696497
   },
   {
    "id": "0_1",
@@ -1421,7 +1421,7 @@
    "tz": -3,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.48,
    "lods": [
     "lo",
     "hi",
@@ -1469,7 +1469,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1834204
+   "bytes": 1834205
   },
   {
    "id": "1_1",
@@ -1483,7 +1483,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1487177
+   "bytes": 1487036
   },
   {
    "id": "1_2",
@@ -1547,7 +1547,7 @@
    "tz": -5,
    "baseM": -7,
    "minM": -6,
-   "maxM": -5.25,
+   "maxM": -5.01,
    "lods": [
     "lo",
     "hi"
@@ -1560,7 +1560,7 @@
    "tz": -4,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.56,
    "lods": [
     "lo",
     "hi",
@@ -1587,7 +1587,7 @@
    "tx": 2,
    "tz": -2,
    "baseM": -5,
-   "minM": -4,
+   "minM": -3.53,
    "maxM": 49.56,
    "lods": [
     "lo",
@@ -1622,7 +1622,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1203365
+   "bytes": 1203469
   },
   {
    "id": "2_1",
@@ -1700,7 +1700,7 @@
    "tz": -5,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.49,
    "lods": [
     "lo",
     "hi"
@@ -1747,7 +1747,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1564113
+   "bytes": 1564341
   },
   {
    "id": "3_-1",
@@ -1853,7 +1853,7 @@
    "tz": -5,
    "baseM": -7,
    "minM": -6,
-   "maxM": -2,
+   "maxM": -0.67,
    "lods": [
     "lo",
     "hi",
@@ -1873,7 +1873,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1502701
+   "bytes": 1502679
   },
   {
    "id": "4_-3",
@@ -1887,7 +1887,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1721791
+   "bytes": 1721851
   },
   {
    "id": "4_-2",
@@ -1901,7 +1901,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1306743
+   "bytes": 1306765
   },
   {
    "id": "4_-1",
@@ -2181,7 +2181,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1468680
+   "bytes": 1468721
   },
   {
    "id": "6_-3",
@@ -2470,7 +2470,7 @@
    "file": "routes/corniche-basque.json",
    "name": "La corniche basque par Ciboure, Urrugne et Ascain",
    "lengthM": 31028.19,
-   "elevationGainM": 615.66,
+   "elevationGainM": 614.4,
    "loop": true,
    "main": true
   }

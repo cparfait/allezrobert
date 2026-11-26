@@ -888,7 +888,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1634300
+   "bytes": 1634324
   },
   {
    "id": "-7_-6",
@@ -1098,7 +1098,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1457520
+   "bytes": 1457574
   },
   {
    "id": "-6_-6",
@@ -1952,7 +1952,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1430362
+   "bytes": 1430446
   },
   {
    "id": "-2_-5",
@@ -3030,7 +3030,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1094751
+   "bytes": 1094732
   },
   {
    "id": "3_-3",
@@ -3240,7 +3240,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1090876
+   "bytes": 1090953
   },
   {
    "id": "4_-3",
@@ -4663,7 +4663,7 @@
    "file": "routes/tour-du-sancy.json",
    "name": "Le tour du Sancy par La Tour-d'Auvergne et Besse",
    "lengthM": 81809.13,
-   "elevationGainM": 1716.67,
+   "elevationGainM": 1718.67,
    "loop": true,
    "main": true
   },
@@ -4681,7 +4681,7 @@
    "file": "routes/autour-du-mont-dore.json",
    "name": "Autour du Mont-Dore",
    "lengthM": 66758,
-   "elevationGainM": 1633.05,
+   "elevationGainM": 1637.04,
    "loop": false,
    "main": false
   },
@@ -4690,7 +4690,7 @@
    "file": "routes/autour-de-chambon-sur-lac.json",
    "name": "Autour de Chambon-sur-Lac",
    "lengthM": 45636,
-   "elevationGainM": 1217.83,
+   "elevationGainM": 1221.84,
    "loop": false,
    "main": false
   },

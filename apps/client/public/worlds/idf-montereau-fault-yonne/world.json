@@ -41,14 +41,14 @@
    "tx": -8,
    "tz": -8,
    "baseM": 89,
-   "minM": 90.11,
+   "minM": 90.13,
    "maxM": 111.04,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 697615
+   "bytes": 697592
   },
   {
    "id": "-8_-7",
@@ -62,7 +62,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 719560
+   "bytes": 719488
   },
   {
    "id": "-8_-6",
@@ -76,7 +76,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1011952
+   "bytes": 1011907
   },
   {
    "id": "-8_-5",
@@ -90,7 +90,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 846836
+   "bytes": 846788
   },
   {
    "id": "-8_-4",
@@ -104,7 +104,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 818406
+   "bytes": 818383
   },
   {
    "id": "-8_-3",
@@ -118,7 +118,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 711516
+   "bytes": 711518
   },
   {
    "id": "-8_-2",
@@ -132,7 +132,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 820824
+   "bytes": 820821
   },
   {
    "id": "-8_-1",
@@ -146,7 +146,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 737558
+   "bytes": 737559
   },
   {
    "id": "-8_0",
@@ -160,7 +160,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 845786
+   "bytes": 845785
   },
   {
    "id": "-8_1",
@@ -174,7 +174,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 785176
+   "bytes": 785174
   },
   {
    "id": "-8_2",
@@ -188,7 +188,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 680543
+   "bytes": 680544
   },
   {
    "id": "-8_3",
@@ -202,7 +202,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 674939
+   "bytes": 674922
   },
   {
    "id": "-8_4",
@@ -216,7 +216,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 676858
+   "bytes": 676836
   },
   {
    "id": "-8_5",
@@ -244,7 +244,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 676766
+   "bytes": 676767
   },
   {
    "id": "-8_7",
@@ -258,7 +258,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 680230
+   "bytes": 680226
   },
   {
    "id": "-7_-8",
@@ -272,7 +272,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 711391
+   "bytes": 711389
   },
   {
    "id": "-7_-7",
@@ -496,7 +496,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 782304
+   "bytes": 782262
   },
   {
    "id": "-6_-7",
@@ -538,7 +538,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 737512
+   "bytes": 737657
   },
   {
    "id": "-6_-4",
@@ -552,7 +552,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 697022
+   "bytes": 697141
   },
   {
    "id": "-6_-3",
@@ -714,13 +714,13 @@
    "tz": -8,
    "baseM": 94,
    "minM": 95.11,
-   "maxM": 111.64,
+   "maxM": 111.68,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 701110
+   "bytes": 701130
   },
   {
    "id": "-5_-7",
@@ -762,7 +762,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 780838
+   "bytes": 780860
   },
   {
    "id": "-5_-4",
@@ -944,7 +944,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 704400
+   "bytes": 704375
   },
   {
    "id": "-4_-7",
@@ -1168,7 +1168,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 712554
+   "bytes": 712553
   },
   {
    "id": "-3_-7",
@@ -1202,15 +1202,15 @@
    "id": "-3_-5",
    "tx": -3,
    "tz": -5,
-   "baseM": 43,
-   "minM": 44.51,
+   "baseM": 42,
+   "minM": 43.15,
    "maxM": 63.17,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 715183
+   "bytes": 715161
   },
   {
    "id": "-3_-4",
@@ -1392,7 +1392,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 701321
+   "bytes": 701318
   },
   {
    "id": "-2_-7",
@@ -1427,14 +1427,14 @@
    "tx": -2,
    "tz": -5,
    "baseM": 46,
-   "minM": 47.26,
+   "minM": 47.02,
    "maxM": 54.74,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1051407
+   "bytes": 1051598
   },
   {
    "id": "-2_-4",
@@ -1616,7 +1616,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 700167
+   "bytes": 700171
   },
   {
    "id": "-1_-7",
@@ -1658,7 +1658,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1099067
+   "bytes": 1099192
   },
   {
    "id": "-1_-4",
@@ -1840,7 +1840,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 768073
+   "bytes": 768072
   },
   {
    "id": "0_-7",
@@ -1868,21 +1868,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1490742
+   "bytes": 1490619
   },
   {
    "id": "0_-5",
    "tx": 0,
    "tz": -5,
-   "baseM": 46,
-   "minM": 47.66,
+   "baseM": 45,
+   "minM": 46.42,
    "maxM": 59,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1123728
+   "bytes": 1123965
   },
   {
    "id": "0_-4",
@@ -2064,7 +2064,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 856090
+   "bytes": 856063
   },
   {
    "id": "1_-7",
@@ -2092,7 +2092,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 960918
+   "bytes": 960806
   },
   {
    "id": "1_-5",
@@ -2106,7 +2106,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 718115
+   "bytes": 718006
   },
   {
    "id": "1_-4",
@@ -2288,7 +2288,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 903588
+   "bytes": 903578
   },
   {
    "id": "2_-7",
@@ -2308,29 +2308,29 @@
    "id": "2_-6",
    "tx": 2,
    "tz": -6,
-   "baseM": 46,
-   "minM": 47.48,
+   "baseM": 45,
+   "minM": 46.02,
    "maxM": 58.17,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 798127
+   "bytes": 798105
   },
   {
    "id": "2_-5",
    "tx": 2,
    "tz": -5,
    "baseM": 46,
-   "minM": 47.53,
+   "minM": 47.49,
    "maxM": 52.9,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 664862
+   "bytes": 664840
   },
   {
    "id": "2_-4",
@@ -2344,7 +2344,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 955118
+   "bytes": 955301
   },
   {
    "id": "2_-3",
@@ -2512,35 +2512,35 @@
     "hi",
     "ortho"
    ],
-   "bytes": 777695
+   "bytes": 777703
   },
   {
    "id": "3_-7",
    "tx": 3,
    "tz": -7,
-   "baseM": 46,
-   "minM": 47.42,
+   "baseM": 44,
+   "minM": 45.39,
    "maxM": 80.11,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 789920
+   "bytes": 790036
   },
   {
    "id": "3_-6",
    "tx": 3,
    "tz": -6,
-   "baseM": 46,
-   "minM": 47.76,
+   "baseM": 44,
+   "minM": 45.14,
    "maxM": 61.24,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 744713
+   "bytes": 744867
   },
   {
    "id": "3_-5",
@@ -2561,14 +2561,14 @@
    "tx": 3,
    "tz": -4,
    "baseM": 48,
-   "minM": 49.41,
+   "minM": 49.38,
    "maxM": 70.09,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 866197
+   "bytes": 866267
   },
   {
    "id": "3_-3",
@@ -2736,7 +2736,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 686531
+   "bytes": 686558
   },
   {
    "id": "4_-7",
@@ -2960,7 +2960,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 728192
+   "bytes": 728146
   },
   {
    "id": "5_-7",
@@ -3205,14 +3205,14 @@
    "tx": 6,
    "tz": -6,
    "baseM": 46,
-   "minM": 47.46,
+   "minM": 47.2,
    "maxM": 58.02,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1054206
+   "bytes": 1054183
   },
   {
    "id": "6_-5",
@@ -3226,7 +3226,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 709847
+   "bytes": 709937
   },
   {
    "id": "6_-4",
@@ -3408,7 +3408,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 675630
+   "bytes": 675589
   },
   {
    "id": "7_-7",
@@ -3485,14 +3485,14 @@
    "tx": 7,
    "tz": -2,
    "baseM": 50,
-   "minM": 51.87,
+   "minM": 51.24,
    "maxM": 74.56,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 819581
+   "bytes": 819690
   },
   {
    "id": "7_-1",
@@ -3626,8 +3626,8 @@
    "id": "boucle-20-km",
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Montereau-Fault-Yonne",
-   "lengthM": 19208.06,
-   "elevationGainM": 107.78,
+   "lengthM": 19185.72,
+   "elevationGainM": 108.57,
    "loop": true,
    "main": true
   },
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Montereau-Fault-Yonne",
    "lengthM": 30028.31,
-   "elevationGainM": 264.44,
+   "elevationGainM": 265.86,
    "loop": true,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Montereau-Fault-Yonne",
    "lengthM": 35839.04,
-   "elevationGainM": 276.32,
+   "elevationGainM": 278.03,
    "loop": true,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Montereau-Fault-Yonne",
    "lengthM": 53553.08,
-   "elevationGainM": 543.23,
+   "elevationGainM": 544.65,
    "loop": true,
    "main": false
   }

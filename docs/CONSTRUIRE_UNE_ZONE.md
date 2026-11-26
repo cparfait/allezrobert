@@ -192,10 +192,12 @@ Elles sont actives par défaut, dans l'outil graphique comme en ligne de command
 - **Passages sous les ponts** (`roads3d.ts`, `lowerUnderpasses`, `lowerRouteUnderpasses`) : le MNT interpolé sous
   un tablier garde une bosse ; toute route qui passe sous un pont routier ou ferroviaire (itinéraires gardés
   compris, fichier et statistiques réécrits ; montées de la chaîne `build-climb` aussi, avant leurs statistiques)
-  est abaissée pour laisser 4,2 m libres, avec des rampes à 6 %. Le journal donne le nombre de passages abaissés.
+  est abaissée pour laisser 4,2 m libres, avec des rampes à 6 %. L'abaissement ne dépasse jamais 6 m et
+  s'efface avec la distance (même en montagne) ; un pont dans le prolongement de la route n'est pas « au-dessus »
+  d'elle, et les bouts de ponts ne bougent pas. Le journal donne le nombre de passages abaissés.
 - **Route plutôt que piste cyclable** (`loop.ts`, `markSidepaths`) : une piste cyclable qui longe une route
-  roulable n'est pas prise par les tours proposés ; elle ne l'est que sans route à côté (voie verte, piste le
-  long d'une voie rapide).
+  roulable n'est prise par les tours proposés que là où elle est le seul lien ; une piste sans route à côté (voie
+  verte, piste le long d'une voie rapide) l'est normalement.
 
 ### Garde-fous d'une construction
 

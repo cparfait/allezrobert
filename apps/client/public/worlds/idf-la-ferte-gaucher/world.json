@@ -48,7 +48,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 673242
+   "bytes": 673240
   },
   {
    "id": "-8_-7",
@@ -496,7 +496,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 670828
+   "bytes": 670830
   },
   {
    "id": "-6_-7",
@@ -580,7 +580,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1277557
+   "bytes": 1277630
   },
   {
    "id": "-6_-1",
@@ -706,7 +706,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 660807
+   "bytes": 660829
   },
   {
    "id": "-5_-8",
@@ -720,7 +720,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 677856
+   "bytes": 677855
   },
   {
    "id": "-5_-7",
@@ -930,7 +930,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 656510
+   "bytes": 656486
   },
   {
    "id": "-4_-8",
@@ -944,7 +944,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 746455
+   "bytes": 746478
   },
   {
    "id": "-4_-7",
@@ -1154,7 +1154,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 684457
+   "bytes": 684453
   },
   {
    "id": "-3_-8",
@@ -1168,7 +1168,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 649627
+   "bytes": 649595
   },
   {
    "id": "-3_-7",
@@ -1378,7 +1378,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 751652
+   "bytes": 751603
   },
   {
    "id": "-2_-8",
@@ -1392,7 +1392,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 687028
+   "bytes": 687001
   },
   {
    "id": "-2_-7",
@@ -1602,7 +1602,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 673847
+   "bytes": 673826
   },
   {
    "id": "-1_-8",
@@ -1616,7 +1616,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 692566
+   "bytes": 692567
   },
   {
    "id": "-1_-7",
@@ -1826,91 +1826,91 @@
     "hi",
     "ortho"
    ],
-   "bytes": 655265
+   "bytes": 655266
   },
   {
    "id": "0_-8",
    "tx": 0,
    "tz": -8,
    "baseM": 178,
-   "minM": 179.7,
+   "minM": 179.79,
    "maxM": 194.4,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 678604
+   "bytes": 678622
   },
   {
    "id": "0_-7",
    "tx": 0,
    "tz": -7,
    "baseM": 163,
-   "minM": 164.76,
+   "minM": 164.88,
    "maxM": 193.47,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 701227
+   "bytes": 701102
   },
   {
    "id": "0_-6",
    "tx": 0,
    "tz": -6,
-   "baseM": 154,
-   "minM": 155.54,
+   "baseM": 153,
+   "minM": 154.98,
    "maxM": 189.9,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 696397
+   "bytes": 696423
   },
   {
    "id": "0_-5",
    "tx": 0,
    "tz": -5,
    "baseM": 154,
-   "minM": 155.55,
+   "minM": 155.02,
    "maxM": 183.69,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 692638
+   "bytes": 692657
   },
   {
    "id": "0_-4",
    "tx": 0,
    "tz": -4,
    "baseM": 168,
-   "minM": 169.3,
+   "minM": 169.25,
    "maxM": 189.3,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 642428
+   "bytes": 642450
   },
   {
    "id": "0_-3",
    "tx": 0,
    "tz": -3,
    "baseM": 166,
-   "minM": 167.72,
+   "minM": 167.73,
    "maxM": 193.61,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 662514
+   "bytes": 662488
   },
   {
    "id": "0_-2",
@@ -1924,7 +1924,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 729233
+   "bytes": 729263
   },
   {
    "id": "0_-1",
@@ -1932,13 +1932,13 @@
    "tz": -1,
    "baseM": 141,
    "minM": 142.91,
-   "maxM": 188.3,
+   "maxM": 188.09,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 752247
+   "bytes": 752228
   },
   {
    "id": "0_0",
@@ -1946,7 +1946,7 @@
    "tz": 0,
    "baseM": 151,
    "minM": 152.63,
-   "maxM": 187.95,
+   "maxM": 188.24,
    "lods": [
     "lo",
     "hi",
@@ -1960,7 +1960,7 @@
    "tz": 1,
    "baseM": 140,
    "minM": 141.6,
-   "maxM": 178.17,
+   "maxM": 178.1,
    "lods": [
     "lo",
     "hi",
@@ -1987,28 +1987,28 @@
    "tx": 0,
    "tz": 3,
    "baseM": 154,
-   "minM": 155.7,
+   "minM": 155.77,
    "maxM": 186.38,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 709193
+   "bytes": 709172
   },
   {
    "id": "0_4",
    "tx": 0,
    "tz": 4,
    "baseM": 171,
-   "minM": 172.89,
+   "minM": 172.96,
    "maxM": 200.15,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 695384
+   "bytes": 695451
   },
   {
    "id": "0_5",
@@ -2022,7 +2022,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 727774
+   "bytes": 727753
   },
   {
    "id": "0_6",
@@ -2030,13 +2030,13 @@
    "tz": 6,
    "baseM": 150,
    "minM": 151.66,
-   "maxM": 176.51,
+   "maxM": 176.73,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 670654
+   "bytes": 670704
   },
   {
    "id": "0_7",
@@ -2044,13 +2044,13 @@
    "tz": 7,
    "baseM": 146,
    "minM": 147.81,
-   "maxM": 167.64,
+   "maxM": 167.9,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 731311
+   "bytes": 731315
   },
   {
    "id": "1_-8",
@@ -2064,7 +2064,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 740676
+   "bytes": 740701
   },
   {
    "id": "1_-7",
@@ -2078,7 +2078,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 849893
+   "bytes": 849849
   },
   {
    "id": "1_-6",
@@ -2092,7 +2092,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 773419
+   "bytes": 773420
   },
   {
    "id": "1_-5",
@@ -2106,7 +2106,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 815213
+   "bytes": 815215
   },
   {
    "id": "1_-4",
@@ -2120,7 +2120,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 790579
+   "bytes": 790602
   },
   {
    "id": "1_-3",
@@ -2134,35 +2134,35 @@
     "hi",
     "ortho"
    ],
-   "bytes": 878023
+   "bytes": 878002
   },
   {
    "id": "1_-2",
    "tx": 1,
    "tz": -2,
    "baseM": 121,
-   "minM": 122.16,
+   "minM": 122.06,
    "maxM": 172.89,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 762477
+   "bytes": 762478
   },
   {
    "id": "1_-1",
    "tx": 1,
    "tz": -1,
    "baseM": 152,
-   "minM": 153.25,
+   "minM": 153.15,
    "maxM": 194.68,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 711796
+   "bytes": 711731
   },
   {
    "id": "1_0",
@@ -2176,7 +2176,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 734663
+   "bytes": 734576
   },
   {
    "id": "1_1",
@@ -2212,13 +2212,13 @@
    "tz": 3,
    "baseM": 151,
    "minM": 152.5,
-   "maxM": 173.15,
+   "maxM": 173.18,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1017055
+   "bytes": 1017057
   },
   {
    "id": "1_4",
@@ -2246,7 +2246,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 913968
+   "bytes": 913993
   },
   {
    "id": "1_6",
@@ -2260,7 +2260,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 684095
+   "bytes": 684073
   },
   {
    "id": "1_7",
@@ -2274,7 +2274,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1051557
+   "bytes": 1051612
   },
   {
    "id": "2_-8",
@@ -2288,7 +2288,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 865759
+   "bytes": 865735
   },
   {
    "id": "2_-7",
@@ -2498,7 +2498,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 653578
+   "bytes": 653556
   },
   {
    "id": "3_-8",
@@ -2512,7 +2512,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 780382
+   "bytes": 780358
   },
   {
    "id": "3_-7",
@@ -2722,7 +2722,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 695306
+   "bytes": 695307
   },
   {
    "id": "4_-8",
@@ -2953,14 +2953,14 @@
    "tx": 5,
    "tz": -8,
    "baseM": 159,
-   "minM": 160.95,
+   "minM": 160.96,
    "maxM": 185.19,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 745023
+   "bytes": 745021
   },
   {
    "id": "5_-7",
@@ -3184,7 +3184,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 711744
+   "bytes": 711742
   },
   {
    "id": "6_-7",
@@ -3394,7 +3394,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 989136
+   "bytes": 989138
   },
   {
    "id": "7_-8",
@@ -3408,7 +3408,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 719607
+   "bytes": 719609
   },
   {
    "id": "7_-7",
@@ -3618,7 +3618,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 880597
+   "bytes": 880574
   }
  ],
  "routes": [
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis La Ferté-Gaucher",
    "lengthM": 29778.61,
-   "elevationGainM": 385.51,
+   "elevationGainM": 386.05,
    "loop": true,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis La Ferté-Gaucher",
    "lengthM": 40538.49,
-   "elevationGainM": 411.67,
+   "elevationGainM": 411.6,
    "loop": true,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis La Ferté-Gaucher",
    "lengthM": 47142.74,
-   "elevationGainM": 505.12,
+   "elevationGainM": 505.01,
    "loop": true,
    "main": false
   }

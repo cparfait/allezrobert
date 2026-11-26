@@ -27,7 +27,7 @@ import { Dem, DemStack, setSeaMode } from './dem.ts';
 import { tileRect, wgs84ToWorld, worldToL93, type Rect } from './frame.ts';
 import { simplify3 } from './geom.ts';
 import { RoadGraph, type Edge } from './graph.ts';
-import { markSidepaths } from './loop.ts';
+import { markSidepaths, SIDEPATH_COST } from './loop.ts';
 import { writeHorizon } from './horizon.ts';
 import { setOffline } from './net.ts';
 import { txCopyDir, txFile, writeAtomic, writeBuildMarker } from './safe-fs.ts';
@@ -176,7 +176,7 @@ async function main(): Promise<void> {
   const r3 = buildRoads3d(g, dem, kept, { routeEdgeProfiles: true, railBridges, ...(deckHeights ? { deckHeights } : {}) });
   log(`   ${r3.roads.length} tronçons, ${r3.carve.length} couloirs creusés`);
   const up = r3.underpasses;
-  log(`   passages sous un pont : ${up.lowered} routes abaissées (jusqu’à ${up.maxLowerM.toFixed(1)} m)${up.skipped ? `, ${up.skipped} laissées (plus de 6 m)` : ''}`);
+  log(`   passages sous un pont : ${up.lowered} routes abaissées (jusqu’à ${up.maxLowerM.toFixed(1)} m)${up.skipped ? `, ${up.skipped} laissées (plus de 6 m)` : ''}${up.short ? `, ${up.short} sans les 3 m libres (nœud tenu trop proche)` : ''}`);
   // itinéraires gardés abaissés sous un pont : fichier réécrit (même format), dénivelé et pentes recalculés
   for (const k of kept) {
     if (!r3.routesLowered.has(k.route.id)) continue;
@@ -373,8 +373,10 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
   // pistes pavées (secteurs de Paris–Roubaix : la Trouée d'Arenberg est un « track » en pavés) comprises
   const cobbledTrack = (e: Edge) => e.road.kind === 'track' && /^(sett|cobblestone)$/.test(e.road.surface);
   const anyTrack = (e: Edge) => !!tour.allowTracks && e.road.kind === 'track' && edgeIndex.has(e.id);
-  const usable = (e: Edge) => (edgeIndex.has(e.id) && e.road.paved && (/^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind) || cobbledTrack(e)) && !e.sidepath) || anyTrack(e);
-  const cost = (e: Edge) => (!usable(e) ? Infinity : e.road.kind === 'track' && !cobbledTrack(e) ? e.len * 3 : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
+  const usable = (e: Edge) => (edgeIndex.has(e.id) && e.road.paved && (/^(primary|secondary|tertiary|unclassified|residential|living_street|service|cycleway)(_link)?$/.test(e.road.kind) || cobbledTrack(e))) || anyTrack(e);
+  // piste le long d’une route : jamais un point de passage, mais gardée (très coûteuse) là où elle est le seul lien
+  const usableRoad = (e: Edge) => usable(e) && !e.sidepath;
+  const cost = (e: Edge) => (!usable(e) ? Infinity : e.sidepath ? e.len * SIDEPATH_COST : e.road.kind === 'track' && !cobbledTrack(e) ? e.len * 3 : /^(primary|secondary)/.test(e.road.kind) ? e.len * 1.6 : e.road.kind === 'service' ? e.len * 1.4 : e.len);
   const place = (p: LonLat | string): [number, number] => {
     if (typeof p !== 'string') return toWorld(p);
     const poi = pois.find((q) => q.name === p && /^(village|town|hamlet|isolated_dwelling|locality)$/.test(q.kind));
@@ -386,8 +388,8 @@ function buildTour(tour: OpenTour, g: RoadGraph, net: RoadNet, edgeIndex: Map<nu
   // sinon le point est sauté ; seul le départ est obligatoire
   const must: number[] = [];
   wps.forEach((p, i) => {
-    let e = nearestEdgeOf(g, p[0], p[1], 300, usable);
-    if (e < 0) e = nearestEdgeOf(g, p[0], p[1], 800, usable);
+    let e = nearestEdgeOf(g, p[0], p[1], 300, usableRoad);
+    if (e < 0) e = nearestEdgeOf(g, p[0], p[1], 800, usableRoad);
     if (e < 0) {
       if (i === 0 || i === wps.length - 1) throw new Error(`${tour.routeId} : départ sans route revêtue à moins de 800 m`);
       console.log(`   ! ${tour.routeId} : point de passage ${i} sans route revêtue à moins de 800 m, ignoré`);

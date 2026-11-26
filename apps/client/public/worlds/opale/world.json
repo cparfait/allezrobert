@@ -1830,8 +1830,8 @@
    "id": "3_5",
    "tx": 3,
    "tz": 5,
-   "baseM": -19,
-   "minM": -17.96,
+   "baseM": -13,
+   "minM": -11.26,
    "maxM": 115.72,
    "lods": [
     "lo",
@@ -1998,15 +1998,15 @@
    "id": "4_5",
    "tx": 4,
    "tz": 5,
-   "baseM": -15,
-   "minM": -13.54,
+   "baseM": -9,
+   "minM": -7.13,
    "maxM": 114.68,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 965917
+   "bytes": 965916
   },
   {
    "id": "5_-6",
@@ -2220,9 +2220,9 @@
   "z0": -30000,
   "n": 600,
   "resolutionM": 100,
-  "baseM": -20,
+  "baseM": -21,
   "stepM": 0.1,
-  "minM": -18.36,
+  "minM": -19.11,
   "maxM": 211.45,
   "ortho": "tiles/horizon.ortho.jpg"
  },

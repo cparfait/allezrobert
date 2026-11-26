@@ -230,7 +230,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 742079
+   "bytes": 742339
   },
   {
    "id": "-8_6",
@@ -1147,14 +1147,14 @@
    "tx": -4,
    "tz": 7,
    "baseM": 107,
-   "minM": 108.96,
+   "minM": 108.09,
    "maxM": 117.55,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 677749
+   "bytes": 678203
   },
   {
    "id": "-3_-8",
@@ -1224,7 +1224,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 728455
+   "bytes": 728456
   },
   {
    "id": "-3_-3",
@@ -1392,7 +1392,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 778034
+   "bytes": 778099
   },
   {
    "id": "-2_-7",
@@ -1406,7 +1406,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 780231
+   "bytes": 780229
   },
   {
    "id": "-2_-6",
@@ -2106,7 +2106,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 831168
+   "bytes": 831153
   },
   {
    "id": "1_-4",
@@ -2260,7 +2260,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 704064
+   "bytes": 704240
   },
   {
    "id": "1_7",
@@ -2771,7 +2771,7 @@
    "tx": 4,
    "tz": -5,
    "baseM": 59,
-   "minM": 61,
+   "minM": 60.7,
    "maxM": 118.33,
    "lods": [
     "lo",
@@ -2988,7 +2988,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 820975
+   "bytes": 821021
   },
   {
    "id": "5_-5",
@@ -3626,8 +3626,8 @@
    "id": "boucle-20-km",
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Fontenay-Trésigny",
-   "lengthM": 20578,
-   "elevationGainM": 45.33,
+   "lengthM": 20520,
+   "elevationGainM": 45.09,
    "loop": false,
    "main": true
   },
@@ -3635,8 +3635,8 @@
    "id": "boucle-30-km",
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Fontenay-Trésigny",
-   "lengthM": 30036,
-   "elevationGainM": 68.93,
+   "lengthM": 29978,
+   "elevationGainM": 68.74,
    "loop": false,
    "main": false
   },
@@ -3644,8 +3644,8 @@
    "id": "boucle-40-km",
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Fontenay-Trésigny",
-   "lengthM": 39458,
-   "elevationGainM": 111.9,
+   "lengthM": 39400,
+   "elevationGainM": 111.71,
    "loop": false,
    "main": false
   },
@@ -3653,8 +3653,8 @@
    "id": "boucle-50-km",
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Fontenay-Trésigny",
-   "lengthM": 49620,
-   "elevationGainM": 217.31,
+   "lengthM": 49566,
+   "elevationGainM": 217.22,
    "loop": false,
    "main": false
   }

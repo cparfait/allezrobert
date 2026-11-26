@@ -3058,7 +3058,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1233734
+   "bytes": 1233706
   },
   {
    "id": "5_0",
@@ -3324,7 +3324,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1048294
+   "bytes": 1048252
   },
   {
    "id": "6_3",
@@ -3626,8 +3626,8 @@
    "id": "boucle-20-km",
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Maisse",
-   "lengthM": 19790,
-   "elevationGainM": 177.81,
+   "lengthM": 19796,
+   "elevationGainM": 177.68,
    "loop": false,
    "main": true
   },
@@ -3635,8 +3635,8 @@
    "id": "boucle-30-km",
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Maisse",
-   "lengthM": 27906,
-   "elevationGainM": 262.91,
+   "lengthM": 27912,
+   "elevationGainM": 262.81,
    "loop": false,
    "main": false
   },
@@ -3644,8 +3644,8 @@
    "id": "boucle-40-km",
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Maisse",
-   "lengthM": 41668,
-   "elevationGainM": 369.59,
+   "lengthM": 41672,
+   "elevationGainM": 369.48,
    "loop": false,
    "main": false
   },
@@ -3653,8 +3653,8 @@
    "id": "boucle-50-km",
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Maisse",
-   "lengthM": 49532,
-   "elevationGainM": 379.97,
+   "lengthM": 49538,
+   "elevationGainM": 379.93,
    "loop": false,
    "main": false
   }
@@ -3676,7 +3676,7 @@
   "baseM": -1,
   "stepM": 0.1,
   "minM": 0.72,
-  "maxM": 168.46,
+  "maxM": 168.3,
   "ortho": "tiles/horizon.ortho.jpg"
  },
  "open": {

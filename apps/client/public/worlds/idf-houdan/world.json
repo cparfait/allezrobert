@@ -41,14 +41,14 @@
    "tx": -8,
    "tz": -8,
    "baseM": 111,
-   "minM": 112.86,
+   "minM": 112.85,
    "maxM": 125.42,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 662848
+   "bytes": 662900
   },
   {
    "id": "-8_-7",
@@ -272,7 +272,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 695723
+   "bytes": 695720
   },
   {
    "id": "-7_-7",
@@ -496,7 +496,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 864352
+   "bytes": 864350
   },
   {
    "id": "-6_-7",
@@ -720,7 +720,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 805984
+   "bytes": 805956
   },
   {
    "id": "-5_-7",
@@ -1168,7 +1168,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 821380
+   "bytes": 821358
   },
   {
    "id": "-3_-7",
@@ -1238,7 +1238,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 819878
+   "bytes": 820030
   },
   {
    "id": "-3_-2",
@@ -1392,7 +1392,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 789737
+   "bytes": 789744
   },
   {
    "id": "-2_-7",
@@ -1462,7 +1462,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 883253
+   "bytes": 883601
   },
   {
    "id": "-2_-2",
@@ -1616,7 +1616,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1041294
+   "bytes": 1041323
   },
   {
    "id": "-1_-7",
@@ -1840,7 +1840,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1060144
+   "bytes": 1060141
   },
   {
    "id": "0_-7",
@@ -1854,7 +1854,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 745241
+   "bytes": 745374
   },
   {
    "id": "0_-6",
@@ -2064,7 +2064,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 887186
+   "bytes": 887162
   },
   {
    "id": "1_-7",
@@ -2288,7 +2288,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 878370
+   "bytes": 878371
   },
   {
    "id": "2_-7",
@@ -2512,7 +2512,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 819944
+   "bytes": 819941
   },
   {
    "id": "3_-7",
@@ -2729,14 +2729,14 @@
    "tx": 4,
    "tz": -8,
    "baseM": 109,
-   "minM": 110.12,
+   "minM": 110.1,
    "maxM": 135,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1330851
+   "bytes": 1330783
   },
   {
    "id": "4_-7",
@@ -2960,7 +2960,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1155614
+   "bytes": 1155617
   },
   {
    "id": "5_-7",
@@ -3626,8 +3626,8 @@
    "id": "boucle-20-km",
    "file": "routes/boucle-20-km.json",
    "name": "Boucle de 20 km depuis Houdan",
-   "lengthM": 19841.4,
-   "elevationGainM": 172.07,
+   "lengthM": 19836.29,
+   "elevationGainM": 171.86,
    "loop": true,
    "main": true
   },
@@ -3644,8 +3644,8 @@
    "id": "boucle-40-km",
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Houdan",
-   "lengthM": 41690,
-   "elevationGainM": 323.64,
+   "lengthM": 41828,
+   "elevationGainM": 324.16,
    "loop": false,
    "main": false
   },
@@ -3653,8 +3653,8 @@
    "id": "boucle-50-km",
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Houdan",
-   "lengthM": 49026,
-   "elevationGainM": 362.56,
+   "lengthM": 49164,
+   "elevationGainM": 363.13,
    "loop": false,
    "main": false
   }

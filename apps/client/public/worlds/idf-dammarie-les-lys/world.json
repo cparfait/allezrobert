@@ -41,14 +41,14 @@
    "tx": -8,
    "tz": -8,
    "baseM": 64,
-   "minM": 65.96,
+   "minM": 65.95,
    "maxM": 83.18,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 882089
+   "bytes": 881946
   },
   {
    "id": "-8_-7",
@@ -76,7 +76,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 748450
+   "bytes": 748377
   },
   {
    "id": "-8_-5",
@@ -90,49 +90,49 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1268686
+   "bytes": 1268691
   },
   {
    "id": "-8_-4",
    "tx": -8,
    "tz": -4,
    "baseM": 90,
-   "minM": 91.49,
+   "minM": 91.48,
    "maxM": 152.01,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 986146
+   "bytes": 986169
   },
   {
    "id": "-8_-3",
    "tx": -8,
    "tz": -3,
    "baseM": 110,
-   "minM": 111.41,
+   "minM": 111.36,
    "maxM": 152.75,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 820988
+   "bytes": 820987
   },
   {
    "id": "-8_-2",
    "tx": -8,
    "tz": -2,
    "baseM": 93,
-   "minM": 94.3,
+   "minM": 94.29,
    "maxM": 151.81,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1395923
+   "bytes": 1395920
   },
   {
    "id": "-8_-1",
@@ -146,7 +146,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 978174
+   "bytes": 978228
   },
   {
    "id": "-8_0",
@@ -160,7 +160,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 754065
+   "bytes": 754025
   },
   {
    "id": "-8_1",
@@ -174,7 +174,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 714282
+   "bytes": 714205
   },
   {
    "id": "-8_2",
@@ -188,21 +188,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 696982
+   "bytes": 696965
   },
   {
    "id": "-8_3",
    "tx": -8,
    "tz": 3,
    "baseM": 130,
-   "minM": 131.57,
+   "minM": 131.56,
    "maxM": 145.42,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 629148
+   "bytes": 629145
   },
   {
    "id": "-8_4",
@@ -216,35 +216,35 @@
     "hi",
     "ortho"
    ],
-   "bytes": 830826
+   "bytes": 830828
   },
   {
    "id": "-8_5",
    "tx": -8,
    "tz": 5,
    "baseM": 86,
-   "minM": 87.06,
+   "minM": 87.05,
    "maxM": 142.72,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 961349
+   "bytes": 961210
   },
   {
    "id": "-8_6",
    "tx": -8,
    "tz": 6,
    "baseM": 69,
-   "minM": 70.88,
+   "minM": 70.87,
    "maxM": 133.21,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1282496
+   "bytes": 1282541
   },
   {
    "id": "-8_7",
@@ -258,7 +258,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1510102
+   "bytes": 1510121
   },
   {
    "id": "-7_-8",
@@ -1392,7 +1392,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 781313
+   "bytes": 781285
   },
   {
    "id": "-2_-7",
@@ -1406,7 +1406,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 672016
+   "bytes": 672034
   },
   {
    "id": "-2_-6",
@@ -1832,8 +1832,8 @@
    "id": "0_-8",
    "tx": 0,
    "tz": -8,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 71,
+   "minM": 72.38,
    "maxM": 83.08,
    "lods": [
     "lo",
@@ -1846,8 +1846,8 @@
    "id": "0_-7",
    "tx": 0,
    "tz": -7,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 66,
+   "minM": 67.75,
    "maxM": 81.62,
    "lods": [
     "lo",
@@ -1860,8 +1860,8 @@
    "id": "0_-6",
    "tx": 0,
    "tz": -6,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 52,
+   "minM": 53.2,
    "maxM": 79.7,
    "lods": [
     "lo",
@@ -1874,8 +1874,8 @@
    "id": "0_-5",
    "tx": 0,
    "tz": -5,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 64,
+   "minM": 65.73,
    "maxM": 80.14,
    "lods": [
     "lo",
@@ -2056,8 +2056,8 @@
    "id": "1_-8",
    "tx": 1,
    "tz": -8,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 34,
+   "minM": 35.75,
    "maxM": 79.61,
    "lods": [
     "lo",
@@ -2070,8 +2070,8 @@
    "id": "1_-7",
    "tx": 1,
    "tz": -7,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 35,
+   "minM": 36.4,
    "maxM": 78.03,
    "lods": [
     "lo",
@@ -2084,8 +2084,8 @@
    "id": "1_-6",
    "tx": 1,
    "tz": -6,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 47,
+   "minM": 48.24,
    "maxM": 75.51,
    "lods": [
     "lo",
@@ -2098,8 +2098,8 @@
    "id": "1_-5",
    "tx": 1,
    "tz": -5,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 58,
+   "minM": 59.25,
    "maxM": 78.7,
    "lods": [
     "lo",
@@ -2280,8 +2280,8 @@
    "id": "2_-8",
    "tx": 2,
    "tz": -8,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 40,
+   "minM": 41.76,
    "maxM": 74.54,
    "lods": [
     "lo",
@@ -2294,22 +2294,22 @@
    "id": "2_-7",
    "tx": 2,
    "tz": -7,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 35,
+   "minM": 36.39,
    "maxM": 73.54,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1471140
+   "bytes": 1471298
   },
   {
    "id": "2_-6",
    "tx": 2,
    "tz": -6,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 37,
+   "minM": 38.91,
    "maxM": 62.32,
    "lods": [
     "lo",
@@ -2322,8 +2322,8 @@
    "id": "2_-5",
    "tx": 2,
    "tz": -5,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 39,
+   "minM": 40.35,
    "maxM": 77.4,
    "lods": [
     "lo",
@@ -2484,7 +2484,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1255544
+   "bytes": 1255698
   },
   {
    "id": "2_7",
@@ -2504,8 +2504,8 @@
    "id": "3_-8",
    "tx": 3,
    "tz": -8,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 69,
+   "minM": 70.95,
    "maxM": 80.2,
    "lods": [
     "lo",
@@ -2518,8 +2518,8 @@
    "id": "3_-7",
    "tx": 3,
    "tz": -7,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 35,
+   "minM": 36.48,
    "maxM": 76.93,
    "lods": [
     "lo",
@@ -2532,8 +2532,8 @@
    "id": "3_-6",
    "tx": 3,
    "tz": -6,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 35,
+   "minM": 36.54,
    "maxM": 72.9,
    "lods": [
     "lo",
@@ -2546,8 +2546,8 @@
    "id": "3_-5",
    "tx": 3,
    "tz": -5,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 40,
+   "minM": 41.02,
    "maxM": 78.68,
    "lods": [
     "lo",
@@ -2728,50 +2728,50 @@
    "id": "4_-8",
    "tx": 4,
    "tz": -8,
-   "baseM": -1,
-   "minM": 0,
-   "maxM": 79.73,
+   "baseM": 71,
+   "minM": 72.76,
+   "maxM": 78.96,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 842494
+   "bytes": 842517
   },
   {
    "id": "4_-7",
    "tx": 4,
    "tz": -7,
-   "baseM": -1,
-   "minM": 0,
-   "maxM": 79.82,
+   "baseM": 35,
+   "minM": 36.62,
+   "maxM": 79.61,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1314388
+   "bytes": 1314275
   },
   {
    "id": "4_-6",
    "tx": 4,
    "tz": -6,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 35,
+   "minM": 36.48,
    "maxM": 72.06,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1732874
+   "bytes": 1732875
   },
   {
    "id": "4_-5",
    "tx": 4,
    "tz": -5,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 41,
+   "minM": 42.3,
    "maxM": 80.77,
    "lods": [
     "lo",
@@ -2785,7 +2785,7 @@
    "tx": 4,
    "tz": -4,
    "baseM": 73,
-   "minM": 74.7,
+   "minM": 74.69,
    "maxM": 82.32,
    "lods": [
     "lo",
@@ -2952,36 +2952,36 @@
    "id": "5_-8",
    "tx": 5,
    "tz": -8,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 70,
+   "minM": 71.12,
    "maxM": 80.39,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1184978
+   "bytes": 1185043
   },
   {
    "id": "5_-7",
    "tx": 5,
    "tz": -7,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 61,
+   "minM": 62.33,
    "maxM": 79.71,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1182267
+   "bytes": 1182337
   },
   {
    "id": "5_-6",
    "tx": 5,
    "tz": -6,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 35,
+   "minM": 36.63,
    "maxM": 73.56,
    "lods": [
     "lo",
@@ -2994,22 +2994,22 @@
    "id": "5_-5",
    "tx": 5,
    "tz": -5,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 33,
+   "minM": 34.71,
    "maxM": 76.59,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1372062
+   "bytes": 1372204
   },
   {
    "id": "5_-4",
    "tx": 5,
    "tz": -4,
    "baseM": 56,
-   "minM": 57.39,
+   "minM": 57.38,
    "maxM": 86.71,
    "lods": [
     "lo",
@@ -3176,8 +3176,8 @@
    "id": "6_-8",
    "tx": 6,
    "tz": -8,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 69,
+   "minM": 70.91,
    "maxM": 81.21,
    "lods": [
     "lo",
@@ -3190,8 +3190,8 @@
    "id": "6_-7",
    "tx": 6,
    "tz": -7,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 67,
+   "minM": 69,
    "maxM": 82.77,
    "lods": [
     "lo",
@@ -3204,8 +3204,8 @@
    "id": "6_-6",
    "tx": 6,
    "tz": -6,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 51,
+   "minM": 52.23,
    "maxM": 76.77,
    "lods": [
     "lo",
@@ -3218,8 +3218,8 @@
    "id": "6_-5",
    "tx": 6,
    "tz": -5,
-   "baseM": -1,
-   "minM": 0,
+   "baseM": 37,
+   "minM": 38.68,
    "maxM": 74.3,
    "lods": [
     "lo",
@@ -3626,8 +3626,8 @@
    "id": "boucle-24-km",
    "file": "routes/boucle-24-km.json",
    "name": "Boucle de 24 km depuis Dammarie-les-Lys",
-   "lengthM": 23728,
-   "elevationGainM": 152.32,
+   "lengthM": 24094,
+   "elevationGainM": 154.03,
    "loop": false,
    "main": true
   },
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Dammarie-les-Lys",
    "lengthM": 30156,
-   "elevationGainM": 241.57,
+   "elevationGainM": 241.29,
    "loop": false,
    "main": false
   },
@@ -3644,8 +3644,8 @@
    "id": "boucle-40-km",
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Dammarie-les-Lys",
-   "lengthM": 39980,
-   "elevationGainM": 208.49,
+   "lengthM": 40348,
+   "elevationGainM": 210.32,
    "loop": false,
    "main": false
   },
@@ -3653,8 +3653,8 @@
    "id": "boucle-50-km",
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Dammarie-les-Lys",
-   "lengthM": 48720,
-   "elevationGainM": 259.85,
+   "lengthM": 49086,
+   "elevationGainM": 261.36,
    "loop": false,
    "main": false
   }

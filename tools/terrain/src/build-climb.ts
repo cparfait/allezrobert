@@ -243,7 +243,9 @@ async function main(): Promise<void> {
     const ov = overpassesOf(g, decks, dem, osm.lines.filter((l) => l.cat === 'railway' && l.bridge && !l.tunnel));
     const stats = { lowered: 0, maxLowerM: 0, skipped: 0 };
     const routePts = pts.map((p, i) => ({ x: p[0], y: hs[i]!, z: p[1], d: i * step }));
-    if (lowerRouteUnderpasses(routePts, false, ov, stats)) routePts.forEach((p, i) => (hs[i] = p.y));
+    // nœuds de la montée (un pont qui part de l'un d'eux n'est pas au-dessus) et points tenus (sur un pont, en tunnel)
+    const nodes = new Set([...onRoute].flatMap((id) => [g.edges[id]!.a, g.edges[id]!.b]));
+    if (lowerRouteUnderpasses(routePts, false, ov, stats, { nodes, pinned: isStructure })) routePts.forEach((p, i) => (hs[i] = p.y));
     if (stats.lowered || stats.skipped) log(`   passages sous un pont : ${stats.lowered} abaissé(s) (jusqu’à ${stats.maxLowerM.toFixed(1)} m)${stats.skipped ? `, ${stats.skipped} laissé(s) (plus de 6 m)` : ''}`);
   }
   // écart planimétrique lissage ↔ OSM (dans les lacets surtout)

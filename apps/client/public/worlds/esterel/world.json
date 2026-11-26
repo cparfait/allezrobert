@@ -96,29 +96,29 @@
    "id": "-7_0",
    "tx": -7,
    "tz": 0,
-   "baseM": -4,
-   "minM": -2.86,
+   "baseM": -5,
+   "minM": -3.01,
    "maxM": 21.4,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1838691
+   "bytes": 1838736
   },
   {
    "id": "-7_1",
    "tx": -7,
    "tz": 1,
    "baseM": -3,
-   "minM": -1.08,
+   "minM": -1.57,
    "maxM": 6.4,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1754066
+   "bytes": 1754104
   },
   {
    "id": "-7_2",
@@ -138,9 +138,9 @@
    "id": "-7_3",
    "tx": -7,
    "tz": 3,
-   "baseM": -1,
+   "baseM": -2,
    "minM": 0,
-   "maxM": 0,
+   "maxM": 0.21,
    "lods": [
     "lo",
     "hi",
@@ -154,7 +154,7 @@
    "tz": 4,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.23,
    "lods": [
     "lo",
     "hi",
@@ -216,7 +216,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1914095
+   "bytes": 1914228
   },
   {
    "id": "-6_0",
@@ -244,15 +244,15 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1262624
+   "bytes": 1262602
   },
   {
    "id": "-6_2",
    "tx": -6,
    "tz": 2,
    "baseM": -2,
-   "minM": -0.1,
-   "maxM": 0,
+   "minM": 0,
+   "maxM": 0.26,
    "lods": [
     "lo",
     "hi",
@@ -266,7 +266,7 @@
    "tz": 3,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.47,
    "lods": [
     "lo",
     "hi",
@@ -280,7 +280,7 @@
    "tz": 4,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.47,
    "lods": [
     "lo",
     "hi",
@@ -362,15 +362,15 @@
    "id": "-5_1",
    "tx": -5,
    "tz": 1,
-   "baseM": -2,
-   "minM": -0.1,
+   "baseM": -4,
+   "minM": -2.3,
    "maxM": 76.5,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1996401
+   "bytes": 1996865
   },
   {
    "id": "-5_2",
@@ -406,7 +406,7 @@
    "tz": 4,
    "baseM": -7,
    "minM": -6,
-   "maxM": -1.58,
+   "maxM": -1.33,
    "lods": [
     "lo",
     "hi"
@@ -531,7 +531,7 @@
    "tz": 4,
    "baseM": -7,
    "minM": -6,
-   "maxM": -1.58,
+   "maxM": -1.46,
    "lods": [
     "lo",
     "hi"
@@ -656,7 +656,7 @@
    "tz": 4,
    "baseM": -7,
    "minM": -6,
-   "maxM": -1.57,
+   "maxM": -1.43,
    "lods": [
     "lo",
     "hi"
@@ -767,7 +767,7 @@
    "tz": 3,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.29,
    "lods": [
     "lo",
     "hi",
@@ -877,7 +877,7 @@
    "tx": -1,
    "tz": 2,
    "baseM": -2,
-   "minM": -0.15,
+   "minM": -0.14,
    "maxM": 11.66,
    "lods": [
     "lo",
@@ -892,7 +892,7 @@
    "tz": 3,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.26,
    "lods": [
     "lo",
     "hi",
@@ -1002,7 +1002,7 @@
    "tx": 0,
    "tz": 2,
    "baseM": -2,
-   "minM": -0.2,
+   "minM": -0.1,
    "maxM": 10.45,
    "lods": [
     "lo",
@@ -1017,7 +1017,7 @@
    "tz": 3,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.48,
    "lods": [
     "lo",
     "hi",
@@ -1127,7 +1127,7 @@
    "tx": 1,
    "tz": 2,
    "baseM": -2,
-   "minM": -0.2,
+   "minM": -0.09,
    "maxM": 102.98,
    "lods": [
     "lo",
@@ -1142,7 +1142,7 @@
    "tz": 3,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.41,
    "lods": [
     "lo",
     "hi",
@@ -1224,21 +1224,21 @@
    "tx": 2,
    "tz": 0,
    "baseM": -2,
-   "minM": -0.26,
+   "minM": -0.11,
    "maxM": 43.57,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1111757
+   "bytes": 1111776
   },
   {
    "id": "2_1",
    "tx": 2,
    "tz": 1,
    "baseM": -2,
-   "minM": -0.26,
+   "minM": -0.1,
    "maxM": 106.66,
    "lods": [
     "lo",
@@ -1267,7 +1267,7 @@
    "tz": 3,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.41,
    "lods": [
     "lo",
     "hi",
@@ -1342,21 +1342,21 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2983136
+   "bytes": 2983135
   },
   {
    "id": "3_0",
    "tx": 3,
    "tz": 0,
    "baseM": -2,
-   "minM": -0.3,
+   "minM": -0.16,
    "maxM": 64.33,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1356514
+   "bytes": 1356533
   },
   {
    "id": "3_1",
@@ -1364,7 +1364,7 @@
    "tz": 1,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.47,
    "lods": [
     "lo",
     "hi",
@@ -1378,7 +1378,7 @@
    "tz": 2,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.41,
    "lods": [
     "lo",
     "hi",
@@ -1466,14 +1466,14 @@
     "hi",
     "ortho"
    ],
-   "bytes": 3057822
+   "bytes": 3057800
   },
   {
    "id": "4_0",
    "tx": 4,
    "tz": 0,
    "baseM": -2,
-   "minM": -0.3,
+   "minM": -0.27,
    "maxM": 149.17,
    "lods": [
     "lo",
@@ -1488,7 +1488,7 @@
    "tz": 1,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.43,
    "lods": [
     "lo",
     "hi",
@@ -1568,7 +1568,7 @@
    "tx": 5,
    "tz": -2,
    "baseM": -2,
-   "minM": -0.3,
+   "minM": -0.02,
    "maxM": 267.97,
    "lods": [
     "lo",
@@ -1582,21 +1582,21 @@
    "tx": 5,
    "tz": -1,
    "baseM": -2,
-   "minM": -0.3,
+   "minM": -0.56,
    "maxM": 110.5,
    "lods": [
     "lo",
     "hi",
     "ortho"
    ],
-   "bytes": 1398920
+   "bytes": 1399016
   },
   {
    "id": "5_0",
    "tx": 5,
    "tz": 0,
    "baseM": -2,
-   "minM": -0.28,
+   "minM": -0.2,
    "maxM": 72.54,
    "lods": [
     "lo",
@@ -1611,7 +1611,7 @@
    "tz": 1,
    "baseM": -7,
    "minM": -6,
-   "maxM": 0,
+   "maxM": 0.17,
    "lods": [
     "lo",
     "hi",
@@ -1664,8 +1664,8 @@
    "id": "corniche-de-l-esterel",
    "file": "routes/corniche-de-l-esterel.json",
    "name": "La corniche de l'Estérel par Agay et Valescure",
-   "lengthM": 23639.47,
-   "elevationGainM": 289.01,
+   "lengthM": 23648.07,
+   "elevationGainM": 294.22,
    "loop": true,
    "main": true
   }

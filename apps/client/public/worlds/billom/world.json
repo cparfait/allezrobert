@@ -174,7 +174,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2008561
+   "bytes": 2008607
   },
   {
    "id": "-8_2",
@@ -188,7 +188,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1525898
+   "bytes": 1525908
   },
   {
    "id": "-8_3",
@@ -468,7 +468,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 981322
+   "bytes": 981545
   },
   {
    "id": "-6_-7",
@@ -482,7 +482,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 851751
+   "bytes": 851826
   },
   {
    "id": "-6_-6",
@@ -846,7 +846,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 2015368
+   "bytes": 2015418
   },
   {
    "id": "-5_5",
@@ -930,7 +930,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1489387
+   "bytes": 1489509
   },
   {
    "id": "-4_-4",
@@ -1112,7 +1112,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1702933
+   "bytes": 1703007
   },
   {
    "id": "-3_-6",
@@ -1322,7 +1322,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1514125
+   "bytes": 1514122
   },
   {
    "id": "-2_-6",
@@ -3210,8 +3210,8 @@
    "id": "boucle-billomoise-2",
    "file": "routes/boucle-billomoise-2.json",
    "name": "Billom – Le Cendre par Pérignat-sur-Allier",
-   "lengthM": 27666,
-   "elevationGainM": 240.05,
+   "lengthM": 27660,
+   "elevationGainM": 240.93,
    "loop": false,
    "main": false
   },

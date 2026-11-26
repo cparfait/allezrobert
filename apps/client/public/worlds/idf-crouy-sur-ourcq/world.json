@@ -930,7 +930,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 706349
+   "bytes": 706537
   },
   {
    "id": "-4_-8",
@@ -1504,7 +1504,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 670581
+   "bytes": 670559
   },
   {
    "id": "-2_1",
@@ -1560,7 +1560,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 698591
+   "bytes": 698642
   },
   {
    "id": "-2_5",
@@ -1728,7 +1728,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 705853
+   "bytes": 705852
   },
   {
    "id": "-1_1",
@@ -1784,7 +1784,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 721131
+   "bytes": 721433
   },
   {
    "id": "-1_5",
@@ -2204,7 +2204,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 766178
+   "bytes": 766331
   },
   {
    "id": "1_3",
@@ -3086,7 +3086,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 708110
+   "bytes": 708244
   },
   {
    "id": "5_2",
@@ -3310,7 +3310,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 706488
+   "bytes": 706726
   },
   {
    "id": "6_2",
@@ -3534,7 +3534,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 695259
+   "bytes": 695213
   },
   {
    "id": "7_2",
@@ -3636,7 +3636,7 @@
    "file": "routes/boucle-30-km.json",
    "name": "Boucle de 30 km depuis Crouy-sur-Ourcq",
    "lengthM": 31438,
-   "elevationGainM": 500.74,
+   "elevationGainM": 498.33,
    "loop": false,
    "main": false
   },
@@ -3645,7 +3645,7 @@
    "file": "routes/boucle-40-km.json",
    "name": "Boucle de 40 km depuis Crouy-sur-Ourcq",
    "lengthM": 38224,
-   "elevationGainM": 541.41,
+   "elevationGainM": 538.61,
    "loop": false,
    "main": false
   },
@@ -3654,7 +3654,7 @@
    "file": "routes/boucle-50-km.json",
    "name": "Boucle de 50 km depuis Crouy-sur-Ourcq",
    "lengthM": 50518,
-   "elevationGainM": 716,
+   "elevationGainM": 713.17,
    "loop": false,
    "main": false
   }

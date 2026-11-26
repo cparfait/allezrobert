@@ -1336,7 +1336,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1181690
+   "bytes": 1181828
   },
   {
    "id": "0_-4",
@@ -1406,7 +1406,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 939483
+   "bytes": 939505
   },
   {
    "id": "0_1",
@@ -1420,7 +1420,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 922366
+   "bytes": 922428
   },
   {
    "id": "0_2",
@@ -1434,7 +1434,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 977132
+   "bytes": 977154
   },
   {
    "id": "0_3",
@@ -1448,7 +1448,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 946595
+   "bytes": 946592
   },
   {
    "id": "0_4",
@@ -1966,7 +1966,7 @@
     "hi",
     "ortho"
    ],
-   "bytes": 1150774
+   "bytes": 1150800
   },
   {
    "id": "3_-4",
@@ -2563,7 +2563,7 @@
    "file": "routes/route-des-grands-crus.json",
    "name": "La route des Grands Crus et les Hautes-Côtes",
    "lengthM": 34420,
-   "elevationGainM": 493.84,
+   "elevationGainM": 495.67,
    "loop": false,
    "main": true
   }
