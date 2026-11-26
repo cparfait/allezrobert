@@ -74,11 +74,12 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   // Fessier : centre un peu sous et derrière le bassin, fond dans l'épaisseur de la selle ; plus profond
   // derrière (fesses) que devant (bas-ventre), plus haut que bas.
   const gC = H.clone().add(new THREE.Vector3(0, -0.012, -0.02));
-  const gR = { x: 0.155 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.078 * s, back: 0.088 * s };
+  // Bassin plus profond qu'avant le 25/11/2026 (modèle de référence de l'utilisateur : ≈ 24 cm d'avant en arrière).
+  const gR = { x: 0.168 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.098 * s, back: 0.105 * s };
   // Taille : capsule ovale le long du bas du dos, jusqu'au-dessus de l'ourlet du maillot.
   const top = P.hemP.clone().addScaledVector(up, 0.02);
-  const waistR = 0.083 * s;
-  const waistSx = (0.145 * hips) / 0.083;
+  const waistR = 0.108 * s;
+  const waistSx = (0.155 * hips) / 0.108;
   // Cuisses : du cœur du fessier à l'ourlet du cuissard, rayon effilé.
   const legs = rest.legs.map((g, i) => {
     const side = i === 0 ? 1 : -1;
@@ -97,8 +98,8 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
     const ez = q.z / (q.z > 0 ? gR.front : gR.back);
     let d = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1) * Math.min(gR.down, gR.front);
     d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), BLEND);
-    // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 7,2 cm à mi-cuisse) : la coque y rentre.
-    for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.078 * s, 0.062 * s, 1, tmp), BLEND);
+    // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 8,2 cm à mi-cuisse) : la coque y rentre.
+    for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.088 * s, 0.072 * s, 1, tmp), BLEND);
     // Coupe sous le maillot (plan de la taille) ; les cuisses finissent arrondies dans leur tube.
     d = Math.max(d, q.subVectors(p, top).dot(up));
     return d;
@@ -208,15 +209,24 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   /** Os d'un sommet : sa cuisse le long du cuissard (pas à l'entrejambe), le buste en haut de la taille, le bassin ailleurs. */
   function weights(v: THREE.Vector3): Array<[number, number]> {
     const out: Array<[number, number]> = [];
-    let left = 1;
-    for (const L of legs) {
+    // Devant de l'entrejambe (pont de tissu entre les cuisses) : à moitié sur chaque cuisse. Sur le bassin seul, il
+    // restait pointé vers l'avant (cuisses du vélo) quand les cuisses descendent : bosse en triangle debout.
+    const centre = 0.5 * (1 - smooth(0.005, 0.045, Math.abs(v.x)));
+    const raw = legs.map((L) => {
       const along = q.subVectors(v, L.hip).dot(L.dir) / L.len;
-      const w = smooth(0.02, 0.38, along) * smooth(-0.005, 0.045, v.x * L.side);
+      return smooth(0.02, 0.38, along) * Math.max(smooth(-0.005, 0.045, v.x * L.side), centre);
+    });
+    const sum = raw.reduce((a, b) => a + b, 0);
+    const k = sum > 1 ? 1 / sum : 1;
+    let left = 1;
+    legs.forEach((L, i) => {
+      const w = (raw[i] as number) * k;
       if (w > 0) {
-        out.push([L.bone, w * left]);
-        left -= w * left;
+        out.push([L.bone, w]);
+        left -= w;
       }
-    }
+    });
+    left = Math.max(0, left);
     const h = q.subVectors(v, H).dot(up);
     const wb = 0.55 * smooth(0.02, 0.13, h) * left;
     if (wb > 0) out.push([1, wb]);

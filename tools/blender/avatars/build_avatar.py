@@ -62,7 +62,7 @@ ap.add_argument('--height', type=float, default=-1.0)   # macro MPFB « height �
 ap.add_argument('--cup', type=float, default=-1.0)      # macro MPFB « cupsize »
 ap.add_argument('--humerus', type=float, default=-1.0)  # remplace HUMERUS_SCALE
 ap.add_argument('--reach', type=float, default=-1.0)     # remplace ARM_REACH
-ap.add_argument('--forearm', type=float, default=1.0)   # facteur de longueur de l'avant-bras
+ap.add_argument('--forearm', type=float, default=0.855)  # facteur de longueur de l'avant-bras (0,267 → 0,228 m, modèle de référence ; 1,0 avant le 26/11/2026)
 ap.add_argument('--neck', type=float, default=3.0)      # intensité de FEMALE_NECK (variante féminine)
 ap.add_argument('--glute-flat', type=float, default=-1.0)   # remplace GLUTE_FLAT
 ap.add_argument('--glute-start', type=float, default=-1.0)  # remplace GLUTE_START
@@ -70,6 +70,8 @@ ap.add_argument('--glute-pelvis', type=float, default=-1.0)  # remplace GLUTE_PE
 ap.add_argument('--glute-fold', type=float, default=-1.0)    # remplace GLUTE_FOLD
 ap.add_argument('--glute-side', type=float, default=-1.0)    # remplace GLUTE_SIDE
 ap.add_argument('--reduce-body', action='store_true')  # corps de près (niveau 0) simplifié à BODY_RATIO (avant le 28/10/2026 : pli en V derrière le genou, facettes aux fesses)
+ap.add_argument('--fit', type=float, default=1.0)  # ajustement aux mesures du modèle de référence (reference_body.json, fit_reference), 0 : sans
+ap.add_argument('--torso-fill', type=float, default=0.0)  # intensité de TORSO_FILL (premier essai de buste plein, remplacé par --fit), 0 par défaut
 ap.add_argument('--skull', type=float, default=0.8)     # arrière du crâne moins profond (SKULL_BACK), 0 : base MPFB
 args = ap.parse_args(argv)
 OUT = os.path.abspath(args.out)
@@ -101,17 +103,18 @@ SOLE = 0.03                               # épaisseur semelle + cale
 
 # Profil du buste (pose_rider), relevé sur des photos de coureurs de profil (screen/) : dos arrondi,
 # raide au bassin, presque à plat aux épaules ; oreille à peu près à la hauteur du haut du dos.
-SPINE_SHAPE = {'pelvis': 6.0, 'spine_01': 3.0, 'spine_02': -1.0, 'spine_03': -5.0}  # ° autour de l'inclinaison
+SPINE_SHAPE = {'pelvis': 6.0, 'spine_01': 3.0, 'spine_02': -4.0, 'spine_03': -11.0}  # ° autour de l'inclinaison ; haut du dos arrondi (modèle de référence de l'utilisateur, 26/11/2026 ; −1 et −5 avant)
 # Cou, épaules et coudes repris du coureur acheté (build_boutique.py), validés en jeu : cou plus
 # redressé (menton non écrasé), épaules avancées et basses (moins carrées), coudes vers l'arrière.
-NECK_DEG = 46.0                           # cou au-dessus de l'horizontale (°)
+NECK_DEG = 40.0  # 46 avant le 26/11/2026 : cou dans le prolongement du dos arrondi
+_NECK_DEG_OLD = 46.0                           # cou au-dessus de l'horizontale (°)
 SHOULDER_PROTRACT = 17.0                  # épaules avancées vers le guidon (°, clavicules)
 SHOULDER_RAISE = -6.0                     # épaules un peu abaissées (°)
 HEAD_PITCH = 8.0                          # tête inclinée vers la route (°)
-ARM_REACH = 0.86                          # épaule → poignet / longueur du bras : coudes fléchis
+ARM_REACH = 0.93                          # épaule → poignet / longueur du bras : coudes fléchis (0,86 avant les bras courts du 26/11/2026)
 BACK_DAMP = {'sex-': 1.0, 'muscle+': 0.7, 'age+': 0.7}  # atténuation de ces cibles sur le haut du dos (0 à 1)
 GLUTE_START = 0.06                        # saillie des fesses comptée à partir de 6 cm derrière l'os du bassin (m)
-GLUTE_FLAT = 0.35                          # part de cette saillie supprimée (0 à 1)
+GLUTE_FLAT = 0.15                          # part de cette saillie supprimée (0 à 1) ; 0,35 avant le 26/11/2026 (fessiers ronds du modèle de référence)
 GLUTE_LOBE = 0.007                        # galbe de chaque fesse (m), une fois la saillie d'ensemble réduite
 GLUTE_CLEFT = 0.007                       # sillon entre les fesses (m)
 HIP_NARROW = 0.008                        # côté des hanches rentré (m) : il bosselait de dos, cuisse levée
@@ -119,7 +122,10 @@ LUMBAR_FILL = 0.026                       # creux lombaire comblé (m) : la base
 GLUTE_PELVIS = 0.0                        # part du poids de cuisse reportée sur le bassin pour le haut des fesses (0 à 1) ; 0 depuis le 28/10/2026 : à 1, le bas de la fesse suit le bassin penché et pointe vers l'arrière
 GLUTE_FOLD = 0.19                         # le report s'étend de la hanche jusqu'à ce point sous elle, pli fessier (m)
 GLUTE_SIDE = 0.24                         # demi-largeur où le report s'annule (m) : le côté de la hanche reste à la cuisse
-HUMERUS_SCALE = 1.28                      # humérus × 1,28 : 0,25 → 0,32 m (adulte de 1,75 m ≈ 0,33 m)
+# Mains (modèle de référence, 26/11/2026) : paume 11,2 → 9,5 cm (poignet → base du majeur), pouce 3,4/4,0 → 2,8/2,8 cm.
+HAND_PALM = 0.85
+HAND_THUMB = (0.83, 0.8)
+HUMERUS_SCALE = 0.97                      # humérus 0,25 → 0,244 m, bras courts du modèle de référence de l'utilisateur (1,28 avant le 26/11/2026)
 BELLY_DAMP = {'sex-': 0.6}   # atténuation du ventre rentré (déplacement vers le dos) des cibles, 0 à 1
 NECK_DAMP = {'sex-': 0.6}                 # atténuation de la cible « sex− » sur le cou (0 à 1)
 NECK_KEY_SCALE = {'neckWidth-': 0.5}      # « neckWidth− » : moitié de l'amplitude
@@ -132,11 +138,20 @@ SKULL_BACK = [('head/head-back-scale-depth-decr', 1.0)]
 # (doi 10.3390/app13010224 : hanches ≈ 87, cuisse 49-52, mollet 34-36) : ≈ 89, 49,5 et 35,5. Cibles MPFB (CC0) figées dans le maillage de base.
 CYCLIST_FIX = [('torso/measure-hips-circ-decr', 1.0), ('hip/hip-scale-horiz-decr', 0.2), ('legs/measure-thigh-circ-decr', 0.3),
                ('legs/measure-calf-circ-decr', 0.15), ('torso/measure-bust-circ-decr', 0.2)]
+# Corps du modèle de référence de l'utilisateur (25-26/11/2026, comparé à taille égale, coupes tous les 4 cm) : buste plein,
+# plus large à la poitrine (≈ 37 cm) qu'à la taille (≈ 30 cm), dos et dorsaux pleins (pas de creux derrière les épaules),
+# bassin plus profond, cuisses et mollets plus forts. Épaisseur répartie sur tout le tronc, pas de ventre (le tour de taille seul
+# faisait une bedaine). S'ajoute à CYCLIST_FIX. Facteur : --torso-fill (0 = corps d'avant le 25/11/2026).
+TORSO_FILL = [('torso/torso-scale-depth-incr', 0.45), ('torso/measure-shoulder-dist-incr', 0.5), ('torso/torso-muscle-dorsi-incr', 0.3), ('neck/neck-back-scale-depth-incr', 0.8), ('neck/measure-neck-circ-incr', 0.35),
+              ('torso/torso-muscle-pectoral-decr', 0.45),
+              ('torso/torso-vshape-incr', 0.1), ('torso/measure-bust-circ-incr', 0.2), ('torso/measure-waist-circ-incr', 0.4),
+              ('hip/hip-scale-depth-incr', 0.3), ('torso/measure-hips-circ-incr', 0.5), ('stomach/stomach-pregnant-decr', 0.65),
+              ('legs/measure-thigh-circ-incr', 0.5), ('legs/measure-calf-circ-incr', 0.35)]
 # Poids du squelette adoucis autour des articulations (os, rayon en m) : bosse de hanche cuisse levée, creux sous le bras.
 SOFT_JOINTS = [('thigh_l', 0.17), ('thigh_r', 0.17), ('upperarm_l', 0.13), ('upperarm_r', 0.13)]
 SOFT_PASSES = 12
 # Nuque creusée sous l'occiput (m) : la base masculine y fait une pente droite et bombée jusqu'au dos.
-NAPE_DEPTH = {'male': 0.004, 'female': 0.0}
+NAPE_DEPTH = {'male': 0.0, 'female': 0.0}   # 0,004 chez l'homme avant le 26/11/2026 : creux derrière les épaules à vélo
 ELBOW_POLE = Vector((0.36, 1.05, 0.30))   # direction des coudes (repère client, côté gauche)
 
 # Curseurs de forme (docs/AVATARS.md § 4) : nom → (cibles « + », cibles « − »), chemins relatifs
@@ -514,6 +529,189 @@ def fill_lumbar(body, base_m, depth):
     body.data.update()
 
 
+REFERENCE_BODY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reference_body.json')
+ARM_GROUPS = ('clavicle_', 'upperarm_', 'lowerarm_', 'hand_', 'thumb_', 'index_', 'middle_', 'ring_', 'pinky_')
+HEAD_GROUPS = ('head',)
+LEG_GROUPS = ('thigh_', 'calf_', 'foot_', 'ball_')
+
+
+def fit_reference(body, rig, strength=1.0):
+    """Corps ajusté aux mesures du modèle de référence (reference_body.json) : le tronc tranche par tranche
+    (largeur et profondeur des sections horizontales, hauteurs ramenées aux articulations de la hanche et de
+    l'épaule), puis cuisses, mollets, bras et avant-bras section par section le long de leur os. Chaque sommet
+    est rapproché ou écarté du centre de sa section, en proportion de son poids sur le tronc ou sur l'os du
+    membre ; le squelette ne bouge pas. Même déplacement dans toutes les cibles."""
+    import json
+    with open(REFERENCE_BODY, encoding='utf-8') as f:
+        ref = json.load(f)
+    mw = body.matrix_world
+    imw3 = mw.inverted().to_3x3()
+    blocks = list(body.data.shape_keys.key_blocks) if body.data.shape_keys else None
+    src = blocks[0].data if blocks else body.data.vertices
+    co = [mw @ v.co for v in src]
+    names = {g.index: g.name for g in body.vertex_groups}
+    bones = set(rig.data.bones.keys())
+    in_body = vgroup_members(body, 'body')
+    weights = []
+    dom = []
+    for v in body.data.vertices:
+        w = {names[g.group]: g.weight for g in v.groups if names[g.group] in bones and g.weight > 0}
+        tot = sum(w.values()) or 1.0
+        w = {k: x / tot for k, x in w.items()}
+        weights.append(w)
+        dom.append(max(w, key=w.get) if w else '')
+    polys = [list(p.vertices) for p in body.data.polygons if all(i in in_body for i in p.vertices)]
+    R = lambda b, end: rig.matrix_world @ (rig.data.bones[b].tail_local if end else rig.data.bones[b].head_local)
+    stature = max(c.z for c in co if True) - min(c.z for c in co)
+    s = stature / ref['stature']
+
+    def section(origin, normal, keep):
+        pts = []
+        for poly in polys:
+            if not keep(poly):
+                continue
+            n = len(poly)
+            for e in range(n):
+                a, b = co[poly[e]], co[poly[(e + 1) % n]]
+                da, db = (a - origin).dot(normal), (b - origin).dot(normal)
+                if (da < 0) != (db < 0):
+                    pts.append(a.lerp(b, da / (da - db)))
+        return pts
+
+    def smooth(vals, k=1):
+        out = []
+        for i in range(len(vals)):
+            win = [vals[j] for j in range(max(0, i - k), min(len(vals), i + k + 1))]
+            out.append(sum(win) / len(win))
+        return out
+
+    # ── Tronc ──
+    hip_ref, sh_ref = ref['joints']['hip'][1], ref['joints']['shoulder'][1]
+    hip_z = (R('thigh_l', False).z + R('thigh_r', False).z) / 2
+    sh_z = (R('upperarm_l', False).z + R('upperarm_r', False).z) / 2
+    to_z = lambda h: hip_z + (h - hip_ref) * (sh_z - hip_z) / (sh_ref - hip_ref)
+    def torso_poly(z):
+        def keep(poly):
+            for i in poly:
+                d = dom[i]
+                if d.startswith(ARM_GROUPS) or d.startswith(HEAD_GROUPS) or (z < hip_z + 0.036 * s and d.startswith(LEG_GROUPS)):
+                    return False
+            return True
+        return keep
+    rows = []
+    # Zone comparable : de 5 cm au-dessus des hanches à l'aisselle (au-delà, entrejambe et épaules ne sont pas découpés
+    # pareil dans les deux modèles) ; fondu de 4 cm au-delà.
+    for h, w_ref, d_ref in ref['torso']:
+        if not hip_ref + 0.045 <= h <= sh_ref - 0.05:
+            continue
+        z = to_z(h)
+        pts = section(Vector((0, 0, z)), Vector((0, 0, 1)), torso_poly(z))
+        if len(pts) < 6:
+            continue
+        xs, ys = [p.x for p in pts], [p.y for p in pts]
+        w, d = max(xs) - min(xs), max(ys) - min(ys)
+        rx = min(max(w_ref * s / max(w, 1e-4), 0.75), 1.35)
+        ry = min(max(d_ref * s / max(d, 1e-4), 0.75), 1.35)
+        rows.append([z, (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2, rx, ry, w, d, w_ref * s, d_ref * s])
+    rows.sort()
+    rxs, rys = smooth([r[3] for r in rows]), smooth([r[4] for r in rows])
+    print('ajustement tronc : ' + ', '.join(f'{100 * r[0]:.0f} cm {100 * r[5]:.1f}→{100 * r[7]:.1f}/{100 * r[6]:.1f}→{100 * r[8]:.1f}' for r in rows[::4]))
+
+    def torso_at(z):
+        if not rows:
+            return None
+        if z <= rows[0][0] or z >= rows[-1][0]:
+            edge = rows[0] if z <= rows[0][0] else rows[-1]
+            i = 0 if edge is rows[0] else len(rows) - 1
+            # Sous le bassin, fondu long (12 cm) : un arrêt net faisait un bourrelet en ceinture au-dessus des cuisses.
+            fade = 1.0 - smoothstep(0.0, 0.12 if z <= rows[0][0] else 0.04, abs(z - edge[0]))
+            return edge[1], edge[2], 1 + (rxs[i] - 1) * fade, 1 + (rys[i] - 1) * fade
+        for i in range(len(rows) - 1):
+            a, b = rows[i], rows[i + 1]
+            if a[0] <= z <= b[0]:
+                t = (z - a[0]) / max(b[0] - a[0], 1e-6)
+                return (a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, rxs[i] + (rxs[i + 1] - rxs[i]) * t, rys[i] + (rys[i + 1] - rys[i]) * t)
+        return None
+
+    hip_band = lambda z: smoothstep(hip_z - 0.10, hip_z + 0.02, z)
+    shifts = [Vector() for _ in co]
+    for i, c in enumerate(co):
+        if i not in in_body:
+            continue
+        w = weights[i]
+        wt = sum(x for k, x in w.items() if not k.startswith(ARM_GROUPS + HEAD_GROUPS + LEG_GROUPS))
+        wt += 0.5 * sum(x for k, x in w.items() if k.startswith('clavicle_'))
+        # Haut des cuisses : suit le bassin (même élargissement), sinon marche entre tronc et cuisse.
+        wt += sum(x for k, x in w.items() if k.startswith('thigh_')) * hip_band(c.z)
+        if wt <= 0:
+            continue
+        p = torso_at(c.z)
+        if not p:
+            continue
+        cx, cy, rx, ry = p
+        k = strength * wt
+        shifts[i] += Vector(((c.x - cx) * (rx - 1) * k, (c.y - cy) * (ry - 1) * k, 0.0))
+
+    # ── Membres ──
+    for part, bone, lateral in (('thigh', 'thigh', True), ('calf', 'calf', True), ('upperarm', 'upperarm', False), ('forearm', 'lowerarm', False)):
+        rr = ref[part]['rows']
+        for side in ('l', 'r'):
+            b = f'{bone}_{side}'
+            A, B = R(b, False), R(b, True)
+            axis = (B - A)
+            ln = axis.length
+            axis.normalize()
+            u = Vector((1, 0, 0)) if lateral else Vector((0, 0, 1))
+            u = (u - axis * u.dot(axis)).normalized()
+            wv = axis.cross(u).normalized()
+            ratios = []
+            for t, hu_ref, hw_ref in rr:
+                o = A + axis * (t * ln)
+                pts = [p for p in section(o, axis, lambda poly, b=b: any(dom[i] == b for i in poly)) if (p - o).length < 0.2]
+                if len(pts) < 4:
+                    ratios.append((t, 1.0, 1.0))
+                    continue
+                us, ws = [(p - o).dot(u) for p in pts], [(p - o).dot(wv) for p in pts]
+                hu, hw = (max(us) - min(us)) / 2, (max(ws) - min(ws)) / 2
+                ratios.append((t, min(max(hu_ref * s / max(hu, 1e-4), 0.75), 1.35), min(max(hw_ref * s / max(hw, 1e-4), 0.75), 1.35)))
+            # Racine de la cuisse : la section du modèle de référence y englobe l'aine (rapport faussé, cuisse gonflée) ;
+            # le premier quart prend le rapport mesuré plus bas.
+            if part == 'thigh':
+                base_r = next((r for r in ratios if r[0] >= 0.25), ratios[0])
+                ratios = [(r[0], base_r[1], base_r[2]) if r[0] < 0.25 else r for r in ratios]
+            ru, rw = smooth([r[1] for r in ratios]), smooth([r[2] for r in ratios])
+            if side == 'l':
+                print(f'ajustement {part} : ' + ', '.join(f'{r[0]:.2f} ×{u_:.2f}/×{w_:.2f}' for r, u_, w_ in list(zip(ratios, ru, rw))[::3]))
+            for i, c in enumerate(co):
+                wb = weights[i].get(b, 0.0)
+                if wb <= 0 or i not in in_body:
+                    continue
+                d = c - A
+                t = d.dot(axis) / ln
+                tt = min(max(t, ratios[0][0]), ratios[-1][0])
+                j = min(range(len(ratios) - 1), key=lambda j: abs((ratios[j][0] + ratios[j + 1][0]) / 2 - tt)) if len(ratios) > 1 else 0
+                a_, b_ = ratios[j], ratios[min(j + 1, len(ratios) - 1)]
+                f = (tt - a_[0]) / max(b_[0] - a_[0], 1e-6)
+                f = min(max(f, 0.0), 1.0)
+                fu = ru[j] + (ru[min(j + 1, len(ru) - 1)] - ru[j]) * f
+                fw = rw[j] + (rw[min(j + 1, len(rw) - 1)] - rw[j]) * f
+                # Fondu aux bouts de l'os (articulations : le voisin prend le relais).
+                edge = smoothstep(-0.05, 0.08, t) * (1.0 - smoothstep(0.92, 1.05, t))
+                if part == 'thigh':
+                    edge *= 1.0 - hip_band(c.z)   # haut de la cuisse : déjà ajusté avec le bassin
+                k = strength * wb * edge
+                du, dw = d.dot(u), d.dot(wv)
+                shifts[i] += u * (du * (fu - 1) * k) + wv * (dw * (fw - 1) * k)
+    moved = 0
+    for kb_data in ([kb.data for kb in blocks] if blocks else [body.data.vertices]):
+        for i, v in enumerate(kb_data):
+            if shifts[i].length_squared > 0:
+                v.co = v.co + imw3 @ shifts[i]
+    moved = sum(1 for sh in shifts if sh.length > 1e-4)
+    print(f'ajustement au modèle de référence : {moved} sommets déplacés, stature {stature:.3f} m (× {s:.3f})')
+    body.data.update()
+
+
 def soften_joints(body, rig):
     """Poids du squelette lissés de proche en proche autour des hanches et des épaules (SOFT_JOINTS) : le passage
     d'un os à l'autre s'étale au lieu de faire un pli ou une bosse. Au-delà du rayon, poids inchangés."""
@@ -655,6 +853,7 @@ def build_base(HS, TS, LS):
     base_fix = [(p, w * args.skull) for p, w in SKULL_BACK if args.skull > 0]
     if args.variant == 'male':
         base_fix += CYCLIST_FIX
+        base_fix += [(p, w * args.torso_fill) for p, w in TORSO_FILL if args.torso_fill > 0]
     if args.variant == 'female' and args.neck > 0:
         base_fix += [(p, w * args.neck) for p, w in FEMALE_NECK]
     if args.variant == 'female':
@@ -750,6 +949,8 @@ def build_base(HS, TS, LS):
     shape_glutes(body, base_m)
     fill_lumbar(body, base_m, LUMBAR_FILL)
     hollow_nape(body, base_m, NAPE_DEPTH[args.variant])
+    if args.variant == 'male' and args.fit > 0:
+        fit_reference(body, rig, args.fit)
     for m in list(body.modifiers):
         if m.type == 'MASK':
             body.modifiers.remove(m)
@@ -1188,6 +1389,71 @@ def lengthen_humerus(body, rig):
             eb[n].tail = eb[n].tail + dl2
     bpy.ops.object.mode_set(mode='OBJECT')
     body.data.update()
+
+
+def shorten_segment(body, rig, base, child, factor, distal):
+    """Raccourcit (ou allonge) l'os `base` jusqu'à la tête de l'os `child` d'un facteur `factor` : les os `distal`
+    (nom → part du déplacement, 1 = entier) et leurs sommets suivent, les sommets de `base` s'étirent linéairement.
+    Même déplacement dans toutes les cibles (comme lengthen_humerus)."""
+    if abs(factor - 1.0) < 1e-4:
+        return
+    mw_b, mw_r = body.matrix_world, rig.matrix_world
+    bones = rig.data.bones
+    a = mw_r @ bones[base].head_local
+    d = (mw_r @ bones[child].head_local) - a
+    delta = d * (factor - 1.0)
+    names = {g.index: g.name for g in body.vertex_groups}
+    shifts = []
+    for v in body.data.vertices:
+        co = mw_b @ v.co
+        tot = Vector()
+        for ge in v.groups:
+            n = names[ge.group]
+            if n == base:
+                t = min(max((co - a).dot(d) / max(d.length_squared, 1e-12), 0.0), 1.0)
+                tot += delta * (t * ge.weight)
+            elif n in distal:
+                tot += delta * (distal[n] * ge.weight)
+        shifts.append(mw_b.inverted().to_3x3() @ tot)
+    if body.data.shape_keys:
+        for kb in body.data.shape_keys.key_blocks:
+            for dd, sh in zip(kb.data, shifts):
+                dd.co = dd.co + sh
+    for v, sh in zip(body.data.vertices, shifts):
+        v.co = v.co + sh
+    set_active(rig)
+    bpy.ops.object.mode_set(mode='EDIT')
+    eb = rig.data.edit_bones
+    dl = mw_r.inverted().to_3x3() @ delta
+    if (eb[base].tail - eb[child].head).length < 1e-4:
+        eb[base].tail = eb[base].tail + dl
+    for n, f in distal.items():
+        if n in eb:
+            eb[n].head = eb[n].head + dl * f
+            eb[n].tail = eb[n].tail + dl * f
+    bpy.ops.object.mode_set(mode='OBJECT')
+    body.data.update()
+
+
+def fit_hands(body, rig):
+    """Mains aux proportions du modèle de référence (reference_body.json, « hand ») : paume raccourcie (les doigts
+    reculent vers le poignet), première et deuxième phalanges du pouce raccourcies."""
+    for s in ('l', 'r'):
+        bones = rig.data.bones
+        fingers = {}
+        for f in ('index', 'middle', 'ring', 'pinky'):
+            for k in (1, 2, 3):
+                fingers[f'{f}_0{k}_{s}'] = 1.0
+        # Pouce : il part près du poignet, il ne recule qu'en proportion de sa base le long de la paume.
+        a = bones[f'hand_{s}'].head_local
+        d = bones[f'middle_01_{s}'].head_local - a
+        t_th = min(max((bones[f'thumb_01_{s}'].head_local - a).dot(d) / max(d.length_squared, 1e-12), 0.0), 1.0)
+        for k in (1, 2, 3):
+            fingers[f'thumb_0{k}_{s}'] = t_th
+        shorten_segment(body, rig, f'hand_{s}', f'middle_01_{s}', HAND_PALM, fingers)
+        shorten_segment(body, rig, f'thumb_01_{s}', f'thumb_02_{s}', HAND_THUMB[0], {f'thumb_02_{s}': 1.0, f'thumb_03_{s}': 1.0})
+        shorten_segment(body, rig, f'thumb_02_{s}', f'thumb_03_{s}', HAND_THUMB[1], {f'thumb_03_{s}': 1.0})
+    print(f'mains : paume × {HAND_PALM}, pouce × {HAND_THUMB[0]} / × {HAND_THUMB[1]}')
 
 
 def apply_pose_as_rest(rig, meshes):
@@ -2621,6 +2887,8 @@ def main():
     assign_kit(body, rig)
     assign_eyes(eyes, rig)
     lengthen_humerus(body, rig)
+    if args.variant == 'male' and args.fit > 0:
+        fit_hands(body, rig)
     stabilize_glutes(body, rig)
     soften_joints(body, rig)
     for o in (eyes,):

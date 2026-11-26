@@ -23,7 +23,7 @@ const SHELL = (typeof location === 'undefined' ? null : new URLSearchParams(loca
 
 /** Genou : chevauchement de la cuisse et du tibia au-delà de l'articulation, rayon et avancée du bloc de genou (m). */
 const KNEE_OVERLAP = 0.01;
-const KNEE_R = 0.044;
+const KNEE_R = 0.05;
 const KNEE_FORWARD = 0;
 
 /** Fraction de la cuisse où la coque du cuissard rentre dans le tube de la cuisse (pas de raccord à l'ourlet). */
@@ -315,11 +315,13 @@ export class SweptBody {
             { t: T(0, 0.75), w: 0.172 * hips, p: 0.1, n: 0.11, bones: [[0, 1]] },
             { t: T(1, 0), w: 0.16 * hips, p: 0.1, n: 0.1, bones: [[0, 1]] },
           ] as Key[])),
-      { t: T(1, 0.5), w: 0.145, p: 0.09, n: 0.09, bones: [[0, 1]] },
-      { t: T(2, 0), w: 0.145, p: 0.085, n: 0.085, bones: [[0, 0.5], [1, 0.5]] },
-      { t: T(2, 0.45), w: 0.16 * chest, p: 0.095, n: 0.095, bones: [[1, 1]] },
-      { t: T(2, 0.8), w: 0.182 * chest, p: 0.105, n: 0.1, bones: [[1, 1]] },
-      { t: T(3, 0), w: 0.158 * chest, p: 0.07, n: 0.075, bones: [[1, 1]] },
+      // Buste plein et droit, d'après le modèle de référence de l'utilisateur (25/11/2026) : à peine plus large
+      // à la taille, nettement plus épais (ventre et dos), moins en V vers les épaules.
+      { t: T(1, 0.5), w: 0.155, p: 0.118, n: 0.112, bones: [[0, 1]] },
+      { t: T(2, 0), w: 0.153, p: 0.115, n: 0.11, bones: [[0, 0.5], [1, 0.5]] },
+      { t: T(2, 0.45), w: 0.163 * chest, p: 0.115, n: 0.11, bones: [[1, 1]] },
+      { t: T(2, 0.8), w: 0.178 * chest, p: 0.115, n: 0.11, bones: [[1, 1]] },
+      { t: T(3, 0), w: 0.155 * chest, p: 0.085, n: 0.085, bones: [[1, 1]] },
       { t: T(3, 0.6), w: 0.066, p: 0.05, n: 0.05, bones: [[1, 1]] },
       { t: 1, w: 0.055, p: 0.046, n: 0.046, bones: [[1, 1]] },
     ];
@@ -375,9 +377,10 @@ export class SweptBody {
               { t: 0, w: 0.035, p: 0.04, n: 0.035, bones: [[0, 1]] },
               { t: LT(0), w: 0.058, p: 0.058, n: 0.06, bones: [[0, 0.4], [thigh, 0.6]] },
             ] as Key[])),
-        { t: LT(0.3), w: 0.08, p: 0.08, n: 0.085, bones: [[thigh, 1]] },
-        { t: LT(0.65), w: 0.068, p: 0.066, n: 0.075, bones: [[thigh, 1]] },
-        { t: 1, w: 0.054, p: 0.054, n: 0.056, bones: [[thigh, 1]] },
+        // Cuisses et mollets plus forts depuis le 25/11/2026 (modèle de référence de l'utilisateur).
+        { t: LT(0.3), w: 0.097, p: 0.096, n: 0.098, bones: [[thigh, 1]] },
+        { t: LT(0.65), w: 0.085, p: 0.083, n: 0.088, bones: [[thigh, 1]] },
+        { t: 1, w: 0.062, p: 0.062, n: 0.064, bones: [[thigh, 1]] },
       ];
       const shortsEnd = LT((SHORTS_END * thighLen) / (thighLen + KNEE_OVERLAP));
       b.tube(tPts, tKeys, (t) => legColor(t < shortsEnd), look.longLegs ? [] : [shortsEnd], s);
@@ -388,8 +391,8 @@ export class SweptBody {
       const sKeys: Key[] = [
         { t: 0, w: 0.05, p: 0.054, n: 0.05, bones: [[shin, 1]] },
         { t: LS(0), w: 0.05, p: 0.05, n: 0.053, bones: [[shin, 1]] },
-        { t: LS(0.25), w: 0.046, p: 0.062, n: 0.044, bones: [[shin, 1]] },
-        { t: LS(0.55), w: 0.04, p: 0.05, n: 0.037, bones: [[shin, 1]] },
+        { t: LS(0.25), w: 0.056, p: 0.076, n: 0.052, bones: [[shin, 1]] },
+        { t: LS(0.55), w: 0.047, p: 0.06, n: 0.043, bones: [[shin, 1]] },
         { t: 1, w: 0.029, p: 0.031, n: 0.03, bones: [[shin, 1]] },
       ];
       const sockStart = Math.max(LS(0.3), 1 - look.sockLen / length(sPts));

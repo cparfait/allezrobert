@@ -81,9 +81,10 @@ const FRONT_AXLE_PRISM = new THREE.Vector3(0, WHEEL_R, 0.62);
 const SADDLE_PRISM = new THREE.Vector3(0, 0.965, -0.2);
 const THIGH = 0.46;
 const SHIN = 0.47;
-const UPPER_ARM = 0.3;
+/** Bras courts du modèle de référence de l'utilisateur (26/11/2026 ; 0,30 et 0,31 avant) : épaules avancées en conséquence. */
+const UPPER_ARM = 0.265;
 /** Coude → creux de la main (prise du cintre), pas seulement jusqu'au poignet. */
-const FOREARM = 0.31;
+const FOREARM = 0.27;
 /** Part de l'inclinaison physique appliquée en virage, et plafond (rad). */
 const BANK_SHARE = 0.55;
 const MAX_BANK = 0.3;
@@ -126,7 +127,7 @@ interface Fit {
 const FITS: Record<BarKind, Fit> = {
   // Coudes fléchis d'environ 70° et un peu ouverts : de dos (caméra de suivi), des bras presque droits se lisaient raides.
   drop: { bar: 'drop', hand: new THREE.Vector3(0.2, 0.92, 0.63), shoulderDy: -0.06, shoulderDz: 0.045, elbowPole: new THREE.Vector3(0.55, -0.7, -0.45), headTilt: -0.04 },
-  flat: { bar: 'flat', hand: new THREE.Vector3(0.232, 0.962, 0.538), shoulderDy: 0.06, shoulderDz: -0.08, elbowPole: new THREE.Vector3(0.8, -0.4, -0.3), headTilt: -0.08 },
+  flat: { bar: 'flat', hand: new THREE.Vector3(0.232, 0.962, 0.538), shoulderDy: 0.04, shoulderDz: -0.04, elbowPole: new THREE.Vector3(0.8, -0.4, -0.3), headTilt: -0.08 },
   tt: { bar: 'tt', hand: new THREE.Vector3(0.075, 0.95, 0.76), shoulderDy: -0.13, shoulderDz: 0.1, elbowPole: new THREE.Vector3(0.1, -1, 0), headTilt: 0.18 },
 };
 
@@ -1455,7 +1456,7 @@ export class LowPolyRider implements RiderAvatarLike {
     // Buste penché à ≈ 36° assis (comme les coureurs NCT), plus couché en chrono ; en danseuse, le buste plonge et
     // les épaules passent presque au-dessus des mains, coudes fléchis (GCN).
     // Sprint (vidéos Eurosport) : dos presque horizontal (≈ 17°), épaules basses et avancées au-dessus de la potence.
-    const shoulder = this.shoulder.set(0, 1.395 + fit.shoulderDy * fitK + 0.07 * stand - 0.12 * sprint + 0.15 * up, 0.243 + fit.shoulderDz * fitK + 0.17 * stand + 0.08 * sprint - 0.23 * up);
+    const shoulder = this.shoulder.set(0, 1.38 + fit.shoulderDy * fitK + 0.07 * stand - 0.12 * sprint + 0.15 * up, 0.268 + fit.shoulderDz * fitK + 0.17 * stand + 0.08 * sprint - 0.23 * up);
     shoulder.y -= this.coastBlend * 0.03 * (1 - aero) + 0.13 * aero + 0.04 * dropHands * (1 - aero);
     shoulder.z += 0.07 * aero + 0.02 * dropHands * (1 - aero);
     // Dos à plat : épaules basses et avancées (avant-bras sur le cintre : jusqu'à poser les coudes).

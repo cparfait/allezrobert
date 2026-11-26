@@ -65,8 +65,10 @@ function standGltf(avatar: RiderAvatarLike): StandingRider | null {
   const up = v3(0, 1, 0);
   // La tête regarde déjà la route : on garde son orientation, seul le corps se redresse dessous.
   const headWorld = get('head').getWorldQuaternion(new THREE.Quaternion());
-  aim(get('pelvis'), get('spine_01'), v3(0, 1, -0.06));
-  aim(get('spine_01'), get('spine_02'), v3(0, 1, -0.02));
+  // Bassin encore un peu penché vers l'avant (le modèle est lié assis sur le vélo, bassin à ≈ 54°) : redressé à la
+  // verticale, la peau se plissait en bourrelet à l'aine ; les lombaires compensent au-dessus.
+  aim(get('pelvis'), get('spine_01'), v3(0, 1, 0.3));
+  aim(get('spine_01'), get('spine_02'), v3(0, 1, -0.12));
   aim(get('spine_02'), get('spine_03'), v3(0, 1, 0));
   aim(get('spine_03'), get('neck_01'), v3(0, 1, -0.08));
   aim(get('neck_01'), get('head'), v3(0, 1, 0.16));
@@ -82,12 +84,30 @@ function standGltf(avatar: RiderAvatarLike): StandingRider | null {
     const el = get(`lowerarm_${s}`).getWorldPosition(v3());
     const wr = get(`hand_${s}`).getWorldPosition(v3());
     const hip = get('pelvis').getWorldPosition(v3());
-    const target = hip.clone().add(v3(0.19 * side, 0.09, 0.05));
+    // Poignet sur le côté de la taille, au-dessus de l'os iliaque (l'os `pelvis` du modèle MPFB est à hauteur des
+    // articulations des hanches) : plus bas ou plus en avant, les doigts tombent sur le haut des cuisses.
+    const target = hip.clone().add(v3(0.21 * side, 0.15, -0.035));
     const elbow = elbowAt(sh, target, sh.distanceTo(el), el.distanceTo(wr), v3(side, -0.1, -0.55));
     aim(get(`upperarm_${s}`), get(`lowerarm_${s}`), elbow.clone().sub(sh));
     aim(get(`lowerarm_${s}`), get(`hand_${s}`), target.clone().sub(get(`lowerarm_${s}`).getWorldPosition(v3())));
     const fingers = get(`hand_${s}`).children.find((c) => /middle/.test(c.name)) ?? get(`hand_${s}`).children.find((c) => (c as THREE.Bone).isBone);
-    if (fingers) aim(get(`hand_${s}`), fingers, v3(-0.55 * side, -0.75, 0.35));
+    // Doigts vers l'avant et le bas, le long de la hanche (pouce en arrière).
+    const fd = v3(-0.12 * side, -0.55, 0.85).normalize();
+    if (fingers) aim(get(`hand_${s}`), fingers, fd);
+    // Doigts serrés et à peine fléchis contre la hanche, pouce vers l'arrière : la pose de repos du modèle est la prise
+    // des cocottes (poing), qui se déformait mains sur les hanches.
+    for (const fn of ['index', 'middle', 'ring', 'pinky']) {
+      for (let k = 1; k <= 2; k++) {
+        const a = bone(`${fn}_0${k}_${s}`);
+        const c = bone(`${fn}_0${k + 1}_${s}`);
+        if (a && c) aim(a, c, fd.clone().add(v3(-0.18 * k * side, -0.1 * k, 0)));
+      }
+    }
+    const t1 = bone(`thumb_01_${s}`);
+    const t2 = bone(`thumb_02_${s}`);
+    const t3 = bone(`thumb_03_${s}`);
+    if (t1 && t2) aim(t1, t2, v3(-0.25 * side, -0.35, -0.9));
+    if (t2 && t3) aim(t2, t3, v3(-0.3 * side, -0.4, -0.85));
   }
   const head = get('head');
   const parent = head.parent as THREE.Object3D;
@@ -112,9 +132,11 @@ interface PolyParts {
   arms: Array<{ side: number; glove: THREE.Object3D }>;
   J: BodyJoints;
   swept: SweptBody | null;
+  /** Construit le corps en tubes sur les articulations du moment (J). */
+  buildTubes(look: AvatarLook): void;
 }
 
-function standPoly(rider: LowPolyRider): StandingRider | null {
+function standPoly(rider: LowPolyRider, look: AvatarLook): StandingRider | null {
   const p = rider as unknown as PolyParts;
   if (!p.swept || !p.J) return null;
   for (const c of p.lean.children) if (c !== p.body) c.visible = false;
@@ -127,19 +149,20 @@ function standPoly(rider: LowPolyRider): StandingRider | null {
   const shoulder = hip.clone().add(v3(0, torso, 0.02));
   J.hip.copy(hip);
   J.seat.copy(hip).add(v3(0, -0.1, 0));
-  // Bassin basculé vers l'avant : le cuissard, lié assis sur le vélo, ne ressort plus devant.
-  J.mid.lerpVectors(hip, shoulder, 0.5).add(v3(0, 0, 0.075));
+  // Bassin à peine basculé : le corps est reconstruit debout (plus bas), sa coque de cuissard n'a plus à se redresser.
+  J.mid.lerpVectors(hip, shoulder, 0.5).add(v3(0, 0, 0.015));
   J.shoulder.copy(shoulder);
   J.neck.copy(shoulder).add(v3(0, 0.06, 0.012));
   J.pelvisFollow = 1;
-  const neckTop = shoulder.clone().add(v3(0, 0.115, 0.03));
+  // Cou court, tête près des épaules (modèle de référence de l'utilisateur, 25/11/2026).
+  const neckTop = shoulder.clone().add(v3(0, 0.085, 0.025));
   p.neck.set(shoulder.clone().add(v3(0, 0.02, 0.008)), neckTop);
-  p.head.position.copy(neckTop).add(v3(0, 0.07, 0.03));
+  p.head.position.copy(neckTop).add(v3(0, 0.06, 0.03));
   p.head.rotation.set(0.02, 0, 0);
   for (const leg of p.legs) {
     const j = J.legs[leg.side > 0 ? 0 : 1];
     if (!j) continue;
-    j.hip.copy(hip).add(v3(0.09 * leg.side, 0, 0));
+    j.hip.copy(hip).add(v3(0.1 * leg.side, 0, 0));
     j.ankle.set(0.145 * leg.side, 0.085, -0.02);
     j.knee.copy(elbowAt(j.hip, j.ankle, thigh, shin, v3(0.15 * leg.side, 0, 1)));
     leg.shoe.position.copy(j.ankle).add(v3(0.008 * leg.side, -0.032, 0.05));
@@ -149,14 +172,20 @@ function standPoly(rider: LowPolyRider): StandingRider | null {
     const j = J.arms[arm.side > 0 ? 0 : 1];
     if (!j) continue;
     j.sh.copy(shoulder).add(v3(0.17 * arm.side, -0.04, 0));
-    j.wr.copy(hip).add(v3(0.165 * arm.side, 0.1, 0.06));
-    j.el.copy(elbowAt(j.sh, j.wr, 0.3, 0.31, v3(arm.side, -0.1, -0.5)));
+    // Poignet sur le côté de la taille (plus bas ou plus en avant, les gants tombent sur l'entrejambe).
+    j.wr.copy(hip).add(v3(0.18 * arm.side, 0.17, 0.0));
+    j.el.copy(elbowAt(j.sh, j.wr, 0.265, 0.27, v3(arm.side, -0.1, -0.5)));
     arm.glove.position.copy(j.wr);
-    const y = v3(-0.45 * arm.side, -0.75, 0.5).normalize();
+    const y = v3(-0.15 * arm.side, -0.6, 0.75).normalize();
     const x = v3(0, 0.3 * arm.side, 1).addScaledVector(y, -v3(0, 0.3 * arm.side, 1).dot(y)).normalize();
     arm.glove.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, x.clone().cross(y)));
   }
-  p.swept.pose(J);
+  // Corps reconstruit sur la pose debout : lié assis sur le vélo puis redressé, le cuissard faisait une bosse devant
+  // (coque du bassin basculée de 30°) et une pointe derrière.
+  p.body.remove(p.swept.mesh);
+  p.swept.dispose();
+  p.buildTubes(look);
+  if (!p.swept) return null;
   rider.root.updateMatrixWorld(true);
   rider.root.traverse((o) => (o.frustumCulled = false));
   return { root: rider.root, feetY: 0.01, topY: p.head.getWorldPosition(v3()).y + 0.2, ahead: v3(0, 0, 1) };
@@ -167,5 +196,5 @@ export function standingRider(look: AvatarLook): StandingRider | null {
   const avatar = createAvatar(look);
   avatar.setShadows(false);
   avatar.update(0.016, 0, 0, 'seated');
-  return avatar instanceof LowPolyRider ? standPoly(avatar) : standGltf(avatar);
+  return avatar instanceof LowPolyRider ? standPoly(avatar, look) : standGltf(avatar);
 }
