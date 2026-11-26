@@ -108,6 +108,8 @@ ANKLE_FLAT = Vector((0.0, 0.095, -0.13))  # cheville / axe de pédale, pied à p
 HIP = Vector((0.0, 1.02, -0.215))          # centre des hanches, assis sur la selle
 HOOD = Vector((0.2, 0.916, 0.59))         # prise des mains sur les cocottes (cintre décalé : client cockpitFit.ts, MPFB_REST_HAND)
 SOLE = 0.03                               # épaisseur semelle + cale
+KNEE_OUT = 0.005                          # genou en dehors de l'axe hanche → cheville (m), pas de jambes en X
+BACK_SAG = 0.008                          # creux du bas du dos toléré sous la droite fesses → haut du dos, en selle (m)
 
 # Profil du buste (pose_rider), relevé sur des photos de coureurs de profil (screen/) : dos arrondi,
 # raide au bassin, presque à plat aux épaules ; oreille à peu près à la hauteur du haut du dos.
@@ -820,6 +822,88 @@ def stabilize_glutes(body, rig):
 BUST_GROUP = 'tmp_bust_smooth'
 
 
+def fill_back_posed(body, rig, sag=BACK_SAG):
+    """Bas du dos comblé sur la pose de course figée. Profil arrière mesuré le long de la ligne hanches → cou :
+    le corps de référence (debout) descend d'une traite du haut des fesses au creux des reins puis reste plat ;
+    le nôtre, penché et dos arrondi, garde entre la bosse des fesses et le haut du dos un creux qui fait une
+    marche. Le creux est ramené à `sag` (m) sous la droite haut des fesses → haut du dos, fondu sur la largeur
+    du dos et vers l'intérieur ; même déplacement dans toutes les cibles."""
+    me = body.data
+    mw = body.matrix_world
+    imw3 = mw.inverted().to_3x3()
+    mw_r = rig.matrix_world
+    bones = rig.data.bones
+    hip = (mw_r @ bones['thigh_l'].head_local + mw_r @ bones['thigh_r'].head_local) / 2
+    neck = mw_r @ bones['neck_01'].head_local
+    u = (neck - hip).normalized()
+    fwd = Vector((0.0, -1.0, 0.0))
+    n = -(fwd - u * fwd.dot(u)).normalized()
+    keys = list(me.shape_keys.key_blocks) if me.shape_keys else None
+    src = keys[0].data if keys else me.vertices
+    P = [mw @ v.co for v in src]
+    S = [(p - hip).dot(u) for p in P]
+    R = [(p - hip).dot(n) for p in P]
+    step = 0.01
+    lo, hi = -0.05, 0.45
+    nb = int(round((hi - lo) / step)) + 1
+    e = [-1.0] * nb
+    for i, p in enumerate(P):
+        if abs(p.x) < 0.06 and lo <= S[i] <= hi:
+            b = int(round((S[i] - lo) / step))
+            e[b] = max(e[b], R[i])
+    idx = lambda s: int(round((s - lo) / step))
+    b0 = max(range(idx(0.0), idx(0.14) + 1), key=lambda b: e[b])
+    b1 = idx(0.36)
+    if e[b0] < 0 or e[b1] < 0:
+        return
+    deficit = [0.0] * nb
+    for b in range(b0 + 1, b1):
+        t = (b - b0) / (b1 - b0)
+        target = e[b0] + (e[b1] - e[b0]) * t - sag
+        deficit[b] = max(0.0, target - e[b]) if e[b] >= 0 else 0.0
+    for _ in range(3):
+        deficit = [deficit[b] if b in (0, nb - 1) else (deficit[b - 1] + 2 * deficit[b] + deficit[b + 1]) / 4 for b in range(nb)]
+    # Poids par sommet : fondu en cloche sur la largeur du dos (pas de bord net qui ferait des pointes sur les
+    # hanches), seulement les faces tournées vers l'arrière ; puis le champ de déplacement est lissé sur le maillage.
+    nrm = [(mw.to_3x3() @ v.normal).normalized() for v in me.vertices]
+    amt = [0.0] * len(P)
+    for i, p in enumerate(P):
+        if not (lo <= S[i] <= hi):
+            continue
+        b = int(round((S[i] - lo) / step))
+        d = deficit[b]
+        if d <= 1e-5 or e[b] < 0:
+            continue
+        wl = math.exp(-(p.x / 0.09) ** 2)
+        wn = min(max((nrm[i].dot(n) - 0.2) / 0.5, 0.0), 1.0)
+        wb = min(max((R[i] - (e[b] - 0.09)) / 0.06, 0.0), 1.0)
+        amt[i] = d * wl * wn * wb
+    near = [[] for _ in me.vertices]
+    for ed in me.edges:
+        a, c = ed.vertices
+        near[a].append(c)
+        near[c].append(a)
+    zone = {i for i, a in enumerate(amt) if a > 1e-5}
+    for i in list(zone):
+        zone.update(near[i])
+    for _ in range(3):
+        grown = set(zone)
+        for i in zone:
+            grown.update(near[i])
+        zone = grown
+    for _ in range(12):
+        amt = [amt[i] if i not in zone or not near[i] else 0.5 * amt[i] + 0.5 * sum(amt[j] for j in near[i]) / len(near[i]) for i in range(len(amt))]
+    shift = {i: imw3 @ (n * amt[i]) for i in zone if amt[i] > 1e-5}
+    moved = len(shift)
+    mv = max((amt[i] for i in shift), default=0.0)
+    for data in ([kb.data for kb in keys] if keys else [me.vertices]):
+        for i, dv in shift.items():
+            data[i].co = data[i].co + dv
+    me.update()
+    print(f'bas du dos (pose de course) : creux max {100 * max(deficit):.1f} cm comblé, {moved} sommets, déplacement max {100 * mv:.1f} cm '
+          f'(haut des fesses à {100 * (lo + b0 * step):.0f} cm au-dessus des hanches)')
+
+
 def smooth_bust_posed(body, passes):
     """Second lissage de la poitrine, sur la pose de course figée (voir smooth_bust) ; retire le groupe de sommets."""
     g = body.vertex_groups.get(BUST_GROUP)
@@ -1459,7 +1543,24 @@ def pose_rider(rig, body):
             score = knee.z - abs(knee.x - ank.x) * 2
             if score > best_z:
                 best_pa, best_z = pa, score
-        c.pole_angle = math.radians(best_pa)
+        # Genou à l'aplomb, un peu en dehors de l'axe hanche → cheville (KNEE_OUT) : sans cela, hanches larges
+        # (femme) et pédales à l'écartement fixe donnent des jambes en X. Recherche fine autour du meilleur angle,
+        # le genou restant devant (hauteur à moins de 1 cm de l'optimum).
+        hip = cl(world('thigh_' + s))
+        side = 1.0 if ank.x > 0 else -1.0
+        cands = []
+        for k in range(-60, 61):
+            pa = best_pa + k * 0.5
+            c.pole_angle = math.radians(pa)
+            bpy.context.view_layer.update()
+            knee = cl(world('calf_' + s))
+            t_h = (hip.y - knee.y) / max(hip.y - ank.y, 1e-6)
+            want = hip.x + (ank.x - hip.x) * t_h + side * KNEE_OUT
+            cands.append((pa, knee.z, abs(knee.x - want), knee.x - (hip.x + (ank.x - hip.x) * t_h)))
+        top = max(z for _, z, _, _ in cands)
+        pa, _, _, off = min((cd for cd in cands if cd[1] > top - 0.01), key=lambda cd: cd[2])
+        c.pole_angle = math.radians(pa)
+        print(f'genou {s} : {100 * side * off:+.1f} cm hors de l\'axe hanche-cheville (pôle {pa:.1f}°)')
         # Pied : pointé vers le dessus de la pédale (cale sous l'avant-pied).
         dt = pb['foot_' + s].constraints.new('DAMPED_TRACK')
         dt.target = empty('pedal_' + s, pedal + Vector((0, SOLE, 0.012)))
@@ -1571,11 +1672,15 @@ def lengthen_humerus(body, rig):
 
 def fit_neck(body, eyes, rig):
     """Cou à la longueur du corps de référence (os du cou, base du cou → base du crâne), ramenée à la stature :
-    la tête et les yeux descendent le long du cou, sans en changer l'épaisseur. Variante féminine (le cou MPFB
-    féminin est nettement plus long que celui du corps de référence)."""
+    la tête et les yeux descendent le long du cou, sans en changer l'épaisseur. Les cous MPFB, homme et femme, sont
+    nettement plus longs que ceux des corps de référence (homme : modèle de l'utilisateur, reference_body.json)."""
     import json
-    with open(REFERENCE_SHAPES, encoding='utf-8') as f:
-        ref = json.load(f)['female']
+    if args.variant == 'female':
+        with open(REFERENCE_SHAPES, encoding='utf-8') as f:
+            ref = json.load(f)['female']
+    else:
+        with open(REFERENCE_BODY, encoding='utf-8') as f:
+            ref = json.load(f)
     rn, rh = Vector(ref['joints']['neck']), Vector(ref['joints']['head'])
     ref_len = (rh - rn).length / ref['stature']
     bones = rig.data.bones
@@ -3103,7 +3208,7 @@ def main():
     lengthen_humerus(body, rig)
     if args.fit > 0:
         fit_hands(body, rig)
-    if args.fit > 0 and args.variant == 'female':
+    if args.fit > 0:
         fit_neck(body, eyes, rig)
     stabilize_glutes(body, rig)
     soften_joints(body, rig)
@@ -3119,6 +3224,7 @@ def main():
     pose_rider(rig, body)
     apply_pose_as_rest(rig, [body, eyes] + styles + gear)
     smooth_bust_posed(body, args.bust_smooth // 2)
+    fill_back_posed(body, rig)
     settle_straps(gear[1], body, next(o for o in styles if o.name == 'rider_hairs_slick'), gear[2])
     acc = import_accessories(rig, body)
     transfer_keys(body, acc + gear + [o for o in styles if o.name.startswith('rider_hair')])

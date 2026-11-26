@@ -458,6 +458,11 @@ const THUMB_DOWN = [0.1, 0.2, 0.25];
 /** Bas du cintre : coudes écartés (l'avant-bras passe à l'extérieur du haut du cintre), poignet dans l'axe de l'avant-bras (part de 0 à 1). */
 const DROPS_ELBOW_OUT = 0.7;
 const DROPS_WRIST = 0.6;
+/**
+ * Pli des genoux un peu vers l'extérieur en pédalant (composante x ajoutée au pôle de repos, ≈ 0,5 cm au genou) :
+ * pas de jambes en X quand les hanches sont plus larges que l'écartement des pédales (coureuses).
+ */
+const KNEE_POLE_OUT = 0.025;
 
 /** Modèles chargés par type d'avatar (le film mêle l'avatar MPFB de Robert et le modèle acheté). */
 const templates = new Map<AvatarKind, Templates>();
@@ -2276,7 +2281,7 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       this.target.copy(t.ankleFlat[s]).applyAxisAngle(X_AXIS, pitch).add(this.foot);
       this.bones[c.upper].quaternion.copy(t.bones[c.upper].localQ);
       this.fk(c.upper);
-      this.solveChain(c, this.target);
+      this.solveChain(c, this.target, _vPole.copy(c.pole).setX(c.pole.x + (s === 'L' ? KNEE_POLE_OUT : -KNEE_POLE_OUT)).normalize());
       _q1.setFromAxisAngle(X_AXIS, pitch - t.pedalPitch);
       if (planted > 0) _q1.premultiply(_q3.setFromAxisAngle(Z_AXIS, footLean * planted));
       this.setModelQ(c.end, _q2.multiplyQuaternions(_q1, t.bones[c.end].modelQ));

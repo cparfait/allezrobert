@@ -1599,8 +1599,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // les participants (et la moto des écarts) y roulent.
   const alive = s.mode !== 'race' && params.get('traffic') !== '0' && engine.quality.trafficDensity > 0;
   // Voitures, camions et tracteurs (modèles chargés à la demande ; primitives si indisponibles). Pas en style
-  // Beta (V3) : seulement des cyclistes sur la route (demande du 17/11/2026).
-  const vehiclesOn = alive && !V3_STYLE;
+  // Beta (V3) : seulement des cyclistes sur la route (demande du 17/11/2026). Jamais à Longchamp, quel que soit le
+  // style : l'anneau est réservé aux vélos (demande du 26/11/2026).
+  const vehiclesOn = alive && !V3_STYLE && source.id !== 'longchamp';
   if (vehiclesOn) await loadVehicleModels();
   const traffic = vehiclesOn ? new Traffic(track, engine.quality.trafficDensity, startD, GltfRiderAvatar.lodScale) : null;
   traffic?.setPlaces(source.open?.places);
