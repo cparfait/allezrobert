@@ -635,7 +635,7 @@ function sexMaskOf(mesh: THREE.Mesh): SexMask | null {
   return { head, chest, trunk, frame };
 }
 
-function extractIdentity(scene: THREE.Object3D): void {
+function extractIdentity(scene: THREE.Object3D, kind: AvatarKind): void {
   const done = new Set<THREE.BufferGeometry>();
   const flatParts: Array<{ frame: NonNullable<SexMask['frame']>; g: THREE.BufferGeometry }> = [];
   scene.traverse((o) => {
@@ -667,7 +667,9 @@ function extractIdentity(scene: THREE.Object3D): void {
       g.userData.identity = id;
       const sexMask = sexMaskOf(mesh);
       g.userData.sexMask = sexMask;
-      if (sexMask?.frame) {
+      // Pectoraux des hommes creusés et normales du buste lissées : pas sur le modèle féminin dédié (sa poitrine,
+      // lissée au build, s'y aplatissait au milieu et les tétons ressortaient ; 26/11/2026).
+      if (sexMask?.frame && kind !== 'female') {
         const pa = g.getAttribute('position');
         const arr = pa.array as Float32Array;
         bumpChest(arr, g.getAttribute('normal') ? toFloat(g.getAttribute('normal')) : null, sexMask.frame, PEC.hMen, PEC.a, PEC.b, PEC.sigma);
@@ -1014,7 +1016,7 @@ function restHands(kind: AvatarKind): Record<Side, THREE.Vector3> {
 }
 
 function buildTemplates(riders: GLTF[], kind: AvatarKind): Templates {
-  for (const r of riders) extractIdentity(r.scene);
+  for (const r of riders) extractIdentity(r.scene, kind);
   for (const r of riders) {
     r.scene.updateMatrixWorld(true);
     softenShoeCollars(r.scene);
@@ -2290,7 +2292,8 @@ export class GltfRiderAvatar implements RiderAvatarLike {
     const key = JSON.stringify(Object.entries(values).filter(([, v]) => v).sort());
     if (key === this.faceKey) return;
     this.faceKey = key;
-    this.feminine = this.kind === 'female' ? 1 : this.kind === 'mpfb' ? THREE.MathUtils.clamp(-(values.sex ?? 0), 0, 1) : 0;
+    // Modèle féminin dédié : cou ni relevé ni raccourci ici (il faisait « tortue ») ; sa longueur est réglée au build (fit_neck).
+    this.feminine = this.kind === 'mpfb' ? THREE.MathUtils.clamp(-(values.sex ?? 0), 0, 1) : 0;
     for (const it of this.identityMeshes) {
       const id = it.base.userData.identity as IdentityTargets;
       const w = id.names.map((n) => {

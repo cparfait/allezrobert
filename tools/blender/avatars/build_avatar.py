@@ -63,7 +63,7 @@ ap.add_argument('--cup', type=float, default=-1.0)      # macro MPFB « cupsize 
 ap.add_argument('--humerus', type=float, default=-1.0)  # remplace HUMERUS_SCALE
 ap.add_argument('--reach', type=float, default=-1.0)     # remplace ARM_REACH
 ap.add_argument('--forearm', type=float, default=-1.0)  # facteur de longueur de l'avant-bras ; par défaut 0,855 homme (0,267 → 0,228 m), 1,04 femme (0,232 → 0,241 m), mesures de référence du 26/11/2026
-ap.add_argument('--neck', type=float, default=3.0)      # intensité de FEMALE_NECK (variante féminine)
+ap.add_argument('--neck', type=float, default=0.0)      # intensité de FEMALE_NECK (variante féminine) ; 0 depuis le 26/11/2026 (3 avant : cou trop fin, tête en avant)
 ap.add_argument('--glute-flat', type=float, default=-1.0)   # remplace GLUTE_FLAT
 ap.add_argument('--glute-start', type=float, default=-1.0)  # remplace GLUTE_START
 ap.add_argument('--glute-pelvis', type=float, default=-1.0)  # remplace GLUTE_PELVIS
@@ -72,6 +72,8 @@ ap.add_argument('--glute-side', type=float, default=-1.0)    # remplace GLUTE_SI
 ap.add_argument('--reduce-body', action='store_true')  # corps de près (niveau 0) simplifié à BODY_RATIO (avant le 28/10/2026 : pli en V derrière le genou, facettes aux fesses)
 ap.add_argument('--fit', type=float, default=1.0)  # ajustement aux mesures du modèle de référence (reference_body.json, fit_reference), 0 : sans
 ap.add_argument('--torso-fill', type=float, default=0.0)  # intensité de TORSO_FILL (premier essai de buste plein, remplacé par --fit), 0 par défaut
+ap.add_argument('--bust-smooth', type=int, default=12)  # passes de lissage du devant du buste (variante féminine), 0 : sans
+ap.add_argument('--lumbar', type=float, default=-1.0)  # remplace LUMBAR_FILL (m)
 ap.add_argument('--skull', type=float, default=0.8)     # arrière du crâne moins profond (SKULL_BACK), 0 : base MPFB
 args = ap.parse_args(argv)
 # Longueurs des bras des corps de référence (26/11/2026) : homme humérus 0,244 / avant-bras 0,228 (HUMERUS_SCALE, 0,855),
@@ -227,7 +229,7 @@ MACRO_SLIDERS = {
 if args.variant == 'female':
     # Modèle féminin : base entièrement féminine ; le curseur « sex » n'existe plus (ni ses atténuations).
     BASE_MACRO['gender'] = 0.0
-    BASE_MACRO['cupsize'] = 0.5
+    BASE_MACRO['cupsize'] = 0.3   # 0,5 avant le 26/11/2026 : poitrine trop marquée sous le maillot
     if args.height >= 0:
         BASE_MACRO['height'] = args.height
     if args.cup >= 0:
@@ -815,6 +817,155 @@ def stabilize_glutes(body, rig):
     print(f'fessiers : poids de cuisse reporté sur le bassin pour {moved} sommets')
 
 
+BUST_GROUP = 'tmp_bust_smooth'
+
+
+def smooth_bust_posed(body, passes):
+    """Second lissage de la poitrine, sur la pose de course figée (voir smooth_bust) ; retire le groupe de sommets."""
+    g = body.vertex_groups.get(BUST_GROUP)
+    if g is None:
+        return
+    me = body.data
+    wt = {}
+    for v in me.vertices:
+        for ge in v.groups:
+            if ge.group == g.index and ge.weight > 0.01:
+                wt[v.index] = ge.weight
+    body.vertex_groups.remove(g)
+    if passes <= 0 or not wt:
+        return
+    near = [[] for _ in me.vertices]
+    for e in me.edges:
+        a, b = e.vertices
+        near[a].append(b)
+        near[b].append(a)
+    keys = list(me.shape_keys.key_blocks) if me.shape_keys else None
+    src = keys[0].data if keys else me.vertices
+    co = [v.co.copy() for v in src]
+    cur = [c.copy() for c in co]
+    zone = [i for i in wt if near[i]]
+    # Pointes isolées (tétons) : un sommet nettement au-dessus de la moyenne de ses voisins y est ramené.
+    spiky = 0
+    for _ in range(20):
+        hit = 0
+        for i in zone:
+            m = sum((cur[j] for j in near[i]), Vector()) / len(near[i])
+            if (cur[i] - m).length > 0.0015:
+                cur[i] = m
+                hit += 1
+        spiky += hit
+        if not hit:
+            break
+    print(f'poitrine (pose de course) : {spiky} pointes ramenées, {len(zone)} sommets dans la zone, {len(wt)} dans le groupe')
+    for _ in range(passes):
+        nxt = {i: cur[i].lerp(sum((cur[j] for j in near[i]), Vector()) / len(near[i]), 0.5 * wt[i]) for i in zone}
+        for i, c in nxt.items():
+            cur[i] = c
+    for data in ([kb.data for kb in keys] if keys else [me.vertices]):
+        for i in zone:
+            data[i].co = data[i].co + (cur[i] - co[i])
+    me.update()
+    mv = max(((cur[i] - co[i]).length for i in zone), default=0.0)
+    print(f'poitrine lissée (pose de course) : {len(zone)} sommets, déplacement max {100 * mv:.2f} cm')
+
+
+def smooth_bust(body, base_m, passes):
+    """Poitrine lissée (variante féminine) : sous le maillot, une forme ronde, sans tétons. Lissage laplacien des
+    sommets du devant du buste (de spine_03 à la base du cou), fondu sur les bords ; même déplacement
+    dans toutes les cibles."""
+    if passes <= 0:
+        return
+    lo = base_m['spine_03'][0].translation.z - 0.09   # sous la poitrine : les tétons (≈ spine_03 + 6 cm) en plein dans la zone
+    hi = base_m['spine_03'][0].translation.z + 0.16   # jusqu'au haut de la poitrine (pas les clavicules)
+    front_y = base_m['spine_03'][0].translation.y
+    mw = body.matrix_world
+    imw3 = mw.inverted().to_3x3()
+    me = body.data
+    blocks = list(me.shape_keys.key_blocks)
+    co = [mw @ v.co for v in blocks[0].data]
+    near = [[] for _ in co]
+    for e in me.edges:
+        a, b = e.vertices
+        near[a].append(b)
+        near[b].append(a)
+    wt = []
+    for c in co:
+        h = smoothstep(lo, lo + 0.04, c.z) * (1.0 - smoothstep(hi - 0.05, hi, c.z))
+        front = smoothstep(0.0, 0.04, front_y - c.y)              # −Y : vers l'avant
+        side = 1.0 - smoothstep(0.11, 0.17, abs(c.x))
+        wt.append(h * front * side)
+    zone = [i for i, w in enumerate(wt) if w > 0.01 and near[i]]
+    cur = [c.copy() for c in co]
+    # Lissage laplacien simple : arrondit et aplatit un peu la pointe (cône de la poitrine MPFB, tétons) ; un lissage
+    # de Taubin, qui garde le volume, gardait aussi la pointe.
+    # Surface avant lissée (comme un maillot tendu) : sur une grille de 1 cm (x, z), le point le plus en avant de
+    # chaque case, flouté (gaussienne ≈ 2,5 cm) ; les sommets du devant y sont ramenés. Le repli sous les seins se
+    # referme et les tétons disparaissent dans le flou ; la forme ronde reste.
+    cell = 0.01
+    grid = {}
+    for i in zone:
+        c = co[i]
+        if c.y < front_y:
+            k = (round(c.x / cell), round(c.z / cell))
+            grid[k] = min(grid.get(k, 1.0), c.y)
+    if grid:
+        xs = [k[0] for k in grid]
+        zs_ = [k[1] for k in grid]
+        def blur(g):
+            out = {}
+            for kx in range(min(xs), max(xs) + 1):
+                for kz in range(min(zs_), max(zs_) + 1):
+                    tot = wsum = 0.0
+                    for dx in range(-5, 6):
+                        for dz in range(-5, 6):
+                            v = g.get((kx + dx, kz + dz))
+                            if v is not None:
+                                w_ = math.exp(-(dx * dx + dz * dz) / (2 * 2.5 * 2.5))
+                                tot += v * w_
+                                wsum += w_
+                    if wsum > 0.5:
+                        out[(kx, kz)] = tot / wsum
+            return out
+        H = blur(grid)
+        def h_at(x, z):
+            fx, fz = x / cell, z / cell
+            x0, z0 = math.floor(fx), math.floor(fz)
+            tx, tz = fx - x0, fz - z0
+            vals = [(H.get((x0 + a_, z0 + b_)), (tx if a_ else 1 - tx) * (tz if b_ else 1 - tz)) for a_ in (0, 1) for b_ in (0, 1)]
+            vals = [(v, w_) for v, w_ in vals if v is not None and w_ > 0]
+            ws = sum(w_ for _, w_ in vals)
+            return sum(v * w_ for v, w_ in vals) / ws if ws > 0 else None
+        for i in zone:
+            c = cur[i]
+            if c.y < front_y + 0.03:
+                h = h_at(c.x, c.z)
+                if h is not None and h < front_y:
+                    # Devant : sur la surface lisse ; en retrait (dessous des seins), ramené vers elle.
+                    cur[i].y = c.y + (h - c.y) * wt[i]
+    for k in range(passes):
+        f = 0.5
+        nxt = {}
+        for i in zone:
+            m = sum((cur[j] for j in near[i]), Vector()) / len(near[i])
+            nxt[i] = cur[i] + (m - cur[i]) * (f * wt[i])
+        for i, c in nxt.items():
+            cur[i] = c
+    moved = [i for i in range(len(co)) if (cur[i] - co[i]).length_squared > 0]
+    for kb in blocks:
+        for i in moved:
+            kb.data[i].co = kb.data[i].co + imw3 @ (cur[i] - co[i])
+    me.update()
+    # Zone gardée pour un second lissage une fois la pose de course appliquée (smooth_bust_posed) : la peau de la
+    # poitrine, liée en partie aux clavicules et aux bras, se pince en pointe quand les bras partent vers le cintre.
+    g = body.vertex_groups.new(name=BUST_GROUP)
+    for i in zone:
+        g.add([i], wt[i], 'REPLACE')
+    mv = max(((cur[i] - co[i]).length for i in zone), default=0.0)
+    full = sum(1 for i in zone if wt[i] > 0.5)
+    tip = min(zone, key=lambda i: co[i].y) if zone else None
+    print(f'poitrine lissée : {len(zone)} sommets ({full} à plus de 50 %), {passes} passes, déplacement max {100 * mv:.2f} cm' + (f', pointe {tuple(round(x, 3) for x in co[tip])} poids {wt[tip]:.2f}' if tip is not None else '') + f', zone z {lo:.3f}–{hi:.3f}, y avant {front_y:.3f}')
+
+
 def hollow_nape(body, base_m, depth):
     """Nuque creusée : les sommets de l'arrière du cou, entre la base du cou et la base du crâne,
     sont avancés au plus de `depth` (vers le milieu du cou) ; même déplacement dans toutes les cibles."""
@@ -970,8 +1121,10 @@ def build_base(HS, TS, LS):
     expression_shapes(body, TS, LS)
     flatten_glutes(body, base_m)
     shape_glutes(body, base_m)
-    fill_lumbar(body, base_m, LUMBAR_FILL)
+    fill_lumbar(body, base_m, args.lumbar if args.lumbar >= 0 else (0.065 if args.variant == 'female' else LUMBAR_FILL))   # femme : 6,5 cm (dos creusé à 2,6 ; 26/11/2026)
     hollow_nape(body, base_m, NAPE_DEPTH[args.variant])
+    if args.variant == 'female':
+        smooth_bust(body, base_m, args.bust_smooth)
     if args.fit > 0:
         fit_reference(body, rig, args.fit, args.variant)
         for kname, rname in SHAPE_KEY_REFS[args.variant].items():
@@ -1414,6 +1567,42 @@ def lengthen_humerus(body, rig):
             eb[n].tail = eb[n].tail + dl2
     bpy.ops.object.mode_set(mode='OBJECT')
     body.data.update()
+
+
+def fit_neck(body, eyes, rig):
+    """Cou à la longueur du corps de référence (os du cou, base du cou → base du crâne), ramenée à la stature :
+    la tête et les yeux descendent le long du cou, sans en changer l'épaisseur. Variante féminine (le cou MPFB
+    féminin est nettement plus long que celui du corps de référence)."""
+    import json
+    with open(REFERENCE_SHAPES, encoding='utf-8') as f:
+        ref = json.load(f)['female']
+    rn, rh = Vector(ref['joints']['neck']), Vector(ref['joints']['head'])
+    ref_len = (rh - rn).length / ref['stature']
+    bones = rig.data.bones
+    mw_r = rig.matrix_world
+    zs = [(body.matrix_world @ v.co).z for v in body.data.vertices]
+    stature = max(zs) - min(zs)
+    a = mw_r @ bones['neck_01'].head_local
+    d = (mw_r @ bones['head'].head_local) - a
+    factor = min(max(ref_len * stature / max(d.length, 1e-6), 0.5), 1.0)
+    print(f'cou : {100 * d.length:.1f} cm → {100 * d.length * factor:.1f} cm (référence {100 * ref_len * stature:.1f})')
+    if factor > 0.999:
+        return
+    delta = d * (factor - 1.0)
+    head = {'head': 1.0}
+    for b in bones['head'].children_recursive:
+        head[b.name] = 1.0
+    shorten_segment(body, rig, 'neck_01', 'head', factor, head)
+    # Repère de la bouche (casque, lunettes, coiffures, intérieur de la bouche) : suit la tête.
+    if MOUTH:
+        MOUTH[0] = MOUTH[0] + body.matrix_world.inverted().to_3x3() @ delta
+    sh = eyes.matrix_world.inverted().to_3x3() @ delta
+    for v in eyes.data.vertices:
+        v.co = v.co + sh
+    if eyes.data.shape_keys:
+        for kb in eyes.data.shape_keys.key_blocks:
+            for dd in kb.data:
+                dd.co = dd.co + sh
 
 
 def shorten_segment(body, rig, base, child, factor, distal):
@@ -2914,6 +3103,8 @@ def main():
     lengthen_humerus(body, rig)
     if args.fit > 0:
         fit_hands(body, rig)
+    if args.fit > 0 and args.variant == 'female':
+        fit_neck(body, eyes, rig)
     stabilize_glutes(body, rig)
     soften_joints(body, rig)
     for o in (eyes,):
@@ -2927,6 +3118,7 @@ def main():
     gear = build_headgear(body, eyes, rig, styles)
     pose_rider(rig, body)
     apply_pose_as_rest(rig, [body, eyes] + styles + gear)
+    smooth_bust_posed(body, args.bust_smooth // 2)
     settle_straps(gear[1], body, next(o for o in styles if o.name == 'rider_hairs_slick'), gear[2])
     acc = import_accessories(rig, body)
     transfer_keys(body, acc + gear + [o for o in styles if o.name.startswith('rider_hair')])
