@@ -32,7 +32,8 @@ export function cullSmallParts(root: THREE.Object3D, camPos: THREE.Vector3, proj
   let hidden = 0;
   root.traverseVisible((o) => {
     const m = o as THREE.Mesh;
-    if (!m.isMesh || m.name.startsWith('shadow-')) return;
+    // Pièce remplacée par le niveau intermédiaire (riderMid.ts) : son calque est à lui, pas à rétablir ici.
+    if (!m.isMesh || m.name.startsWith('shadow-') || m.userData.midHidden) return;
     const g = m.geometry;
     if (!g.boundingSphere) g.computeBoundingSphere();
     const bs = g.boundingSphere;

@@ -38,11 +38,22 @@ interface LightState {
 }
 const states = new WeakMap<THREE.Object3D, LightState>();
 
-/** Couleur moyenne d'une texture lisible (image ou ImageBitmap), réduite à 8 × 8. */
+/** Texture sans couleur moyenne exploitable (canevas, lecture impossible) : mémorisée pour ne pas réessayer. */
+const NO_AVERAGE = new THREE.Color();
+
+/**
+ * Couleur moyenne d'une texture lisible (image ou ImageBitmap), réduite à 8 × 8. Pas de canevas dessiné en jeu (écran du
+ * compteur, casquette, plaque…) : sa relecture (getImageData d'un canevas accéléré) attendait la carte graphique,
+ * ~300 ms par coureur passé en version légère (mesure du 26/11/2026, Réel, 40 IA : 13 relectures, 4,1 s figées).
+ */
 function textureAverage(tex: THREE.Texture | null | undefined): THREE.Color | null {
   if (!tex?.image) return null;
   const hit = averageColors.get(tex.image as object);
-  if (hit) return hit;
+  if (hit) return hit === NO_AVERAGE ? null : hit;
+  if (typeof (tex.image as { getContext?: unknown }).getContext === 'function') {
+    averageColors.set(tex.image as object, NO_AVERAGE);
+    return null;
+  }
   try {
     const img = tex.image as CanvasImageSource;
     const c = document.createElement('canvas');
@@ -69,7 +80,8 @@ function textureAverage(tex: THREE.Texture | null | undefined): THREE.Color | nu
   }
 }
 
-function partColor(m: THREE.Mesh, colorOf?: LightColor): THREE.Color {
+/** Couleur moyenne d'une pièce (couleur du matériau × moyenne de sa texture, ou teinte donnée par `colorOf`). */
+export function partColor(m: THREE.Mesh, colorOf?: LightColor): THREE.Color {
   const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.MeshStandardMaterial;
   const hint = colorOf?.(m, mat);
   if (hint !== null && hint !== undefined) return new THREE.Color(hint);

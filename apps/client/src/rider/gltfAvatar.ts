@@ -22,6 +22,7 @@ import { addFrameAttributes, addJerseyFrame, addSleeveMask, type JerseyFrame } f
 import { applyTexturedLook, loadTexturedMasks, texturedMaterial } from './texturedLook.ts';
 import { aerobarAnchors } from './aerobars.ts';
 import { COCKPIT_SHIFT } from './cockpitFit.ts';
+import { updateVisibleBranch } from '../game/hiddenMatrices.ts';
 import { BikeMaterials, assembleBike, availableFamily, bikeAnchors, bikeFamilyReady, familyScene, loadBikeFamily, type AssembledBike, type BikeAnchors, type FamilyKey } from './bikes.ts';
 import { assembleRoubaix, isRoubaixLook, loadRoubaix, roubaixAnchor, roubaixOption, roubaixSeat, roubaixSizeForRider, setSaddleDrop, sitPointOf, solveSeatDrop, type RoubaixAssembly, type RoubaixBike } from './roubaix.ts';
 
@@ -1505,8 +1506,10 @@ export class GltfRiderAvatar implements RiderAvatarLike {
       }
       this.update(camera);
       for (const child of this.children) {
-        if (child.visible || child === level0) child.updateMatrixWorld(f);
-        else child.matrixWorldNeedsUpdate = true;
+        // Coureur IA (hiddenMatrices.ts) : branches masquées sans os utiles sautées, dont l'ancien modèle en style Bêta.
+        if (child.visible || child === level0) {
+          if (!updateVisibleBranch(child, f)) child.updateMatrixWorld(f);
+        } else child.matrixWorldNeedsUpdate = true;
       }
     };
   }

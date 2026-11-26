@@ -43,8 +43,28 @@ export function skipHiddenMatrixUpdates(root: THREE.Object3D, enabled = HIDDEN_M
       const sk = (o as THREE.SkinnedMesh).isSkinnedMesh ? (o as THREE.SkinnedMesh).skeleton : null;
       if (sk) for (const b of sk.bones) used.add(b);
     });
-    updateVisible(this, force ?? false, used);
+    activeUsed = used;
+    try {
+      updateVisible(this, force ?? false, used);
+    } finally {
+      activeUsed = null;
+    }
   };
+}
+
+/** Os utilisés du coureur en cours de mise à jour (pendant `updateVisible` seulement), sinon null. */
+let activeUsed: Set<THREE.Object3D> | null = null;
+
+/**
+ * Pour un objet à mise à jour propre (niveaux de détail de l'avatar, gltfAvatar.ts) appelé pendant la mise à jour d'un
+ * coureur : met à jour `o` sans descendre dans ses branches masquées inutiles. Renvoie false hors de cette mise à jour
+ * (l'appelant fait alors la mise à jour complète). Sans cela, le niveau 0 de l'avatar, toujours tenu à jour pour ses os,
+ * recalculait tout l'ancien modèle masqué par le coureur V3 (style Bêta) : ≈ 8 % du processeur à 40 coureurs (26/11/2026).
+ */
+export function updateVisibleBranch(o: THREE.Object3D, force: boolean): boolean {
+  if (!activeUsed) return false;
+  updateVisible(o, force, activeUsed);
+  return true;
 }
 
 const BASE_UPDATE = THREE.Object3D.prototype.updateMatrixWorld;

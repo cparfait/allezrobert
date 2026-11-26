@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { describe, expect, it } from 'vitest';
-import { skipHiddenMatrixUpdates } from '../src/game/hiddenMatrices.ts';
+import { skipHiddenMatrixUpdates, updateVisibleBranch } from '../src/game/hiddenMatrices.ts';
 
 function rider() {
   const root = new THREE.Group();
@@ -58,5 +58,35 @@ describe('matrices des branches masquées des coureurs', () => {
     root.updateMatrixWorld();
     expect(bone.matrixWorld.elements[12]).toBeCloseTo(7, 5);
     expect(oldBone.matrixWorld.elements[12]).toBe(oldBefore);
+  });
+
+  it('niveau de détail à mise à jour propre : son ancien modèle masqué n’est plus recalculé', () => {
+    const root = new THREE.Group();
+    // Comme les niveaux de l'avatar (gltfAvatar.ts, skipHiddenLevels) : niveau 0 toujours tenu à jour, par la branche visible.
+    const lod = new THREE.Group();
+    const level0 = new THREE.Group();
+    const old = new THREE.Group();
+    old.visible = false;
+    const oldBone = new THREE.Bone();
+    old.add(oldBone);
+    const kit = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial());
+    level0.add(old, kit);
+    lod.add(level0);
+    root.add(lod);
+    lod.updateMatrixWorld = function (this: THREE.Object3D, force?: boolean) {
+      this.updateMatrix();
+      this.matrixWorld.multiplyMatrices((this.parent as THREE.Object3D).matrixWorld, this.matrix);
+      for (const c of this.children) if (!updateVisibleBranch(c, true)) c.updateMatrixWorld(true);
+      void force;
+    };
+    skipHiddenMatrixUpdates(root, true);
+    root.updateMatrixWorld(true);
+    const oldBefore = oldBone.matrixWorld.elements[12];
+    root.position.set(5, 0, 0);
+    root.updateMatrixWorld();
+    expect(kit.matrixWorld.elements[12]).toBeCloseTo(5, 5);
+    expect(oldBone.matrixWorld.elements[12]).toBe(oldBefore);
+    // Hors de la mise à jour d'un coureur : mise à jour complète (avatar du joueur).
+    expect(updateVisibleBranch(level0, true)).toBe(false);
   });
 });

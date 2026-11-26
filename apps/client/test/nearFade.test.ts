@@ -101,6 +101,28 @@ describe('fondu des coureurs proches : matériaux', () => {
     updateNearFade(1 / 60, camera, meGround, []);
   });
 
+  it('second fondu du même coureur : mêmes copies (pas de shader reconstruit), détruites quand il quitte la liste', () => {
+    const shared = new THREE.MeshStandardNodeMaterial();
+    const r = rider(shared);
+    const mesh = r.children[0] as THREE.Mesh;
+    const fade = (z: number) => {
+      r.position.set(0, z < 0 ? 1.3 : 0, z);
+      for (let i = 0; i < 60; i++) updateNearFade(1 / 60, camera, meGround, [r]);
+    };
+    fade(-3.6);
+    const first = mesh.material as THREE.Material;
+    let disposed = 0;
+    first.addEventListener('dispose', () => disposed++);
+    fade(20);
+    expect(mesh.material).toBe(shared);
+    expect(disposed).toBe(0);
+    fade(-3.6);
+    expect(mesh.material).toBe(first);
+    fade(20);
+    updateNearFade(1 / 60, camera, meGround, []);
+    expect(disposed).toBe(1);
+  });
+
   it('coureur retiré de la liste en plein fondu : matériau rendu', () => {
     const shared = new THREE.MeshStandardNodeMaterial();
     const gone = rider(shared);

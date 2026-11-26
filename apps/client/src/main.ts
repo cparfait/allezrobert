@@ -28,6 +28,7 @@ import { LEADER_COLORS, Peloton, ttPowerW, type RaceTeams } from './game/peloton
 import { LEADER_V3_JERSEY } from './game/v3Crowd.ts';
 import { nearFadeProxies, releaseNearFade, updateNearFade } from './game/nearFade.ts';
 import { riderLightWarmup } from './game/riderLight.ts';
+import { riderMidWarmup } from './game/riderMid.ts';
 import { aiEffortTag, energyPercent } from '@allezrobert/shared';
 import { DirecteurSportif } from './game/directeur.ts';
 import { DirectorVoice } from './audio/directorVoice.ts';
@@ -3497,7 +3498,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Témoins de ce qui n'apparaît qu'en roulant (premier train, premier coureur lointain en version légère) : compilés
   // avec la scène puis retirés ; leurs shaders restent prêts.
   const warmups = new THREE.Group();
-  warmups.add(trains.warmup(), riderLightWarmup());
+  warmups.add(trains.warmup(), riderLightWarmup(), riderMidWarmup());
   warmups.position.copy(engine.camera.position);
   engine.scene.add(warmups);
   // Cyclistes d'ambiance : tous masqués au départ (trop loin), donc sautés par la précompilation ; le premier à

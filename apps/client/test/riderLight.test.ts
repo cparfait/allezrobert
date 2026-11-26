@@ -59,4 +59,29 @@ describe('coureur lointain en version légère', () => {
     expect(needsLightBuild(root)).toBe(false);
     expect(detail.visible).toBe(false);
   });
+
+  it('texture dessinée en jeu (canevas) : jamais relue, couleur du matériau', () => {
+    const root = new THREE.Group();
+    let reads = 0;
+    // Relecture de la moyenne : canevas 8 × 8 de la page, dont getImageData attend la carte graphique.
+    const pixels = { drawImage: () => {}, getImageData: () => (reads++, { data: new Uint8ClampedArray(256).fill(255) }) };
+    const g = globalThis as { document?: unknown };
+    const had = g.document;
+    g.document = { createElement: () => ({ width: 0, height: 0, getContext: () => pixels }) };
+    const canvas = { width: 128, height: 176, getContext: () => null };
+    const tex = new THREE.Texture(canvas as unknown as HTMLCanvasElement);
+    const screen = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.01), new THREE.MeshStandardMaterial({ color: 0x00ff00, map: tex }));
+    root.add(screen);
+    root.updateMatrixWorld(true);
+    try {
+      for (let i = 0; i < 3; i++) {
+        const col = bakeLightGeometry([screen], root).getAttribute('color');
+        expect(col.getX(0)).toBeCloseTo(0, 3);
+        expect(col.getY(0)).toBeCloseTo(1, 3);
+      }
+    } finally {
+      g.document = had;
+    }
+    expect(reads).toBe(0);
+  });
 });

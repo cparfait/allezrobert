@@ -115,6 +115,13 @@ const active = new Set<THREE.Object3D>();
  * copies vivent, toute autre copie de même shader (cyclistes d'ambiance, autres coureurs) retrouve son pipeline.
  */
 const kept = new Map<THREE.Object3D, Twins>();
+/**
+ * Coureurs sans copies préparées : leurs copies sont créées au premier fondu puis gardées aussi, tant qu'ils restent dans
+ * la liste. Détruites à chaque fin de fondu, elles faisaient reconstruire les shaders de toutes les pièces au fondu
+ * suivant (mesure du 26/11/2026, Réel, 40 IA en course : 197 constructions en 20 s, 21 % du processeur, saccades de
+ * 130 à 440 ms quand le peloton passe autour de la caméra).
+ */
+const keptOnTheWay = new Set<THREE.Object3D>();
 const enabled = typeof location === 'undefined' || new URLSearchParams(location.search).get('nearfade') !== '0';
 
 const _cam = new THREE.Vector3();
@@ -201,6 +208,7 @@ export function releaseNearFade(): void {
   for (const root of [...active]) restore(root, state.get(root)!);
   for (const t of kept.values()) for (const m of t.twins.keys()) m.dispose();
   kept.clear();
+  keptOnTheWay.clear();
 }
 
 /**
@@ -220,8 +228,12 @@ export function updateNearFade(dt: number, camera: THREE.Camera, subject: THREE.
     const want = root.visible ? fadeTarget(_cam, target, _center.copy(root.position).setY(root.position.y + BODY_Y), _forward) : 1;
     if (!f) {
       if (want >= 1) continue;
-      const t = kept.get(root);
-      f = { opacity: 1, kept: !!t, ...(t ?? { twins: new Map(), byOrig: new Map() }) };
+      let t = kept.get(root);
+      if (!t) {
+        kept.set(root, (t = { twins: new Map(), byOrig: new Map() }));
+        keptOnTheWay.add(root);
+      }
+      f = { opacity: 1, kept: true, ...t };
       state.set(root, f);
       active.add(root);
     }
@@ -231,4 +243,11 @@ export function updateNearFade(dt: number, camera: THREE.Camera, subject: THREE.
   }
   // Coureur retiré de la liste (parti, sortie terminée) en plein fondu : matériaux rendus.
   for (const root of [...active]) if (!seen.has(root)) restore(root, state.get(root)!);
+  // Ses copies gardées en route sont détruites (cyclistes d'ambiance qui passent : pas d'accumulation).
+  for (const root of keptOnTheWay) {
+    if (seen.has(root)) continue;
+    for (const m of kept.get(root)?.twins.keys() ?? []) m.dispose();
+    kept.delete(root);
+    keptOnTheWay.delete(root);
+  }
 }

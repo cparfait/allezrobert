@@ -3,6 +3,7 @@ import { shadowCasters } from './shadowBudget.ts';
 import { AnimBudget } from './animBudget.ts';
 import { disposeRiderMerge, updateRiderMerge } from './riderMerge.ts';
 import { disposeRiderLight, needsLightBuild, updateRiderLight } from './riderLight.ts';
+import { disposeRiderMid, updateRiderMid } from './riderMid.ts';
 import { applyRiderShadows, disposeRiderShadows } from './riderShadows.ts';
 import { createNameTag, placeNameTags, removeNameTag, type NameTag } from './nameTags.ts';
 import { skipHiddenMatrixUpdates } from './hiddenMatrices.ts';
@@ -12,7 +13,7 @@ import { LATERAL_CRUISE, LATERAL_PASSING, LATERAL_SPRING, stepLateral, syncLater
 import * as THREE from 'three/webgpu';
 import { AiRider, AI_PROFILES, DraftCalculator, FORMATION_PREFS, GRID_HOLD_M, GRID_RELEASE_M, GRID_ROW_M, GRID_SAME_LINE_M, fromCentre, gridBlend, gridColumns, LANE_PACE, LaneRotator, Overtaker, aheadAlongM, clampToOwnHalf, facingWithin, keepRightM, oncomingLookM, laneOffsets, resolveFormation, roadHalfM, type Formation, type FormationPref, type LaneBody, PoseController, TeammateUTurn, createRiderState, paramsFromBike, powerForSpeed, stepRider, airDensity, wakeShiftM, sharedRoadCorridor, type AiProfileName, type RiderState } from '@allezrobert/physics';
 import { BASE_PROFILES, DEFAULT_BIKE, aiIdentity, DEFAULT_LOOK, FACE_SLIDERS, encodeFace, type AvatarLook, type FaceShape, type RouteTrack } from '@allezrobert/shared';
-import { createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
+import { GltfRiderAvatar, createAvatar, type RiderAvatarLike } from '../rider/gltfAvatar.ts';
 import { brakeForCorners, cornerGrip } from './cornerBrake.ts';
 import { crowdShoes } from '../rider/shoeLook.ts';
 import { crowdBike } from '../rider/bikes.ts';
@@ -991,8 +992,10 @@ export class Peloton {
       if (SMALL_PARTS_CULL && r.avatar.root.visible && (this.animFrame + ri) % 6 === 0) cullSmallParts(r.avatar.root, camera.position, camera.projectionMatrix.elements[5] ?? 1);
       // Au-delà de 60 m, version légère : un seul maillage figé (riderLight.ts), après la mise à jour V3 en style Bêta.
       if (detail) updateRiderLight(r.avatar.root, detail, dist, this.animFrame, true, undefined, lightColorOf(r.avatar, r.v3), !r.v3 || r.v3.posed);
+      // Réaliste au-delà de 20 m : niveau intermédiaire, quelques maillages animés à couleurs de sommets (riderMid.ts).
+      const mid = !!detail && !r.v3 && r.avatar instanceof GltfRiderAvatar && r.avatar.root.visible && updateRiderMid(r.avatar.root, detail, dist, this.animFrame, ri, lightColorOf(r.avatar));
       // Pièces de même matériau fusionnées (riderMerge.ts), tous styles : vérification une image sur 10.
-      if (r.avatar.root.visible && (this.animFrame + ri) % 10 === 0) updateRiderMerge(r.avatar.root, this.animFrame);
+      if (!mid && r.avatar.root.visible && (this.animFrame + ri) % 10 === 0) updateRiderMerge(r.avatar.root, this.animFrame);
     }
     // Noms : placés après le rendu de cette image (caméra à jour), d'où la microtâche.
     queueMicrotask(() => placeNameTags(this.riders.map((x) => x.tag), camera));
@@ -1010,6 +1013,7 @@ export class Peloton {
   dispose(): void {
     for (const r of this.riders) {
       r.v3?.dispose();
+      disposeRiderMid(r.avatar.root);
       disposeRiderMerge(r.avatar.root);
       disposeRiderLight(r.avatar.root);
       disposeRiderShadows(r.avatar.root);
