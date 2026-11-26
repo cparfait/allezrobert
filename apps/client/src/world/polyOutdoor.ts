@@ -4,6 +4,8 @@ import { rng } from '../engine/noise.ts';
 import { box, part, prism, template, type Template } from './lowPolyKit.ts';
 import type { Site, SiteContext } from './polySites.ts';
 import { GAY, RING, meshOf, strollPath } from './polySites.ts';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { KERBROU_HARBOUR, ROBERTVILLE_HARBOUR, harbourTemplates, type HarbourSite } from './polyHarbour.ts';
 
 /**
  * Lieux de plein air de l'île (mode Poly) : cyclo-cross de Bois-Joli, bike park des Bois, écluse de la Robe,
@@ -225,9 +227,9 @@ function bikePark(): Site {
 // ───────────────────────────── Écluse et belvédère
 
 /** Écluse sur la Robe, près de la voie verte : point de la rivière le plus proche de (tx, tz). */
-function lock(tx: number, tz: number): Site {
+function lock(id: string, tx: number, tz: number, seed = 3301): Site {
   return {
-    id: 'ecluse-de-la-robe',
+    id,
     x: tx,
     z: tz,
     reach: 700,
@@ -281,7 +283,7 @@ function lock(tx: number, tz: number): Site {
       for (let i = 0; i < 4; i++) putOn(c, t.flower, hx + dx * (i * 1.5 - 2.2) + dz * 3.4, hz + dz * (i * 1.5 - 2.2) - dx * 3.4, yawOf(dz, -dx));
       putOn(c, t.bench, x - dz * (half + 3) - dx * 6, z + dx * (half + 3) - dz * 6, yawOf(dz, -dx));
       putOn(c, t.board, x - dz * (half + 3) + dx * 16, z + dx * (half + 3) + dz * 16, yawOf(dz, -dx));
-      const r = rng(3301);
+      const r = rng(seed);
       for (let i = 0; i < 3; i++) {
         const px = x - dz * (half + 2.2) + dx * (i * 5 - 8);
         const pz = z + dx * (half + 2.2) + dz * (i * 5 - 8);
@@ -512,7 +514,319 @@ function deer(): Site {
   };
 }
 
+let night = 0;
+let hour = 12;
+/** Nuit (0 jour, 1 nuit noire) et heure du jour (world.ts) : faisceau du phare, lanternes des ports, chalutiers. */
+export function setIslandNight(n: number, h = hour): void {
+  night = n;
+  hour = h;
+}
+
+/** Feu du Phare de Robert : lanterne et deux faisceaux qui tournent, la nuit seulement. */
+function lighthouseBeam(px: number, pz: number): Site {
+  return {
+    id: 'phare-lumiere',
+    x: px,
+    z: pz,
+    reach: 9000,
+    needs: [[px, pz]],
+    *build(c) {
+      yield;
+      const y = c.probe.heightAt(px, pz);
+      if (!Number.isFinite(y)) return;
+      const mat = new THREE.MeshBasicNodeMaterial({ color: '#fff3c4', transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+      const beamGeo = new THREE.ConeGeometry(18, 420, 16, 1, true).rotateZ(Math.PI / 2).translate(-210, 0, 0);
+      const g = new THREE.Group();
+      g.name = 'phare-faisceaux';
+      g.position.set(px, y + 33.5, pz);
+      const beams = [0, Math.PI].map((a) => {
+        const m = new THREE.Mesh(beamGeo, mat);
+        m.rotation.y = a;
+        m.castShadow = false;
+        g.add(m);
+        return m;
+      });
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(1.6, 10, 8), new THREE.MeshBasicNodeMaterial({ color: '#ffe7a0' }));
+      g.add(lamp);
+      c.moving.push({
+        object: g,
+        step: (time) => {
+          const on = night > 0.3;
+          for (const b of beams) b.visible = on;
+          lamp.visible = on;
+          g.rotation.y = time * 0.9;
+        },
+      });
+    },
+  };
+}
+
+const GRAVELLY = new Set(['gravel', 'fine_gravel', 'pebblestone', 'compacted', 'cobblestone']);
+
+/**
+ * Gués et passerelles : là où un chemin ou un sentier du graphe croise un ruisseau des tuiles chargées autour de
+ * (x, z). Passerelle de bois sur les chemins gravel, pierres de gué sur les sentiers VTT. `known` : déjà trouvés.
+ */
+export function crossingSites(probe: SiteContext['probe'], x: number, z: number, known: Set<string>): Site[] {
+  const g = graphOf();
+  if (!g) return [];
+  const out: Site[] = [];
+  const seen = new Set<string>();
+  for (let ox = -800; ox <= 800; ox += 400)
+    for (let oz = -800; oz <= 800; oz += 400) {
+      const tile = probe.tileAt(x + ox, z + oz);
+      // Une tuile n'est examinée qu'une fois (le parcours du graphe coûte quelques millisecondes).
+      if (!tile || seen.has(tile.id) || known.has(`tuile:${tile.id}`)) continue;
+      seen.add(tile.id);
+      known.add(`tuile:${tile.id}`);
+      if (!tile.features.waterways.length) continue;
+      const x0 = tile.x0;
+      const z0 = tile.z0;
+      const x1 = x0 + tile.size;
+      const z1 = z0 + tile.size;
+      // Les ruisseaux sont coupés là où une voie les franchit : un bout de ruisseau (hors bord de tuile) à moins
+      // de 14 m d'un chemin marque un gué ou une passerelle.
+      for (const w of tile.features.waterways) {
+        const q = w.pts;
+        for (const k of [0, q.length - 2]) {
+          const wx = q[k]!;
+          const wz = q[k + 1]!;
+          if (Math.min(wx - x0, x1 - wx, wz - z0, z1 - wz) < 1) continue;
+          let best: { d: number; x: number; z: number; dx: number; dz: number; width: number; surface: string } | null = null;
+          for (const e of g.edges) {
+            if (e.kind !== 'track') continue;
+            const p = e.pts;
+            for (let i = 3; i < p.length; i += 3) {
+              const ax = p[i - 3]!;
+              const az = p[i - 1]!;
+              const bx = p[i]!;
+              const bz = p[i + 2]!;
+              if (Math.abs(ax - wx) > 30 || Math.abs(az - wz) > 30) continue;
+              const L2 = (bx - ax) ** 2 + (bz - az) ** 2 || 1;
+              const t = Math.max(0, Math.min(1, ((wx - ax) * (bx - ax) + (wz - az) * (bz - az)) / L2));
+              const cx = ax + (bx - ax) * t;
+              const cz = az + (bz - az) * t;
+              const d = Math.hypot(cx - wx, cz - wz);
+              const L = Math.sqrt(L2);
+              if (d < 14 && (!best || d < best.d)) best = { d, x: cx, z: cz, dx: (bx - ax) / L, dz: (bz - az) / L, width: e.width, surface: e.surface };
+            }
+          }
+          if (!best) continue;
+          const key = `${Math.round(best.x / 40)}_${Math.round(best.z / 40)}`;
+          if (known.has(key)) continue;
+          known.add(key);
+          out.push(crossing(key, best.x, best.z, best.dx, best.dz, Math.max(best.width, 1.8), GRAVELLY.has(best.surface), (w as { width?: number }).width ?? 4));
+        }
+      }
+    }
+  return out;
+}
+
+function crossing(key: string, x: number, z: number, dx: number, dz: number, width: number, bridge: boolean, stream: number): Site {
+  return {
+    id: `gue-${key}`,
+    x,
+    z,
+    reach: 500,
+    needs: [[x, z]],
+    *build(c) {
+      yield;
+      const y = c.probe.heightAt(x, z);
+      if (!Number.isFinite(y)) return;
+      const span = Math.max(6, stream + 3);
+      const half = width / 2 + 0.3;
+      const along = (d: number, side: number): [number, number] => [x + dx * d - dz * side, z + dz * d + dx * side];
+      if (bridge) {
+        // Passerelle : tablier de planches à la hauteur du chemin, deux garde-corps, poteaux.
+        const deck = template([part(box(1, 0.12, 1, 0.5, 0), '#a8825a')]);
+        const [sx, sz] = along(-span / 2, -half);
+        c.mesh.putBasis(deck, sx, y + 0.02, sz, dx * span, 0, dz * span, 0, 1, 0, -dz * half * 2, 0, dx * half * 2, 1, 1, 1);
+        for (const side of [-1, 1]) {
+          const [rx, rz] = along(-span / 2, side * half);
+          c.mesh.putBasis(template([part(box(1, 0.1, 0.1, 0.5, 1.0), '#8a6a45')]), rx, y, rz, dx * span, 0, dz * span, 0, 1, 0, -dz, 0, dx, 1, 1, 1);
+          for (let d = -span / 2; d <= span / 2 + 0.01; d += span / 3) {
+            const [px, pz] = along(d, side * half);
+            c.mesh.put(template([part(box(0.12, 1.1, 0.12, 0, 0.45), '#7a5a3a')]), px, y, pz, 0, 1, 1, 1, WHITE);
+          }
+        }
+      } else {
+        // Gué : pierres plates en travers du ruisseau, de part et d'autre de la trace.
+        const r = rng(Math.abs(Math.round(x * 7 + z * 3)) % 9973);
+        const stone = template([part(new THREE.CylinderGeometry(0.5, 0.6, 0.25, 7), '#8e8a80')]);
+        for (let d = -span / 2; d <= span / 2; d += 0.9)
+          for (const side of [-1, 0, 1]) {
+            const [px, pz] = along(d + (r() - 0.5) * 0.3, side * (half * 0.7) + (r() - 0.5) * 0.4);
+            c.mesh.put(stone, px, y - 0.05, pz, r() * 3, 0.7 + r() * 0.6, 1, 0.7 + r() * 0.6, WHITE);
+          }
+      }
+      c.flush();
+    },
+  };
+}
+
+// ───────────────────────────── Ports : lanternes, pêcheurs, chalutiers de Kerbrou
+
+/** Repère d'un port : (u vers le large, w en travers) → (x, z). */
+const harbourAt = (h: HarbourSite, u: number, w: number): [number, number] => {
+  const ux = Math.cos(h.dir);
+  const uz = Math.sin(h.dir);
+  return [h.x + ux * u - uz * w, h.z + uz * u + ux * w];
+};
+
+/** Lanternes au bord des quais (allumées la nuit) et pêcheurs à la ligne ; à Kerbrou, chalutiers qui sortent à l'aube. */
+function harbourLife(id: string, h: HarbourSite, boats: number): Site {
+  return {
+    id,
+    x: h.x,
+    z: h.z,
+    reach: 1800,
+    needs: [harbourAt(h, 0, 0), harbourAt(h, -h.halfLen, h.halfWid + 10), harbourAt(h, -h.halfLen, -h.halfWid - 10)],
+    *build(c) {
+      yield;
+      const post = template([part(prism(0.07, 0.09, 0, 3.6, 6), '#2f3a40'), part(box(0.36, 0.5, 0.36, 0, 3.85), '#2f3a40')]);
+      const heads: THREE.BufferGeometry[] = [];
+      for (const s of [-1, 1])
+        for (let u = -h.halfLen + 12; u < h.halfLen; u += 26) {
+          const [x, z] = harbourAt(h, u, s * (h.halfWid + 3.2));
+          const y = c.probe.heightAt(x, z);
+          if (!Number.isFinite(y) || y < 1.5 || c.probe.buildingNear(x, z, 1)) continue;
+          c.mesh.put(post, x, y, z, 0, 1, 1, 1, WHITE);
+          heads.push(new THREE.BoxGeometry(0.3, 0.42, 0.3).translate(x, y + 3.85, z));
+        }
+      // Pêcheurs à la ligne au bord du quai, tournés vers le bassin.
+      const r = rng(Math.round(h.x) + 91);
+      for (let i = 0; i < 5; i++) {
+        const s = r() < 0.5 ? -1 : 1;
+        const u = (r() - 0.5) * h.halfLen * 1.6;
+        const [x, z] = harbourAt(h, u, s * (h.halfWid + 1.2));
+        const y = c.probe.heightAt(x, z);
+        const [wx, wz] = harbourAt(h, u, s * (h.halfWid - 5));
+        if (Number.isFinite(y) && y > 1.5) c.spots.push({ kind: 'fisher', x, y, z, yaw: yawOf(wx - x, wz - z), seed: r() });
+      }
+      c.flush();
+      yield;
+      if (heads.length) {
+        const glow = new THREE.Mesh(mergeGeometries(heads), new THREE.MeshBasicNodeMaterial({ color: '#ffd98a' }));
+        glow.name = 'port-lanternes';
+        glow.castShadow = false;
+        c.moving.push({ object: glow, step: () => void (glow.visible = night > 0.25) });
+      }
+      if (!boats) return;
+      // Chalutiers : partis entre 5 h 30 et 7 h, au large dans la journée, rentrés entre 17 et 19 h ; mouettes au-dessus.
+      const trawler = harbourTemplates().trawler;
+      const gull = template([part(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0.3, -0.9, 0.18, -0.1, 0, 0, -0.2, 0, 0, 0.3, 0, 0, -0.2, 0.9, 0.18, -0.1], 3)), '#ffffff', 1)]);
+      const ux = Math.cos(h.dir);
+      const uz = Math.sin(h.dir);
+      for (let i = 0; i < boats; i++) {
+        const g = new THREE.Group();
+        g.name = 'chalutier';
+        g.add(meshOf([{ t: trawler, x: 0, y: 0, z: 0, c: new THREE.Color(h.hulls[i % h.hulls.length]!) }], c.mat));
+        const birds = [0, 1, 2].map(() => {
+          const m = meshOf([{ t: gull, x: 0, y: 0, z: 0 }], c.mat);
+          m.scale.setScalar(0.8);
+          g.add(m);
+          return m;
+        });
+        const lane = (i - (boats - 1) / 2) * 14;
+        const leave = 5.5 + i * 0.4;
+        const back = 17 + i * 0.5;
+        c.moving.push({
+          object: g,
+          step: (time) => {
+            // 0 : à quai au fond du bassin ; 1 : au large (2 km).
+            const out = Math.min(1, Math.max(0, (hour - leave) / 1.4)) * (1 - Math.min(1, Math.max(0, (hour - back) / 1.6)));
+            const u = -h.halfLen * 0.6 + out * 2200;
+            const [x, z] = harbourAt(h, u, lane * (u > h.halfLen ? 3 : 1));
+            g.position.set(x, 0.05 + Math.sin(time * 1.3 + i) * 0.1, z);
+            const going = hour < 12;
+            g.rotation.set(Math.sin(time * 0.8 + i) * 0.03, Math.atan2(ux, uz) + (going ? 0 : Math.PI), Math.sin(time * 1.1 + i) * 0.04);
+            // Mouettes autour du chalutier quand il bouge (une seule à quai).
+            const busy = out > 0.02 && out < 0.98;
+            birds.forEach((b, k) => {
+              const a = time * (0.9 + k * 0.17) + k * 2.1;
+              b.position.set(Math.cos(a) * (5 + k * 2), 6 + k * 1.5 + Math.sin(time * 2 + k) * 0.8, Math.sin(a) * (5 + k * 2) - 2);
+              b.rotation.set(0, -a, Math.sin(time * 6 + k) * 0.35);
+              b.visible = busy || k === 0;
+            });
+          },
+        });
+      }
+    },
+  };
+}
+
+// ───────────────────────────── Devantures du Boulevard de la Mer (Robertville)
+
+/** Kiosques et étals le long du boulevard, côté façades : boulangerie, glacier, loueur de vélos, café ; clients devant. */
+function seafrontShops(): Site {
+  return {
+    id: 'devantures-robertville',
+    x: 560,
+    z: 10150,
+    reach: 1500,
+    needs: [[1500, 10018], [560, 10050], [-400, 10350]],
+    *build(c) {
+      const g = graphOf();
+      if (!g) return;
+      yield;
+      const stripe = (a: string, b: string) => [-1.05, -0.35, 0.35, 1.05].map((x, i) => part(box(0.7, 0.08, 1.5, x, 2.62, 0.55).rotateX(0.32), i % 2 ? b : a));
+      const wheel = (x: number, z: number) => part(new THREE.TorusGeometry(0.33, 0.04, 4, 10).rotateY(Math.PI / 2).translate(x, 0.35, z), '#2b2f33');
+      const shops = [
+        // Boulangerie : étal à auvent jaune et blanc, pains sur le comptoir.
+        template([part(box(2.8, 1, 1, 0, 0.5), '#c89a62'), part(box(2.9, 0.08, 1.1, 0, 1.04), '#f2efe6'), ...[-0.9, -0.3, 0.3, 0.9].map((x) => part(box(0.45, 0.16, 0.2, x, 1.16, 0), '#d79a4a')), ...stripe('#f4d35e', '#ffffff'), ...[-1.35, 1.35].map((x) => part(box(0.08, 2.5, 0.08, x, 1.25, 0.9), '#e9e6dc')), part(box(2.2, 0.5, 0.06, 0, 3.1, 0), '#7a4a2a')]),
+        // Glacier : chariot rose, parasol, bacs de couleur.
+        template([part(box(1.8, 0.9, 0.9, 0, 0.6), '#ef8fb0'), ...[-0.55, 0, 0.55].map((x, i) => part(box(0.4, 0.1, 0.5, x, 1.1, 0), ['#f4d35e', '#7fb069', '#e2604f'][i]!)), part(prism(0.04, 0.04, 1, 2.6, 6), '#e9e6dc'), part(new THREE.ConeGeometry(1.6, 0.6, 8).translate(0, 2.8, 0), '#ffffff', 1), ...[-0.6, 0.6].map((x) => part(new THREE.CylinderGeometry(0.15, 0.15, 0.1, 8).rotateZ(Math.PI / 2).translate(x, 0.15, 0.5), '#2b2f33'))]),
+        // Loueur de vélos : râtelier de quatre vélos et panneau bleu.
+        template([part(box(3.6, 0.06, 0.06, 0, 0.75, -0.3), '#9aa3a8'), ...[-1.4, -0.5, 0.4, 1.3].flatMap((x, i) => [wheel(x, 0.3), wheel(x, -0.75), part(box(0.06, 0.08, 1, x, 0.65, -0.22), ['#e2604f', '#4fa3d9', '#7fb069', '#f4d35e'][i]!)]), ...[-0.9, 0.9].map((x) => part(box(0.08, 2.2, 0.08, x, 1.1, 0.9), '#8a6a45')), part(box(2.2, 0.7, 0.08, 0, 2.2, 0.9), '#2b6fb3'), part(box(1.8, 0.4, 0.09, 0, 2.2, 0.9), '#ffffff', 1)]),
+        // Café : trois tables rondes et leurs chaises, parasol rouge.
+        template([...[-1.6, 0, 1.6].flatMap((x) => [part(prism(0.45, 0.45, 0.72, 0.78, 8, x, 0), '#f2efe6'), part(prism(0.05, 0.05, 0, 0.72, 5, x, 0), '#43555d'), part(box(0.4, 0.45, 0.4, x - 0.6, 0.23, 0), '#43555d'), part(box(0.4, 0.45, 0.4, x + 0.6, 0.23, 0), '#43555d')]), part(prism(0.04, 0.04, 0, 2.5, 6), '#e9e6dc'), part(new THREE.ConeGeometry(2, 0.55, 8).translate(0, 2.7, 0), '#e2443a')]),
+      ];
+      const r = rng(5512);
+      let n = 0;
+      let acc = 0;
+      for (const e of g.edges) {
+        if (e.name !== 'Boulevard de la Mer') continue;
+        const p = e.pts;
+        for (let i = 3; i < p.length; i += 3) {
+          const sx = p[i]! - p[i - 3]!;
+          const sz = p[i + 2]! - p[i - 1]!;
+          const L = Math.hypot(sx, sz);
+          acc += L;
+          if (acc < 38 || L < 1e-6) continue;
+          acc = 0;
+          const dx = sx / L;
+          const dz = sz / L;
+          const off = Math.max(e.width, 6) / 2 + 3.2;
+          // Côté des façades : celui où une maison est à moins de 14 m.
+          for (const s of [-1, 1]) {
+            const x = p[i]! - dz * off * s;
+            const z = p[i + 2]! + dx * off * s;
+            if (!c.probe.buildingNear(x - dz * 8 * s, z + dx * 8 * s, 6) || c.probe.buildingNear(x, z, 1.6)) continue;
+            c.probe.read(x, z);
+            if (c.probe.road > 0.35) continue;
+            const y = c.probe.heightAt(x, z);
+            if (!Number.isFinite(y) || y < 1) continue;
+            const face = yawOf(dz * s, -dx * s);
+            c.mesh.put(shops[n % shops.length]!, x, y, z, face, 1, 1, 1, WHITE);
+            n++;
+            // Un ou deux clients devant l'étal.
+            for (let k = 0; k < 1 + (r() < 0.5 ? 1 : 0); k++) {
+              const cx = x + dz * s * 1.6 + dx * (k * 1.4 - 0.7);
+              const cz = z - dx * s * 1.6 + dz * (k * 1.4 - 0.7);
+              const cy = c.probe.heightAt(cx, cz);
+              if (Number.isFinite(cy)) c.spots.push({ kind: r() < 0.2 ? 'child' : 'villager', x: cx, y: cy, z: cz, yaw: face + Math.PI, seed: r() });
+            }
+            break;
+          }
+        }
+        yield;
+      }
+      c.flush();
+    },
+  };
+}
+
 /** Lieux de plein air de l'île, ajoutés à IslandSites. */
 export function outdoorSites(): Site[] {
-  return [cycloCross(), bikePark(), lock(7102, 3452), lookout('belvedere-de-kerbrou', -1790, -9879), regatta(983, 9720), touristTrain(), deer()];
+  return [cycloCross(), bikePark(), lock('ecluse-de-la-robe', 7102, 3452), lock('ecluse-du-moulin', 6950, 1200, 3307), lock('ecluse-des-saules', 6600, 4700, 3313), harbourLife('port-kerbrou-vie', KERBROU_HARBOUR, 3), harbourLife('port-robertville-vie', ROBERTVILLE_HARBOUR, 0), seafrontShops(), lookout('belvedere-de-kerbrou', -1790, -9879), regatta(983, 9720), touristTrain(), deer(), lighthouseBeam(8855, -8760)];
 }

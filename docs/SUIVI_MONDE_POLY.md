@@ -134,6 +134,32 @@ Les huit propositions faites d'une traite, plus les demandes arrivées en route.
 
 Le fantôme personnel et les groupes à allure choisie existaient déjà : rien à ajouter.
 
+## Sixième lot (26 novembre, non commité)
+
+| Sujet | Fait |
+| --- | --- |
+| Mode photo | Touche P : vue encadrée et légendée (lieu, parcours, km, date, « Allez Robert ! »), Maj+P change le filtre (naturel, chaud, noir et blanc, rétro) ; la photo est enregistrée et rejoint celles des sommets (bilan, image de partage, vidéo) (`ui/photoFrame.ts`). Tous les styles. |
+| Photos sur Strava | Abandonné à la demande de l'utilisateur : l'API publique de Strava ne permet pas d'ajouter une photo à une activité (réservé à quelques partenaires). |
+| Défi du jour | Sur l'écran de l'île : un parcours du vélo équipé tiré d'après la date, et un temps à battre. |
+| Montée nocturne du Phare | Nouveau parcours (41 en tout), toujours à 23 h : nuit étoilée, phares des vélos, faisceau du phare qui tourne. |
+| Marchés et fêtes | Marché de Saint-Robert le mercredi et le samedi ; le dimanche, fête du village (fanions, kiosque, danseurs). |
+| Gués et passerelles | Là où un chemin franchit un ruisseau : passerelle de bois sur les chemins gravel, pierres de gué sur les sentiers (4 sur l'île). Non vus en jeu. |
+
+## Septième lot (26 novembre, non commité)
+
+| Sujet | Fait |
+| --- | --- |
+| Parcours | 44 parcours. « Découverte de l’île » (8,4 km, premier de la liste, environ 10 min de découverte autour de Saint-Robert). Deux classiques : « La Robertaise des pierres » (gravel, 40 km, D+ 619 m, sprint des Granges) et « La Flèche du Phare » (route, 32 km, D+ 801 m, arrivée au Phare). |
+| Contre-la-montre | Étiquettes « Classique » et « Contre-la-montre » sur l'écran de l'île. En course (hors format tour), le chrono du Plateau se court toujours en contre-la-montre. Arches orange « Intermédiaire 1 / 2 » aux temps annoncés (vues en jeu). La descente du Phare est étiquetée chrono, mais elle reste une sortie VTT. |
+| Public | En sortie libre Poly, un public clairsemé au sommet des côtes, avec des pancartes au prénom du joueur (`?crowd=0` pour l'enlever). |
+| Robertville | Étals sur le Boulevard de la Mer, côté façades : boulangerie, glacier, loueur de vélos, café. Des clients devant chaque étal (vus en jeu). |
+| Ports | Lanternes des quais allumées la nuit et pêcheurs à la ligne, à Kerbrou et à Robertville. À Kerbrou, trois chalutiers partent entre 5 h 30 et 7 h, suivis de mouettes, et rentrent entre 17 et 19 h (vus en jeu). |
+| Écluses | Deux écluses de plus sur la Robe : du Moulin et des Saules. Non vues en jeu. |
+| Météo | Vent de mer jusqu'à +40 % près de la côte. Brume du matin sur la lagune, de 5 h 30 à 9 h 30. Averses d'environ 3 min tous les quarts d'heure quand le ciel est couvert à plus de 65 % (`world/islandWeather.ts`). |
+| Sons | Les vagues forcissent avec le vent. Rumeur de la fête de l'Anneau et de la place de Saint-Robert, sans musique. |
+| Carte | Bouton « Ramène-moi à Saint-Robert » sur la carte du monde ouvert (sinon : « mon point de départ »). |
+| Essais | `?jour=0…6` force le jour : marché le mercredi et le samedi, fête le dimanche. |
+
 ## Questions ouvertes
 
 1. **Publication** : tuiles et pack de l'île à renvoyer sur le serveur, et serveur à redéployer pour la description Strava.

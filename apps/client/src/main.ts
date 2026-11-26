@@ -71,6 +71,9 @@ import { basemapUrl } from './ui/basemap.ts';
 import { bootStep, bootProgress, bootDone, bootError } from './ui/splash.ts';
 import { PosterScene, POSTER_HOUR, GARAGE_VIEWS, type GarageView } from './ui/poster.ts';
 import { showPause, rideToFit, rideToGpx, download, onlinePanel } from './ui/ridepanels.ts';
+import { cyclePhotoFilter, framePhoto } from './ui/photoFrame.ts';
+import { islandWeather } from './world/islandWeather.ts';
+import type { SoundSource } from './audio/spatial.ts';
 import { DraftWriter, defaultDraftStore, type RideDraft } from './game/rideDraft.ts';
 import { RideSaver, withTimeout } from './game/rideSave.ts';
 import { offerRideRecovery } from './ui/rideRecovery.ts';
@@ -1240,10 +1243,13 @@ function collisionVersionMessage(reason = COLLISION_VERSION_ERROR): string {
   return getLang() === 'fr' ? COLLISION_VERSION_ERROR : 'Obstacle data is missing or incompatible. Update the game and the map.';
 }
 
+/** Contre-la-montre balisés du mode Poly : en course, ils se courent toujours en chrono, quel que soit le format choisi. */
+const TT_ROUTES = new Set(['chrono-du-plateau']);
+
 /** Sortie jouée en contre-la-montre (format chrono ou étape chrono du tour, en local contre des IA, comme `timeTrial`). */
 function isTtRide(s: Settings, aiMax: number, publicRoom: boolean, worldId: string, routeId: string): boolean {
   if (s.mode !== 'race' || publicRoom) return false;
-  if (s.raceFormat !== 'tour') return s.raceFormat === 'tt' && Math.min(s.aiRiders, aiMax) > 0;
+  if (s.raceFormat !== 'tour') return (s.raceFormat === 'tt' || TT_ROUTES.has(routeId)) && Math.min(s.aiRiders, aiMax) > 0;
   const tour = tourToRide(s, worldId, routeId);
   return !!tour && nextStage(tour)?.kind === 'tt';
 }
@@ -1379,7 +1385,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Heure et météo de la sortie : réglages du coureur ; en groupe, celles de l'hôte (partagées).
   // ?hour=<h> (essais, captures) l'emporte sur l'heure réglée, sans être enregistré dans les réglages.
   const hourParam = Number(params.get('hour') ?? NaN);
-  const startHour = Number.isFinite(hourParam) ? hourParam : s.hour;
+  // Montée nocturne du Phare (île de Robert) : toujours à la nuit tombée.
+  const startHour = Number.isFinite(hourParam) ? hourParam : track.route.id === 'phare-de-nuit' ? 23 : s.hour;
   const myWeather: RideWeather = { hour: startHour, clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, evolving: s.weatherEvolves, seed: weatherSeed(`${Date.now()}`) };
   // Météo réelle du jour au départ, à l'heure choisie (Open-Meteo) ; sans réseau : conditions réglées.
   if (s.realWeather && source.originL93) {
@@ -1507,7 +1514,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     for (const [id, f] of Object.entries(tour.fatigue)) if (f > 0) peloton.setForm(id, 1 - f);
   }
   const tourStageKind: StageKind | null = tour ? (nextStage(tour)?.kind ?? 'road') : null;
-  const timeTrial = ((s.mode === 'race' && s.raceFormat === 'tt') || tourStageKind === 'tt') && aiCount > 0;
+  const timeTrial = ((s.mode === 'race' && (s.raceFormat === 'tt' || (s.raceFormat !== 'tour' && TT_ROUTES.has(track.route.id)))) || tourStageKind === 'tt') && aiCount > 0;
   const raceLengthM = track.route.loop ? raceLaps * track.length : Math.max(500, track.length - startD);
   /** Moto chrono (world/raceMoto.ts) : seulement en course avec des IA, pas en contre-la-montre (?moto=0 pour l'enlever). */
   const raceMoto = s.mode === 'race' && aiCount > 0 && !timeTrial && new URLSearchParams(location.search).get('moto') !== '0' ? new RaceMoto(engine.scene, track) : null;
@@ -1578,10 +1585,15 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     // +4 cm : la dalle est exacte, le décalage de −5 cm du public (terrain approximatif) y enfouirait les pieds.
     return Number.isFinite(w) && (!Number.isFinite(g) || w > g) ? w + 0.04 : g;
   };
-  const crowd = s.mode === 'race' ? new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity, finish: true, inBuilding: (x, z) => world.buildings.footprints.contains(x, z, 0.4) }) : null;
+  // Mode Poly en sortie libre : un public clairsemé au sommet des côtes, pancartes au prénom du coureur (pas de foule d'arrivée).
+  const polyFans = s.mode !== 'race' && LOW_POLY && !nav && params.get('crowd') !== '0';
+  const crowd = s.mode === 'race' || polyFans ? new Crowd(track, crowdGround, { riderName: s.name, density: engine.quality.crowdDensity * (polyFans ? 0.35 : 1), finish: !polyFans, inBuilding: (x, z) => world.buildings.footprints.contains(x, z, 0.4) }) : null;
   if (crowd) engine.scene.add(crowd.group);
   engine.scene.add(new TownSigns(track, (x, z) => world.terrain.heightAt(x, z)).group);
-  const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z), (ax, ay, az, bx, by, bz) => world.buildings.footprints.firstHit(ax, ay, az, bx, by, bz));
+  const banners = new FinishBanners(track, (x, z) => world.terrain.heightAt(x, z), (ax, ay, az, bx, by, bz) => world.buildings.footprints.firstHit(ax, ay, az, bx, by, bz), {
+    // Contre-la-montre : arches des intermédiaires (1/3, 2/3), aux mêmes distances que les temps annoncés plus bas.
+    ...(timeTrial ? { splitsM: [1, 2].map((k) => (startD + (raceLengthM * k) / 3) % track.length) } : {}),
+  });
   engine.scene.add(banners.group);
   // Monde vivant (circulation, cyclistes croisés) : désactivable par ?traffic=0. Jamais en course : route fermée, seuls
   // les participants (et la moto des écarts) y roulent.
@@ -1667,6 +1679,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         const name = pl && pl.d < 300 ? pl.name : road && pl ? `${road} (${L ? 'près de' : 'near'} ${pl.name})` : road || (pl ? `${L ? 'Près de' : 'Near'} ${pl.name}` : L ? 'Route' : 'Road');
         return { x: sn.x, z: sn.z, name };
       },
+      // « Ramène-moi à … » : Saint-Robert sur l'île, sinon le point de départ de la sortie.
+      home: source.id === 'ile-de-robert' ? { name: 'Saint-Robert', x: 300, z: -200 } : { name: L ? 'mon point de départ' : 'my start', ...(() => { const p = track.positionAt(0, 0); return { x: p.x, z: p.z }; })() },
       onGo: (p) => {
         if (nav.goTo(p.x, p.z, p.name, ride.state.distM)) hud.toast(`${L ? 'Cap sur' : 'Heading to'} ${p.name} · ${(Math.max(0, (nav.destination?.d ?? 0) - ride.state.distM) / 1000).toFixed(1).replace('.', L ? ',' : '.')} km`);
         else hud.toast(L ? 'Pas de route roulable jusque-là' : 'No rideable road to there');
@@ -1876,7 +1890,9 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     return Math.max(start, finish);
   };
   // Sons positionnés (églises, prés, eau) : la liste suit les tuiles chargées.
-  const refreshSources = () => audio.setSources([...world.soundSources.values()].flat());
+  // Île de Robert : rumeur de la fête de l'Anneau et du marché de Saint-Robert (sans musique).
+  const islandSounds: SoundSource[] = source.id === 'ile-de-robert' ? [{ kind: 'village', x: -4700, z: 900, range: 900 }, { kind: 'village', x: 300, z: -200, range: 450 }] : [];
+  const refreshSources = () => audio.setSources([...world.soundSources.values()].flat().concat(islandSounds));
   refreshSources();
   const sourcesTimer = setInterval(refreshSources, 5000);
 
@@ -2759,10 +2775,14 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   /** Photo : rendu immédiat puis lecture du canvas (sans l'interface). */
   const photo = () => {
     engine.renderManual();
-    const png = atob(engine.renderer.domElement.toDataURL('image/png').split(',')[1] ?? '');
-    const bytes = Uint8Array.from(png, (c) => c.charCodeAt(0));
+    // Cadre, légende et filtre (ui/photoFrame.ts) ; la photo rejoint celles des sommets (bilan, partage, vidéo).
+    const lang = getLang() === 'fr' ? 'fr' : 'en';
+    const framed = framePhoto(engine.renderer.domElement, { place: source.name, route: track.route.name, km: ride.state.distM / 1000, lang });
+    if (ride.summitPhotos.length < 12) ride.summitPhotos.push(framed);
+    const jpg = atob(framed.split(',')[1] ?? '');
+    const bytes = Uint8Array.from(jpg, (c) => c.charCodeAt(0));
     // Application Windows : directement dans Images\Allez Robert ; navigateur : téléchargement.
-    download(bytes, `allez-robert-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`, 'image/png');
+    download(bytes, `allez-robert-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.jpg`, 'image/jpeg');
     hud.toast('📷');
   };
   window.addEventListener('keyup', (e) => {
@@ -2774,6 +2794,11 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
     if (nav && rig.mode !== 'free' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && choosing()) {
       e.preventDefault();
       nav.select(e.key === 'ArrowLeft' ? -1 : 1, ride.state.distM);
+    }
+    // Maj+P : filtre suivant du mode photo.
+    if (e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+      hud.toast(`📷 ${cyclePhotoFilter(getLang() === 'fr' ? 'fr' : 'en')}`);
+      return;
     }
     // Touches de la sortie (game/rideControls.ts) : la décision là-bas, l'exécution ici.
     const a = rideKeyAction(e);
@@ -2954,6 +2979,16 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       envState.weather.fog = wNow.fog;
       envState.weather.windMs = wNow.windMs;
       envState.weather.windFrom = wNow.windFrom;
+      // Île de Robert (mode Poly) : vent de mer plus fort près de la côte, brume du matin sur la lagune, averses
+      // passagères sous un ciel chargé.
+      if (LOW_POLY && source.id === 'ile-de-robert') {
+        const p = track.positionAt(ride.state.distM, 0, sample);
+        const islandMood = islandWeather(p.x, p.z, wNow.hour, ride.elapsedS, wNow.clouds, (x, z) => world.terrain.heightAt(x, z));
+        envState.weather.windMs = wNow.windMs * islandMood.wind;
+        envState.weather.fog = Math.max(wNow.fog, islandMood.fog);
+        envState.weather.rain = Math.max(wNow.rain, islandMood.rain);
+        wNow.windMs = envState.weather.windMs;
+      }
       // Sans route réaliste (low poly, ?routefx=0), aucun matériau ne demande de reflet : pas de passe SSR.
       engine.setWetReflections(ROAD_FX && !LOW_POLY && envState.weather.rain > 0.05);
       ride.setWind(wNow.windMs, wNow.windFrom);

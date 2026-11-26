@@ -5,7 +5,7 @@ import { box, MeshBuilder, part, prism, template, type LandProbe, type Template 
 import { KERBROU_HARBOUR, ROBERTVILLE_HARBOUR, buildHarbour, harbourCorners, harbourTemplates, type HarbourSite, type HarbourTemplates } from './polyHarbour.ts';
 import type { BirdPerch, LifeChunk, PersonSpot } from './roadsideLife.ts';
 import { ROBERT_ISLAND } from './worlds.ts';
-import { outdoorSites } from './polyOutdoor.ts';
+import { crossingSites, outdoorSites } from './polyOutdoor.ts';
 
 /**
  * Lieux phares de l'île (mode Poly) : ports de Robertville et de Kerbrou, circuit de l'Anneau et fête en son centre,
@@ -136,6 +136,12 @@ function kit() {
       part(box(2.6, 0.1, 1.1, 0, 0.85, 0.35).rotateX(0.12), '#b08660'),
       part(box(2.6, 0.7, 0.06, 0, 0.45, 0.85), '#ffffff', 1),
       ...[-0.9, -0.3, 0.3, 0.9].flatMap((x, i) => [0.15, 0.6].map((z, j) => part(box(0.5, 0.14, 0.4, x, 1.0 - j * 0.06, z), ['#d9443a', '#e9a23b', '#5f9a3a', '#8e4fa3', '#f2d35e', '#c96a3a', '#7fb069', '#e8e2d2'][i * 2 + j]!))),
+    ]),
+    /** Kiosque à musique : socle, colonnettes, toit en pointe. */
+    bandstand: template([
+      part(prism(4.2, 4.2, 0, 0.8, 8), '#e9e2d0'),
+      ...Array.from({ length: 8 }, (_, i) => part(prism(0.12, 0.12, 0.8, 3.6, 6, Math.cos((i * Math.PI) / 4) * 3.8, Math.sin((i * Math.PI) / 4) * 3.8), '#3e6b52')),
+      part(new THREE.ConeGeometry(4.8, 2.2, 8).translate(0, 4.7, 0), '#ffffff', 1),
     ]),
     fountain: template([
       part(prism(2.6, 2.6, 0, 0.55, 12), '#c9bfa8'),
@@ -598,10 +604,40 @@ function market(k: () => Kit): Site {
       };
       const winter = c.season === 'winter';
       // Marché (au nord-ouest) : deux rangées d'étals face à face.
-      for (let i = 0; i < 5; i++) {
-        put(t.stall, -22 + i * 3.6, -8.2, 0, GAY[i % GAY.length]!, 1, 1.6);
-        put(t.stall, -22 + i * 3.6, -17.5, Math.PI, GAY[(i + 3) % GAY.length]!, 1, 1.6);
-        spot(i % 3 ? 'villager' : 'child', -21 + i * 3.4, -12.6 + (i % 2), i * 2);
+      // Marché le mercredi et le samedi ; fête du village le dimanche (fanions, kiosque, bal).
+      // ?jour=0…6 (0 = dimanche) pour essayer le marché ou la fête un autre jour.
+      const askDay = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('jour');
+      const day = askDay !== null && /^[0-6]$/.test(askDay) ? Number(askDay) : new Date().getDay();
+      const marketDay = day === 3 || day === 6;
+      const feast = day === 0;
+      if (marketDay)
+        for (let i = 0; i < 5; i++) {
+          put(t.stall, -22 + i * 3.6, -8.2, 0, GAY[i % GAY.length]!, 1, 1.6);
+          put(t.stall, -22 + i * 3.6, -17.5, Math.PI, GAY[(i + 3) % GAY.length]!, 1, 1.6);
+          spot(i % 3 ? 'villager' : 'child', -21 + i * 3.4, -12.6 + (i % 2), i * 2);
+        }
+      else for (let i = 0; i < 3; i++) spot('villager', -20 + i * 6, -12.6, i * 2);
+      if (feast) {
+        // Guirlandes de fanions en travers de la place, kiosque à musique, danseurs.
+        const flagTri = (x: number, y: number, z: number, ux: number, uz: number, col: THREE.Color) => {
+          c.mesh.tri(x, y, z, x + ux * 0.5, y, z + uz * 0.5, x + ux * 0.25, y - 0.45, z + uz * 0.25, col);
+          c.mesh.tri(x + ux * 0.5, y, z + uz * 0.5, x, y, z, x + ux * 0.25, y - 0.45, z + uz * 0.25, col);
+        };
+        for (const [a0, b0, a1, b1] of [[-30, -20, 30, 20], [-30, 20, 30, -20], [-30, 0, 30, 0]] as const) {
+          const [x0, z0] = at(a0, b0);
+          const [x1, z1] = at(a1, b1);
+          const L = Math.hypot(x1 - x0, z1 - z0);
+          const ux = (x1 - x0) / L;
+          const uz = (z1 - z0) / L;
+          const y0 = c.probe.heightAt(x0, z0);
+          if (!Number.isFinite(y0)) continue;
+          for (let d = 0, k = 0; d + 0.5 < L; d += 0.8, k++) {
+            const sag = 5.2 - 1.1 * Math.sin((Math.PI * d) / L);
+            flagTri(x0 + ux * d, y0 + sag, z0 + uz * d, ux, uz, GAY[k % GAY.length]!);
+          }
+        }
+        put(t.bandstand, -18, 0, 0, GAY[0]!, 1, 3);
+        for (let i = 0; i < 10; i++) spot(i % 4 ? 'villager' : 'child', -18 + Math.cos(i * 0.63) * 7, Math.sin(i * 0.63) * 7, i * 0.63);
       }
       yield;
       // Café : terrasse (au sud-est).
@@ -665,6 +701,8 @@ export class IslandSites {
   private templates?: Kit;
   private harbours?: HarbourTemplates;
   private t = 0;
+  private crossScan = 1;
+  private readonly crossings = new Set<string>();
 
   /** `mat` : matériau du décor des abords, déjà compilé. */
   constructor(private readonly probe: LandProbe, private readonly mat: THREE.Material, private season: Season = 'summer') {
@@ -688,6 +726,12 @@ export class IslandSites {
 
   update(dt: number, x: number, z: number, density: number): void {
     this.t += dt;
+    // Gués et passerelles des tuiles chargées autour du coureur, cherchés toutes les 4 s.
+    this.crossScan -= dt;
+    if (this.crossScan <= 0) {
+      this.crossScan = 4;
+      this.sites.push(...crossingSites(this.probe, x, z, this.crossings));
+    }
     for (const site of this.sites) {
       const d = Math.hypot(x - site.x, z - site.z);
       const b = this.built.get(site.id);

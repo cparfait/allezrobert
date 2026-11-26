@@ -25,6 +25,7 @@ const S = strings(
     decimal: ',',
     rideThere: 'Y aller à vélo',
     startANewRide: 'Repartir d’ici (nouvelle sortie)',
+    takeMeHome: 'Ramène-moi à {place}',
   },
   {
     map: 'Map',
@@ -41,6 +42,7 @@ const S = strings(
     decimal: '.',
     rideThere: 'Ride there',
     startANewRide: 'Start a new ride here',
+    takeMeHome: 'Take me back to {place}',
   },
 );
 
@@ -66,6 +68,8 @@ export interface WorldMapOptions {
   viewOnly?: boolean;
   /** Point de route roulable le plus proche (null : trop loin d'une route). */
   snap: (x: number, z: number) => WorldMapPick | null;
+  /** Lieu du bouton « Ramène-moi à … » (guidage direct, la carte se ferme). */
+  home?: { name: string; x: number; z: number };
   onGo: (p: WorldMapPick) => void;
   onRestart: (p: WorldMapPick) => void;
   onClear: () => void;
@@ -125,6 +129,7 @@ export class WorldMap {
       <header><h2 class="ab-title">${S('map')}</h2><button type="button" class="wm-x" data-wm-close aria-label="${S('close')}">×</button></header>
       <p class="wm-hint">${this.o.viewOnly ? S('scrollToZoomDrag') : S('clickARoadTo')}</p>
       <div class="wm-dest"></div>
+      ${this.o.home && !this.o.viewOnly ? `<button type="button" class="ab-btn ab-go wm-home" data-wm-home>${esc(S('takeMeHome').replace('{place}', this.o.home.name))}</button>` : ''}
       <h3 class="ab-section"${this.o.viewOnly ? ' style="display:none"' : ''}>${S('places')}</h3>
       <div class="wm-places"${this.o.viewOnly ? ' style="display:none"' : ''}>${places.map((p, i) => `<button data-wm-place="${i}"><b>${esc(p.name)}</b><span>${esc(kindLabel(p.kind, L))}</span></button>`).join('')}</div>
     </div>
@@ -139,6 +144,13 @@ export class WorldMap {
     this.renderDest();
     root.querySelectorAll('[data-wm-close]').forEach((b) => b.addEventListener('click', () => this.close()));
     root.addEventListener('pointerdown', (e) => e.target === root && this.close());
+    root.querySelector('[data-wm-home]')?.addEventListener('click', () => {
+      const h = this.o.home;
+      const sn = h && this.o.snap(h.x, h.z);
+      if (!h || !sn) return;
+      this.o.onGo({ ...sn, name: h.name });
+      this.close();
+    });
     root.querySelectorAll<HTMLElement>('[data-wm-place]').forEach((b) =>
       b.addEventListener('click', () => {
         const p = places[Number(b.dataset.wmPlace)];

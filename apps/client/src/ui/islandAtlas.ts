@@ -8,8 +8,8 @@ const ISLAND_BOUNDS = { minX: -19000, minZ: -13000, width: 38000, height: 26000 
 const MAP_W = 1520;
 const MAP_H = 1040;
 const COPY = {
-  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné', about: 'environ', paved: 'bitume', boards: 'planches', offroad: 'chemins', bikes: { road: 'Parcours route', gravel: 'Parcours gravel', mtb: 'Parcours VTT' }, withBike: 'Autre vélo au garage :', other: { road: '# parcours route', gravel: '# gravel', mtb: '# VTT' }, climbs: 'côte', sprints: 'sprint', found: 'Lieux découverts', foundHint: 'Passe près d’un lieu pour le découvrir', worlds: 'Choix du monde' },
-  en: { title: 'Robert’s Island', mode: 'POLY MODE', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route', about: 'about', paved: 'tarmac', boards: 'boardwalk', offroad: 'off-road', bikes: { road: 'Road routes', gravel: 'Gravel routes', mtb: 'MTB trails' }, withBike: 'With another garage bike:', other: { road: '# road', gravel: '# gravel', mtb: '# MTB' }, climbs: 'climb', sprints: 'sprint', found: 'Places discovered', foundHint: 'Ride near a place to discover it', worlds: 'World choice' },
+  fr: { title: 'L’Île de Robert', mode: 'MODE POLY', coast: 'Front de mer', ring: 'Circuit vélo', climb: 'Montée', loop: 'Boucle', oneWay: 'Point à point', free: 'Roulage libre', draw: 'Tracer un parcours', pick: 'Choisir ce parcours', details: 'Voir la fiche', unavailable: 'Aucun parcours disponible pour ce vélo.', previewError: 'Aperçu indisponible.', close: 'Fermer', island: 'Vue d’ensemble', zoom: 'Zoom parcours', map: 'Carte topographique de l’Île de Robert', north: 'Nord', start: 'Départ', trace: 'Parcours sélectionné', about: 'environ', paved: 'bitume', boards: 'planches', offroad: 'chemins', bikes: { road: 'Parcours route', gravel: 'Parcours gravel', mtb: 'Parcours VTT' }, withBike: 'Autre vélo au garage :', other: { road: '# parcours route', gravel: '# gravel', mtb: '# VTT' }, climbs: 'côte', sprints: 'sprint', found: 'Lieux découverts', foundHint: 'Passe près d’un lieu pour le découvrir', worlds: 'Choix du monde', daily: 'Défi du jour', beat: 'temps à battre', classic: 'Classique', chrono: 'Contre-la-montre', discovery: 'Découverte · 10 min', night: 'Montée de nuit' },
+  en: { title: 'Robert’s Island', mode: 'POLY MODE', coast: 'Seafront', ring: 'Circuit', climb: 'Climb', loop: 'Loop', oneWay: 'Point to point', free: 'Free ride', draw: 'Draw a route', pick: 'Choose this route', details: 'View route details', unavailable: 'No routes are available for this bike.', previewError: 'Preview unavailable.', close: 'Close', island: 'Overview', zoom: 'Zoom to route', map: 'Topographic map of Robert’s Island', north: 'North', start: 'Start', trace: 'Selected route', about: 'about', paved: 'tarmac', boards: 'boardwalk', offroad: 'off-road', bikes: { road: 'Road routes', gravel: 'Gravel routes', mtb: 'MTB trails' }, withBike: 'With another garage bike:', other: { road: '# road', gravel: '# gravel', mtb: '# MTB' }, climbs: 'climb', sprints: 'sprint', found: 'Places discovered', foundHint: 'Ride near a place to discover it', worlds: 'World choice', daily: 'Daily challenge', beat: 'time to beat', classic: 'Classic', chrono: 'Time trial', discovery: 'Discovery · 10 min', night: 'Night climb' },
 } as const;
 
 interface AtlasOptions {
@@ -44,13 +44,22 @@ function routeLabel(id: string, lang: AtlasOptions['lang']): string | undefined 
     'gravel-de-la-vallee': 'Valley Gravel', 'gravel-de-kerbrou': 'Kerbrou Gravel', 'gravel-du-levant': 'Levant Gravel', 'gravel-de-saint-pierre': 'Saint-Pierre Gravel', 'gravel-du-grand-pre': 'Great Meadow Gravel',
     'chemin-des-douaniers': 'Coast Guard Path', 'chemin-du-littoral': 'East Coast Path', 'grande-traversee': 'Great Gravel Traverse',
     'vtt-du-renard': 'Fox Trail', 'vtt-des-biches': 'Deer Trail', 'vtt-grand-tour-des-bois': 'Woods MTB Grand Tour', 'vtt-du-phare': 'Lighthouse MTB Loop', 'descente-du-phare': 'Lighthouse Downhill',
+    'decouverte-de-l-ile': 'Island discovery ride', 'classique-des-pierres': 'Robertaise stone classic', 'fleche-du-phare': 'Lighthouse Arrow classic', 'phare-de-nuit': 'Lighthouse by night',
     'vtt-des-coteaux': 'Hills MTB Trail', 'vtt-des-buttes': 'Mounds MTB Trail', 'vtt-du-plateau': 'Plateau MTB Trail',
   };
   return names[id];
 }
 
+const CLASSICS = new Set(['classique-des-pierres', 'fleche-du-phare']);
+const CHRONOS = new Set(['chrono-du-plateau', 'descente-du-phare']); // le premier se court en chrono (main.ts TT_ROUTES)
+
 function routeTag(route: WorldRouteRef, lang: AtlasOptions['lang'], world: PolyWorld): string {
   const copy = COPY[lang];
+  // Classiques de l'île et contre-la-montre balisés : leur étiquette passe avant celle du vélo.
+  if (CLASSICS.has(route.id)) return `${copy.classic}${route.bike ? ` · ${route.bike === 'mtb' ? 'VTT' : 'Gravel'}` : ''}`;
+  if (CHRONOS.has(route.id)) return copy.chrono;
+  if (route.id === 'decouverte-de-l-ile') return copy.discovery;
+  if (route.id === 'phare-de-nuit') return copy.night;
   if (route.bike) return route.bike === 'mtb' ? (lang === 'fr' ? 'VTT' : 'MTB') : 'Gravel';
   if (route.id === world.tags.coast) return copy.coast;
   if (route.id === world.tags.ring) return copy.ring;
@@ -127,6 +136,19 @@ function routeFacts(route: RouteData, lang: AtlasOptions['lang']): string {
   return [`${copy.about} ${time}`, ...ground, count('kom', copy.climbs), count('sprint', copy.sprints)].filter(Boolean).join(' · ');
 }
 
+/**
+ * Défi du jour : un parcours du vélo équipé tiré d'après la date (le même pour tous ce jour-là) et un temps à battre,
+ * un peu plus vite que la durée estimée (27 km/h sur le plat, montées comprises).
+ */
+export function dailyChallenge(routes: readonly WorldRouteRef[], date = new Date()): { route: WorldRouteRef; targetS: number } | null {
+  const pool = routes.filter((r) => r.lengthM > 2500 && r.lengthM < 45000);
+  if (!pool.length) return null;
+  const day = Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86_400_000);
+  const route = pool[(day * 2654435761) % 4294967296 % pool.length]!;
+  const targetS = Math.round(((route.lengthM / 7.5 + route.elevationGainM * 3.2) * 0.92) / 10) * 10;
+  return { route, targetS };
+}
+
 function mapFocus(route: RouteData | undefined): { scale: number; x: number; z: number } {
   if (!route?.points.length) return { scale: 1, x: 0, z: 0 };
   let lx = 1, lz = 1, hx = 0, hz = 0;
@@ -149,6 +171,8 @@ export class IslandAtlas {
     const sorted = [...routes].sort((a, b) => order(a.id) - order(b.id));
     if (!available.has(this.activeId)) this.activeId = sorted[0]?.id ?? '';
     const km = new Intl.NumberFormat(lang, { maximumFractionDigits: 1 });
+    const daily = dailyChallenge(sorted);
+    const dailyHtml = daily ? `<button type="button" class="ia-daily" data-ia-choice="${esc(daily.route.id)}"><small>${copy.daily}</small><b>${esc(routeLabel(daily.route.id, lang) ?? daily.route.name)}</b><span class="num">${copy.beat} ${Math.floor(daily.targetS / 3600) ? `${Math.floor(daily.targetS / 3600)} h ` : ''}${String(Math.floor((daily.targetS % 3600) / 60)).padStart(2, '0')} min</span></button>` : '';
     const found = foundPlaces(world.foundKey);
     const stars = world.discover.map((p) => `<span class="ia-star${found.has(p.id) ? ' is-found' : ''}" style="left:${(mapX(p.x) * 100).toFixed(2)}%;top:${(mapZ(p.z) * 100).toFixed(2)}%" title="${found.has(p.id) ? esc(p.name[lang]) : '?'}" aria-hidden="true">${found.has(p.id) ? '★' : '·'}</span>`).join('');
     const marker = world.places.map((p) => {
@@ -180,7 +204,7 @@ export class IslandAtlas {
         <div class="ia-side">
           <header class="ia-side-head"><h3>${copy.bikes[bike]} <small>${routes.length}</small></h3><button type="button" class="mm-x" data-picker-close aria-label="${copy.close}">×</button></header>
           ${others ? `<p class="ia-others">${others}</p>` : ''}
-          <div class="ia-routes">${rows || `<p class="ia-empty">${copy.unavailable}</p>`}</div>
+          ${dailyHtml}<div class="ia-routes">${rows || `<p class="ia-empty">${copy.unavailable}</p>`}</div>
           ${rows ? `<div class="ia-selection"><canvas class="ia-profile" width="480" height="42" aria-hidden="true"></canvas><p class="ia-facts" data-ia-facts></p><button type="button" class="ia-pick" data-routepick="${esc(this.activeId)}">${copy.pick}<span aria-hidden="true"> →</span></button><button type="button" class="ia-detail" data-route="${esc(this.activeId)}">${copy.details}</button></div>` : ''}
           <footer class="ia-actions">${allowFree ? `<button type="button" data-zc="free">${copy.free}</button>` : ''}${allowDraw ? `<button type="button" data-zc="draw">${copy.draw}</button>` : ''}${packAction}</footer>
         </div>

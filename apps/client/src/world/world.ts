@@ -18,7 +18,7 @@ import { RouteFootprint } from './ribbon.ts';
 import { LandProbe } from './lowPolyKit.ts';
 import { PolyRoads } from './polyRoads.ts';
 import { RoadNetwork, setTrailVerge, setTrailWet } from './network.ts';
-import { setIslandGraph } from './polyOutdoor.ts';
+import { setIslandGraph, setIslandNight } from './polyOutdoor.ts';
 import { IslandDiscovery } from './islandDiscover.ts';
 import { polyWorld, setActivePolyWorld } from './polyWorlds.ts';
 import { getLang } from '../i18n/index.ts';
@@ -337,6 +337,7 @@ export class World {
     this.grass.update(focus);
     this.updateLife(dt, focus);
     this.discovery?.check(focus.x, focus.z);
+    setIslandNight(this.nightFactor(), this.env.state.hour);
     this.updateVillageProps(focus);
     const w = this.env.state.weather;
     this.road.wetness.value = w.rain;

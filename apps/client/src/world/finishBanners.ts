@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { climbCategory, climbCategoryLabel, komPoints, type RouteTrack } from '@allezrobert/shared';
 import { groundChange, settleWhileVisible } from './groundSettle.ts';
 
-type Kind = 'finish' | 'start' | 'km10' | 'km1' | 'summit' | 'komStart' | 'sprintStart' | 'sprintEnd';
+type Kind = 'finish' | 'start' | 'km10' | 'km1' | 'summit' | 'komStart' | 'sprintStart' | 'sprintEnd' | 'split';
 
 /** Sommet d'une côte classée : nom, catégorie et points du classement de la montagne. */
 interface Summit {
@@ -71,6 +71,17 @@ function bannerTexture(kind: Kind, ratio: number, summit?: Summit, label = 'ARRI
     ctx.fillText(kom ? 'DÉPART KOM' : kind === 'sprintStart' ? 'DÉPART SPRINT' : 'SPRINT', W / 2, H * 0.4, W * 0.9);
     ctx.font = font(62);
     ctx.fillText((summit?.name ?? label).toUpperCase(), W / 2, H * 0.78, W * 0.9);
+  } else if (kind === 'split') {
+    // Intermédiaire du contre-la-montre (orange) : numéro du pointage, « CHRONO » en dessous.
+    ctx.fillStyle = '#f08a1c';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, W, 12);
+    ctx.fillRect(0, H - 12, W, 12);
+    ctx.font = font(118);
+    ctx.fillText(label, W / 2, H * 0.4, W * 0.9);
+    ctx.font = font(62);
+    ctx.fillText('CONTRE-LA-MONTRE', W / 2, H * 0.78, W * 0.9);
   } else {
     ctx.fillStyle = kind === 'km1' ? '#c8102e' : '#1f4f9c';
     ctx.fillRect(0, 0, W, H);
@@ -127,7 +138,7 @@ export class FinishBanners {
    * `blocked` : premier bâtiment sur un segment (fraction 0–1 ou null, voir BuildingFootprints.firstHit) ; sert à
    * rétrécir l'arche dans une rue étroite, sinon un montant disparaît dans la façade (l'arche semble coupée).
    */
-  constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, blocked?: (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => number | null) {
+  constructor(track: RouteTrack, groundAt: (x: number, z: number) => number, blocked?: (ax: number, ay: number, az: number, bx: number, by: number, bz: number) => number | null, opts: { splitsM?: readonly number[] } = {}) {
     this.group.name = 'finish-banners';
     const len = track.length;
     this.lapLengthM = len;
@@ -137,6 +148,8 @@ export class FinishBanners {
     if (!loop) spots.push({ d: 6, kind: 'start', label: 'DÉPART', backLabel: 'DÉPART' });
     if (len > 3000) spots.push({ d: len - 1000, kind: 'km1' });
     if (len > 15000) spots.push({ d: len - 10000, kind: 'km10' });
+    // Contre-la-montre : arche orange à chaque intermédiaire (mêmes distances que les temps annoncés).
+    (opts.splitsM ?? []).forEach((d, i) => spots.push({ d, kind: 'split', label: `INTERMÉDIAIRE ${i + 1}` }));
     // Sommet de chaque côte, comme les banderoles du Grand Prix de la montagne.
     for (const seg of track.route.segments) {
       if (seg.kind !== 'kom') continue;
@@ -160,7 +173,7 @@ export class FinishBanners {
     const legGeo = new THREE.CylinderGeometry(TUBE, TUBE, 1, 14).translate(0, -0.5, 0);
     const footGeo = new THREE.CylinderGeometry(TUBE * 1.1, TUBE * 1.1, 0.25, 14).translate(0, 0.125, 0);
     const footMat = new THREE.MeshStandardNodeMaterial({ color: '#222', roughness: 0.8 });
-    const tubeColor: Record<Kind, string> ={ finish: '#1f5fbf', start: '#1f5fbf', km1: '#c8102e', km10: '#1f5fbf', summit: '#f4f4f4', komStart: '#f4f4f4', sprintStart: '#f4f4f4', sprintEnd: '#22a04b' };
+    const tubeColor: Record<Kind, string> ={ finish: '#1f5fbf', start: '#1f5fbf', km1: '#c8102e', km10: '#1f5fbf', summit: '#f4f4f4', komStart: '#f4f4f4', sprintStart: '#f4f4f4', sprintEnd: '#22a04b', split: '#f4f4f4' };
     for (const { d, kind, summit, label, backLabel } of spots) {
       const p = track.positionAt(d, 0);
       const ground = groundAt(p.x, p.z);

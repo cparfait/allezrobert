@@ -62,7 +62,7 @@ const ISLAND: PolyWorld = {
   title: { fr: 'L’Île de Robert', en: 'Robert’s Island' },
   hint: { fr: 'Mer, planches et col du Phare', en: 'Sea, boardwalk and Lighthouse pass' },
   map: { fr: 'Carte topographique de l’Île de Robert', en: 'Topographic map of Robert’s Island' },
-  priority: ['front-de-mer', 'port-de-robertville', 'anneau', 'criterium-saint-robert', 'anneau-piste-verte', 'phare', 'phare-versant-nord', 'chrono-du-plateau', 'kerbrou-et-le-port', 'tour-de-l-ile', 'gravel-des-bois', 'gravel-des-vignes', 'grande-traversee', 'chemin-des-douaniers', 'vtt-des-bois', 'vtt-du-renard', 'descente-du-phare', 'vtt-du-phare'],
+  priority: ['decouverte-de-l-ile', 'front-de-mer', 'fleche-du-phare', 'classique-des-pierres', 'chrono-du-plateau', 'descente-du-phare', 'phare-de-nuit', 'port-de-robertville', 'anneau', 'criterium-saint-robert', 'anneau-piste-verte', 'phare', 'phare-versant-nord', 'chrono-du-plateau', 'kerbrou-et-le-port', 'tour-de-l-ile', 'gravel-des-bois', 'gravel-des-vignes', 'grande-traversee', 'chemin-des-douaniers', 'vtt-des-bois', 'vtt-du-renard', 'descente-du-phare', 'vtt-du-phare'],
   places: [
     { x: 971, z: 9601, label: 'Robertville', labelEn: 'Robertville', route: 'front-de-mer', mtb: 'vtt-des-coteaux' },
     { x: 300, z: -200, label: 'Saint-Robert', labelEn: 'Saint-Robert', route: 'boucle-de-saint-robert', gravel: 'gravel-du-grand-pre' },

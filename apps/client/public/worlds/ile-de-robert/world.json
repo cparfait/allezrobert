@@ -12629,6 +12629,16 @@
    "main": false
   },
   {
+   "id": "phare-de-nuit",
+   "file": "routes/phare-de-nuit.json",
+   "name": "La montée nocturne du Phare",
+   "nameEn": "Lighthouse night climb",
+   "lengthM": 7623.31,
+   "elevationGainM": 449.85,
+   "loop": false,
+   "main": false
+  },
+  {
    "id": "tour-de-l-ile",
    "file": "routes/tour-de-l-ile.json",
    "name": "Le Tour de l'Île",
@@ -12707,6 +12717,37 @@
    "nameEn": "Plateau time trial",
    "lengthM": 7780.54,
    "elevationGainM": 41.85,
+   "loop": false,
+   "main": false
+  },
+  {
+   "id": "decouverte-de-l-ile",
+   "file": "routes/decouverte-de-l-ile.json",
+   "name": "Découverte de l’île",
+   "nameEn": "Island discovery ride",
+   "lengthM": 8368.02,
+   "elevationGainM": 32.98,
+   "loop": true,
+   "main": false
+  },
+  {
+   "id": "classique-des-pierres",
+   "file": "routes/classique-des-pierres.json",
+   "name": "La Robertaise des pierres",
+   "nameEn": "Robertaise stone classic",
+   "lengthM": 40200.83,
+   "elevationGainM": 619.21,
+   "loop": false,
+   "main": false,
+   "bike": "gravel"
+  },
+  {
+   "id": "fleche-du-phare",
+   "file": "routes/fleche-du-phare.json",
+   "name": "La Flèche du Phare",
+   "nameEn": "Lighthouse Arrow classic",
+   "lengthM": 31876.7,
+   "elevationGainM": 800.73,
    "loop": false,
    "main": false
   },

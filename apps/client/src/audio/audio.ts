@@ -550,7 +550,8 @@ export class GameAudio {
     this.set(this.L.water.gain.gain, water * 0.06, 0.5);
     // Vagues toutes les 7 s environ ; mouettes et goélands au-dessus du rivage le jour.
     const swell = 0.45 + 0.55 * Math.max(0, Math.sin(now * 0.9)) ** 2 * (0.7 + 0.3 * Math.sin(now * 0.23));
-    this.set(this.L.surf.gain.gain, surf * 0.11 * swell, 0.35);
+    // Vagues plus fortes par vent fort (jusqu'à × 1,5 vers 9 m/s).
+    this.set(this.L.surf.gain.gain, surf * 0.11 * swell * (0.75 + Math.min(1, s.windMs / 9) * 0.75), 0.35);
     this.set(this.L.surf.filter.frequency, 420 + 520 * swell, 0.35);
     this.set(this.surfPan.pan, surfPan * 0.7, 0.4);
     if (surf > 0.12 && s.env.night < 0.5 && Math.random() < eventChance(3 * surf, dt)) bird(ctx(this), this.buses.ambience, this.buf.whiteMono, now + 0.05, 'gull', 0.5 + 0.5 * surf, Math.random() * 1.6 - 0.8, 9000);
