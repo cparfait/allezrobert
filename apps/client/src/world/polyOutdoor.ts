@@ -517,6 +517,10 @@ function deer(): Site {
 let night = 0;
 let hour = 12;
 /** Nuit (0 jour, 1 nuit noire) et heure du jour (world.ts) : faisceau du phare, lanternes des ports, chalutiers. */
+/** Nuit (0–1) et heure du monde Poly chargé, pour le décor animé des autres mondes (world/lands/). */
+export function islandClock(): { night: number; hour: number } {
+  return { night, hour };
+}
 export function setIslandNight(n: number, h = hour): void {
   night = n;
   hour = h;

@@ -50,16 +50,17 @@ function routeLabel(id: string, lang: AtlasOptions['lang']): string | undefined 
   return names[id];
 }
 
-const CLASSICS = new Set(['classique-des-pierres', 'fleche-du-phare']);
-const CHRONOS = new Set(['chrono-du-plateau', 'descente-du-phare']); // le premier se court en chrono (main.ts TT_ROUTES)
+const CLASSICS = { has: (id: string) => id.startsWith('classique-') || id.startsWith('fleche-') };
+// Les « chrono-… » se courent en contre-la-montre (main.ts TT_ROUTES).
+const CHRONOS = { has: (id: string) => id.startsWith('chrono-') || id === 'descente-du-phare' };
 
 function routeTag(route: WorldRouteRef, lang: AtlasOptions['lang'], world: PolyWorld): string {
   const copy = COPY[lang];
   // Classiques de l'île et contre-la-montre balisés : leur étiquette passe avant celle du vélo.
   if (CLASSICS.has(route.id)) return `${copy.classic}${route.bike ? ` · ${route.bike === 'mtb' ? 'VTT' : 'Gravel'}` : ''}`;
   if (CHRONOS.has(route.id)) return copy.chrono;
-  if (route.id === 'decouverte-de-l-ile') return copy.discovery;
-  if (route.id === 'phare-de-nuit') return copy.night;
+  if (route.id.startsWith('decouverte-')) return copy.discovery;
+  if (route.id.endsWith('-de-nuit')) return copy.night;
   if (route.bike) return route.bike === 'mtb' ? (lang === 'fr' ? 'VTT' : 'MTB') : 'Gravel';
   if (route.id === world.tags.coast) return copy.coast;
   if (route.id === world.tags.ring) return copy.ring;
@@ -78,18 +79,18 @@ function paintRoute(canvas: HTMLCanvasElement, route: RouteData): void {
   ctx.lineTo(...point(route.points.at(-1)!));
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#263a37';
+  ctx.strokeStyle = '#0c1019';
   ctx.lineWidth = 8;
   ctx.stroke();
-  ctx.strokeStyle = '#ffd76d';
+  ctx.strokeStyle = '#ffd23f';
   ctx.lineWidth = 4.5;
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(...point(route.points[0]!), 6, 0, Math.PI * 2);
-  ctx.fillStyle = '#edf2dd';
+  ctx.fillStyle = '#f5f7fa';
   ctx.fill();
   ctx.lineWidth = 2.5;
-  ctx.strokeStyle = '#223834';
+  ctx.strokeStyle = '#0c1019';
   ctx.stroke();
 }
 
@@ -110,13 +111,13 @@ function paintProfile(canvas: HTMLCanvasElement, route: RouteData): void {
   ctx.moveTo(0, altitude(points[0]!));
   for (let i = stride; i < points.length; i += stride) ctx.lineTo(clamp(points[i]!.d / route.lengthM, 0, 1) * width, altitude(points[i]!));
   ctx.lineTo(width, altitude(points.at(-1)!));
-  ctx.strokeStyle = '#ffd76d';
+  ctx.strokeStyle = '#ffd23f';
   ctx.lineWidth = 2.2;
   ctx.stroke();
   ctx.lineTo(width, height);
   ctx.lineTo(0, height);
   ctx.closePath();
-  ctx.fillStyle = '#ffd76d2b';
+  ctx.fillStyle = '#ffd23f2b';
   ctx.fill();
 }
 
@@ -161,6 +162,16 @@ function mapFocus(route: RouteData | undefined): { scale: number; x: number; z: 
   return { scale, x: clamp(0.5 - (lx + hx) / 2 * scale, 1 - scale, 0), z: clamp(0.5 - (lz + hz) / 2 * scale, 1 - scale, 0) };
 }
 
+/** Carte d'un monde dans le choix du monde : vignette, nom, accroche, lieux découverts. Un clic charge le monde. */
+function worldCard(w: PolyWorld, active: boolean, lang: AtlasOptions['lang']): string {
+  const found = foundPlaces(w.foundKey).size;
+  return `<button type="button" class="ia-world" data-poly-world="${w.id}" aria-pressed="${active}"${active ? ' aria-current="true"' : ''}>
+    <img src="/worlds/${w.id}/vignette.png" alt="" width="190" height="130" loading="lazy" decoding="async" onerror="this.style.visibility='hidden'">
+    <span class="ia-world-text"><b>${esc(w.title[lang])}</b><small>${esc(w.hint[lang])}</small></span>
+    <span class="ia-world-found" title="${COPY[lang].found}">★ ${found}/${w.discover.length}</span>
+  </button>`;
+}
+
 export class IslandAtlas {
   private activeId = '';
 
@@ -192,7 +203,8 @@ export class IslandAtlas {
     return `<div class="mm-modal mm-picker-modal ia-overlay" data-picker-close>
       <div class="mm-dialog mm-picker ia-dialog" role="dialog" aria-modal="true" aria-labelledby="ia-title" data-island-atlas>
         <div class="ia-map-panel">
-          <header class="ia-heading"><div><span class="ia-mode">${copy.mode}</span><h2 id="ia-title">${esc(world.title[lang])}</h2></div><nav class="ia-worlds" aria-label="${copy.worlds}">${POLY_WORLDS.map((w) => `<button type="button" data-poly-world="${w.id}" aria-pressed="${w.id === world.id}" title="${esc(w.hint[lang])}">${esc(w.title[lang])}</button>`).join('')}</nav></header>
+          <header class="ia-heading"><div><span class="ia-mode">${copy.mode}</span><h2 id="ia-title">${esc(world.title[lang])}</h2></div></header>
+          <nav class="ia-worlds" aria-label="${copy.worlds}">${POLY_WORLDS.map((w) => worldCard(w, w.id === world.id, lang)).join('')}</nav>
           <div class="ia-view" role="region" aria-label="${esc(world.map[lang])}">
             <div class="ia-plane"><img src="/worlds/${world.id}/carte.png" alt="" width="${MAP_W}" height="${MAP_H}"><canvas class="ia-trace" width="${MAP_W}" height="${MAP_H}" aria-hidden="true"></canvas>${stars}${marker}</div>
             <div class="ia-compass" title="${copy.north}" aria-label="${copy.north}">N<span aria-hidden="true">▲</span></div>

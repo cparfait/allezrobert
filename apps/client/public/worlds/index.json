@@ -86,6 +86,356 @@
    "open": true
   },
   {
+   "id": "archipel-des-volcans",
+   "name": "L'Archipel des volcans",
+   "region": "Monde imaginaire · Jeu vidéo",
+   "routes": [
+    {
+     "id": "anneau",
+     "name": "Le Circuit des Laves",
+     "nameEn": "Lava circuit",
+     "lengthM": 3591.81,
+     "elevationGainM": 0,
+     "loop": true
+    },
+    {
+     "id": "cyclo-cross-des-cendres",
+     "name": "Le cyclo-cross des Cendres",
+     "nameEn": "Ash cyclocross",
+     "lengthM": 1855.8,
+     "elevationGainM": 32.68,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "decouverte-de-l-archipel",
+     "name": "Découverte de l’Archipel",
+     "nameEn": "Archipelago discovery ride",
+     "lengthM": 10812.19,
+     "elevationGainM": 72.05,
+     "loop": true
+    },
+    {
+     "id": "classique-des-trois-iles",
+     "name": "La Classique des Trois Îles",
+     "nameEn": "Three Islands Classic",
+     "lengthM": 24360.05,
+     "elevationGainM": 283.91,
+     "loop": false
+    },
+    {
+     "id": "chrono-de-la-chaussee",
+     "name": "Le chrono de la Chaussée",
+     "nameEn": "Causeway time trial",
+     "lengthM": 19644.77,
+     "elevationGainM": 107.79,
+     "loop": false
+    },
+    {
+     "id": "cratere-de-nuit",
+     "name": "Le Cratère de nuit",
+     "nameEn": "Crater by night",
+     "lengthM": 15141.53,
+     "elevationGainM": 1059.3,
+     "loop": false
+    },
+    {
+     "id": "montee-du-volcan",
+     "name": "La montée du Volcan",
+     "nameEn": "Volcano climb",
+     "lengthM": 23903.42,
+     "elevationGainM": 1433.48,
+     "loop": false
+    },
+    {
+     "id": "route-de-l-observatoire",
+     "name": "La route de l'Observatoire",
+     "nameEn": "Observatory climb",
+     "lengthM": 10024.52,
+     "elevationGainM": 704.73,
+     "loop": false
+    },
+    {
+     "id": "tour-de-l-ile",
+     "name": "Le Tour de la Grande Île",
+     "nameEn": "Round the Great Island",
+     "lengthM": 77647.49,
+     "elevationGainM": 902.29,
+     "loop": true
+    },
+    {
+     "id": "criterium-de-la-plaine",
+     "name": "Le critérium de La Plaine",
+     "nameEn": "La Plaine criterium",
+     "lengthM": 1515.81,
+     "elevationGainM": 0.02,
+     "loop": true
+    },
+    {
+     "id": "boucle-de-la-plaine",
+     "name": "La boucle de La Plaine",
+     "nameEn": "La Plaine loop",
+     "lengthM": 11663.84,
+     "elevationGainM": 105.76,
+     "loop": true
+    },
+    {
+     "id": "route-des-vignes",
+     "name": "La route des Vignes",
+     "nameEn": "Vineyard road",
+     "lengthM": 28007.99,
+     "elevationGainM": 356.63,
+     "loop": true
+    },
+    {
+     "id": "route-de-la-foret",
+     "name": "La route de la Forêt",
+     "nameEn": "Rainforest road",
+     "lengthM": 26159.46,
+     "elevationGainM": 277.66,
+     "loop": true
+    },
+    {
+     "id": "boucle-des-terrasses",
+     "name": "La boucle des Terrasses",
+     "nameEn": "Terraces loop",
+     "lengthM": 29168.24,
+     "elevationGainM": 492.55,
+     "loop": true
+    },
+    {
+     "id": "tour-des-orgues",
+     "name": "Le tour de l'Île des Orgues",
+     "nameEn": "Organ Isle loop",
+     "lengthM": 18143.78,
+     "elevationGainM": 218.2,
+     "loop": true
+    },
+    {
+     "id": "phare-des-orgues",
+     "name": "Le Phare des Orgues",
+     "nameEn": "Organ lighthouse",
+     "lengthM": 7961.04,
+     "elevationGainM": 121.08,
+     "loop": false
+    },
+    {
+     "id": "tour-de-sable-noir",
+     "name": "Le tour de Sable-Noir",
+     "nameEn": "Black Sand isle loop",
+     "lengthM": 15530.71,
+     "elevationGainM": 90.22,
+     "loop": true
+    },
+    {
+     "id": "promenade-de-sainte-iris",
+     "name": "La promenade de Sainte-Iris",
+     "nameEn": "Sainte-Iris promenade",
+     "lengthM": 4448.2,
+     "elevationGainM": 7.34,
+     "loop": true
+    },
+    {
+     "id": "piste-du-circuit",
+     "name": "La piste du Circuit",
+     "nameEn": "Circuit cycleway",
+     "lengthM": 7810.16,
+     "elevationGainM": 70.12,
+     "loop": true
+    },
+    {
+     "id": "voie-verte-des-laves",
+     "name": "La voie verte des Laves",
+     "nameEn": "Lava greenway",
+     "lengthM": 7120.14,
+     "elevationGainM": 2.43,
+     "loop": false
+    },
+    {
+     "id": "voie-verte-de-la-baie",
+     "name": "La voie verte de la Baie",
+     "nameEn": "Bay greenway",
+     "lengthM": 10804.51,
+     "elevationGainM": 202.71,
+     "loop": false
+    },
+    {
+     "id": "voie-verte-des-cendres",
+     "name": "La voie verte des Cendres",
+     "nameEn": "Ash greenway",
+     "lengthM": 7662.13,
+     "elevationGainM": 1.63,
+     "loop": false
+    },
+    {
+     "id": "classique-des-cendres",
+     "name": "La Classique des Cendres",
+     "nameEn": "Ash Classic",
+     "lengthM": 72219.23,
+     "elevationGainM": 1361.02,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-cendres",
+     "name": "Gravel des Cendres",
+     "nameEn": "Ash gravel",
+     "lengthM": 5612.7,
+     "elevationGainM": 158.62,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-vignes",
+     "name": "Gravel des Vignes",
+     "nameEn": "Vineyard gravel",
+     "lengthM": 9713.99,
+     "elevationGainM": 148.77,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-la-foret",
+     "name": "Gravel de la Forêt",
+     "nameEn": "Rainforest gravel",
+     "lengthM": 9123.62,
+     "elevationGainM": 187.91,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-terrasses",
+     "name": "Gravel des Terrasses",
+     "nameEn": "Terraces gravel",
+     "lengthM": 7034.96,
+     "elevationGainM": 96.48,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-orgues",
+     "name": "Gravel des Orgues",
+     "nameEn": "Basalt organs gravel",
+     "lengthM": 7223.41,
+     "elevationGainM": 118.44,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-sable-noir",
+     "name": "Gravel de Sable-Noir",
+     "nameEn": "Black Sand gravel",
+     "lengthM": 6408.53,
+     "elevationGainM": 90.81,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-fumerolles",
+     "name": "Gravel des Fumerolles",
+     "nameEn": "Fumaroles gravel",
+     "lengthM": 5452.18,
+     "elevationGainM": 178.92,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-la-coulee",
+     "name": "Gravel de la Coulée",
+     "nameEn": "Lava flow gravel",
+     "lengthM": 8391.06,
+     "elevationGainM": 175.17,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-du-littoral",
+     "name": "Le chemin du Littoral",
+     "nameEn": "Coastal path",
+     "lengthM": 7059.79,
+     "elevationGainM": 46.33,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "vtt-de-la-lande",
+     "name": "VTT de la Lande",
+     "nameEn": "Upland heath MTB",
+     "lengthM": 7231.01,
+     "elevationGainM": 422.43,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "descente-du-volcan",
+     "name": "La descente du Volcan",
+     "nameEn": "Volcano downhill",
+     "lengthM": 7016.84,
+     "elevationGainM": 0.05,
+     "loop": false,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-de-la-foret",
+     "name": "VTT de la Forêt",
+     "nameEn": "Rainforest MTB",
+     "lengthM": 5387.19,
+     "elevationGainM": 165.82,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-orgues",
+     "name": "VTT des Orgues",
+     "nameEn": "Basalt organs MTB",
+     "lengthM": 4906.43,
+     "elevationGainM": 112.07,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-de-la-coulee",
+     "name": "VTT de la Coulée",
+     "nameEn": "Lava field MTB",
+     "lengthM": 5962.56,
+     "elevationGainM": 98.18,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-de-la-ravine",
+     "name": "VTT de la Ravine",
+     "nameEn": "Ravine MTB",
+     "lengthM": 5180.42,
+     "elevationGainM": 92.71,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "bike-park-du-mont-cendre",
+     "name": "Le bike park du Mont Cendre",
+     "nameEn": "Mont Cendre bike park",
+     "lengthM": 6850.9,
+     "elevationGainM": 135.21,
+     "loop": true,
+     "bike": "mtb"
+    }
+   ],
+   "pack": {
+    "version": "56dddf9f6d98",
+    "bytes": 298806202,
+    "files": 2490,
+    "gzBytes": 38127022
+   },
+   "l93": {
+    "minE": 1311000,
+    "minN": 5887000,
+    "maxE": 1349000,
+    "maxN": 5913000
+   },
+   "open": true
+  },
+  {
    "id": "basque",
    "name": "Pays basque — Corniche",
    "region": "Pyrénées-Atlantiques · Côte basque",
@@ -386,6 +736,370 @@
    "open": true
   },
   {
+   "id": "desert-rouge",
+   "name": "Le Désert rouge",
+   "region": "Monde imaginaire · Jeu vidéo",
+   "routes": [
+    {
+     "id": "circuit-du-chott",
+     "name": "Le Circuit du Chott",
+     "nameEn": "Salt lake circuit",
+     "lengthM": 3591.81,
+     "elevationGainM": 0,
+     "loop": true
+    },
+    {
+     "id": "cyclo-cross-des-sables",
+     "name": "Le cyclo-cross des Sables",
+     "nameEn": "Sand cyclocross",
+     "lengthM": 1249.94,
+     "elevationGainM": 12.62,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "bike-park-des-buttes",
+     "name": "Le bike park des Buttes",
+     "nameEn": "Buttes bike park",
+     "lengthM": 1374.99,
+     "elevationGainM": 68.53,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "gravel-de-la-mesa",
+     "name": "Gravel de la Grande Mesa",
+     "nameEn": "Great Mesa gravel",
+     "lengthM": 4668.11,
+     "elevationGainM": 6.46,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "decouverte-du-desert",
+     "name": "La découverte du Désert",
+     "nameEn": "Desert discovery",
+     "lengthM": 8829.86,
+     "elevationGainM": 50.3,
+     "loop": true
+    },
+    {
+     "id": "classique-des-canyons",
+     "name": "La classique des Canyons",
+     "nameEn": "Canyons classic",
+     "lengthM": 34059.87,
+     "elevationGainM": 788.47,
+     "loop": true
+    },
+    {
+     "id": "chrono-de-la-piste-droite",
+     "name": "Le chrono de la Piste Droite",
+     "nameEn": "Straight road time trial",
+     "lengthM": 7404.76,
+     "elevationGainM": 22.91,
+     "loop": false
+    },
+    {
+     "id": "mesa-de-nuit",
+     "name": "La Grande Mesa de nuit",
+     "nameEn": "Great Mesa by night",
+     "lengthM": 6478.13,
+     "elevationGainM": 436.81,
+     "loop": false
+    },
+    {
+     "id": "montee-de-la-grande-mesa",
+     "name": "La montée de la Grande Mesa",
+     "nameEn": "Great Mesa climb",
+     "lengthM": 9077.27,
+     "elevationGainM": 457.96,
+     "loop": false
+    },
+    {
+     "id": "criterium-de-rocherouge",
+     "name": "Le critérium de Rocherouge",
+     "nameEn": "Rocherouge criterium",
+     "lengthM": 1680.33,
+     "elevationGainM": 0.03,
+     "loop": true
+    },
+    {
+     "id": "col-des-vents",
+     "name": "La traversée du Col des Vents",
+     "nameEn": "Wind pass traverse",
+     "lengthM": 13048.58,
+     "elevationGainM": 571.49,
+     "loop": false
+    },
+    {
+     "id": "pic-du-vautour",
+     "name": "La montée du Pic du Vautour",
+     "nameEn": "Vulture peak climb",
+     "lengthM": 11471.34,
+     "elevationGainM": 1021.11,
+     "loop": false
+    },
+    {
+     "id": "col-par-port-vent",
+     "name": "Le Col des Vents par Port-Vent",
+     "nameEn": "Wind pass from the north",
+     "lengthM": 13048.58,
+     "elevationGainM": 571.43,
+     "loop": false
+    },
+    {
+     "id": "route-du-canyon",
+     "name": "La route du Canyon",
+     "nameEn": "Canyon floor road",
+     "lengthM": 16905.44,
+     "elevationGainM": 488.35,
+     "loop": false
+    },
+    {
+     "id": "corniche-du-canyon",
+     "name": "La corniche du Canyon",
+     "nameEn": "Canyon rim road",
+     "lengthM": 5197.17,
+     "elevationGainM": 123.25,
+     "loop": false
+    },
+    {
+     "id": "tour-du-desert",
+     "name": "Le Tour du Désert",
+     "nameEn": "Round the desert",
+     "lengthM": 84465.23,
+     "elevationGainM": 1368.92,
+     "loop": true
+    },
+    {
+     "id": "corniche-des-falaises",
+     "name": "La corniche des Falaises Rouges",
+     "nameEn": "Red cliffs corniche",
+     "lengthM": 32132.35,
+     "elevationGainM": 410.71,
+     "loop": true
+    },
+    {
+     "id": "plateau-du-ksar",
+     "name": "Le plateau du Ksar",
+     "nameEn": "Ksar plateau",
+     "lengthM": 46855.73,
+     "elevationGainM": 959.23,
+     "loop": true
+    },
+    {
+     "id": "golfe-et-oasis",
+     "name": "Le golfe et l'Oasis",
+     "nameEn": "Gulf and oasis",
+     "lengthM": 29021.36,
+     "elevationGainM": 266.56,
+     "loop": true
+    },
+    {
+     "id": "lagune-et-salines",
+     "name": "La lagune et les Salines",
+     "nameEn": "Lagoon and salt pans",
+     "lengthM": 31067.68,
+     "elevationGainM": 279.35,
+     "loop": true
+    },
+    {
+     "id": "tour-du-chott",
+     "name": "Le tour du Chott Blanc",
+     "nameEn": "White salt lake loop",
+     "lengthM": 9766.2,
+     "elevationGainM": 84.59,
+     "loop": true
+    },
+    {
+     "id": "boucle-de-rocherouge",
+     "name": "La boucle de Rocherouge",
+     "nameEn": "Rocherouge loop",
+     "lengthM": 35601.04,
+     "elevationGainM": 414.32,
+     "loop": true
+    },
+    {
+     "id": "route-des-dunes",
+     "name": "La route des Dunes",
+     "nameEn": "Dunes road",
+     "lengthM": 16933.06,
+     "elevationGainM": 139.09,
+     "loop": false
+    },
+    {
+     "id": "promenade-de-port-corail",
+     "name": "La promenade de Port-Corail",
+     "nameEn": "Port-Corail promenade",
+     "lengthM": 4973.56,
+     "elevationGainM": 3.64,
+     "loop": true
+    },
+    {
+     "id": "piste-du-chott",
+     "name": "La piste du Chott",
+     "nameEn": "Salt lake cycleway",
+     "lengthM": 10543.08,
+     "elevationGainM": 52.9,
+     "loop": true
+    },
+    {
+     "id": "voie-verte-des-sablons",
+     "name": "La voie verte des Sablons",
+     "nameEn": "Sablons greenway",
+     "lengthM": 5496.83,
+     "elevationGainM": 19.73,
+     "loop": false
+    },
+    {
+     "id": "voie-verte-du-chott",
+     "name": "La voie verte du Chott",
+     "nameEn": "Salt lake greenway",
+     "lengthM": 4877.42,
+     "elevationGainM": 50.22,
+     "loop": false
+    },
+    {
+     "id": "velo-du-golfe",
+     "name": "La Vélo du Golfe",
+     "nameEn": "Gulf greenway",
+     "lengthM": 8412.57,
+     "elevationGainM": 118.35,
+     "loop": false
+    },
+    {
+     "id": "classique-des-dunes",
+     "name": "La classique des Dunes",
+     "nameEn": "Dunes classic",
+     "lengthM": 16461.57,
+     "elevationGainM": 244.02,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-du-plateau",
+     "name": "Gravel du Plateau",
+     "nameEn": "Plateau gravel",
+     "lengthM": 12183.98,
+     "elevationGainM": 220.59,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-la-palmeraie",
+     "name": "Gravel de la Palmeraie",
+     "nameEn": "Palm grove gravel",
+     "lengthM": 9039.1,
+     "elevationGainM": 104.61,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-buttes",
+     "name": "Gravel des Buttes Rouges",
+     "nameEn": "Red buttes gravel",
+     "lengthM": 9106.38,
+     "elevationGainM": 298.05,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-des-falaises",
+     "name": "Le chemin des Falaises Rouges",
+     "nameEn": "Red cliffs path",
+     "lengthM": 8268.54,
+     "elevationGainM": 103.03,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-de-la-pointe",
+     "name": "Le chemin de la Pointe",
+     "nameEn": "Sand spit path",
+     "lengthM": 6941.61,
+     "elevationGainM": 17.19,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "grande-traversee",
+     "name": "La Grande Traversée",
+     "nameEn": "Great gravel traverse",
+     "lengthM": 22315.04,
+     "elevationGainM": 287.12,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "vtt-des-monts-de-braise",
+     "name": "VTT des Monts de Braise",
+     "nameEn": "Ember Mountains MTB trail",
+     "lengthM": 7417.76,
+     "elevationGainM": 404.5,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-de-la-dent-rouge",
+     "name": "VTT de la Dent Rouge",
+     "nameEn": "Red Tooth MTB loop",
+     "lengthM": 10270.49,
+     "elevationGainM": 616.81,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "descente-du-vautour",
+     "name": "La descente du Vautour",
+     "nameEn": "Vulture downhill",
+     "lengthM": 837.81,
+     "elevationGainM": 0,
+     "loop": false,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-du-canyon",
+     "name": "VTT du Canyon",
+     "nameEn": "Canyon MTB trail",
+     "lengthM": 7742.16,
+     "elevationGainM": 217.67,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-falaises",
+     "name": "VTT des Falaises",
+     "nameEn": "Cliffs MTB trail",
+     "lengthM": 6156.65,
+     "elevationGainM": 111.1,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-arches",
+     "name": "VTT des Arches",
+     "nameEn": "Stone arches MTB trail",
+     "lengthM": 6646.5,
+     "elevationGainM": 362.44,
+     "loop": true,
+     "bike": "mtb"
+    }
+   ],
+   "pack": {
+    "version": "b18110071019",
+    "bytes": 381839503,
+    "files": 2655,
+    "gzBytes": 64688109
+   },
+   "l93": {
+    "minE": 1311000,
+    "minN": 5687000,
+    "maxE": 1349000,
+    "maxN": 5713000
+   },
+   "open": true
+  },
+  {
    "id": "esterel",
    "name": "Corniche de l'Estérel",
    "region": "Var · Estérel",
@@ -490,6 +1204,362 @@
     "minN": 6806000,
     "maxE": 683000,
     "maxN": 6819000
+   },
+   "open": true
+  },
+  {
+   "id": "grand-nord",
+   "name": "Le Grand Nord robertien",
+   "region": "Monde imaginaire · Jeu vidéo",
+   "routes": [
+    {
+     "id": "anneau",
+     "name": "Le Circuit du Grand Nord",
+     "nameEn": "Far North circuit",
+     "lengthM": 3591.81,
+     "elevationGainM": 0,
+     "loop": true
+    },
+    {
+     "id": "decouverte-du-grand-nord",
+     "name": "Découverte du Grand Nord",
+     "nameEn": "Far North discovery ride",
+     "lengthM": 7887.97,
+     "elevationGainM": 49.58,
+     "loop": true
+    },
+    {
+     "id": "classique-des-fjords",
+     "name": "La Classique des Fjords",
+     "nameEn": "Fjords Classic",
+     "lengthM": 62229.38,
+     "elevationGainM": 1348.78,
+     "loop": false
+    },
+    {
+     "id": "chrono-du-fjord",
+     "name": "Le chrono du Fjord",
+     "nameEn": "Fjord time trial",
+     "lengthM": 8846.86,
+     "elevationGainM": 158.14,
+     "loop": false
+    },
+    {
+     "id": "aurores-de-nuit",
+     "name": "Les Aurores de nuit",
+     "nameEn": "Northern lights night climb",
+     "lengthM": 10590.9,
+     "elevationGainM": 900.85,
+     "loop": false
+    },
+    {
+     "id": "col-du-renne",
+     "name": "La traversée du Col du Renne",
+     "nameEn": "Reindeer pass traverse",
+     "lengthM": 13698.16,
+     "elevationGainM": 570.31,
+     "loop": false
+    },
+    {
+     "id": "col-du-renne-par-nordvik",
+     "name": "Le Col du Renne par Nordvik",
+     "nameEn": "Reindeer pass from the north",
+     "lengthM": 13698.16,
+     "elevationGainM": 600.18,
+     "loop": false
+    },
+    {
+     "id": "montee-de-fjellheim",
+     "name": "La montée de Fjellheim",
+     "nameEn": "Fjellheim climb",
+     "lengthM": 3660.41,
+     "elevationGainM": 294.01,
+     "loop": false
+    },
+    {
+     "id": "gorges-de-la-renne",
+     "name": "Les gorges de la Renne",
+     "nameEn": "Renne gorges",
+     "lengthM": 10258.17,
+     "elevationGainM": 304.4,
+     "loop": false
+    },
+    {
+     "id": "tour-du-grand-nord",
+     "name": "Le Tour du Grand Nord",
+     "nameEn": "Round the Far North",
+     "lengthM": 103675.17,
+     "elevationGainM": 1665.97,
+     "loop": true
+    },
+    {
+     "id": "grand-tour-du-col",
+     "name": "De Nordrobert à Nordvik par le col",
+     "nameEn": "Nordrobert to Nordvik over the pass",
+     "lengthM": 24973.98,
+     "elevationGainM": 802.35,
+     "loop": false
+    },
+    {
+     "id": "criterium-de-nordrobert",
+     "name": "Le critérium de Nordrobert",
+     "nameEn": "Nordrobert criterium",
+     "lengthM": 1680.33,
+     "elevationGainM": 0.02,
+     "loop": true
+    },
+    {
+     "id": "boucle-de-nordrobert",
+     "name": "La boucle de Nordrobert",
+     "nameEn": "Nordrobert loop",
+     "lengthM": 34311.74,
+     "elevationGainM": 361.69,
+     "loop": true
+    },
+    {
+     "id": "route-des-pecheurs",
+     "name": "La route des Pêcheurs",
+     "nameEn": "Fishermen’s road",
+     "lengthM": 39998.34,
+     "elevationGainM": 640.3,
+     "loop": true
+    },
+    {
+     "id": "haut-plateau-de-vidda",
+     "name": "Le haut-plateau de Vidda",
+     "nameEn": "Vidda high plateau",
+     "lengthM": 56135.59,
+     "elevationGainM": 1097.51,
+     "loop": true
+    },
+    {
+     "id": "baie-et-mille-lacs",
+     "name": "La baie et les Mille-Lacs",
+     "nameEn": "Bay and thousand lakes",
+     "lengthM": 30273.49,
+     "elevationGainM": 442.04,
+     "loop": true
+    },
+    {
+     "id": "marais-de-myrbu",
+     "name": "Les marais de Myrbu",
+     "nameEn": "Myrbu marshes",
+     "lengthM": 22940.83,
+     "elevationGainM": 229.94,
+     "loop": true
+    },
+    {
+     "id": "route-du-bac",
+     "name": "La route du Bac",
+     "nameEn": "Ferry road",
+     "lengthM": 9543.12,
+     "elevationGainM": 14.36,
+     "loop": false
+    },
+    {
+     "id": "chrono-de-la-saumonee",
+     "name": "Le chrono de la Saumonée",
+     "nameEn": "Salmon river time trial",
+     "lengthM": 10404.06,
+     "elevationGainM": 115.34,
+     "loop": false
+    },
+    {
+     "id": "promenade-de-port-boreal",
+     "name": "La promenade de Port-Boréal",
+     "nameEn": "Port-Boréal boardwalk",
+     "lengthM": 5006.35,
+     "elevationGainM": 3.91,
+     "loop": true
+    },
+    {
+     "id": "piste-du-circuit",
+     "name": "La piste du Circuit",
+     "nameEn": "Circuit cycleway",
+     "lengthM": 14297.25,
+     "elevationGainM": 38.01,
+     "loop": true
+    },
+    {
+     "id": "voie-verte-de-la-saumonee",
+     "name": "La voie verte de la Saumonée",
+     "nameEn": "Salmon river greenway",
+     "lengthM": 6245.12,
+     "elevationGainM": 17.86,
+     "loop": false
+    },
+    {
+     "id": "voie-verte-du-grand-lac",
+     "name": "La voie verte du Grand Lac",
+     "nameEn": "Great lake greenway",
+     "lengthM": 4931.07,
+     "elevationGainM": 44.08,
+     "loop": false
+    },
+    {
+     "id": "velo-de-la-baie",
+     "name": "La Vélo de la Baie",
+     "nameEn": "Bay greenway",
+     "lengthM": 8293.44,
+     "elevationGainM": 246.3,
+     "loop": false
+    },
+    {
+     "id": "classique-de-la-toundra",
+     "name": "La Classique de la Toundra",
+     "nameEn": "Tundra Classic",
+     "lengthM": 20247.74,
+     "elevationGainM": 395.13,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-vidda",
+     "name": "Gravel de Vidda",
+     "nameEn": "Vidda gravel",
+     "lengthM": 12920.83,
+     "elevationGainM": 208.28,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-mille-lacs",
+     "name": "Gravel des Mille-Lacs",
+     "nameEn": "Thousand lakes gravel",
+     "lengthM": 10635.68,
+     "elevationGainM": 190.67,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-de-la-saumonee",
+     "name": "Gravel de la Saumonée",
+     "nameEn": "Salmon river gravel",
+     "lengthM": 8439.02,
+     "elevationGainM": 64.26,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "vtt-des-bouleaux",
+     "name": "VTT des Bouleaux",
+     "nameEn": "Birch MTB trail",
+     "lengthM": 7607.08,
+     "elevationGainM": 367.25,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "gravel-des-marais",
+     "name": "Gravel des Marais",
+     "nameEn": "Marsh gravel",
+     "lengthM": 1028.18,
+     "elevationGainM": 11.87,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-des-pecheurs",
+     "name": "Le chemin des Pêcheurs",
+     "nameEn": "Fishermen’s path",
+     "lengthM": 8471.48,
+     "elevationGainM": 107.63,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-des-galets",
+     "name": "Le chemin des Galets",
+     "nameEn": "Pebble point path",
+     "lengthM": 6601.36,
+     "elevationGainM": 46.4,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "cyclo-cross-de-la-toundra",
+     "name": "Le cyclo-cross de la Toundra",
+     "nameEn": "Tundra cyclocross",
+     "lengthM": 1332.94,
+     "elevationGainM": 34.99,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "vtt-des-lemmings",
+     "name": "VTT des Lemmings",
+     "nameEn": "Lemming MTB trail",
+     "lengthM": 3604.28,
+     "elevationGainM": 9.52,
+     "loop": false,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-de-la-dent-du-renne",
+     "name": "VTT de la Dent du Renne",
+     "nameEn": "Reindeer tooth MTB loop",
+     "lengthM": 8269.84,
+     "elevationGainM": 395.02,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "descente-du-renne",
+     "name": "La descente du Renne",
+     "nameEn": "Reindeer downhill",
+     "lengthM": 1996.59,
+     "elevationGainM": 0,
+     "loop": false,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-gorges",
+     "name": "VTT des Gorges",
+     "nameEn": "Gorges MTB trail",
+     "lengthM": 19472.78,
+     "elevationGainM": 899.07,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-de-skarvik",
+     "name": "VTT de Skarvik",
+     "nameEn": "Skarvik MTB trail",
+     "lengthM": 6077.84,
+     "elevationGainM": 127.09,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-du-grand-lac",
+     "name": "VTT du Grand Lac",
+     "nameEn": "Great lake MTB trail",
+     "lengthM": 18938.5,
+     "elevationGainM": 889.65,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "bike-park-de-fjellheim",
+     "name": "Le bike park de Fjellheim",
+     "nameEn": "Fjellheim bike park",
+     "lengthM": 2552.57,
+     "elevationGainM": 78.85,
+     "loop": false,
+     "bike": "mtb"
+    }
+   ],
+   "pack": {
+    "version": "18edd097bf7d",
+    "bytes": 383334103,
+    "files": 2656,
+    "gzBytes": 64624715
+   },
+   "l93": {
+    "minE": 1311000,
+    "minN": 5787000,
+    "maxE": 1349000,
+    "maxN": 5813000
    },
    "open": true
   },
@@ -4517,6 +5587,364 @@
     "minN": 6573000,
     "maxE": 360000,
     "maxN": 6584000
+   },
+   "open": true
+  },
+  {
+   "id": "rizieres",
+   "name": "Les Rizières et la jungle",
+   "region": "Monde imaginaire · Jeu vidéo",
+   "routes": [
+    {
+     "id": "anneau",
+     "name": "Le Circuit des Rizières",
+     "nameEn": "Rice fields circuit",
+     "lengthM": 3591.81,
+     "elevationGainM": 0,
+     "loop": true
+    },
+    {
+     "id": "decouverte-des-rizieres",
+     "name": "Découverte des rizières",
+     "nameEn": "Rice terraces discovery ride",
+     "lengthM": 11241.61,
+     "elevationGainM": 68.96,
+     "loop": true
+    },
+    {
+     "id": "classique-des-terrasses",
+     "name": "La Classique des Terrasses",
+     "nameEn": "Terraces classic",
+     "lengthM": 33386.58,
+     "elevationGainM": 420.78,
+     "loop": false
+    },
+    {
+     "id": "chrono-des-digues",
+     "name": "Le chrono des Digues",
+     "nameEn": "Dykes time trial",
+     "lengthM": 11471.41,
+     "elevationGainM": 87.39,
+     "loop": false
+    },
+    {
+     "id": "temple-de-nuit",
+     "name": "La montée de nuit au Temple des Lanternes",
+     "nameEn": "Lantern temple night climb",
+     "lengthM": 11140.92,
+     "elevationGainM": 1000.62,
+     "loop": false
+    },
+    {
+     "id": "boucle-de-vat-robert",
+     "name": "La boucle de Vat-Robert",
+     "nameEn": "Vat-Robert loop",
+     "lengthM": 35076.96,
+     "elevationGainM": 329.5,
+     "loop": true
+    },
+    {
+     "id": "criterium-de-vat-robert",
+     "name": "Le critérium de Vat-Robert",
+     "nameEn": "Vat-Robert criterium",
+     "lengthM": 1680.33,
+     "elevationGainM": 0.01,
+     "loop": true
+    },
+    {
+     "id": "col-de-la-jungle",
+     "name": "La traversée du Col de la Jungle",
+     "nameEn": "Jungle pass traverse",
+     "lengthM": 12717.32,
+     "elevationGainM": 651.21,
+     "loop": false
+    },
+    {
+     "id": "mont-des-lanternes",
+     "name": "La montée du Mont des Lanternes",
+     "nameEn": "Lantern mount climb",
+     "lengthM": 11140.92,
+     "elevationGainM": 1000.62,
+     "loop": false
+    },
+    {
+     "id": "col-par-les-jonques",
+     "name": "Le Col de la Jungle par les Jonques",
+     "nameEn": "Jungle pass from the north",
+     "lengthM": 13784.34,
+     "elevationGainM": 586.4,
+     "loop": false
+    },
+    {
+     "id": "montee-des-nuages",
+     "name": "La montée du Village-des-Nuages",
+     "nameEn": "Cloud village climb",
+     "lengthM": 4233.16,
+     "elevationGainM": 336.13,
+     "loop": false
+    },
+    {
+     "id": "gorges-du-dragon",
+     "name": "Les gorges du Dragon",
+     "nameEn": "Dragon gorges",
+     "lengthM": 11645.5,
+     "elevationGainM": 350.3,
+     "loop": false
+    },
+    {
+     "id": "tour-des-rizieres",
+     "name": "Le Tour des Rizières",
+     "nameEn": "Round the rice lands",
+     "lengthM": 116081.64,
+     "elevationGainM": 1972.26,
+     "loop": true
+    },
+    {
+     "id": "corniche-des-pitons",
+     "name": "La corniche des Pitons",
+     "nameEn": "Karst corniche",
+     "lengthM": 32838.58,
+     "elevationGainM": 436.22,
+     "loop": true
+    },
+    {
+     "id": "plateau-des-theiers",
+     "name": "Le plateau des Théiers",
+     "nameEn": "Tea plateau",
+     "lengthM": 40265.93,
+     "elevationGainM": 851.58,
+     "loop": true
+    },
+    {
+     "id": "golfe-et-terrasses",
+     "name": "Le golfe et les Terrasses",
+     "nameEn": "Gulf and terraces",
+     "lengthM": 29929.64,
+     "elevationGainM": 357.19,
+     "loop": true
+    },
+    {
+     "id": "delta-et-mangroves",
+     "name": "Le delta et les Mangroves",
+     "nameEn": "Delta and mangroves",
+     "lengthM": 27497.51,
+     "elevationGainM": 238.14,
+     "loop": true
+    },
+    {
+     "id": "promenade-de-plage-de-jade",
+     "name": "La promenade des Cocotiers",
+     "nameEn": "Palm promenade",
+     "lengthM": 4973.56,
+     "elevationGainM": 3.66,
+     "loop": true
+    },
+    {
+     "id": "piste-des-rizieres",
+     "name": "La piste des Rizières",
+     "nameEn": "Rice fields cycleway",
+     "lengthM": 10492.73,
+     "elevationGainM": 31.4,
+     "loop": true
+    },
+    {
+     "id": "voie-verte-du-fleuve",
+     "name": "La voie verte du Fleuve",
+     "nameEn": "River greenway",
+     "lengthM": 5483.13,
+     "elevationGainM": 18.94,
+     "loop": false
+    },
+    {
+     "id": "voie-verte-des-lotus",
+     "name": "La voie verte des Lotus",
+     "nameEn": "Lotus greenway",
+     "lengthM": 4772.85,
+     "elevationGainM": 46.59,
+     "loop": false
+    },
+    {
+     "id": "velo-du-lagon",
+     "name": "La Vélo du Lagon",
+     "nameEn": "Lagoon greenway",
+     "lengthM": 10373.83,
+     "elevationGainM": 141.36,
+     "loop": false
+    },
+    {
+     "id": "classique-de-la-jungle",
+     "name": "La Classique de la Jungle",
+     "nameEn": "Jungle gravel classic",
+     "lengthM": 28153.37,
+     "elevationGainM": 542.6,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-nuages",
+     "name": "Gravel des Nuages",
+     "nameEn": "Cloud forest gravel",
+     "lengthM": 6199.69,
+     "elevationGainM": 226.4,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-theiers",
+     "name": "Gravel des Théiers",
+     "nameEn": "Tea garden gravel",
+     "lengthM": 7987.46,
+     "elevationGainM": 102.85,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-terrasses",
+     "name": "Gravel des Terrasses",
+     "nameEn": "Rice terrace gravel",
+     "lengthM": 10350.74,
+     "elevationGainM": 144.02,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-du-delta",
+     "name": "Gravel du Delta",
+     "nameEn": "Delta gravel",
+     "lengthM": 10508.1,
+     "elevationGainM": 45.69,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-bambous",
+     "name": "Gravel des Bambous",
+     "nameEn": "Bamboo gravel",
+     "lengthM": 9941.12,
+     "elevationGainM": 386.75,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-mangroves",
+     "name": "Gravel des Mangroves",
+     "nameEn": "Mangrove gravel",
+     "lengthM": 3646.47,
+     "elevationGainM": 26.17,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-des-pitons",
+     "name": "Le chemin des Pitons",
+     "nameEn": "Karst coast path",
+     "lengthM": 8117.52,
+     "elevationGainM": 118.99,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-des-sables-blancs",
+     "name": "Le chemin des Sables blancs",
+     "nameEn": "White sands path",
+     "lengthM": 10232.07,
+     "elevationGainM": 123.63,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "grande-traversee",
+     "name": "La Grande Traversée",
+     "nameEn": "Great gravel traverse",
+     "lengthM": 16537.42,
+     "elevationGainM": 212.73,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "cyclo-cross-des-digues",
+     "name": "Le cyclo-cross des Digues",
+     "nameEn": "Dykes cyclocross",
+     "lengthM": 2618.38,
+     "elevationGainM": 14.3,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "vtt-des-nuages",
+     "name": "VTT des Nuages",
+     "nameEn": "Cloud forest MTB trail",
+     "lengthM": 5589.49,
+     "elevationGainM": 251.73,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-du-mont-du-tigre",
+     "name": "VTT du Mont du Tigre",
+     "nameEn": "Tiger mount MTB loop",
+     "lengthM": 5825.51,
+     "elevationGainM": 242.57,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "descente-de-la-jungle",
+     "name": "La descente de la Jungle",
+     "nameEn": "Jungle downhill",
+     "lengthM": 1760.37,
+     "elevationGainM": 1.14,
+     "loop": false,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-du-dragon",
+     "name": "VTT du Dragon",
+     "nameEn": "Dragon MTB trail",
+     "lengthM": 7967.46,
+     "elevationGainM": 466.5,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-pitons",
+     "name": "VTT des Pitons",
+     "nameEn": "Karst MTB trail",
+     "lengthM": 5832.71,
+     "elevationGainM": 119.64,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-lotus",
+     "name": "VTT des Lotus",
+     "nameEn": "Lotus MTB trail",
+     "lengthM": 7745.11,
+     "elevationGainM": 426.69,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "bike-park-de-la-jungle",
+     "name": "Le bike park de la Jungle",
+     "nameEn": "Jungle bike park",
+     "lengthM": 3317.76,
+     "elevationGainM": 140.97,
+     "loop": true,
+     "bike": "mtb"
+    }
+   ],
+   "pack": {
+    "version": "0496dd023433",
+    "bytes": 399993301,
+    "files": 2681,
+    "gzBytes": 64261781
+   },
+   "l93": {
+    "minE": 1311000,
+    "minN": 5587000,
+    "maxE": 1349000,
+    "maxN": 5613000
    },
    "open": true
   },

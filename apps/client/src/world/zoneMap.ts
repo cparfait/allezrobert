@@ -27,6 +27,10 @@ const WORLD_SPOTS: ZoneSpot[] = [
   // Île imaginaire : hors de la carte de France, à côté (vignette = carte de l'île).
   { id: ROBERT_ISLAND, x: 150000, y: 6815000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: "L'île de Robert", en: "Robert's Island" }, image: '/worlds/ile-de-robert/vignette.png' },
   { id: ROBERT_LAND, x: 1120000, y: 6170000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: 'Le Pays de Robert', en: "Robert's Land" }, image: '/worlds/pays-de-robert/vignette.png' },
+  { id: 'archipel-des-volcans', x: 1200000, y: 6000000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: 'L’Archipel des volcans', en: 'The Volcano Archipelago' }, image: '/worlds/archipel-des-volcans/vignette.png' },
+  { id: 'grand-nord', x: 450000, y: 7150000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: 'Le Grand Nord robertien', en: 'Robert’s Far North' }, image: '/worlds/grand-nord/vignette.png' },
+  { id: 'desert-rouge', x: 150000, y: 6450000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: 'Le Désert rouge', en: 'The Red Desert' }, image: '/worlds/desert-rouge/vignette.png' },
+  { id: 'rizieres', x: 330000, y: 6150000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: 'Les Rizières et la jungle', en: 'Rice Terraces and Jungle' }, image: '/worlds/rizieres/vignette.png' },
   { id: 'chevreuse', x: 625500, y: 6843500, open: true, region: IDF, name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' } },
   { id: 'longchamp', x: 646000, y: 6861500, open: true, region: IDF, name: { fr: 'Longchamp', en: 'Longchamp' } },
   { id: 'vincennes', x: 662000, y: 6857500, open: true, region: IDF, name: { fr: 'Vincennes', en: 'Vincennes' } },

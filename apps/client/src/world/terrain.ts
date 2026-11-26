@@ -10,6 +10,7 @@ import type { RouteFootprint } from './ribbon.ts';
 import type { Season } from './environment.ts';
 import { ALPINE_GROUND_M, ALPINE_MEADOW, SNOW_LINE_M, alpineProfile } from './alpine.ts';
 import { LOW_POLY } from '../engine/style.ts';
+import { polyLand } from './lands/index.ts';
 import { frameStats } from '../engine/frameStats.ts';
 import { ROAD_FX } from './roadSurface.ts';
 import { SIDEWALK_MAX_M, builtCells, isBuiltUp } from './sidewalks.ts';
@@ -304,6 +305,10 @@ export class TerrainManager {
   private readonly snowLine = uniform(SNOW_LINE_M.summer);
   private readonly alpineMeadow = colorUniform(ALPINE_MEADOW.summer);
   private readonly rockColor = colorUniform('#6d6860');
+  /** Sable des plages (mode Poly) : bord mouillé, haut de plage ; propres à chaque monde (world/lands/). */
+  private readonly sandWet = colorUniform('#c5af8b');
+  private readonly sandDry = colorUniform('#e7ce9e');
+  private readonly waterColor = colorUniform('#7cadce');
   private readonly treeline = uniform(2150);
   /** Teinte appliquée à l'orthophoto (prise en été) selon la saison, et sa saturation. */
   private readonly orthoTint = colorUniform('#ffffff');
@@ -333,17 +338,24 @@ export class TerrainManager {
     this.q = q;
     this.group.name = 'terrain';
     const alp = alpineProfile(source.id);
-    this.rockColor.set(alp.rock);
-    this.treeline.value = alp.treelineM;
+    const land = LOW_POLY ? polyLand(source.id) : undefined;
+    this.rockColor.set(land?.theme.rock ?? alp.rock);
+    this.treeline.value = land?.theme.treelineM ?? alp.treelineM;
+    if (land) {
+      this.sandWet.set(land.theme.sand[0]);
+      this.sandDry.set(land.theme.sand[1]);
+      if (land.theme.water) this.waterColor.set(land.theme.water);
+    }
     this.setSeason(season);
   }
 
   setSeason(season: Season): void {
-    const c = (LOW_POLY ? LOWPOLY_GROUND : SEASON_GROUND)[season];
+    const theme = LOW_POLY ? polyLand(this.source.id)?.theme : undefined;
+    const c = theme ? theme.ground[season] : (LOW_POLY ? LOWPOLY_GROUND : SEASON_GROUND)[season];
     for (const k of Object.keys(c) as Array<keyof typeof c>) this.seasonColors[k].set(c[k]);
     // Hiver (idée NCT Ride) : sol enneigé en plaine, ?neige=0 pour garder le simple givre d'avant.
-    this.frost.value = season === 'winter' ? (WINTER_SNOW ? 0.85 : 0.25) : 0;
-    this.snowLine.value = SNOW_LINE_M[season];
+    this.frost.value = theme?.frost ? theme.frost[season] : season === 'winter' ? (WINTER_SNOW ? 0.85 : 0.25) : 0;
+    this.snowLine.value = theme?.snowLine ? theme.snowLine[season] : SNOW_LINE_M[season];
     this.alpineMeadow.set(ALPINE_MEADOW[season]);
     this.orthoTint.set(ORTHO_SEASON[season][0]);
     this.orthoSat.value = ORTHO_SEASON[season][1];
@@ -1072,9 +1084,9 @@ export class TerrainManager {
     col = mix(col, meadow, sharp(s1.b));
     col = col.mul(patch);
     // Plages : sable clair, plus foncé et mouillé au bord de l'eau (sous 0,6 m).
-    const sand = mix(vec3(0.56, 0.43, 0.26), vec3(0.8, 0.62, 0.34), smoothstep(0.2, 0.9, alt));
+    const sand = mix(this.sandWet.node, this.sandDry.node, smoothstep(0.2, 0.9, alt));
     col = mix(col, sand, sharp(s2.r));
-    col = mix(col, vec3(0.2, 0.42, 0.62), sharp(s0.a));
+    col = mix(col, this.waterColor.node, sharp(s0.a));
     // Chaussées OSM : le sol n'en prend plus la couleur (les rubans et le réseau dessinent les routes) ; peint
     // au pas du raster (≈ 4 m), il débordait en bande grise qui plongeait sous le bord de la route. Le masque
     // sert encore à ôter roche et neige sous les routes.

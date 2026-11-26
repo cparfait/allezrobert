@@ -13,6 +13,8 @@ import { shrubGeometry, shrubMaterial } from './trees.ts';
 import { alpineProfile, coniferBiasAt, larchShareAt, treeDensityAt, treeScaleAt } from './alpine.ts';
 import { CONIF_CROWN_BASE, CONIF_RADIUS, CONIF_TOP, DECID_FRAC, DECID_TOP, coniferRadius, coniferShare, crownFit, edgeAt, insideShare, neighbourCounts, openSkirt, openness, skirtFrac } from './treeShape.ts';
 import { LOW_POLY } from '../engine/style.ts';
+import { polyLand } from './lands/index.ts';
+import { activePolyWorld } from './polyWorlds.ts';
 import { EZ_IMPOSTOR_M, FAR_BAND, EzTreeNear, ezDither, ezFarWeight } from './ezTreeNear.ts';
 
 /**
@@ -629,7 +631,8 @@ export class Vegetation {
   }
 
   setSeason(season: Season): void {
-    const [a, b, c] = (LOW_POLY ? LEAVES_LOWPOLY : LEAVES)[season];
+    const themed = LOW_POLY ? polyLand(activePolyWorld())?.theme.leaves : undefined;
+    const [a, b, c] = themed ? themed[season] : (LOW_POLY ? LEAVES_LOWPOLY : LEAVES)[season];
     this.leafA.set(a);
     this.leafB.set(b);
     this.leafC.set(c);

@@ -705,11 +705,12 @@ export class IslandSites {
   private readonly crossings = new Set<string>();
 
   /** `mat` : matériau du décor des abords, déjà compilé. */
-  constructor(private readonly probe: LandProbe, private readonly mat: THREE.Material, private season: Season = 'summer') {
+  /** `land` : autre monde Poly (world/lands/) : son identifiant et ses lieux à la place de ceux de l'île. */
+  constructor(private readonly probe: LandProbe, private readonly mat: THREE.Material, private season: Season = 'summer', private readonly land?: { worldId: string; sites: () => Site[] }) {
     this.group.name = 'ile-lieux';
     const k = () => (this.templates ??= kit());
     const h = () => (this.harbours ??= harbourTemplates());
-    this.sites = [harbourSite('port-robertville', ROBERTVILLE_HARBOUR, 750, h), harbourSite('port-kerbrou', KERBROU_HARBOUR, 700, h), anneau(k), market(k), ...outdoorSites()];
+    this.sites = land ? land.sites() : [harbourSite('port-robertville', ROBERTVILLE_HARBOUR, 750, h), harbourSite('port-kerbrou', KERBROU_HARBOUR, 700, h), anneau(k), market(k), ...outdoorSites()];
   }
 
   /** Personnages et oiseaux des lieux construits. */
@@ -755,7 +756,7 @@ export class IslandSites {
 
   private ready(site: Site): boolean {
     this.probe.forget();
-    return site.needs.every(([x, z]) => this.probe.tileAt(x, z)?.buildingSource?.worldId === ROBERT_ISLAND && Number.isFinite(this.probe.heightAt(x, z)));
+    return site.needs.every(([x, z]) => this.probe.tileAt(x, z)?.buildingSource?.worldId === (this.land?.worldId ?? ROBERT_ISLAND) && Number.isFinite(this.probe.heightAt(x, z)));
   }
 
   private start(site: Site, density: number): void {

@@ -5,6 +5,7 @@
  */
 import { ISLAND_PLACES, type IslandPlace } from './islandDiscover.ts';
 import { ROBERT_ISLAND, ROBERT_LAND } from './worlds.ts';
+import { POLY_LANDS } from './lands/index.ts';
 
 /** Lieu de la carte : parcours mis en avant selon le vélo équipé (route, gravel, VTT). */
 export interface MapPlace {
@@ -110,7 +111,7 @@ const LAND: PolyWorld = {
   tags: { coast: 'promenade-de-port-azur', ring: 'anneau', climb: 'col-de-l-aigle' },
 };
 
-export const POLY_WORLDS: readonly PolyWorld[] = [ISLAND, LAND];
+export const POLY_WORLDS: readonly PolyWorld[] = [ISLAND, LAND, ...POLY_LANDS.map((l) => l.world)];
 
 /** Monde Poly de cet identifiant ; undefined pour une zone réelle. */
 export function polyWorld(id: string): PolyWorld | undefined {
@@ -134,6 +135,7 @@ export function activePolyWorld(): string {
 const RINGS: Record<string, { x: number; z: number; half: number; radius: number }> = {
   [ROBERT_ISLAND]: { x: -4700, z: 900, half: 560, radius: 215 },
   [ROBERT_LAND]: { x: -6900, z: 3700, half: 560, radius: 215 },
+  ...Object.fromEntries(POLY_LANDS.flatMap((l) => (l.ring ? [[l.world.id, l.ring]] : []))),
 };
 
 /** Distance à l'axe du circuit du monde chargé (m) ; Infinity hors des mondes Poly. */

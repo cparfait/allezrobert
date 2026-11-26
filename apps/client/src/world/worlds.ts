@@ -4,7 +4,9 @@ export const ROBERT_ISLAND = 'ile-de-robert';
 /** Second monde fictif du mode Poly (tools/massif) : mer, montagne, lac, plaine. */
 export const ROBERT_LAND = 'pays-de-robert';
 /** Mondes fictifs du mode Poly, dans l'ordre du choix du monde. */
-export const POLY_WORLD_IDS: readonly string[] = [ROBERT_ISLAND, ROBERT_LAND];
+/** Mondes Poly supplémentaires (world/lands/, générés par tools/<id>). */
+export const POLY_LAND_IDS: readonly string[] = ['archipel-des-volcans', 'grand-nord', 'desert-rouge', 'rizieres'];
+export const POLY_WORLD_IDS: readonly string[] = [ROBERT_ISLAND, ROBERT_LAND, ...POLY_LAND_IDS];
 
 export const isPolyWorld = (id: string): boolean => POLY_WORLD_IDS.includes(id);
 
@@ -26,6 +28,10 @@ export function worldIdsForStyle(requested: string, style: GraphicStyle): [strin
 export const WORLD_LIST: Array<{ id: string; name: { fr: string; en: string }; hint: { fr: string; en: string } }> = [
   { id: ROBERT_ISLAND, name: { fr: "L'île de Robert", en: "Robert's Island" }, hint: { fr: "Monde imaginaire : l'Anneau, la mer, le col du Phare", en: 'Imaginary world: the Ring, the sea, the Lighthouse pass' } },
   { id: ROBERT_LAND, name: { fr: 'Le Pays de Robert', en: "Robert's Land" }, hint: { fr: "Monde imaginaire : col de l'Aigle, lac, gorges et calanques", en: 'Imaginary world: Eagle pass, lake, gorges and coves' } },
+  { id: 'archipel-des-volcans', name: { fr: 'L’Archipel des volcans', en: 'The Volcano Archipelago' }, hint: { fr: 'Monde imaginaire : volcan, coulées noires, plages sombres', en: 'Imaginary world: volcano, black lava flows, dark beaches' } },
+  { id: 'grand-nord', name: { fr: 'Le Grand Nord robertien', en: 'Robert’s Far North' }, hint: { fr: 'Monde imaginaire : fjords, toundra et aurores', en: 'Imaginary world: fjords, tundra and northern lights' } },
+  { id: 'desert-rouge', name: { fr: 'Le Désert rouge', en: 'The Red Desert' }, hint: { fr: 'Monde imaginaire : canyons, mesas et oasis', en: 'Imaginary world: canyons, mesas and oases' } },
+  { id: 'rizieres', name: { fr: 'Les Rizières et la jungle', en: 'Rice Terraces and Jungle' }, hint: { fr: 'Monde imaginaire : terrasses, jungle et temples', en: 'Imaginary world: terraces, jungle and temples' } },
   { id: 'longchamp', name: { fr: 'Longchamp', en: 'Longchamp' }, hint: { fr: 'L’anneau du bois de Boulogne', en: 'The Bois de Boulogne loop' } },
   { id: 'chevreuse', name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' }, hint: { fr: 'Saclay, Chevreuse, Rambouillet', en: 'Saclay, Chevreuse, Rambouillet' } },
   { id: 'vincennes', name: { fr: 'Vincennes', en: 'Vincennes' }, hint: { fr: 'Le tour de l’hippodrome', en: 'The racecourse loop' } },

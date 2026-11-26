@@ -14,6 +14,7 @@ import { IslandSites } from './polySites.ts';
 import { ROBERT_ISLAND, ROBERT_LAND } from './worlds.ts';
 import { activePolyWorld, circuitDistance, onPaysPromenade } from './polyWorlds.ts';
 import { PaysSites } from './paysSites.ts';
+import { polyLand } from './lands/index.ts';
 import { RobertvilleScenery, isRobertville } from './robertville.ts';
 
 /**
@@ -295,7 +296,8 @@ export class RoadsideLife {
     this.track = track;
     this.probe = new LandProbe(tileAt, heightAt);
     this.robertville = new RobertvilleScenery(this.probe, this.staticMat, season);
-    this.sites = activePolyWorld() === ROBERT_LAND ? new PaysSites(new LandProbe(tileAt, heightAt), this.staticMat, season) : new IslandSites(new LandProbe(tileAt, heightAt), this.staticMat, season);
+    const land = polyLand(activePolyWorld());
+    this.sites = land ? new IslandSites(new LandProbe(tileAt, heightAt), this.staticMat, season, { worldId: land.world.id, sites: land.sites }) : activePolyWorld() === ROBERT_LAND ? new PaysSites(new LandProbe(tileAt, heightAt), this.staticMat, season) : new IslandSites(new LandProbe(tileAt, heightAt), this.staticMat, season);
     this.density = density;
     this.group.add(this.farm.group, this.robertville.group, this.sites.group);
     // Animaux animés : dès que les modèles sont chargés, les tronçons déjà peuplés (avec des troupeaux en
@@ -518,7 +520,7 @@ export class RoadsideLife {
     const bushes = seasonal(BUSH, this.season);
     const bloom = this.season === 'spring' || this.season === 'summer';
     /** Circuit de l'Anneau et quais : ni clôtures ni haies de campagne. */
-    const circuit = circuitDistance(sig[2]!, sig[3]!) < 30 || (activePolyWorld() === ROBERT_ISLAND && onQuay(sig[2]!, sig[3]!));
+    const circuit = circuitDistance(sig[2]!, sig[3]!) < 30 || (activePolyWorld() === ROBERT_ISLAND && onQuay(sig[2]!, sig[3]!)) || !!polyLand(activePolyWorld())?.noFence?.(sig[2]!, sig[3]!);
     const promenade = track.surfaceAt(mid) === 'wood' && (isRobertville(probe, sig[2]!, sig[3]!) || onPaysPromenade(sig[2]!, sig[3]!));
     const halfAt = (d: number) => track.widthAt(d) / 2;
     const tmpC = new THREE.Color();
@@ -1474,7 +1476,7 @@ export class RoadsideLife {
     const p = this.track.positionAt(d, side * (this.track.widthAt(d) / 2 + 5.5), this.s2);
     if (this.track.surfaceAt(d) === 'wood' && (isRobertville(this.probe, p.x, p.z) || onPaysPromenade(p.x, p.z))) return null;
     // Pas de poteaux autour de l'Anneau (gradins, portique).
-    if (circuitDistance(p.x, p.z) < 40 || (activePolyWorld() === ROBERT_ISLAND && onQuay(p.x, p.z))) return null;
+    if (circuitDistance(p.x, p.z) < 40 || (activePolyWorld() === ROBERT_ISLAND && onQuay(p.x, p.z)) || polyLand(activePolyWorld())?.noFence?.(p.x, p.z)) return null;
     const y = this.probe.heightAt(p.x, p.z);
     const pr = this.probe;
     if (!Number.isFinite(y) || !pr.read(p.x, p.z) || pr.forest > 0.5 || pr.water > 0.2 || pr.road > 0.25 || pr.urban > 0.6 || pr.buildingNear(p.x, p.z, 3)) return null;

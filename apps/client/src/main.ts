@@ -1243,8 +1243,8 @@ function collisionVersionMessage(reason = COLLISION_VERSION_ERROR): string {
   return getLang() === 'fr' ? COLLISION_VERSION_ERROR : 'Obstacle data is missing or incompatible. Update the game and the map.';
 }
 
-/** Contre-la-montre balisés du mode Poly : en course, ils se courent toujours en chrono, quel que soit le format choisi. */
-const TT_ROUTES = new Set(['chrono-du-plateau']);
+/** Contre-la-montre balisés des mondes Poly (identifiant en « chrono- ») : en course, toujours en chrono (sauf format tour). */
+const TT_ROUTES = { has: (id: string) => id.startsWith('chrono-') };
 
 /** Sortie jouée en contre-la-montre (format chrono ou étape chrono du tour, en local contre des IA, comme `timeTrial`). */
 function isTtRide(s: Settings, aiMax: number, publicRoom: boolean, worldId: string, routeId: string): boolean {
@@ -1385,8 +1385,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Heure et météo de la sortie : réglages du coureur ; en groupe, celles de l'hôte (partagées).
   // ?hour=<h> (essais, captures) l'emporte sur l'heure réglée, sans être enregistré dans les réglages.
   const hourParam = Number(params.get('hour') ?? NaN);
-  // Montée nocturne du Phare (île de Robert) : toujours à la nuit tombée.
-  const startHour = Number.isFinite(hourParam) ? hourParam : track.route.id === 'phare-de-nuit' ? 23 : s.hour;
+  // Parcours de nuit des mondes Poly (identifiant en « -de-nuit », comme la montée du Phare) : toujours à 23 h.
+  const startHour = Number.isFinite(hourParam) ? hourParam : track.route.id.endsWith('-de-nuit') ? 23 : s.hour;
   const myWeather: RideWeather = { hour: startHour, clouds: s.clouds, rain: s.rain, fog: s.fog, windMs: s.windMs, evolving: s.weatherEvolves, seed: weatherSeed(`${Date.now()}`) };
   // Météo réelle du jour au départ, à l'heure choisie (Open-Meteo) ; sans réseau : conditions réglées.
   if (s.realWeather && source.originL93) {

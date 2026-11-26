@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ROBERT_ISLAND, ROBERT_LAND, worldAvailableInStyle, worldIdsForStyle } from '../src/world/worlds.ts';
+import { POLY_LAND_IDS, ROBERT_ISLAND, ROBERT_LAND, worldAvailableInStyle, worldIdsForStyle } from '../src/world/worlds.ts';
 import { POLY_WORLDS, polyWorld } from '../src/world/polyWorlds.ts';
 
 describe('zones disponibles par style graphique', () => {
@@ -30,14 +30,16 @@ describe('zones disponibles par style graphique', () => {
   });
 
   it('décrit chaque monde Poly (carte, lieux, découvertes séparées)', () => {
-    expect(POLY_WORLDS.map((w) => w.id)).toEqual([ROBERT_ISLAND, ROBERT_LAND]);
+    expect(POLY_WORLDS.map((w) => w.id)).toEqual([ROBERT_ISLAND, ROBERT_LAND, ...POLY_LAND_IDS]);
     expect(polyWorld('longchamp')).toBeUndefined();
-    const land = polyWorld(ROBERT_LAND)!;
-    expect(land.foundKey).not.toBe(polyWorld(ROBERT_ISLAND)!.foundKey);
-    expect(new Set(land.discover.map((p) => p.id)).size).toBe(land.discover.length);
-    for (const p of [...land.places, ...land.discover]) {
-      expect(Math.abs(p.x)).toBeLessThan(19000);
-      expect(Math.abs(p.z)).toBeLessThan(13000);
+    // Clés de découvertes toutes différentes ; lieux dans l'emprise commune (38 × 26 km).
+    expect(new Set(POLY_WORLDS.map((w) => w.foundKey)).size).toBe(POLY_WORLDS.length);
+    for (const land of POLY_WORLDS.slice(1)) {
+      expect(new Set(land.discover.map((p) => p.id)).size).toBe(land.discover.length);
+      for (const p of [...land.places, ...land.discover]) {
+        expect(Math.abs(p.x)).toBeLessThan(19000);
+        expect(Math.abs(p.z)).toBeLessThan(13000);
+      }
     }
   });
 });

@@ -19,6 +19,7 @@ import { LazyTexture } from '../engine/textures.ts';
 import { createLowPolyBuildingMaterial } from './buildingsLowPoly.ts';
 import { robertvilleBuilding } from './robertvilleBuildings.ts';
 import { ROBERT_ISLAND } from './worlds.ts';
+import { polyLand } from './lands/index.ts';
 import { windowLamp } from './windowLighting.ts';
 import { createEiffelTower, EIFFEL_SITE, isEiffelSourceBuilding, ownsEiffelTower } from './parisEiffel.ts';
 import { buildLongchampRails, createLongchampBuildings, createRailMaterial, hasLongchampRails, isLongchampSourceBuilding, ownsLongchampBuildings } from './longchampRacecourse.ts';
@@ -1064,9 +1065,10 @@ export class Buildings {
     const source = tile.buildingSource?.worldId;
     const ileDeFrance = source ? source.startsWith('idf-') || source === 'montmartre' : this.ileDeFrance;
     const islandPoly = LOW_POLY && (source ?? this.worldId) === ROBERT_ISLAND;
+    const landStyle = LOW_POLY ? polyLand(source ?? this.worldId)?.building : undefined;
     for (const building of tile.features.buildings) {
       yield;
-      const bld = islandPoly ? robertvilleBuilding(building) : building;
+      const bld = islandPoly ? robertvilleBuilding(building) : landStyle ? landStyle(building) : building;
       if (this.eiffel?.tileId === tile.id && isEiffelSourceBuilding(bld.id)) continue;
       if (this.longchamp.get(tile.id)?.buildings && isLongchampSourceBuilding(bld.id)) continue;
       if (bld.pts.length < 6) continue;
