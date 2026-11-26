@@ -46,7 +46,8 @@ import { loadProgress, equipItem, equipPlainBike, SLOT_LABEL } from './garage.ts
 import { roadEffectHtml } from './roadEffect.ts';
 import { AtelierPanel, COIN } from './atelierPanel.ts';
 import type { AtelierState } from './atelier.ts';
-import { ROBERT_ISLAND, WORLD_LIST, worldAvailableInStyle } from '../world/worlds.ts';
+import { WORLD_LIST, isPolyWorld, worldAvailableInStyle } from '../world/worlds.ts';
+import { polyWorld } from '../world/polyWorlds.ts';
 import { OUTFITS } from './outfits.ts';
 import type { GarageView } from './poster.ts';
 import { FriendsPanel } from './friends.ts';
@@ -2266,7 +2267,8 @@ export class MainMenu {
   }
 
   private tourName(): string {
-    if (this.worldId === ROBERT_ISLAND) return fr() ? 'Tour de l’Île' : 'Tour of the Island';
+    const pw = polyWorld(this.worldId);
+    if (pw) return pw.tour[fr() ? 'fr' : 'en'];
     return `${fr() ? 'Tour' : 'Stage race'} · ${this.zoneLabel(this.worldId)}`;
   }
 
@@ -2867,13 +2869,14 @@ export class MainMenu {
   /** Fenêtre centrée : liste des zones (avec leurs packs) ou des parcours de la zone. */
   private pickerHtml(): string {
     if (!this.picker) return '';
-    if ((this.picker === 'zones' || this.picker === 'zone') && GRAPHIC_STYLE === 'lowpoly' && this.worldId === ROBERT_ISLAND) {
+    const pw = polyWorld(this.worldId);
+    if ((this.picker === 'zones' || this.picker === 'zone') && GRAPHIC_STYLE === 'lowpoly' && pw) {
       const visible = new Set(this.routeIds);
       return this.islandAtlas.html({
         lang: getLang(), routes: this.routeStore.index.filter((r) => visible.has(r.id)),
         all: this.routeStore.index, bike: bikeSetupFor(loadProgress().equipped).tyre ?? 'road',
         allowFree: this.openWorld && this.s.mode !== 'race', allowDraw: this.openWorld,
-        packAction: this.packAction(ROBERT_ISLAND),
+        packAction: this.packAction(pw.id), world: pw,
       });
     }
     // Zone ouverte choisie : sa carte, où l'on trace son itinéraire (ou roulage libre).
@@ -4747,6 +4750,19 @@ export class MainMenu {
       }),
     );
     this.islandAtlas.bind(this.root, this.routeStore, getLang());
+    // Mode Poly : onglets du choix du monde (île de Robert, Pays de Robert) ; le monde choisi est chargé sur place.
+    this.root.querySelectorAll<HTMLElement>('[data-poly-world]').forEach((el) =>
+      el.addEventListener('click', () => {
+        const id = el.dataset.polyWorld as string;
+        if (id === this.worldId || this.loadingZone || !isPolyWorld(id)) return;
+        this.routesAfterWorld = true;
+        this.picker = 'zone';
+        this.loadingZone = polyWorld(id)?.title[getLang() === 'en' ? 'en' : 'fr'] ?? id;
+        const status = this.root.querySelector('[data-ia-status]');
+        if (status) status.textContent = `${S('loading')} ${this.loadingZone}…`;
+        this.onWorld?.(id);
+      }),
+    );
     // Carte de France : une zone choisie ouvre ses choix (parcours, libre, à dessiner).
     if (this.picker === 'zones' && !this.root.querySelector('[data-island-atlas]')) {
       const openZone = (id: string): void => {

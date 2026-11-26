@@ -1,6 +1,7 @@
 /**
- * Lieux à découvrir de l'île de Robert (mode Poly) : passer à moins de `r` mètres d'un lieu le marque découvert, une
- * médaille s'affiche, la liste est gardée dans le navigateur (ar.islandFound). L'écran de l'île en montre le compte.
+ * Lieux à découvrir des mondes du mode Poly : passer à moins de `r` mètres d'un lieu le marque découvert, une médaille
+ * s'affiche, la liste est gardée dans le navigateur (ar.islandFound pour l'île, une clé par monde : polyWorlds.ts).
+ * L'écran du monde en montre le compte.
  */
 export interface IslandPlace {
   id: string;
@@ -32,35 +33,41 @@ export const ISLAND_PLACES: readonly IslandPlace[] = [
 const KEY = 'ar.islandFound';
 
 /** Lieux déjà découverts (identifiants). */
-export function foundPlaces(): Set<string> {
+export function foundPlaces(key = KEY): Set<string> {
   try {
-    return new Set(JSON.parse(localStorage.getItem(KEY) ?? '[]') as string[]);
+    return new Set(JSON.parse(localStorage.getItem(key) ?? '[]') as string[]);
   } catch {
     return new Set();
   }
 }
 
 /** Lieu atteint à (x, z) et pas encore découvert ; null sinon. */
-export function newlyFound(x: number, z: number, found: ReadonlySet<string>): IslandPlace | null {
-  for (const p of ISLAND_PLACES) if (!found.has(p.id) && Math.hypot(p.x - x, p.z - z) < p.r) return p;
+export function newlyFound(x: number, z: number, found: ReadonlySet<string>, places: readonly IslandPlace[] = ISLAND_PLACES): IslandPlace | null {
+  for (const p of places) if (!found.has(p.id) && Math.hypot(p.x - x, p.z - z) < p.r) return p;
   return null;
 }
 
 export class IslandDiscovery {
-  private readonly found = foundPlaces();
+  private readonly found: Set<string>;
   private next = 0;
 
-  constructor(private readonly lang: 'fr' | 'en' = 'fr') {}
+  constructor(
+    private readonly lang: 'fr' | 'en' = 'fr',
+    private readonly places: readonly IslandPlace[] = ISLAND_PLACES,
+    private readonly key = KEY,
+  ) {
+    this.found = foundPlaces(key);
+  }
 
   /** Appelé à chaque image : au plus une vérification par seconde. */
   check(x: number, z: number, now = performance.now()): IslandPlace | null {
     if (now < this.next) return null;
     this.next = now + 1000;
-    const p = newlyFound(x, z, this.found);
+    const p = newlyFound(x, z, this.found, this.places);
     if (!p) return null;
     this.found.add(p.id);
     try {
-      localStorage.setItem(KEY, JSON.stringify([...this.found]));
+      localStorage.setItem(this.key, JSON.stringify([...this.found]));
     } catch {
       /* stockage indisponible : découverte gardée pour la sortie */
     }
@@ -73,7 +80,7 @@ export class IslandDiscovery {
     const el = document.createElement('div');
     el.className = 'island-medal';
     const fr = this.lang === 'fr';
-    el.innerHTML = `<span class="island-medal-badge" aria-hidden="true">★</span><span><small>${fr ? 'Lieu découvert' : 'Place discovered'} · ${this.found.size}/${ISLAND_PLACES.length}</small><b>${p.name[this.lang]}</b></span>`;
+    el.innerHTML = `<span class="island-medal-badge" aria-hidden="true">★</span><span><small>${fr ? 'Lieu découvert' : 'Place discovered'} · ${this.found.size}/${this.places.length}</small><b>${p.name[this.lang]}</b></span>`;
     el.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:60;display:flex;gap:12px;align-items:center;padding:12px 20px 12px 14px;border-radius:14px;background:rgba(16,32,35,.92);color:#f0f2e6;font:600 15px/1.25 Inter,Segoe UI,system-ui,sans-serif;box-shadow:0 10px 40px rgba(0,0,0,.35);pointer-events:none;transition:opacity .6s';
     const badge = el.querySelector<HTMLElement>('.island-medal-badge');
     if (badge) badge.style.cssText = 'display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#ffd76d;color:#3a2a10;font-size:22px';

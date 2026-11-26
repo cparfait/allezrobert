@@ -1,5 +1,5 @@
 import { GRAPHIC_STYLE } from '../engine/style.ts';
-import { ROBERT_ISLAND, worldAvailableInStyle } from './worlds.ts';
+import { ROBERT_ISLAND, ROBERT_LAND, worldAvailableInStyle } from './worlds.ts';
 
 /**
  * Place des zones sur la carte de France du menu : centre de la zone en Lambert-93 (m), type
@@ -26,6 +26,7 @@ const IDF = { fr: 'Île-de-France', en: 'Île-de-France' };
 const WORLD_SPOTS: ZoneSpot[] = [
   // Île imaginaire : hors de la carte de France, à côté (vignette = carte de l'île).
   { id: ROBERT_ISLAND, x: 150000, y: 6815000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: "L'île de Robert", en: "Robert's Island" }, image: '/worlds/ile-de-robert/vignette.png' },
+  { id: ROBERT_LAND, x: 1120000, y: 6170000, open: true, region: { fr: 'Monde imaginaire', en: 'Imaginary world' }, name: { fr: 'Le Pays de Robert', en: "Robert's Land" }, image: '/worlds/pays-de-robert/vignette.png' },
   { id: 'chevreuse', x: 625500, y: 6843500, open: true, region: IDF, name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' } },
   { id: 'longchamp', x: 646000, y: 6861500, open: true, region: IDF, name: { fr: 'Longchamp', en: 'Longchamp' } },
   { id: 'vincennes', x: 662000, y: 6857500, open: true, region: IDF, name: { fr: 'Vincennes', en: 'Vincennes' } },

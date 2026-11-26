@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ROBERT_ISLAND, worldAvailableInStyle, worldIdsForStyle } from '../src/world/worlds.ts';
+import { ROBERT_ISLAND, ROBERT_LAND, worldAvailableInStyle, worldIdsForStyle } from '../src/world/worlds.ts';
+import { POLY_WORLDS, polyWorld } from '../src/world/polyWorlds.ts';
 
 describe('zones disponibles par style graphique', () => {
   it.each(['real', 'v3'] as const)('garde la France et écarte l’île en %s', (style) => {
@@ -16,5 +17,27 @@ describe('zones disponibles par style graphique', () => {
     expect(worldIdsForStyle(`longchamp+${ROBERT_ISLAND}`, 'lowpoly')).toEqual([ROBERT_ISLAND]);
     expect(worldIdsForStyle('longchamp', 'lowpoly')).toEqual([ROBERT_ISLAND]);
     expect(worldIdsForStyle('dev', 'lowpoly')).toEqual(['dev']);
+  });
+
+  it('propose aussi le Pays de Robert en Poly, seul, et jamais en Réel ni en Bêta', () => {
+    expect(worldAvailableInStyle(ROBERT_LAND, 'lowpoly')).toBe(true);
+    expect(worldAvailableInStyle(ROBERT_LAND, 'real')).toBe(false);
+    expect(worldAvailableInStyle(ROBERT_LAND, 'v3')).toBe(false);
+    expect(worldIdsForStyle(ROBERT_LAND, 'lowpoly')).toEqual([ROBERT_LAND]);
+    expect(worldIdsForStyle(`${ROBERT_LAND}+${ROBERT_ISLAND}`, 'lowpoly')).toEqual([ROBERT_LAND]);
+    expect(worldIdsForStyle(ROBERT_LAND, 'real')).toEqual(['longchamp']);
+    expect(worldIdsForStyle(`chevreuse+${ROBERT_LAND}`, 'v3')).toEqual(['chevreuse']);
+  });
+
+  it('décrit chaque monde Poly (carte, lieux, découvertes séparées)', () => {
+    expect(POLY_WORLDS.map((w) => w.id)).toEqual([ROBERT_ISLAND, ROBERT_LAND]);
+    expect(polyWorld('longchamp')).toBeUndefined();
+    const land = polyWorld(ROBERT_LAND)!;
+    expect(land.foundKey).not.toBe(polyWorld(ROBERT_ISLAND)!.foundKey);
+    expect(new Set(land.discover.map((p) => p.id)).size).toBe(land.discover.length);
+    for (const p of [...land.places, ...land.discover]) {
+      expect(Math.abs(p.x)).toBeLessThan(19000);
+      expect(Math.abs(p.z)).toBeLessThan(13000);
+    }
   });
 });

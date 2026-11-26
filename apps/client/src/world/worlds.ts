@@ -1,24 +1,31 @@
 import type { GraphicStyle } from '../engine/style.ts';
 
 export const ROBERT_ISLAND = 'ile-de-robert';
+/** Second monde fictif du mode Poly (tools/massif) : mer, montagne, lac, plaine. */
+export const ROBERT_LAND = 'pays-de-robert';
+/** Mondes fictifs du mode Poly, dans l'ordre du choix du monde. */
+export const POLY_WORLD_IDS: readonly string[] = [ROBERT_ISLAND, ROBERT_LAND];
 
-/** Le mode Poly propose l'île fictive. Les styles Réel et Bêta proposent les zones françaises. */
+export const isPolyWorld = (id: string): boolean => POLY_WORLD_IDS.includes(id);
+
+/** Le mode Poly propose les mondes fictifs. Les styles Réel et Bêta proposent les zones françaises. */
 export function worldAvailableInStyle(id: string, style: GraphicStyle): boolean {
-  return (id === ROBERT_ISLAND) === (style === 'lowpoly');
+  return isPolyWorld(id) === (style === 'lowpoly');
 }
 
 /** Une zone fictive a son propre repère. Seules les zones françaises se raccordent entre elles. */
 export function worldIdsForStyle(requested: string, style: GraphicStyle): [string, ...string[]] {
   const [first, ...neighbors] = requested.split('+').filter(Boolean);
   if (first === 'dev') return [first];
-  if (style === 'lowpoly') return [ROBERT_ISLAND];
+  if (style === 'lowpoly') return [first && isPolyWorld(first) ? first : ROBERT_ISLAND];
   if (!first || !worldAvailableInStyle(first, style)) return ['longchamp'];
-  return [first, ...neighbors.filter((id) => id !== ROBERT_ISLAND)];
+  return [first, ...neighbors.filter((id) => !isPolyWorld(id))];
 }
 
 /** Mondes générés par tools/terrain (dossiers public/worlds/<id>/), dans l'ordre du menu. */
 export const WORLD_LIST: Array<{ id: string; name: { fr: string; en: string }; hint: { fr: string; en: string } }> = [
   { id: ROBERT_ISLAND, name: { fr: "L'île de Robert", en: "Robert's Island" }, hint: { fr: "Monde imaginaire : l'Anneau, la mer, le col du Phare", en: 'Imaginary world: the Ring, the sea, the Lighthouse pass' } },
+  { id: ROBERT_LAND, name: { fr: 'Le Pays de Robert', en: "Robert's Land" }, hint: { fr: "Monde imaginaire : col de l'Aigle, lac, gorges et calanques", en: 'Imaginary world: Eagle pass, lake, gorges and coves' } },
   { id: 'longchamp', name: { fr: 'Longchamp', en: 'Longchamp' }, hint: { fr: 'L’anneau du bois de Boulogne', en: 'The Bois de Boulogne loop' } },
   { id: 'chevreuse', name: { fr: 'Vallée de Chevreuse', en: 'Chevreuse Valley' }, hint: { fr: 'Saclay, Chevreuse, Rambouillet', en: 'Saclay, Chevreuse, Rambouillet' } },
   { id: 'vincennes', name: { fr: 'Vincennes', en: 'Vincennes' }, hint: { fr: 'Le tour de l’hippodrome', en: 'The racecourse loop' } },

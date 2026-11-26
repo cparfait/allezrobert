@@ -49,8 +49,8 @@ const TARGET_M: Record<TourLength, number> = { short: 12_000, medium: 22_000, lo
 const TT_TARGET_M = 6000;
 /** Grande boucle attitrée de l'île de Robert. */
 const ISLAND_LOOP = 'tour-de-l-ile';
-/** Parcours de l'île où un peloton n'a pas sa place (voies vertes, planches, anneau d'échauffement). */
-const ISLAND_NOT_RACED = new Set(['piste-verte', 'voie-verte-de-la-robe', 'velomaritime', 'anneau-piste-verte', 'port-de-robertville', 'anneau']);
+/** Parcours des mondes Poly où un peloton n'a pas sa place (voies vertes, planches, promenade, circuit d'échauffement). */
+const ISLAND_NOT_RACED = new Set(['piste-verte', 'voie-verte-de-la-robe', 'velomaritime', 'anneau-piste-verte', 'port-de-robertville', 'anneau', 'promenade-de-port-azur', 'piste-de-la-plaine', 'voie-verte-du-gave', 'voie-verte-du-lac', 'velo-du-golfe']);
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 export const clampStages = (n: number): number => Math.max(TOUR_STAGES_MIN, Math.min(TOUR_STAGES_MAX, Math.round(n) || TOUR_STAGES_MIN));

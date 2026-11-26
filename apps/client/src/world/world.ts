@@ -20,7 +20,7 @@ import { PolyRoads } from './polyRoads.ts';
 import { RoadNetwork, setTrailVerge, setTrailWet } from './network.ts';
 import { setIslandGraph } from './polyOutdoor.ts';
 import { IslandDiscovery } from './islandDiscover.ts';
-import { ROBERT_ISLAND } from './worlds.ts';
+import { polyWorld, setActivePolyWorld } from './polyWorlds.ts';
 import { getLang } from '../i18n/index.ts';
 import { RoadHeightField, setCurrentRoadHeight } from './roadHeight.ts';
 import { Rain } from './weather.ts';
@@ -107,6 +107,7 @@ export class World {
     this.terrain = new TerrainManager(source, q, envState.season);
     setTrailVerge(envState.season);
     setIslandGraph(() => source.open?.graph);
+    setActivePolyWorld(source.id);
     // Emprise du ruban : terrain abaissé dessous, réseau OSM découpé à son bord. Monde ouvert :
     // toutes les routes sont déjà creusées et dessinées par le réseau, pas de ruban d'itinéraire.
     const open = !!source.open;
@@ -180,7 +181,8 @@ export class World {
       scene.add(this.people.group);
       if (source.open) {
         this.polyRoads = new PolyRoads(new LandProbe(lifeTile, standAt), () => source.open?.graph, () => source.open?.places ?? []);
-        if (source.id === ROBERT_ISLAND) this.discovery = new IslandDiscovery(getLang() === 'en' ? 'en' : 'fr');
+        const pw = polyWorld(source.id);
+        if (pw) this.discovery = new IslandDiscovery(getLang() === 'en' ? 'en' : 'fr', pw.discover, pw.foundKey);
         this.polyRoads.setTaken(townSignSpots(track));
         scene.add(this.polyRoads.group);
       }

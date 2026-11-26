@@ -4133,6 +4133,285 @@
    "open": true
   },
   {
+   "id": "pays-de-robert",
+   "name": "Le Pays de Robert",
+   "region": "Monde imaginaire · Jeu vidéo",
+   "routes": [
+    {
+     "id": "anneau",
+     "name": "Le Circuit de la Plaine",
+     "nameEn": "Plain circuit",
+     "lengthM": 3591.81,
+     "elevationGainM": 0,
+     "loop": true
+    },
+    {
+     "id": "boucle-de-valrobert",
+     "name": "La boucle de Valrobert",
+     "nameEn": "Valrobert loop",
+     "lengthM": 34380.41,
+     "elevationGainM": 319.59,
+     "loop": true
+    },
+    {
+     "id": "criterium-de-valrobert",
+     "name": "Le critérium de Valrobert",
+     "nameEn": "Valrobert criterium",
+     "lengthM": 1680.33,
+     "elevationGainM": 0.02,
+     "loop": true
+    },
+    {
+     "id": "col-de-l-aigle",
+     "name": "La traversée du Col de l'Aigle",
+     "nameEn": "Eagle pass traverse",
+     "lengthM": 12717.32,
+     "elevationGainM": 651.21,
+     "loop": false
+    },
+    {
+     "id": "pic-de-l-aigle",
+     "name": "La montée du Pic de l'Aigle",
+     "nameEn": "Eagle peak climb",
+     "lengthM": 11140.92,
+     "elevationGainM": 1000.62,
+     "loop": false
+    },
+    {
+     "id": "col-par-l-aber",
+     "name": "Le Col de l'Aigle par l'Aber",
+     "nameEn": "Eagle pass from the north",
+     "lengthM": 13784.34,
+     "elevationGainM": 586.4,
+     "loop": false
+    },
+    {
+     "id": "montee-de-pralong",
+     "name": "La montée de Pralong",
+     "nameEn": "Pralong climb",
+     "lengthM": 4213.49,
+     "elevationGainM": 333.23,
+     "loop": false
+    },
+    {
+     "id": "gorges-de-la-robine",
+     "name": "Les gorges de la Robine",
+     "nameEn": "Robine gorges",
+     "lengthM": 11898.17,
+     "elevationGainM": 354.1,
+     "loop": false
+    },
+    {
+     "id": "tour-du-pays",
+     "name": "Le Tour du Pays",
+     "nameEn": "Round the land",
+     "lengthM": 139046.51,
+     "elevationGainM": 2395.6,
+     "loop": true
+    },
+    {
+     "id": "grand-tour-des-cols",
+     "name": "Le grand tour du Col",
+     "nameEn": "Grand pass tour",
+     "lengthM": 77214.54,
+     "elevationGainM": 1777.32,
+     "loop": true
+    },
+    {
+     "id": "corniche-des-calanques",
+     "name": "La corniche des Calanques",
+     "nameEn": "Calanques corniche",
+     "lengthM": 31899.26,
+     "elevationGainM": 416.49,
+     "loop": true
+    },
+    {
+     "id": "plateau-des-lavandes",
+     "name": "Le plateau des Lavandes",
+     "nameEn": "Lavender plateau",
+     "lengthM": 38153.48,
+     "elevationGainM": 787.52,
+     "loop": true
+    },
+    {
+     "id": "chrono-de-la-plaine",
+     "name": "Le chrono de la Plaine",
+     "nameEn": "Plain time trial",
+     "lengthM": 11339.26,
+     "elevationGainM": 118.34,
+     "loop": false
+    },
+    {
+     "id": "golfe-et-olivettes",
+     "name": "Le golfe et les Olivettes",
+     "nameEn": "Gulf and olive hills",
+     "lengthM": 29281.15,
+     "elevationGainM": 333.32,
+     "loop": true
+    },
+    {
+     "id": "delta-et-salins",
+     "name": "Le delta et les Salins",
+     "nameEn": "Delta and salt pans",
+     "lengthM": 25707.13,
+     "elevationGainM": 240.03,
+     "loop": true
+    },
+    {
+     "id": "promenade-de-port-azur",
+     "name": "La promenade de Port-Azur",
+     "nameEn": "Port-Azur promenade",
+     "lengthM": 4973.56,
+     "elevationGainM": 3.62,
+     "loop": true
+    },
+    {
+     "id": "piste-de-la-plaine",
+     "name": "La piste de la Plaine",
+     "nameEn": "Plain cycleway",
+     "lengthM": 14311.9,
+     "elevationGainM": 37.57,
+     "loop": true
+    },
+    {
+     "id": "voie-verte-du-gave",
+     "name": "La voie verte du Gave",
+     "nameEn": "Gave greenway",
+     "lengthM": 5902.45,
+     "elevationGainM": 9.43,
+     "loop": false
+    },
+    {
+     "id": "voie-verte-du-lac",
+     "name": "La voie verte du Lac",
+     "nameEn": "Lake greenway",
+     "lengthM": 4879.82,
+     "elevationGainM": 49.49,
+     "loop": false
+    },
+    {
+     "id": "velo-du-golfe",
+     "name": "La Vélo du Golfe",
+     "nameEn": "Gulf greenway",
+     "lengthM": 9378.66,
+     "elevationGainM": 126.74,
+     "loop": false
+    },
+    {
+     "id": "gravel-des-oliviers",
+     "name": "Gravel des Oliviers",
+     "nameEn": "Olive grove gravel",
+     "lengthM": 9826.56,
+     "elevationGainM": 125.41,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-du-delta",
+     "name": "Gravel du Delta",
+     "nameEn": "Delta gravel",
+     "lengthM": 10488.89,
+     "elevationGainM": 86.92,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "gravel-des-vignes",
+     "name": "Gravel des Vignes",
+     "nameEn": "Vineyard gravel",
+     "lengthM": 10561.42,
+     "elevationGainM": 402.35,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-des-calanques",
+     "name": "Le chemin des Calanques",
+     "nameEn": "Calanques path",
+     "lengthM": 8158.93,
+     "elevationGainM": 119.34,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "chemin-de-la-pointe",
+     "name": "Le chemin de la Pointe",
+     "nameEn": "Sand spit path",
+     "lengthM": 10436.14,
+     "elevationGainM": 128.48,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "grande-traversee",
+     "name": "La Grande Traversée",
+     "nameEn": "Great gravel traverse",
+     "lengthM": 24808.63,
+     "elevationGainM": 336.12,
+     "loop": false,
+     "bike": "gravel"
+    },
+    {
+     "id": "cyclo-cross-de-la-plaine",
+     "name": "Le cyclo-cross de la Plaine",
+     "nameEn": "Plain cyclocross",
+     "lengthM": 3129.13,
+     "elevationGainM": 17.61,
+     "loop": true,
+     "bike": "gravel"
+    },
+    {
+     "id": "descente-de-l-aigle",
+     "name": "La descente de l'Aigle",
+     "nameEn": "Eagle downhill",
+     "lengthM": 1760.37,
+     "elevationGainM": 1.14,
+     "loop": false,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-gorges",
+     "name": "VTT des Gorges",
+     "nameEn": "Gorges MTB trail",
+     "lengthM": 15569.37,
+     "elevationGainM": 924.02,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-des-calanques",
+     "name": "VTT des Calanques",
+     "nameEn": "Calanques MTB trail",
+     "lengthM": 5860.21,
+     "elevationGainM": 120.24,
+     "loop": true,
+     "bike": "mtb"
+    },
+    {
+     "id": "vtt-du-lac",
+     "name": "VTT du Lac",
+     "nameEn": "Lake MTB trail",
+     "lengthM": 7747.56,
+     "elevationGainM": 426.89,
+     "loop": true,
+     "bike": "mtb"
+    }
+   ],
+   "pack": {
+    "version": "ae2c8ebb6f13",
+    "bytes": 383965296,
+    "files": 2656,
+    "gzBytes": 62513490
+   },
+   "l93": {
+    "minE": 1311000,
+    "minN": 5987000,
+    "maxE": 1349000,
+    "maxN": 6013000
+   },
+   "open": true
+  },
+  {
    "id": "puys",
    "name": "Chaîne des Puys",
    "region": "Puy-de-Dôme · Volcans",

@@ -12,7 +12,7 @@ import { buildLowPolyVehicle, pickLowPolyPaint, pickLowPolyTractor, pickLowPolyV
 import { buildDriver, loadDriverModels } from './vehicleDriver.ts';
 import { paintedMaterial, pickPaint } from './vehiclePaint.ts';
 import { followSpeed, keepApart, keepClearOfRiders, leaderOf, oncomingInLane, RIDER_CLEAR_LAT } from './trafficSpacing.ts';
-import { ringDistance } from './polySites.ts';
+import { circuitDistance } from './polyWorlds.ts';
 import { CAR_AXLE_M, roadPose, type RoadPose } from './roadHeight.ts';
 
 const _pose: RoadPose = { y: 0, pitch: 0 };
@@ -723,10 +723,10 @@ export class Traffic {
       v.onTrack = surface !== undefined && UNPAVED_SURFACES.has(surface);
       // Pistes cyclables (Longchamp…) et voies étroites : pas de voiture sous 4,8 m de large.
       if (!v.onTrack && !outside && this.narrowAt(((v.d % L) + L) % L)) v.onTrack = true;
-      // Circuit de l'Anneau (île, mode Poly) : sans voitures.
+      // Circuit de l'Anneau (île) ou de la Plaine (Pays de Robert), mode Poly : sans voitures.
       if (LOW_POLY && !v.onTrack && !outside) {
         const q = this.track.positionAt(((v.d % L) + L) % L, 0, this.sample);
-        if (ringDistance(q.x, q.z) < 6) v.onTrack = true;
+        if (circuitDistance(q.x, q.z) < 6) v.onTrack = true;
       }
       // Pas de tracteur près d'une commune : il disparaît à moins de 1,2 km d'un bourg ou d'une ville.
       if (v.kind === 'tractor' && !v.onTrack && !outside && (this.urban.length || this.townAt)) {
