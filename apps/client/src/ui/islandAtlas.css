@@ -10,6 +10,8 @@
   --ia-line: #263042;
   --ia-accent: #ffd23f;
   width: min(1260px, 96vw) !important;
+  /* Hauteur fixe : changer de monde (titre, défi du jour, liste) ne fait plus bouger la fenêtre centrée. */
+  height: min(92dvh, 880px);
   max-height: min(92dvh, 880px);
   padding: 0 !important;
   display: grid;
@@ -28,7 +30,7 @@
 .ia-map-panel { min-width: 0; padding: 27px 27px 20px; }
 .ia-heading { margin: 0 0 20px; }
 .ia-mode { color: #9aa6b5; font-size: .7rem; line-height: 1; font-weight: 750; letter-spacing: .16em; }
-.mm-picker .ia-heading h2 { margin: 7px 0 0; color: var(--ia-fg); font-size: 3.1rem; line-height: 1; font-weight: 760; letter-spacing: -.068em; }
+.mm-picker .ia-heading h2 { margin: 7px 0 0; color: var(--ia-fg); font-size: 3.1rem; line-height: 1; font-weight: 760; letter-spacing: -.068em; height: 1.1em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 .ia-view {
   position: relative;
@@ -118,7 +120,7 @@ button.ia-marker:hover, .ia-marker[aria-pressed='true'] { color: var(--ia-accent
 .ia-dialog button:focus-visible { outline: 2px solid #ffd23f; outline-offset: 2px; }
 
 @media (max-width: 850px) {
-  .mm-picker.ia-dialog { grid-template-columns: minmax(0, 1fr); position: relative; }
+  .mm-picker.ia-dialog { grid-template-columns: minmax(0, 1fr); position: relative; height: auto; }
   .ia-map-panel { padding: 20px 17px 12px; }
   .mm-picker .ia-heading h2 { font-size: 2.55rem; }
   .ia-side { padding: 13px 17px 15px; border-inline-start: 0; border-top: 1px solid var(--ia-line); }
