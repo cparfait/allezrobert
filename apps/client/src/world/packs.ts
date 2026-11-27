@@ -268,15 +268,55 @@ export async function worldFetch(path: string): Promise<Response> {
   return fetch(path.includes('/tiles/') ? `${TILES_BASE}${path}` : path);
 }
 
+/**
+ * Pack installé dont la version n'est plus celle du catalogue (zone regénérée : tuiles, parcours et graphe changés).
+ * Il n'est plus lu : ses anciennes tuiles ne collaient plus aux nouveaux parcours (coureur sous le relief, 27/11/2026).
+ * Hors ligne (pas de catalogue), le pack reste lu.
+ */
+async function packStale(id: string): Promise<boolean> {
+  const cat = await loadCatalogue();
+  const zone = cat?.zones.find((z) => z.id === id);
+  if (!zone?.pack?.version) return false;
+  const st = packState(id, zone.pack.version);
+  return st.kind === 'installed' && !st.upToDate;
+}
+
+let updating: Promise<string[]> | null = null;
+
+/**
+ * Au lancement : met à jour, en arrière-plan et l'une après l'autre, les zones téléchargées dont le catalogue annonce
+ * une nouvelle version. En attendant, le jeu lit ces zones sur le réseau (packStale). Rend les zones mises à jour.
+ */
+export function updateStalePacks(): Promise<string[]> {
+  updating ??= (async () => {
+    const cat = await loadCatalogue();
+    if (!cat) return [];
+    const done: string[] = [];
+    for (const z of cat.zones) {
+      if (!z.pack?.version || !(await packStale(z.id))) continue;
+      try {
+        await installPack(z.id, () => {});
+        done.push(z.id);
+      } catch (err) {
+        console.warn(`Mise à jour du pack ${z.id} impossible`, err);
+      }
+    }
+    return done;
+  })();
+  return updating;
+}
+
 /** Fichier du pack installé de la zone (décompressé), ou null. */
 async function packFile(path: string): Promise<Response | null> {
   const m = /^\/worlds\/([^/]+)\//.exec(path);
   if (inDesktop) {
     if (!m || !disk?.has(m[1] as string)) return null;
+    if (await packStale(m[1] as string)) return null;
     const r = await fetch(`${DISK}${path}`).catch(() => null);
     return r?.ok ? r : null;
   }
   if (!m || !hasCaches() || !installed()[m[1] as string]) return null;
+  if (await packStale(m[1] as string)) return null;
   const hit = await (await caches.open(cacheName(m[1] as string))).match(path);
   if (hit?.headers.get(GZ_HEADER) && hit.body) {
     const type = hit.headers.get('content-type') ?? 'application/octet-stream';

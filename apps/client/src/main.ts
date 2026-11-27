@@ -132,7 +132,7 @@ import { riderPortrait, warmRiderPortrait } from './ui/startRider.ts';
 import { openStartCheck, skipStartCheck, startCheckModel, startCheckSkipPref, startCheckWanted, type CheckDevice, type StartCheckHandle } from './ui/startCheck.ts';
 import { PlaceFinder } from './game/place.ts';
 import { buildPlaceIndex, searchPlaces, type PlaceIndex } from './game/placeSearch.ts';
-import { TILES_BASE, installedPacks, keepStorage, openGraphReady } from './world/packs.ts';
+import { TILES_BASE, installedPacks, keepStorage, openGraphReady, updateStalePacks } from './world/packs.ts';
 import { loadRouteForKey } from './world/routeStore.ts';
 import { inDesktop, installFullscreenKey, keepAwake, mirrorProfile } from './platform/desktop.ts';
 import { hasLocalMedia, prepareDesktop } from './platform/desktopBoot.ts';
@@ -582,6 +582,9 @@ async function boot(): Promise<void> {
   keepAwake(false);
   // Zones déjà téléchargées : demande (sans effet si refusée) que le navigateur ne les purge pas.
   if (installedPacks().length) keepStorage();
+  // Zones téléchargées dont une nouvelle version est publiée : mises à jour en arrière-plan dès le lancement (en
+  // attendant, le jeu les lit sur le réseau, jamais d'anciennes tuiles sous de nouveaux parcours).
+  if (installedPacks().length) void updateStalePacks();
   const settings = loadSettings();
   // Premier lancement ou qualité jamais choisie à la main : préréglage selon la carte graphique.
   if (!localStorage.getItem('ar.quality') && !new URLSearchParams(location.search).has('quality')) settings.quality = await detectHardwareQuality();
