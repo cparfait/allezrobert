@@ -1,0 +1,42 @@
+/* Indicateur de mise à jour des zones (packUpdateBadge.ts) : couleurs de l'app (bleu nuit, jaune), discret en sortie. */
+.pu-badge {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 60;
+  width: min(340px, calc(100vw - 32px));
+  padding: 10px 14px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background: rgba(12, 16, 25, 0.88);
+  color: #f5f7fa;
+  font: 600 13px/1.3 Inter, 'Segoe UI', system-ui, sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+.pu-badge[hidden] { display: none; }
+.pu-row { display: flex; align-items: center; gap: 8px; }
+.pu-title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 750; }
+.pu-pct { color: #ffd23f; font-variant-numeric: tabular-nums; font-weight: 800; }
+.pu-spin { flex: none; width: 12px; height: 12px; border: 2px solid rgba(255, 210, 63, 0.3); border-top-color: #ffd23f; border-radius: 50%; animation: pu-spin 0.9s linear infinite; }
+.pu-bar { height: 5px; margin: 8px 0 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.1); overflow: hidden; }
+.pu-bar i { display: block; height: 100%; width: 0; border-radius: 3px; background: #ffd23f; transition: width 0.3s ease; }
+.pu-sub { display: block; color: #9aa6b5; font-size: 11.5px; font-weight: 550; }
+.pu-sub:empty { display: none; }
+.pu-badge.is-done .pu-spin { display: none; }
+.pu-badge.is-done .pu-bar i { background: #22c55e; }
+.pu-badge.is-done .pu-pct { color: #86efac; }
+.pu-badge.is-failed .pu-spin { display: none; }
+.pu-badge.is-failed .pu-bar i { background: #ef4444; }
+@keyframes pu-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pu-spin { animation: none; } .pu-bar i { transition: none; } }
+/* Proposition (« Mettre à jour » / « Plus tard ») : la pastille devient cliquable, une seule action jaune. */
+.pu-badge.is-ask { pointer-events: auto; }
+.pu-badge.is-ask .pu-sub { margin-top: 4px; }
+.pu-actions { display: flex; gap: 8px; margin-top: 10px; }
+.pu-actions button { min-height: 36px; padding: 0 14px; border-radius: 10px; font: 750 13px/1 Inter, 'Segoe UI', system-ui, sans-serif; cursor: pointer; }
+.pu-go { border: 0; background: #ffd23f; color: #1a1a1a; }
+.pu-go:hover { background: #ffdd66; }
+.pu-later { border: 1px solid rgba(255, 255, 255, 0.18); background: transparent; color: #c3cddb; }
+.pu-later:hover { color: #f5f7fa; border-color: rgba(255, 255, 255, 0.35); }
+.pu-actions button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }

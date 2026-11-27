@@ -283,24 +283,52 @@ async function packStale(id: string): Promise<boolean> {
 
 let updating: Promise<string[]> | null = null;
 
+/** Avancement de la mise à jour automatique des zones (indicateur à l'écran, ui/packUpdateBadge.ts). */
+export type PackUpdateEvent =
+  | { kind: 'progress'; id: string; name: string; done: number; total: number; index: number; count: number }
+  | { kind: 'finished'; updated: number; failed: number };
+const packUpdateListeners = new Set<(e: PackUpdateEvent) => void>();
+/** S'abonne à l'avancement des mises à jour ; rend la fonction de désabonnement. */
+export function onPackUpdate(cb: (e: PackUpdateEvent) => void): () => void {
+  packUpdateListeners.add(cb);
+  return () => packUpdateListeners.delete(cb);
+}
+const emitPackUpdate = (e: PackUpdateEvent) => packUpdateListeners.forEach((cb) => cb(e));
+
+/** Zones téléchargées dont le catalogue annonce une nouvelle version (proposées à la mise à jour au lancement). */
+export async function stalePacks(): Promise<Array<{ id: string; name: string; bytes: number }>> {
+  const cat = await loadCatalogue();
+  if (!cat) return [];
+  const out: Array<{ id: string; name: string; bytes: number }> = [];
+  for (const z of cat.zones) if (z.pack?.version && (await packStale(z.id))) out.push({ id: z.id, name: z.name, bytes: z.pack.bytes });
+  return out;
+}
+
 /**
- * Au lancement : met à jour, en arrière-plan et l'une après l'autre, les zones téléchargées dont le catalogue annonce
- * une nouvelle version. En attendant, le jeu lit ces zones sur le réseau (packStale). Rend les zones mises à jour.
+ * Met à jour, en arrière-plan et l'une après l'autre, les zones choisies (proposition du lancement, acceptée par le
+ * joueur). En attendant, le jeu lit ces zones sur le réseau (packStale). Rend les zones mises à jour.
  */
-export function updateStalePacks(): Promise<string[]> {
+export function updateStalePacks(ids?: readonly string[]): Promise<string[]> {
   updating ??= (async () => {
-    const cat = await loadCatalogue();
-    if (!cat) return [];
+    const stale = (await stalePacks()).filter((z) => !ids || ids.includes(z.id)).map((z) => ({ id: z.id, name: z.name, pack: { bytes: z.bytes } }));
+    if (!stale.length) {
+      updating = null;
+      return [];
+    }
     const done: string[] = [];
-    for (const z of cat.zones) {
-      if (!z.pack?.version || !(await packStale(z.id))) continue;
+    let failed = 0;
+    for (const [index, z] of stale.entries()) {
+      emitPackUpdate({ kind: 'progress', id: z.id, name: z.name, done: 0, total: z.pack?.bytes ?? 0, index, count: stale.length });
       try {
-        await installPack(z.id, () => {});
+        await installPack(z.id, (d, t) => emitPackUpdate({ kind: 'progress', id: z.id, name: z.name, done: d, total: t, index, count: stale.length }));
         done.push(z.id);
       } catch (err) {
+        failed++;
         console.warn(`Mise à jour du pack ${z.id} impossible`, err);
       }
     }
+    emitPackUpdate({ kind: 'finished', updated: done.length, failed });
+    updating = null;
     return done;
   })();
   return updating;
