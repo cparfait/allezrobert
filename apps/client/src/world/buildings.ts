@@ -1296,6 +1296,11 @@ export class Buildings {
         // ou parties d'un même bâtiment (BD TOPO) à la même hauteur superposaient leurs toits : ils scintillaient.
         const lift = (Math.abs(Math.sin((bld.pts[0] as number) * 12.9898 + (bld.pts[1] as number) * 78.233)) * 43758.5453) % 1 * 0.06;
         for (let i = 1; i < roofPart.pos.length; i += 3) roofPart.pos[i] = (roofPart.pos[i] as number) - lift;
+      } else if (plan && !volumes && !gable) {
+        // Toit en pente : relevé d'un rien propre au bâtiment (1 à 9 cm). Les débords de deux maisons mitoyennes se
+        // superposaient au même endroit ; de couleurs différentes (Archipel, 27/11/2026), ils scintillaient de loin.
+        const lift = 0.01 + ((Math.abs(Math.sin((bld.pts[0] as number) * 12.9898 + (bld.pts[1] as number) * 78.233)) * 43758.5453) % 1) * 0.08;
+        for (let i = 1; i < roofPart.pos.length; i += 3) roofPart.pos[i] = (roofPart.pos[i] as number) + lift;
       }
       if (roofPart.pos.length) {
         const roof = toGeometry(roofPart.pos, roofPart.uv);
