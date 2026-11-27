@@ -471,15 +471,15 @@ function earGeometry(side: number): THREE.BufferGeometry {
 }
 
 /**
- * Chaussure à facettes, à l'échelle du corps (pointure 42 : 21,5 cm de semelle à cette échelle) : talon
- * 11,5 cm derrière l'axe de la pédale (6 cm derrière la cheville), pointe 10 cm devant ; tige qui
- * s'abaisse et s'affine vers la pointe. Origine : axe de la pédale, semelle 3,3 cm plus bas.
+ * Chaussure à facettes, à l'échelle du corps : 26 cm de semelle (21,5 cm avant le 27/11/2026, les pieds paraissaient
+ * trop petits pour le style à grosses facettes) : talon 13,5 cm derrière l'axe de la pédale, pointe 12,5 cm devant ;
+ * tige qui s'abaisse et s'affine vers la pointe. Origine : axe de la pédale, semelle 3,3 cm plus bas.
  */
 function shoeGeometry(): THREE.BufferGeometry {
-  const W = 0.074;
-  const H = 0.06;
-  const HEEL = -0.115;
-  const TOE = 0.1;
+  const W = 0.088;
+  const H = 0.07;
+  const HEEL = -0.135;
+  const TOE = 0.125;
   const g = new THREE.BoxGeometry(W, H, TOE - HEEL, 1, 1, 3).translate(0, 0, (TOE + HEEL) / 2);
   const p = g.getAttribute('position');
   for (let i = 0; i < p.count; i++) {
@@ -516,10 +516,10 @@ function shoeMarkDecal(text: string, color: string, side: number): THREE.Mesh | 
   const mat = new THREE.MeshBasicNodeMaterial({ map: tex, transparent: true, depthWrite: false });
   mat.polygonOffset = true;
   mat.polygonOffsetFactor = -2;
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.115, 0.029), mat);
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.135, 0.034), mat);
   // Sur le flanc extérieur, lisible de l'extérieur, le haut du texte vers le haut de la chaussure.
   plane.rotation.y = side * (Math.PI / 2);
-  plane.position.set(side * 0.0372, -0.004, -0.008);
+  plane.position.set(side * 0.0442, -0.004, -0.008);
   return plane;
 }
 
@@ -529,7 +529,7 @@ function shoeMarkDecal(text: string, color: string, side: number): THREE.Mesh | 
  */
 function boaGeometry(side: number): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
-  for (const [z, y, tilt] of [[-0.012, 0.03, 0.05], [0.038, 0.014, 0.35]] as const) {
+  for (const [z, y, tilt] of [[-0.012, 0.035, 0.05], [0.044, 0.017, 0.35]] as const) {
     parts.push(new THREE.CylinderGeometry(0.0155, 0.017, 0.01, 8).rotateX(tilt).translate(0.012 * side, y + 0.004, z));
     // Câble : de la molette vers l'intérieur du pied.
     parts.push(new THREE.BoxGeometry(0.03, 0.003, 0.004).rotateX(tilt).translate(-0.006 * side, y + 0.001, z));
