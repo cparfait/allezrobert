@@ -648,16 +648,19 @@ export class Buildings {
       // pas de fenêtre dans la génoise
       .mul(max(step(v, wallH.sub(genoiseOn.mul(0.5))), step(isLocal, float(0.5))));
     const hasWin = winCol.mul(step(float(0), fy));
-    const inWin = step(abs(wx), halfW).mul(step(fy, winH)).mul(hasWin);
+    // Bords des baies, encadrements et volets lissés sur la taille du pixel (27/11/2026) : au loin, un volet ou un
+    // encadrement plus fin que le pixel tombait tantôt dedans, tantôt dehors, et la façade scintillait.
+    const aa = (edge: THREE.Node<'float'>, x: THREE.Node<'float'>) => smoothstep(edge.sub(pix), edge.add(pix), x);
+    const inWin = aa(abs(wx), halfW).mul(aa(fy, winH)).mul(hasWin);
     // Encadrements : 8 cm (Île-de-France), 16 cm de pierre claire (style local) ou ceux de l'archétype ;
     // appui saillant ombré dessous.
     const fm = mix(mix(float(0.08), float(0.16), isLocal), archC.x, isArch);
-    const inFrame = step(abs(wx), halfW.add(fm)).mul(step(fy, winH.add(fm))).mul(step(fm.negate(), fy)).mul(winCol);
-    const underSill = step(abs(wx), halfW.add(fm)).mul(step(fm.negate().sub(0.07), fy)).mul(step(fy, fm.negate())).mul(winCol).mul(max(isLocal, isArch));
+    const inFrame = aa(abs(wx), halfW.add(fm)).mul(aa(fy, winH.add(fm))).mul(aa(fm.negate(), fy)).mul(winCol);
+    const underSill = aa(abs(wx), halfW.add(fm)).mul(aa(fm.negate().sub(0.07), fy)).mul(aa(fy, fm.negate())).mul(winCol).mul(max(isLocal, isArch));
     const shutterX = abs(wx);
-    const inShutter = step(halfW.add(fm).add(0.02), shutterX)
-      .mul(step(shutterX, halfW.mul(2).add(fm).add(0.02)))
-      .mul(step(fy, winH.add(0.03)))
+    const inShutter = aa(halfW.add(fm).add(0.02), shutterX)
+      .mul(aa(shutterX, halfW.mul(2).add(fm).add(0.02)))
+      .mul(aa(fy, winH.add(0.03)))
       .mul(hasWin)
       .mul(mix(float(1), archB.x, isArch));
     // Lames des volets.
