@@ -57,6 +57,13 @@ export interface TileBuilding {
   ridgeShort?: boolean;
   /** Bâtiment BD TOPO (tuile enrichie) : matériaux régionaux plutôt que ceux d'Île-de-France. */
   bdtopo?: boolean;
+  /**
+   * Style de façade non européen (mondes Poly, restyle de lands/<id>.ts) : ni volets ni cheminée. `adobe` : terre crue,
+   * petites fenêtres sombres sans encadrement clair, bouts de poutres sous le toit ; `asian` : maison de bois,
+   * fenêtres à claustra dans un cadre sombre, soubassement sombre ; `timber` : bois peint nordique, cadres et
+   * planches d'angle blancs, planches verticales. Absent : façade d'origine (volets, encadrements clairs).
+   */
+  facade?: 'adobe' | 'asian' | 'timber';
 }
 
 export interface TileFeatures {

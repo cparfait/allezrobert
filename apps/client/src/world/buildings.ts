@@ -83,6 +83,18 @@ const SHUTTERS_LOCAL = LOW_POLY ? ['#9a6038', '#6fa58c', '#4f8cb4', '#b8443a', '
 const DOORS = LOW_POLY ? ['#2f8a5a', '#a8402e', '#2f5aa8', '#c9802a', '#8a3a72'] : ['#3b4a3f', '#4a3a2e', '#2f3a4a', '#2b2a28', '#5a2f2c'];
 
 /**
+ * Styles de façade non européens (`TileBuilding.facade`, mondes Poly) : code passé au shader dans `bstyle.z`
+ * (drapeaux + 8 × code, voir walls()) et couleur des portes (accent) : bois brut ou bleu « Taos » sur la terre crue,
+ * bois sombre ou laque rouge chez les maisons de bois, couleurs franches du bois peint nordique.
+ */
+const FACADE_CODE = { adobe: 1, asian: 2, timber: 3 } as const;
+const FACADE_DOORS: Record<keyof typeof FACADE_CODE, string[]> = {
+  adobe: ['#2f7f8a', '#5a3a22', '#6b4a2e', '#3f6f7a', '#7a5434'],
+  asian: ['#3a2416', '#2e1d12', '#8a2a1e', '#4a2e1c'],
+  timber: ['#2f4a5e', '#7a2a24', '#3e5a3a', '#1f2a33'],
+};
+
+/**
  * Style jeu vidéo : les palettes des archétypes (packages/shared) et les couleurs OSM sont pensées pour le
  * rendu réaliste ; on les ravive (plus saturées, un peu plus claires) pour rester dans les aplats pastel.
  */
@@ -137,6 +149,8 @@ interface WallStyle {
   shop?: boolean;
   /** Corniche de l'archétype : posée en relief (32 cm) en haut des murs à fenêtres, là où le shader la peint. */
   cornice?: boolean;
+  /** Style de façade non européen (TileBuilding.facade) : ajouté à `bstyle.z` (8 × code). */
+  facade?: keyof typeof FACADE_CODE;
 }
 
 /** Couleur OSM (« brick », « #c0a080 »…) avec repli si elle n'est pas reconnue. */
@@ -180,7 +194,7 @@ function paint(geo: THREE.BufferGeometry, base: THREE.Color, kind: number, accen
  * Murs extrudés depuis l'emprise réelle. uv = (mètres le long du mur, hauteur au-dessus de la base) ;
  * attribut `facade` = (longueur du mur, nombre de travées de fenêtres + hauteur d'étage ÷ 10 pour
  * un archétype) ; `bstyle` = (style local, hauteur du mur, drapeaux : 1 génoise + 2 côté rue +
- * 4 vitrine, travée de la porte d'entrée + 1 ou 0). Avec `groundAt`, la façade part du sol le plus haut
+ * 4 vitrine + 8 × style de façade (FACADE_CODE, 0 sans style), travée de la porte d'entrée + 1 ou 0). Avec `groundAt`, la façade part du sol le plus haut
  * le long de chaque mur (voir facadeGround.ts) : uv.y et la hauteur du mur sont comptés depuis ce sol,
  * uv.y est négatif sur le soubassement découvert. Avec `topAt` (monopentes), le haut de chaque mur suit
  * la hauteur donnée à ses extrémités (au-dessus de la base) au lieu de `height`.
@@ -188,6 +202,7 @@ function paint(geo: THREE.BufferGeometry, base: THREE.Color, kind: number, accen
 function walls(pts: number[], base: number, height: number, style?: WallStyle, groundAt?: (x: number, z: number) => number, topAt?: (x: number, z: number) => number): THREE.BufferGeometry {
   const bayM = style?.bayM ?? 3.1;
   const floorCode = style?.floorM ? Math.min(style.floorM, 9.99) / 10 : 0;
+  const facadeFlag = style?.facade ? 8 * FACADE_CODE[style.facade] : 0;
   const n = pts.length / 2;
   const ccw = polygonArea(pts) > 0;
   const pos: number[] = [];
@@ -213,7 +228,7 @@ function walls(pts: number[], base: number, height: number, style?: WallStyle, g
     uvs.push(0, -off, 0, hA - off, len, -off, len, -off, 0, hA - off, len, hB - off);
     const genoise = style?.local && style.eave?.(bx - ax, bz - az) ? 1 : 0;
     const street = bays > 0 && style?.street?.((ax + bx) / 2, (az + bz) / 2) ? 1 : 0;
-    const flags = genoise + 2 * street + (street && style?.shop ? 4 : 0);
+    const flags = genoise + 2 * street + (street && style?.shop ? 4 : 0) + facadeFlag;
     const isDoor = style?.door && bays > 0 && Math.hypot((ax + bx) / 2 - style.door[0], (az + bz) / 2 - style.door[1]) < 0.01;
     const doorBay = isDoor ? 1 + Math.min(bays - 1, Math.floor((style?.doorPick ?? 0.5) * bays)) : 0;
     // Génoise abaissée sous le pan : le shader la peint sous la hauteur du mur `bstyle.y`, ramenée à son haut.
@@ -371,9 +386,10 @@ function toGeometry(pos: number[], uvs: number[]): THREE.BufferGeometry {
 /**
  * Détails de toit d'une maison : faîtage en tuiles rondes (toit à deux pans) et souche de cheminée
  * en meulière ou brique avec son chapeau, posée sur le faîtage. Seulement sur les emprises
- * presque rectangulaires (le faîtage suit alors un axe du rectangle orienté).
+ * presque rectangulaires (le faîtage suit alors un axe du rectangle orienté). Sans `chimney` (façades
+ * non européennes), le faîtage seul.
  */
-function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: NonNullable<ReturnType<typeof planRoof>>, wallTop: number, pitch: number, roofColour: string, slate: boolean, ridgeShort: boolean, r: () => number, density: number): THREE.BufferGeometry[] {
+function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: NonNullable<ReturnType<typeof planRoof>>, wallTop: number, pitch: number, roofColour: string, slate: boolean, ridgeShort: boolean, r: () => number, density: number, chimney = true): THREE.BufferGeometry[] {
   const out: THREE.BufferGeometry[] = [];
   const rectangular = Math.abs(polygonArea(pts)) / (4 * box.hl * box.hw) > 0.88;
   if (!rectangular || box.hw < 2) return out;
@@ -418,7 +434,8 @@ function houseDetails(pts: number[], box: ReturnType<typeof orientedBox>, plan: 
     paint(g, c.set(roofColour).multiplyScalar(LOW_POLY ? 0.72 : 0.82), 1, acc, 0, 0);
     out.push(g);
   }
-  if (r() < 0.8 * density) {
+  // Tirage gardé même sans cheminée : la suite des tirages de la tuile ne dépend pas du style de façade.
+  if (r() < 0.8 * density && chimney) {
     // Souche de cheminée sur le faîtage (au tiers ou au pignon), 0,8 × 0,55 m, 0,9 m au-dessus.
     const t = (r() < 0.5 ? -1 : 1) * Math.min(ridgeHalf * (0.35 + r() * 0.4), Math.max(ridgeHalf - 0.6, 0));
     const cx = ridge.cx + ux * t;
@@ -1181,6 +1198,9 @@ export class Buildings {
       // Style jeu vidéo : palettes des archétypes et couleurs OSM ravivées (les palettes locales le sont déjà).
       if (LOW_POLY && (arch || bld.colour)) vivid(wc, 0.15, 0.05);
       if (LOW_POLY && arch) vivid(acc, 0.35, 0.04);
+      // Style de façade non européen (mondes Poly seulement : le matériau réaliste ne le lit pas) : couleur des portes.
+      const facadeStyle = LOW_POLY && !arch ? bld.facade : undefined;
+      if (facadeStyle) acc.set(pick(FACADE_DOORS[facadeStyle]));
       // Monopente : haut des murs sur le plan du toit (pente selon la largeur, ou la longueur si faîtage court).
       const slopeU = !!bld.ridgeShort && !lean;
       // Appentis : côté haut adossé au bâtiment voisin.
@@ -1228,6 +1248,14 @@ export class Buildings {
           style.genoiseDrop = genoiseDrop(pitch);
         }
         if (housing) {
+          const door = streetWall(bld.pts, tile.features.roads);
+          if (door) style.door = door;
+        }
+      }
+      // Style de façade non européen : code dans `bstyle.z` ; porte d'entrée côté rue sur les habitations.
+      if (facadeStyle) {
+        style = { ...(style ?? { local: false, doorPick: r() }), facade: facadeStyle };
+        if (!style.door && !isUtility && !isChurch) {
           const door = streetWall(bld.pts, tile.features.roads);
           if (door) style.door = door;
         }
@@ -1338,7 +1366,8 @@ export class Buildings {
         paint(gables, wc, 0, acc, wallType, 0);
         parts.push(gables);
       }
-      if (plan && buf && !isChurch && !isUtility && this.props > 0) parts.push(...houseDetails(bld.pts, box, plan, wallTop, pitch, roofColour, slate, !!bld.ridgeShort, r, this.props));
+      // Terre crue et maisons de bois : ni souche de cheminée ni chapeau (le bois peint nordique garde la sienne).
+      if (plan && buf && !isChurch && !isUtility && this.props > 0) parts.push(...houseDetails(bld.pts, box, plan, wallTop, pitch, roofColour, slate, !!bld.ridgeShort, r, this.props, facadeStyle !== 'adobe' && facadeStyle !== 'asian'));
       if (isChurch) {
         // Clocher : tour carrée en pierre et flèche d'ardoise à une extrémité.
         const tx = box.cx + box.ux * (box.hl - 2.5);

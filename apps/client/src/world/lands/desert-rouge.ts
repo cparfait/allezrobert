@@ -30,9 +30,9 @@ function earthen(hex: string): string {
 }
 
 /**
- * Terre crue : murs ocre sans volets ni fenêtres à la française (nature « ruins » pour le rendu : murs pleins et
- * portes de bois), toits plats en terrasse de la couleur des murs ; chaux blanche au bord de la mer (fenêtres
- * gardées). Hangars des tribunes remplacés par de vrais gradins (décor).
+ * Terre crue : murs ocre en façade « adobe » (buildings.ts : petites fenêtres sombres, ni volets ni encadrement
+ * clair, bouts de poutres sous le toit, porte de bois côté rue), toits plats en terrasse de la couleur des murs ;
+ * chaux blanche au bord de la mer (fenêtres gardées). Hangars des tribunes remplacés par de vrais gradins (décor).
  */
 function desertBuilding(b: TileBuilding): TileBuilding {
   // Tribunes du Circuit du Chott (générateur) : remplacées par les gradins du décor.
@@ -53,7 +53,7 @@ function desertBuilding(b: TileBuilding): TileBuilding {
   const adobe = !white && ['hut', 'house', 'apartments', 'farm', 'public', 'commercial'].includes(b.kind);
   return {
     ...b,
-    ...(adobe ? { kind: 'ruins' } : {}),
+    ...(adobe ? { facade: 'adobe' as const } : {}),
     colour,
     material: b.material === 'stone' ? 'stone' : 'plaster',
     roofColour: shade(colour, white ? 0.97 : 0.9 + r() * 0.14),

@@ -18,7 +18,10 @@ const TEMPLE_ROOFS = ['#c0392b', '#a8432a', '#d4a017'] as const;
 const WOOD = ['#4a3020', '#5a3a22', '#6a4428', '#7a5032', '#3e2a1c', '#83593a'] as const;
 const WOOD_LIGHT = ['#9c7a52', '#a8875c', '#8a6a44'] as const;
 
-/** Maisons de bois sur pilotis ou sur socle, toits de chaume ou de tuiles relevés à grands débords, temples rouge et or. */
+/**
+ * Maisons de bois sur pilotis ou sur socle, toits de chaume ou de tuiles relevés à grands débords, temples rouge et or.
+ * Maisons ordinaires en façade « asian » (buildings.ts) : ni volets ni cheminée, fenêtres à claustra, socle sombre.
+ */
 function rizieresBuilding(b: TileBuilding): TileBuilding {
   if (b.pts.length < 6) return b;
   const r = rng(Math.imul(Math.round(b.pts[0]! * 10), 73856093) ^ Math.imul(Math.round(b.pts[1]! * 10), 19349663));
@@ -44,6 +47,7 @@ function rizieresBuilding(b: TileBuilding): TileBuilding {
     ...b,
     roof,
     material: 'wood',
+    facade: 'asian',
     colour: big ? pick(WOOD_LIGHT) : pick(WOOD),
     roofColour: metal ? '#7a5a44' : thatch ? pick(THATCH) : pick(TILE_ROOFS),
     roofOverhang: shed ? 0.9 : thatch ? 1.5 : 1.3,
