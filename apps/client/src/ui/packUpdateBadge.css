@@ -1,8 +1,9 @@
-/* Indicateur de mise à jour des zones (packUpdateBadge.ts) : couleurs de l'app (bleu nuit, jaune), discret en sortie. */
+/* Indicateur de mise à jour des zones (packUpdateBadge.ts) : couleurs de l'app (bleu nuit, jaune), centré, discret en sortie. */
 .pu-badge {
   position: fixed;
-  left: 16px;
-  bottom: 16px;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
   z-index: 60;
   width: min(340px, calc(100vw - 32px));
   padding: 10px 14px 10px;
@@ -40,3 +41,8 @@
 .pu-later { border: 1px solid rgba(255, 255, 255, 0.18); background: transparent; color: #c3cddb; }
 .pu-later:hover { color: #f5f7fa; border-color: rgba(255, 255, 255, 0.35); }
 .pu-actions button:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
+
+/* Centrée à l'écran : la proposition au milieu, l'avancement en bas au centre (au-dessus du profil de la sortie). */
+.pu-badge.is-ask { top: 50%; bottom: auto; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); padding: 16px 18px; text-align: center; }
+.pu-badge.is-ask .pu-row { justify-content: center; }
+.pu-badge.is-ask .pu-actions { justify-content: center; }

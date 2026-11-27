@@ -1,5 +1,5 @@
 /**
- * Mise à jour des zones téléchargées (world/packs.ts) : au lancement, une pastille en bas à gauche propose la
+ * Mise à jour des zones téléchargées (world/packs.ts) : au lancement, une pastille au centre de l’écran propose la
  * nouvelle version des zones regénérées (« Mettre à jour » / « Plus tard »), sans la forcer. Acceptée, elle montre
  * l'avancement (nom de la zone, pourcentage, barre), au menu comme en sortie, puis « Zones à jour ». Refusée, elle est
  * reproposée au prochain lancement ; en attendant, le jeu lit ces zones en ligne.
