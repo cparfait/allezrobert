@@ -14,12 +14,14 @@ import type { BodyJoints } from './sweptBody.ts';
  */
 
 /** Pas de la grille (m) : taille des facettes. */
-const SHELL_CELL = 0.07;
+const SHELL_CELL = 0.05;
 /** Lissage des sommets (passes, part du déplacement vers la moyenne des voisins) : facettes régulières. */
 const SMOOTH_PASSES = 6;
 const SMOOTH_K = 0.5;
 /** Rayon d'adoucissement des unions (m) : pas d'arête entre fessier, taille et cuisses. */
 const BLEND = 0.04;
+/** Fondu fessier → taille, plus large : le haut des fesses ne fait pas de bosse sous le maillot (26/11/2026). */
+const WAIST_BLEND = 0.09;
 
 export interface ShellParams {
   /** Ourlet du maillot (repos) : la coque s'arrête un peu au-dessus, sous le maillot. */
@@ -77,13 +79,14 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   const up = new THREE.Vector3().subVectors(rest.mid, H).normalize();
   // Fessier : centre un peu sous et derrière le bassin, fond dans l'épaisseur de la selle ; plus profond
   // derrière (fesses) que devant (bas-ventre), plus haut que bas.
-  const gC = H.clone().add(new THREE.Vector3(0, -0.012, -0.02));
+  const gC = H.clone().add(new THREE.Vector3(0, -0.03, -0.02));
   // Bassin plus profond qu'avant le 25/11/2026 (modèle de référence de l'utilisateur : ≈ 24 cm d'avant en arrière).
-  const gR = { x: 0.168 * hips * s, up: 0.08 * s, down: 0.07 * s, front: 0.098 * s, back: 0.105 * s };
-  // Taille : capsule ovale le long du bas du dos, jusqu'au-dessus de l'ourlet du maillot.
-  const top = P.hemP.clone().addScaledVector(up, 0.02);
-  const waistR = 0.108 * s;
-  const waistSx = (0.155 * Math.min(hips, 1) * (P.waistW ?? 1)) / 0.108;
+  const gR = { x: 0.168 * hips * s, up: 0.065 * s, down: 0.07 * s, front: 0.098 * s, back: 0.1 * s };
+  // Taille : capsule ovale le long du bas du dos, coupée sous l'ourlet du maillot (rentrée sous le tronc : en selle,
+  // penché, le haut de la coque dépassait derrière en bosse froissée).
+  const top = P.hemP.clone().addScaledVector(up, -0.05);
+  const waistR = 0.092 * s;
+  const waistSx = (0.155 * Math.min(hips, 1) * (P.waistW ?? 1)) / 0.108 * 0.95;
   // Cuisses : du cœur du fessier à l'ourlet du cuissard, rayon effilé.
   const legs = rest.legs.map((g, i) => {
     const side = i === 0 ? 1 : -1;
@@ -101,7 +104,7 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
     const ey = q.y / (q.y > 0 ? gR.up : gR.down);
     const ez = q.z / (q.z > 0 ? gR.front : gR.back);
     let d = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1) * Math.min(gR.down, gR.front);
-    d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), BLEND);
+    d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), WAIST_BLEND);
     // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 8,2 cm à mi-cuisse) : la coque y rentre.
     for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.088 * s, 0.072 * s, 1, tmp), BLEND);
     // Coupe sous le maillot (plan de la taille) ; les cuisses finissent arrondies dans leur tube.
@@ -215,7 +218,8 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
     const out: Array<[number, number]> = [];
     // Devant de l'entrejambe (pont de tissu entre les cuisses) : à moitié sur chaque cuisse. Sur le bassin seul, il
     // restait pointé vers l'avant (cuisses du vélo) quand les cuisses descendent : bosse en triangle debout.
-    const centre = 0.5 * (1 - smooth(0.005, 0.045, Math.abs(v.x)));
+    // Seulement devant (entrejambe) : derrière, au-dessus de la selle, tiré par les deux cuisses à la fois, il se froissait.
+    const centre = 0.5 * (1 - smooth(0.005, 0.045, Math.abs(v.x))) * smooth(-0.03, 0.03, v.z - H.z);
     const raw = legs.map((L) => {
       const along = q.subVectors(v, L.hip).dot(L.dir) / L.len;
       return smooth(0.02, 0.38, along) * Math.max(smooth(-0.005, 0.045, v.x * L.side), centre);
