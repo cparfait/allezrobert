@@ -67,7 +67,7 @@ export const DESERT_ROUGE: PolyLand = {
   world: {
     id: 'desert-rouge',
     title: { fr: 'Le Désert rouge', en: 'The Red Desert' },
-    hint: { fr: 'Croissant de sable, grand canyon et oasis', en: 'Sand crescent, grand canyon and oases' },
+    hint: { fr: 'Buttes rouges, grand canyon et longues routes droites', en: 'Red buttes, grand canyon and long straight roads' },
     map: { fr: 'Carte topographique — Le Désert rouge', en: 'Topographic map — The Red Desert' },
     priority: [
       'decouverte-du-desert', 'classique-des-canyons', 'classique-des-dunes', 'chrono-de-la-piste-droite', 'mesa-de-nuit', 'lacets-du-canyon', 'circuit-du-chott',
@@ -125,15 +125,16 @@ export const DESERT_ROUGE: PolyLand = {
     tags: { coast: 'promenade-de-port-corail', ring: 'circuit-du-chott', climb: 'lacets-du-canyon' },
   },
   theme: {
-    // Sol ocre partout ; champs (seulement autour des sources) en vert de palmeraie ; abords des maisons en terre battue.
+    // Sud-Ouest américain (27/11/2026) : plaine de terre rouge-orangé, roche plus rouge en strates, sable clair des
+    // dunes ; champs (seulement autour des sources) en vert de palmeraie ; abords des maisons en terre battue.
     ground: {
-      spring: { forest: '#4f6a2e', field: '#557a32', field2: '#6d8a3a', meadow: '#c47a45', urban: '#c8925e', dirt: '#a8562e' },
-      summer: { forest: '#4c652c', field: '#527530', field2: '#6a8438', meadow: '#c8804a', urban: '#cc9862', dirt: '#ad5a30' },
-      autumn: { forest: '#52662e', field: '#587632', field2: '#738638', meadow: '#c27644', urban: '#c6905c', dirt: '#a5532d' },
-      winter: { forest: '#4d622e', field: '#537230', field2: '#687f3a', meadow: '#bb7444', urban: '#c28c5a', dirt: '#9f522e' },
+      spring: { forest: '#4f6a2e', field: '#557a32', field2: '#6d8a3a', meadow: '#c4703f', urban: '#c8925e', dirt: '#a8502b' },
+      summer: { forest: '#4c652c', field: '#527530', field2: '#6a8438', meadow: '#c97745', urban: '#cc9862', dirt: '#ad552d' },
+      autumn: { forest: '#52662e', field: '#587632', field2: '#738638', meadow: '#c16c3e', urban: '#c6905c', dirt: '#a54e2a' },
+      winter: { forest: '#4d622e', field: '#537230', field2: '#687f3a', meadow: '#ba6c40', urban: '#c28c5a', dirt: '#9f4e2b' },
     },
-    sand: ['#c46f42', '#e0955a'],
-    rock: '#9c4a2c',
+    sand: ['#d09062', '#ecc594'],
+    rock: '#a8482a',
     snowLine: { spring: 99999, summer: 99999, autumn: 99999, winter: 99999 },
     frost: { spring: 0, summer: 0, autumn: 0, winter: 0 },
     leaves: {
@@ -144,10 +145,13 @@ export const DESERT_ROUGE: PolyLand = {
     },
     treelineM: 3000,
     water: '#2fbfbd',
+    // Air sec du désert : pas de brume en plus, lumière chaude, couleurs franches (ciel d'un bleu soutenu, roche
+    // rouge). Pas de teinte d'horizon : environment.ts la mêle au brouillard même la nuit (voir docs/DESERT_ROUGE.md).
+    light: { haze: 0, warmth: 0.45, saturation: 1.14 },
   },
-  // Palmiers à la place des feuillus, cactus à la place des sapins, presque pas d'herbe, ni bétail ni mobilier de
-  // village européen. Les bois du générateur ne sont plus que les palmeraies des oasis : on en garde l'essentiel.
-  biome: { tree: 'palm', conifer: 'cactus', grass: 0.08, trees: 0.7, noVillageProps: true, noHerds: true, grassColours: { spring: ['#9a8a4c', '#d6c37a'], summer: ['#a48a4a', '#dcc478'], autumn: ['#9c7e46', '#d2b070'], winter: ['#958a5a', '#cfc08a'] } },
+  // Palmiers (oasis) à la place des feuillus, grands cactus à bras à la place des sapins, presque pas d'herbe, ni
+  // bétail ni mobilier de village européen ; bas-côtés d'armoise gris-vert, fleurs roses et jaunes du désert. Les bois du générateur ne sont plus que les palmeraies des oasis : on en garde l'essentiel.
+  biome: { tree: 'palm', conifer: 'cactus', grass: 0.08, trees: 0.7, noVillageProps: true, noHerds: true, grassColours: { spring: ['#9a8a4c', '#d6c37a'], summer: ['#a48a4a', '#dcc478'], autumn: ['#9c7e46', '#d2b070'], winter: ['#958a5a', '#cfc08a'] } , roadside: { flowers: ['#e86fa0', '#f2c14e'], flowerRate: 0.12, rock: '#b2643a', rockRate: 0.16, rockSize: 1.9, tufts: 0.35, tuftColour: '#a4a676', bushes: false } },
   ring: DESERT_RING,
   sites: desertRougeSites,
   building: desertBuilding,

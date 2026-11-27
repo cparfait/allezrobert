@@ -12,7 +12,8 @@ import { meshOf, strollPath, type Site, type SiteContext } from '../polySites.ts
  * des fjords,
  * cabanes de pêche au bord des lacs de la toundra, troupeaux de rennes, langue de glace du glacier de Robert, phare
  * du cap Boréal (feu tournant la nuit), cairns des cols et du belvédère, galerie paravalanche du col du Renne,
- * tribunes du Circuit, bike park de Fjellheim, cyclo-cross de la Toundra, et aurores boréales la nuit. Chaque lieu
+ * tribunes du Circuit, bike park de Fjellheim, cyclo-cross de la Toundra, cascades sur les parois des fjords, jalons à
+ * neige orange le long des routes de montagne, et aurores boréales la nuit. Chaque lieu
  * est construit par pas près du coureur (IslandSites), avec peu de triangles.
  */
 const WHITE = new THREE.Color(0xffffff);
@@ -232,11 +233,12 @@ function fishingVillage(k: () => Kit, v: (typeof FISHING)[number]): Site {
     *build(c) {
       const K = k();
       const r = rng(4400 + Math.round(v.x));
-      const colours = [new THREE.Color('#a8322d'), new THREE.Color('#b23b2c'), new THREE.Color('#e2b54a'), new THREE.Color('#f1efe6')];
+      // Rouge de Falun surtout, quelques cabanes ocre ou blanches : c'est le rouge qu'on voit de loin sur l'eau sombre.
+      const colours = ['#a8322d', '#b23b2c', '#9e2f2a', '#e2b54a', '#a8322d', '#b23b2c', '#f1efe6', '#9e2f2a'].map((h) => new THREE.Color(h));
       let cabins = 0;
       // Rayons depuis le centre : dernier point à terre, puis la cabane à cheval sur le rivage, tournée vers l'eau.
-      for (let i = 0; i < 46 && cabins < 9; i++) {
-        const a = v.sea + (i / 46 - 0.5) * 2.6;
+      for (let i = 0; i < 60 && cabins < 13; i++) {
+        const a = v.sea + (i / 60 - 0.5) * 2.8;
         if (v.harbour !== undefined && Math.abs(Math.atan2(Math.sin(a - v.harbour), Math.cos(a - v.harbour))) < 0.3) continue;
         let last: [number, number] | null = null;
         for (let d = 60; d < v.r * 2.4; d += 6) {
@@ -249,9 +251,11 @@ function fishingVillage(k: () => Kit, v: (typeof FISHING)[number]): Site {
               const px = last[0] + Math.cos(a) * 3;
               const pz = last[1] + Math.sin(a) * 3;
               if (!c.probe.buildingNear(px, pz, 9)) {
-                c.mesh.put(K.rorbu, px, 2.3, pz, -a + Math.PI / 2, 1, 1, 1, colours[cabins % colours.length]!);
+                // Les unes plus longues ou plus hautes que les autres, comme une rangée de cabanes bâtie au fil du temps.
+                const k = 0.9 + r() * 0.3;
+                c.mesh.put(K.rorbu, px, 2.3, pz, -a + Math.PI / 2, k * (0.9 + r() * 0.35), 0.95 + r() * 0.2, k, colours[cabins % colours.length]!);
                 cabins++;
-                i += 3;
+                i += 2;
               }
             }
             break;
@@ -691,6 +695,736 @@ function cycloCross(k: () => Kit): Site {
   };
 }
 
+// ───────────────────────────── Roche et bois : falaises des fjords et des cols, blocs de la toundra, bosquets
+
+/** Axes des fjords (du fond vers le large) et demi-largeurs de l'eau au fond et au large (design.ts). */
+const FJORD_AXES: ReadonlyArray<{ id: string; pts: ReadonlyArray<XZ>; w0: number; w1: number }> = [
+  { id: 'glacier', pts: [[-600, -6300], [-900, -7600], [-1500, -9000], [-1300, -10500], [-1600, -13400]], w0: 190, w1: 700 },
+  { id: 'storfjord', pts: [[6000, -5900], [7600, -6800], [9800, -8300], [12000, -9800], [14800, -13200]], w0: 220, w1: 900 },
+  { id: 'bac', pts: [[11400, -1300], [12800, -2300], [14200, -2200], [15800, -3000], [19200, -3500]], w0: 210, w1: 800 },
+  { id: 'skarvik', pts: [[10600, 6000], [11800, 7400], [12400, 8800], [13900, 10300], [15800, 13200]], w0: 190, w1: 700 },
+  { id: 'sorfjord', pts: [[2600, 7600], [3000, 8700], [2500, 9800], [2900, 11200], [2600, 13400]], w0: 180, w1: 620 },
+  { id: 'grand-fjord', pts: [[-7200, -600], [-8800, -1300], [-10600, -800], [-12600, -1600], [-14600, -1200], [-19200, -1600]], w0: 220, w1: 900 },
+  { id: 'fjellheim', pts: [[-5600, -5200], [-7000, -6200], [-8200, -7800], [-10200, -8800], [-12000, -11000], [-13600, -13400]], w0: 200, w1: 760 },
+];
+/** Cols aux versants raides : parois au-dessus de la route. */
+const COLS: ReadonlyArray<{ id: string; x: number; z: number; half: number }> = [
+  { id: 'col-du-renne', x: 3426, z: -3840, half: 1000 },
+  { id: 'col-de-vatnby', x: -6700, z: -2900, half: 900 },
+];
+/** Fonds des vallées (design.ts, VALLEYS) et demi-largeur du fond : bosquets de sapins et de bouleaux. */
+const VALLEY_FLOORS: ReadonlyArray<{ id: string; pts: ReadonlyArray<XZ>; w: number }> = [
+  { id: 'sorvik', pts: [[4500, 3700], [3900, 5000], [3200, 6200], [2443, 7168]], w: 260 },
+  { id: 'skarvik', pts: [[8000, 3400], [9000, 4500], [9900, 5400], [10281, 5628]], w: 260 },
+  { id: 'gorges', pts: [[8900, 700], [9900, 100], [10700, -500], [11090, -1080]], w: 200 },
+  { id: 'grand-fjord', pts: [[1700, 1700], [-600, 1500], [-3200, 1000], [-5600, 300], [-6705, -384]], w: 320 },
+  { id: 'myra', pts: [[-2900, 1050], [-3900, 3500], [-5200, 6000], [-6600, 8300], [-7300, 9600]], w: 300 },
+  { id: 'vatnby', pts: [[-6705, -384], [-7000, -1700], [-6700, -2900], [-6300, -4000], [-5193, -4909]], w: 240 },
+  { id: 'lemmings', pts: [[-437, -7720], [800, -6800], [2200, -6900], [3600, -6500], [4500, -6050], [5150, -5850], [5547, -5645]], w: 300 },
+  { id: 'calotte', pts: [[-5150, -4750], [-4950, -4250], [-4750, -3750], [-4600, -3350]], w: 340 },
+];
+/** Haut-plateau de Vidda (design.ts, PLATEAU) : toundra semée de blocs erratiques. */
+const VIDDA = { x: 5200, z: 1500, rx: 3800, rz: 2500 };
+const VIDDA_STEP = 1500;
+/** Longueur des tronçons de fjord et de vallée construits d'un coup. */
+const FJORD_STEP = 1400;
+const VALLEY_STEP = 1000;
+
+/**
+ * Bloc à grandes facettes : icosaèdre dont chaque sommet est tiré vers l'intérieur ou l'extérieur (les faces restent
+ * jointives), écrasé dessous pour bien se poser. 20 triangles.
+ */
+function rockGeo(r: number, seed: number, sx: number, sy: number, sz: number, x = 0, y = 0, z = 0, amp = 0.32): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(r, 0);
+  const p = g.getAttribute('position') as THREE.BufferAttribute;
+  const rr = rng(seed);
+  const jit = new Map<string, number>();
+  for (let i = 0; i < p.count; i++) {
+    const key = `${p.getX(i).toFixed(3)},${p.getY(i).toFixed(3)},${p.getZ(i).toFixed(3)}`;
+    let f = jit.get(key);
+    if (f === undefined) jit.set(key, (f = 1 - amp / 2 + rr() * amp));
+    p.setXYZ(i, p.getX(i) * f * sx + x, Math.max(p.getY(i) * f, -r * 0.45) * sy + y, p.getZ(i) * f * sz + z);
+  }
+  return g;
+}
+
+/** Cône d'un étage de sapin : base à y0, `n` pans. */
+const tier = (r: number, h: number, y0: number, n = 7) => new THREE.ConeGeometry(r, h, n).translate(0, y0 + h / 2, 0);
+
+/** Gabarits de roche et de bois, selon la saison (mousse ou neige sur les replats, feuillage des bouleaux). */
+function rockKit(season: SiteContext['season']) {
+  const winter = season === 'winter';
+  const moss = winter ? '#e4e9ec' : season === 'autumn' ? '#6e6a3a' : '#56703f';
+  const moss2 = winter ? '#d6dde1' : season === 'autumn' ? '#7d6536' : '#4a6637';
+  const leaf = season === 'autumn' ? '#c8922e' : season === 'spring' ? '#6f9a4a' : '#5a7f40';
+  const leaf2 = season === 'autumn' ? '#b0682a' : season === 'spring' ? '#5f8a42' : '#4d7038';
+  const snow = '#e8edf0';
+  // Étages des sapins : rayon, hauteur, base.
+  const tiers: ReadonlyArray<readonly [number, number, number]> = [[2.7, 3.2, 1.4], [2.2, 2.9, 3.4], [1.7, 2.6, 5.3], [1.1, 2.4, 7.1]];
+  return {
+    /** Paroi en strates, face vers +z : trois gradins de gros blocs gris, replats moussus (ou enneigés). ≈ 24 m × 22 m. */
+    cliff: template([
+      part(rockGeo(6, 11, 1.5, 1.0, 0.9, -8.5, 4.5, 0), '#7a7e83', 1),
+      part(rockGeo(6, 12, 1.4, 1.1, 0.9, 0.5, 5, 0.8), '#6c7075', 1),
+      part(rockGeo(6, 13, 1.5, 0.95, 0.9, 9, 4.3, -0.3), '#81858a', 1),
+      part(rockGeo(5, 14, 2.6, 0.18, 0.7, 0, 10.4, -1.8, 0.2), moss),
+      part(rockGeo(5.5, 15, 1.5, 1.0, 0.85, -4.5, 13, -3.8), '#74787d', 1),
+      part(rockGeo(5, 16, 1.4, 1.05, 0.85, 5.5, 12.6, -3.2), '#696d72', 1),
+      part(rockGeo(4.5, 17, 2.2, 0.16, 0.6, 0.5, 18.2, -5.2, 0.2), moss2),
+      part(rockGeo(4.5, 18, 1.5, 0.9, 0.85, 0.5, 20, -6), '#7d8186', 1),
+    ]),
+    /** Pilier de roche plus étroit, avec un surplomb au sommet. ≈ 14 m × 24 m. */
+    spur: template([
+      part(rockGeo(5, 21, 1.4, 1.2, 1.0, 0, 5, 0), '#73777c', 1),
+      part(rockGeo(4.5, 22, 1.3, 1.15, 0.95, 0.6, 12.5, -1.6), '#7e8287', 1),
+      part(rockGeo(4, 23, 1.6, 0.2, 0.8, 0.2, 17.2, -2.6, 0.2), moss),
+      part(rockGeo(4.2, 24, 1.55, 0.85, 1.15, -0.4, 19.5, -0.6), '#686c71', 1),
+    ]),
+    /** Éboulis : cinq blocs gris en tas, sur ≈ 8 m. */
+    scree: template([
+      part(rockGeo(1.5, 31, 1.2, 0.8, 1, 0, 0.6, 0), '#7c8085', 1),
+      part(rockGeo(1.1, 32, 1, 0.8, 1.2, 2.3, 0.4, 1), '#6e7277', 1),
+      part(rockGeo(0.9, 33, 1.2, 0.7, 1, -2, 0.3, 1.4), '#868a8f', 1),
+      part(rockGeo(0.8, 34, 1, 0.8, 1, 1, 0.3, -2.1), '#73777c', 1),
+      part(rockGeo(0.6, 35, 1, 0.7, 1, -3.4, 0.2, -0.8), '#7f8388', 1),
+    ]),
+    /** Rocher moussu : bloc gris, dessus vert (blanc l'hiver). */
+    mossy: template([
+      part(rockGeo(1.6, 41, 1.3, 0.8, 1.1, 0, 0.7, 0), '#7a7e83', 1),
+      part(rockGeo(1.5, 42, 1.28, 0.32, 1.08, 0.05, 1.45, 0.02, 0.18), moss),
+    ]),
+    /** Bloc erratique : gros rocher pâle, seul sur la toundra, deux cailloux à son pied. */
+    erratic: template([
+      part(rockGeo(2.4, 51, 1.35, 1.05, 1.1, 0, 1.6, 0, 0.45), '#8d8c87', 1),
+      part(rockGeo(0.5, 52, 1.2, 0.7, 1, 3.1, 0.15, 1.2), '#7e7d78', 1),
+      part(rockGeo(0.4, 53, 1, 0.7, 1.2, -2.6, 0.1, -1.9), '#8a8984', 1),
+    ]),
+    /** Sapin à étages : tronc, quatre étages nets (neige sur le dessus l'hiver). ≈ 9,5 m. */
+    fir: template([
+      part(prism(0.28, 0.2, 0, 1.8, 5), '#4a3a2c'),
+      ...tiers.map(([r, h, y0], i) => part(tier(r, h, y0), i % 2 ? '#2e4c34' : '#2a4630', 1)),
+      ...(winter ? tiers.map(([r, h, y0]) => part(tier(r * 0.5, h * 0.46, y0 + h * 0.54), snow)) : []),
+    ]),
+    /** Bouleau : tronc blanc bagué de noir, houppier clair (rameaux nus l'hiver). ≈ 7 m. */
+    birch: template([
+      part(prism(0.16, 0.11, 0, 6, 5), '#ebe7dc'),
+      part(box(0.36, 0.22, 0.36, 0, 2.2, 0), '#2e2c2a'),
+      ...(winter
+        ? [part(rockGeo(1.5, 61, 0.9, 1.3, 0.9, 0, 5.3, 0, 0.3), '#5e4c44')]
+        : [part(rockGeo(1.9, 62, 1, 1.25, 1, 0.2, 5.6, 0, 0.25), leaf, 1), part(rockGeo(1.4, 63, 1, 1.2, 1, -0.5, 4.3, 0.4, 0.25), leaf2, 1)]),
+    ]),
+  };
+}
+type RockKit = ReturnType<typeof rockKit>;
+
+/** Distance au tracé et position relative (0 au début, 1 à la fin). */
+function nearLine(pts: ReadonlyArray<XZ>, x: number, z: number): { d: number; t: number } {
+  let len = 0;
+  const seg: number[] = [];
+  for (let i = 0; i + 1 < pts.length; i++) seg.push((len += Math.hypot(pts[i + 1]![0] - pts[i]![0], pts[i + 1]![1] - pts[i]![1])));
+  let best = Infinity;
+  let at = 0;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [ax, az] = pts[i]!;
+    const [bx, bz] = pts[i + 1]!;
+    const L2 = (bx - ax) ** 2 + (bz - az) ** 2 || 1;
+    const u = Math.min(1, Math.max(0, ((x - ax) * (bx - ax) + (z - az) * (bz - az)) / L2));
+    const d = Math.hypot(x - ax - (bx - ax) * u, z - az - (bz - az) * u);
+    if (d < best) {
+      best = d;
+      at = (i ? seg[i - 1]! : 0) + u * Math.sqrt(L2);
+    }
+  }
+  return { d: best, t: at / (len || 1) };
+}
+
+/** Point du tracé à `s` m du début (et la direction locale). */
+function alongLine(pts: ReadonlyArray<XZ>, s: number): { x: number; z: number; dx: number; dz: number } {
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const [ax, az] = pts[i]!;
+    const [bx, bz] = pts[i + 1]!;
+    const L = Math.hypot(bx - ax, bz - az);
+    if (s <= L || i + 2 === pts.length) {
+      const u = Math.min(1, s / L);
+      return { x: ax + (bx - ax) * u, z: az + (bz - az) * u, dx: (bx - ax) / L, dz: (bz - az) / L };
+    }
+    s -= L;
+  }
+  const [x, z] = pts[0]!;
+  return { x, z, dx: 1, dz: 0 };
+}
+
+const lineLength = (pts: ReadonlyArray<XZ>) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]) : 0), 0);
+const inMap = (x: number, z: number) => Math.abs(x) < 18900 && Math.abs(z) < 12900;
+
+/** Aucune chaussée sous le point ni à `r` m autour (quatre points). */
+function offRoad(p: LandProbe, x: number, z: number, r: number): boolean {
+  if (!p.read(x, z) || p.road >= 0.02) return false;
+  for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r]] as const) if (p.read(x + dx, z + dz) && p.road >= 0.02) return false;
+  return true;
+}
+
+/** Ni village de pêcheurs, ni port, ni ouvrage d'un lieu voisin (galerie, belvédère, glacier). */
+function keepClear(x: number, z: number): boolean {
+  for (const v of FISHING) if (Math.hypot(x - v.x, z - v.z) < v.r + 120) return false;
+  for (const g of GALLERY) if (Math.hypot(x - g[0], z - g[1]) < 70) return false;
+  if (Math.hypot(x - BELVEDERE[0], z - BELVEDERE[1]) < 60) return false;
+  return nearLine([GLACIER.from, GLACIER.to], x, z).d > GLACIER.half + 20;
+}
+
+const greyTint = (r: () => number) => {
+  const v = 0.86 + r() * 0.14;
+  return new THREE.Color(v, v, v * (0.99 + r() * 0.03));
+};
+
+/**
+ * Parois sur les versants raides d'un carré (demi-côté `half`) : gros blocs en gradins tournés vers l'aval, à
+ * moitié enfoncés dans la pente, éboulis à leur pied. `accept` borne la zone (rive d'un fjord, versant d'un col).
+ */
+function* cliffBand(c: SiteContext, K: RockKit, cx: number, cz: number, half: number, seed: number, max: number, accept: (x: number, z: number, h: number) => boolean): Generator<void> {
+  const r = rng(seed);
+  const p = c.probe;
+  const step = 36;
+  // Versants raides de la zone, puis tirage au hasard parmi eux (les deux rives à parts égales).
+  const found: number[] = [];
+  let row = 0;
+  for (let gz = -half; gz <= half; gz += step) {
+    for (let gx = -half; gx <= half; gx += step) {
+      const x = cx + gx + (r() - 0.5) * step * 0.8;
+      const z = cz + gz + (r() - 0.5) * step * 0.8;
+      if (!inMap(x, z)) continue;
+      const h = p.heightAt(x, z);
+      if (!Number.isFinite(h) || h < 3) continue;
+      const gxh = (p.heightAt(x + 6, z) - p.heightAt(x - 6, z)) / 12;
+      const gzh = (p.heightAt(x, z + 6) - p.heightAt(x, z - 6)) / 12;
+      if (Math.hypot(gxh, gzh) > 0.55 && accept(x, z, h) && keepClear(x, z)) found.push(x, z, h, gxh, gzh);
+    }
+    if (++row % 6 === 0) yield;
+  }
+  const order = Array.from({ length: found.length / 5 }, (_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [order[i], order[j]] = [order[j]!, order[i]!];
+  }
+  const limit = Math.round(max * c.density);
+  let n = 0;
+  for (let o = 0; o < order.length && n < limit; o++) {
+    const q = order[o]! * 5;
+    const x = found[q]!;
+    const z = found[q + 1]!;
+    const h = found[q + 2]!;
+    const gxh = found[q + 3]!;
+    const gzh = found[q + 4]!;
+    const s = Math.hypot(gxh, gzh);
+    // Face vers l'aval : le +z local suit la pente descendante.
+    const yaw = Math.atan2(-gxh / s, -gzh / s);
+    const ox = Math.cos(yaw);
+    const oz = -Math.sin(yaw);
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    if (!offRoad(p, x, z, 4) || !offRoad(p, x + ox * 12, z + oz * 12, 3) || !offRoad(p, x - ox * 12, z - oz * 12, 3) || !offRoad(p, x + fx * 8, z + fz * 8, 3)) continue;
+    if (p.buildingNear(x, z, 22)) continue;
+    const tall = r() < 0.3;
+    const k = 0.65 + r() * 0.65;
+    const ky = k * (0.85 + Math.min(0.35, (s - 0.55) * 0.8));
+    // Le haut du bloc recule de ≈ 10 m dans la pente : pas de route derrière non plus.
+    if (!offRoad(p, x - fx * 10 * k, z - fz * 10 * k, 3)) continue;
+    // Pied posé sur le sol en aval (la masse s'enfonce dans la pente derrière) ; jusque dans l'eau au bord des fjords.
+    const hf = p.heightAt(x + fx * 6 * k, z + fz * 6 * k);
+    const y0 = Math.max(h - 12, Math.min(h, Number.isFinite(hf) ? hf : h)) - 2 * ky;
+    c.mesh.put(tall ? K.spur : K.cliff, x, y0, z, yaw, k, ky, k, greyTint(r));
+    n++;
+    // Éboulis au pied, sur la pente descendante, s'il reste de la terre et pas de route.
+    if (r() < 0.45) {
+      const ex = x + fx * (9 + 6 * k);
+      const ez = z + fz * (9 + 6 * k);
+      const ey = p.heightAt(ex, ez);
+      if (Number.isFinite(ey) && ey > 0.4 && offRoad(p, ex, ez, 5) && !p.buildingNear(ex, ez, 10)) c.mesh.put(K.scree, ex, ey - 0.3, ez, r() * 6.28, 0.8 + r() * 0.6, 0.8 + r() * 0.4, 0.8 + r() * 0.6, greyTint(r));
+    }
+    if (n % 6 === 0) yield;
+  }
+}
+
+/** Falaises grises d'un tronçon de fjord (`s0` → `s0 + FJORD_STEP` m du fond), sur les deux rives. */
+function fjordCliffs(rk: (s: SiteContext['season']) => RockKit, f: (typeof FJORD_AXES)[number], s0: number, total: number): Site {
+  const a = alongLine(f.pts, s0);
+  const b = alongLine(f.pts, Math.min(total, s0 + FJORD_STEP));
+  const mx = (a.x + b.x) / 2;
+  const mz = (a.z + b.z) / 2;
+  const w = f.w0 + ((f.w1 - f.w0) * (s0 + FJORD_STEP / 2)) / total;
+  return {
+    id: `falaises-${f.id}-${Math.round(s0)}`,
+    x: mx,
+    z: mz,
+    reach: 1900,
+    needs: [[a.x, a.z], [b.x, b.z]],
+    *build(c) {
+      const K = rk(c.season);
+      const half = FJORD_STEP / 2 + w + 400;
+      yield* cliffBand(c, K, mx, mz, half, 8800 + Math.round(s0) + f.pts.length * 977, 60, (x, z, h) => {
+        if (h > 420) return false;
+        const q = nearLine(f.pts, x, z);
+        // Le tronçon seulement (pas de doublon avec les voisins), jusqu'à ≈ 650 m de l'eau.
+        const s = q.t * total;
+        return s >= s0 && s < s0 + FJORD_STEP && q.d < w + 650;
+      });
+      c.flush();
+    },
+  };
+}
+
+/** Parois des versants d'un col. */
+function colCliffs(rk: (s: SiteContext['season']) => RockKit, col: (typeof COLS)[number], i: number): Site {
+  return {
+    id: `falaises-${col.id}`,
+    x: col.x,
+    z: col.z,
+    reach: 2000,
+    needs: [[col.x - col.half * 0.7, col.z], [col.x + col.half * 0.7, col.z], [col.x, col.z - col.half * 0.7], [col.x, col.z + col.half * 0.7]],
+    *build(c) {
+      const K = rk(c.season);
+      yield* cliffBand(c, K, col.x, col.z, col.half, 9900 + i, 70, (x, z) => Math.hypot(x - col.x, z - col.z) < col.half);
+      c.flush();
+    },
+  };
+}
+
+/** Toundra de Vidda (carré de VIDDA_STEP m) : blocs erratiques épars, rochers moussus en petits tas. */
+function tundraRocks(rk: (s: SiteContext['season']) => RockKit, cx: number, cz: number): Site {
+  const half = VIDDA_STEP / 2;
+  return {
+    id: `toundra-${cx}-${cz}`,
+    x: cx,
+    z: cz,
+    reach: 1400,
+    needs: [[cx, cz]],
+    *build(c) {
+      const K = rk(c.season);
+      const p = c.probe;
+      const r = rng(7300 + cx * 3 + cz);
+      const inside = (x: number, z: number) => ((x - VIDDA.x) / VIDDA.rx) ** 2 + ((z - VIDDA.z) / VIDDA.rz) ** 2 < 0.9;
+      // Le Circuit, ses tribunes et son paddock restent dégagés.
+      const nearRing = (x: number, z: number) => Math.abs(x - RING.x) < RING.half + 120 && Math.abs(z - RING.z) < RING.radius + 90;
+      const ok = (x: number, z: number, margin: number) =>
+        inMap(x, z) && inside(x, z) && !nearRing(x, z) && p.open(x, z, 0.1) && offRoad(p, x, z, margin) && !p.buildingNear(x, z, 12) && slope(p, x, z) < 0.25;
+      let erratics = 0;
+      const maxE = Math.round(9 * c.density);
+      for (let t = 0; t < 60 && erratics < maxE; t++) {
+        const x = cx + (r() - 0.5) * 2 * half;
+        const z = cz + (r() - 0.5) * 2 * half;
+        if (!ok(x, z, 6)) continue;
+        const k = 0.9 + r() * 1.3;
+        c.mesh.put(K.erratic, x, p.heightAt(x, z) - 0.25 * k, z, r() * 6.28, k, k * (0.8 + r() * 0.4), k, greyTint(r));
+        erratics++;
+        if (erratics % 3 === 0) yield;
+      }
+      yield;
+      // Tas de deux à quatre rochers moussus.
+      let heaps = 0;
+      const maxH = Math.round(14 * c.density);
+      for (let t = 0; t < 80 && heaps < maxH; t++) {
+        const x = cx + (r() - 0.5) * 2 * half;
+        const z = cz + (r() - 0.5) * 2 * half;
+        if (!ok(x, z, 5)) continue;
+        const m = 2 + Math.floor(r() * 3);
+        for (let i = 0; i < m; i++) {
+          const a = r() * 6.28;
+          const d = i ? 2 + r() * 3.5 : 0;
+          const px = x + Math.cos(a) * d;
+          const pz = z + Math.sin(a) * d;
+          if (i && !offRoad(p, px, pz, 3)) continue;
+          const k = (i ? 0.5 : 0.8) + r() * 0.7;
+          c.mesh.put(K.mossy, px, p.heightAt(px, pz) - 0.15 * k, pz, r() * 6.28, k * (0.9 + r() * 0.3), k * (0.8 + r() * 0.4), k, greyTint(r));
+        }
+        heaps++;
+        if (heaps % 4 === 0) yield;
+      }
+      c.flush();
+    },
+  };
+}
+
+/** Bosquets d'un tronçon de vallée : sapins à étages, bouleaux mêlés, sur le fond et le bas des versants. */
+function valleyGroves(rk: (s: SiteContext['season']) => RockKit, v: (typeof VALLEY_FLOORS)[number], s0: number, total: number): Site {
+  const mid = alongLine(v.pts, Math.min(total, s0 + VALLEY_STEP / 2));
+  return {
+    id: `bosquets-${v.id}-${Math.round(s0)}`,
+    x: mid.x,
+    z: mid.z,
+    reach: 1200,
+    needs: [[mid.x, mid.z]],
+    *build(c) {
+      const K = rk(c.season);
+      const p = c.probe;
+      const r = rng(5200 + Math.round(s0) + v.pts.length * 131 + Math.round(v.w));
+      const spot = (x: number, z: number) =>
+        inMap(x, z) && p.read(x, z) && p.water < 0.1 && p.urban < 0.15 && p.sand < 0.3 && offRoad(p, x, z, 3.5) && !p.buildingNear(x, z, 12) && !p.treeNear(x, z, 1.6) && slope(p, x, z) < 0.4 && p.heightAt(x, z) > 1.5;
+      let groves = 0;
+      const maxG = Math.max(1, Math.round(6 * c.density));
+      for (let t = 0; t < 40 && groves < maxG; t++) {
+        const a = alongLine(v.pts, Math.min(total, s0 + r() * VALLEY_STEP));
+        const side = r() < 0.5 ? -1 : 1;
+        const off = side * (50 + r() * v.w * 0.9);
+        const gx = a.x - a.dz * off;
+        const gz = a.z + a.dx * off;
+        if (!spot(gx, gz) || !keepClear(gx, gz)) continue;
+        const trees = 5 + Math.floor(r() * 9 * Math.min(1, c.density + 0.3));
+        const birchShare = 0.2 + r() * 0.3;
+        for (let i = 0; i < trees; i++) {
+          const ta = r() * 6.28;
+          const td = i ? 3 + Math.sqrt(r()) * 20 : 0;
+          const x = gx + Math.cos(ta) * td;
+          const z = gz + Math.sin(ta) * td;
+          if (i && !spot(x, z)) continue;
+          const y = p.heightAt(x, z);
+          const k = 0.75 + r() * 0.6;
+          const v2 = 0.88 + r() * 0.14;
+          if (r() < birchShare) c.mesh.put(K.birch, x, y - 0.1, z, r() * 6.28, k, k * (0.9 + r() * 0.3), k, new THREE.Color(v2, v2, v2 * 0.95));
+          else c.mesh.put(K.fir, x, y - 0.1, z, r() * 6.28, k, k * (0.9 + r() * 0.35), k, new THREE.Color(v2 * 0.96, v2, v2 * 0.96));
+        }
+        // Un rocher moussu au cœur du bosquet, de temps en temps.
+        if (r() < 0.4) {
+          const k = 0.7 + r() * 0.5;
+          c.mesh.put(K.mossy, gx + 4, p.heightAt(gx + 4, gz + 3) - 0.15, gz + 3, r() * 6.28, k, k, k, greyTint(r));
+        }
+        groves++;
+        yield;
+      }
+      c.flush();
+    },
+  };
+}
+
+function rockSites(): Site[] {
+  const kits = new Map<SiteContext['season'], RockKit>();
+  const rk = (s: SiteContext['season']) => {
+    let K = kits.get(s);
+    if (!K) kits.set(s, (K = rockKit(s)));
+    return K;
+  };
+  const out: Site[] = [];
+  for (const f of FJORD_AXES) {
+    const total = lineLength(f.pts);
+    // Le fond du fjord (village, port) reste à part : les parois commencent à 600 m.
+    for (let s = 600; s < total; s += FJORD_STEP) {
+      const a = alongLine(f.pts, s);
+      if (inMap(a.x, a.z)) out.push(fjordCliffs(rk, f, s, total));
+    }
+  }
+  COLS.forEach((col, i) => out.push(colCliffs(rk, col, i)));
+  for (let x = VIDDA.x - VIDDA.rx + VIDDA_STEP / 2; x < VIDDA.x + VIDDA.rx; x += VIDDA_STEP) {
+    for (let z = VIDDA.z - VIDDA.rz + VIDDA_STEP / 2; z < VIDDA.z + VIDDA.rz; z += VIDDA_STEP) {
+      if (((x - VIDDA.x) / VIDDA.rx) ** 2 + ((z - VIDDA.z) / VIDDA.rz) ** 2 < 1.15) out.push(tundraRocks(rk, Math.round(x), Math.round(z)));
+    }
+  }
+  for (const v of VALLEY_FLOORS) {
+    const total = lineLength(v.pts);
+    for (let s = 0; s < total; s += VALLEY_STEP) out.push(valleyGroves(rk, v, s, total));
+  }
+  return out;
+}
+
+// ───────────────────────────── Cascades des parois des fjords
+
+/**
+ * Cascades : on part d'un point haut et raide d'une rive, on suit la plus grande pente (donc les ravines) jusqu'à
+ * l'eau, et l'on pose un ruban d'eau blanche drapé sur la paroi (trois voies, bandes claires et bleutées), avec de
+ * l'écume au pied. Le ruban fait partie du décor fixe (visible de loin) ; de près, un voile animé fait couler l'eau
+ * et les embruns respirent. L'hiver, la cascade est gelée (bleu glacier, sans voile).
+ */
+const FALL_STEP = 900;
+let fallMaterial: THREE.MeshBasicNodeMaterial | null = null;
+
+function fallMat(): THREE.MeshBasicNodeMaterial {
+  if (fallMaterial) return fallMaterial;
+  const m = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const u = attribute('fallU', 'float');
+  const v = attribute('fallV', 'float');
+  // Filets d'eau qui descendent : bruit étiré le long de la chute, qui défile vers le bas.
+  const streak = mx_noise_float(vec2(u.mul(2.6), v.mul(0.07).sub(time.mul(1.5)))).mul(0.5).add(0.5);
+  const alpha = smoothstep(0.48, 0.9, streak).mul(float(1).sub(u.abs().mul(0.55))).mul(0.8);
+  m.colorNode = vec4(vec3(0.96, 0.99, 1.0), alpha);
+  fallMaterial = m;
+  return m;
+}
+
+type FallPath = { pts: Array<[number, number, number]>; water: boolean; drop: number };
+
+/** Suit la plus grande pente depuis (x, z), par pas de 5 m, jusqu'à l'eau ou au replat ; null si une route ou une maison barre la chute. */
+function traceFall(p: LandProbe, x: number, z: number): FallPath | null {
+  const h0 = p.heightAt(x, z);
+  const pts: Array<[number, number, number]> = [[x, z, h0]];
+  let flat = 0;
+  let water = false;
+  for (let i = 0; i < 110; i++) {
+    const [cx, cz] = pts[pts.length - 1]!;
+    const gx = (p.heightAt(cx + 4, cz) - p.heightAt(cx - 4, cz)) / 8;
+    const gz = (p.heightAt(cx, cz + 4) - p.heightAt(cx, cz - 4)) / 8;
+    const g = Math.hypot(gx, gz);
+    if (!Number.isFinite(g) || g < 0.04) break;
+    const nx = cx - (gx / g) * 5;
+    const nz = cz - (gz / g) * 5;
+    const nh = p.heightAt(nx, nz);
+    if (!Number.isFinite(nh)) break;
+    if (nh < 0.6) {
+      pts.push([nx, nz, 0.25]);
+      water = true;
+      break;
+    }
+    if (!offRoad(p, nx, nz, 4) || p.buildingNear(nx, nz, 8)) return null;
+    pts.push([nx, nz, nh]);
+    flat = g < 0.22 ? flat + 1 : 0;
+    if (flat > 4) break;
+  }
+  const drop = h0 - pts[pts.length - 1]![2];
+  return pts.length >= 8 ? { pts, water, drop } : null;
+}
+
+/** Cascades d'un tronçon de fjord (`s0` → `s0 + FALL_STEP` m du fond), sur l'une ou l'autre rive. */
+function fjordFalls(f: (typeof FJORD_AXES)[number], s0: number, total: number, foam: () => Template): Site {
+  const a = alongLine(f.pts, s0);
+  const b = alongLine(f.pts, Math.min(total, s0 + FALL_STEP));
+  const mx = (a.x + b.x) / 2;
+  const mz = (a.z + b.z) / 2;
+  const w = f.w0 + ((f.w1 - f.w0) * (s0 + FALL_STEP / 2)) / total;
+  return {
+    id: `cascades-${f.id}-${Math.round(s0)}`,
+    x: mx,
+    z: mz,
+    reach: 2300,
+    needs: [[a.x, a.z], [b.x, b.z]],
+    *build(c) {
+      const p = c.probe;
+      const r = rng(12000 + Math.round(s0) * 7 + f.pts.length * 313 + Math.round(f.w1));
+      // Tout le monde n'a pas sa cascade : un tronçon sur trois environ reste sec.
+      if (r() < 0.3) return;
+      const found: FallPath[] = [];
+      for (let t = 0; t < 70; t++) {
+        const at = alongLine(f.pts, Math.min(total, s0 + r() * FALL_STEP));
+        const side = r() < 0.5 ? -1 : 1;
+        const off = side * (w + 50 + r() * 520);
+        const x = at.x - at.dz * off;
+        const z = at.z + at.dx * off;
+        if (!inMap(x, z) || !keepClear(x, z)) continue;
+        const h = p.heightAt(x, z);
+        if (!Number.isFinite(h) || h < 70 || h > 520 || slope(p, x, z) < 0.65 || !offRoad(p, x, z, 5)) continue;
+        const fall = traceFall(p, x, z);
+        if (fall && fall.drop >= 55) found.push(fall);
+        if (t % 8 === 7) yield;
+      }
+      // Les plus hautes d'abord, à plus de 220 m l'une de l'autre.
+      found.sort((u, v) => v.drop - u.drop);
+      const keep: FallPath[] = [];
+      const maxF = Math.max(1, Math.round(2 * c.density));
+      for (const fl of found) {
+        if (keep.length >= maxF) break;
+        if (keep.some((k) => Math.hypot(k.pts[0]![0] - fl.pts[0]![0], k.pts[0]![1] - fl.pts[0]![1]) < 220)) continue;
+        keep.push(fl);
+      }
+      if (!keep.length) return;
+      const winter = c.season === 'winter';
+      const white = new THREE.Color(winter ? '#dfeaf0' : '#f1f6f8');
+      const pale = new THREE.Color(winter ? '#bcd3e0' : '#cfdee6');
+      const edge = new THREE.Color(winter ? '#a9c4d4' : '#b6cad5');
+      const veil: number[] = [];
+      const us: number[] = [];
+      const vs: number[] = [];
+      const feet: Array<[number, number, number]> = [];
+      for (const fl of keep) {
+        const P = fl.pts;
+        const n = P.length;
+        // Voies du ruban (gauche, milieu, droite) pour chaque point : largeur 1,8 m en haut, 5 m au pied.
+        const rows: Array<Array<[number, number, number]>> = [];
+        const lens: number[] = [];
+        let len = 0;
+        for (let i = 0; i < n; i++) {
+          const [px, pz, ph] = P[i]!;
+          const q = P[Math.min(n - 1, i + 1)]!;
+          const o = P[Math.max(0, i - 1)]!;
+          let dx = q[0] - o[0];
+          let dz = q[1] - o[1];
+          const L = Math.hypot(dx, dz) || 1;
+          dx /= L;
+          dz /= L;
+          const half = (1.8 + (3.2 * i) / (n - 1)) / 2;
+          const lx = px - dz * half;
+          const lz = pz + dx * half;
+          const rx = px + dz * half;
+          const rz = pz - dx * half;
+          const lh = p.heightAt(lx, lz);
+          const rh = p.heightAt(rx, rz);
+          const y = Math.max(ph, Number.isFinite(lh) ? lh : ph, Number.isFinite(rh) ? rh : ph) + 0.45;
+          rows.push([[lx, y, lz], [px, y + 0.08, pz], [rx, y, rz]]);
+          if (i) len += Math.hypot(px - P[i - 1]![0], pz - P[i - 1]![1], ph - P[i - 1]![2]);
+          lens.push(len);
+        }
+        for (let i = 0; i + 1 < n; i++) {
+          for (let lane = 0; lane < 2; lane++) {
+            const A = rows[i]![lane]!;
+            const B = rows[i]![lane + 1]!;
+            const C = rows[i + 1]![lane + 1]!;
+            const D = rows[i + 1]![lane]!;
+            const col = (i + lane * 2) % 4 === 0 ? pale : lane === 0 && i % 3 === 1 ? edge : white;
+            c.mesh.triUp(A[0], A[1], A[2], B[0], B[1], B[2], C[0], C[1], C[2], col);
+            c.mesh.triUp(A[0], A[1], A[2], C[0], C[1], C[2], D[0], D[1], D[2], col);
+            if (!winter) {
+              const ua = lane - 1;
+              const ub = lane;
+              for (const [V, uu, vv] of [[A, ua, lens[i]!], [B, ub, lens[i]!], [C, ub, lens[i + 1]!], [A, ua, lens[i]!], [C, ub, lens[i + 1]!], [D, ua, lens[i + 1]!]] as const) {
+                veil.push(V[0], V[1] + 0.12, V[2]);
+                us.push(uu);
+                vs.push(vv);
+              }
+            }
+          }
+        }
+        // Écume au pied : trois paquets blancs, à fleur d'eau ou sur la grève.
+        const [fx, fz, fh] = P[n - 1]!;
+        for (let s = 0; s < 3; s++) {
+          const a2 = r() * 6.28;
+          const d = s ? 2 + r() * 3 : 0;
+          const x = fx + Math.cos(a2) * d;
+          const z = fz + Math.sin(a2) * d;
+          const k = (s ? 0.7 : 1.1) + r() * 0.4;
+          if (!fl.water && !offRoad(p, x, z, 2)) continue;
+          c.mesh.put(foam(), x, fl.water ? 0.1 : fh - 0.2, z, r() * 6.28, k, k * 0.8, k, winter ? pale : WHITE);
+        }
+        feet.push([fx, fl.water ? 0.4 : fh + 0.6, fz]);
+        yield;
+      }
+      c.flush();
+      if (winter || !veil.length) return;
+      const g = new THREE.Group();
+      g.name = 'grand-nord-cascades';
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(veil), 3));
+      geo.setAttribute('fallU', new THREE.BufferAttribute(new Float32Array(us), 1));
+      geo.setAttribute('fallV', new THREE.BufferAttribute(new Float32Array(vs), 1));
+      geo.computeBoundingSphere();
+      const sheet = new THREE.Mesh(geo, fallMat());
+      sheet.castShadow = false;
+      sheet.receiveShadow = false;
+      g.add(sheet);
+      const sprayGeo = new THREE.IcosahedronGeometry(3, 0).scale(1.5, 0.7, 1.5);
+      const sprayMat = new THREE.MeshBasicNodeMaterial({ color: '#ffffff', transparent: true, opacity: 0.3, depthWrite: false });
+      const sprays = feet.map(([x, y, z]) => {
+        const m = new THREE.Mesh(sprayGeo, sprayMat);
+        m.position.set(x, y + 0.6, z);
+        m.castShadow = false;
+        g.add(m);
+        return m;
+      });
+      c.moving.push({
+        object: g,
+        step: (time) => {
+          sprays.forEach((m, i) => m.scale.setScalar(1 + Math.sin(time * 2.6 + i * 1.7) * 0.1));
+        },
+      });
+    },
+  };
+}
+
+function fallSites(): Site[] {
+  let foam: Template | undefined;
+  const ft = () =>
+    (foam ??= template([
+      part(rockGeo(1.4, 71, 1.3, 0.5, 1.1, 0, 0.3, 0, 0.3), '#ffffff', 1),
+      part(rockGeo(0.9, 72, 1.2, 0.55, 1, 1.4, 0.25, 0.6, 0.3), '#ffffff', 1),
+    ]));
+  const out: Site[] = [];
+  for (const f of FJORD_AXES) {
+    const total = lineLength(f.pts);
+    for (let s = 300; s < total; s += FALL_STEP) {
+      const a = alongLine(f.pts, s);
+      if (inMap(a.x, a.z)) out.push(fjordFalls(f, s, total, ft));
+    }
+  }
+  return out;
+}
+
+// ───────────────────────────── Jalons à neige des routes de montagne
+
+/**
+ * Jalons à neige : piquets orange à bande sombre, de part et d'autre des routes revêtues au-dessus de 200 m (col du
+ * Renne, haut-plateau de Vidda, montée de Fjellheim…), tous les 28 m environ. Grille de carrés de 1 500 m. Une vingtaine de triangles par jalon.
+ */
+const POLE_STEP = 1500;
+const POLE_MIN_Y = 200;
+const UNPAVED = new Set(['track', 'path', 'footway', 'cycleway', 'bridleway', 'steps', 'service']);
+const LOOSE = new Set(['gravel', 'dirt', 'ground', 'unpaved', 'compacted', 'fine_gravel', 'grass', 'earth', 'mud', 'sand']);
+let poleTemplate: Template | undefined;
+const pole = () =>
+  (poleTemplate ??= template([
+    part(prism(0.045, 0.04, 0, 1.55, 3), '#e2742a'),
+    part(prism(0.05, 0.05, 1.55, 1.8, 3), '#26282a'),
+    part(prism(0.045, 0.03, 1.8, 2.1, 3), '#e2742a'),
+  ]));
+
+function snowPoles(cx: number, cz: number): Site {
+  const half = POLE_STEP / 2;
+  return {
+    id: `jalons-${cx}-${cz}`,
+    x: cx,
+    z: cz,
+    reach: 1300,
+    needs: [[cx, cz]],
+    *build(c) {
+      const p = c.probe;
+      const T = pole();
+      const seen = new Set<string>();
+      let n = 0;
+      const max = Math.round(500 * Math.max(0.5, c.density));
+      // Copie : tilesIn rend un tableau partagé, que buildingNear réutilise.
+      for (const t of [...p.tilesIn(cx - half, cz - half, cx + half, cz + half)]) {
+        for (const road of t.features.roads) {
+          if (n >= max) break;
+          if (road.tunnel || road.bridge || UNPAVED.has(road.kind) || (road.surface && LOOSE.has(road.surface))) continue;
+          const key = `${road.id ?? ''}:${road.pts[0]}:${road.pts[1]}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const off = Math.max(road.width, 3) / 2 + 1.4;
+          let carry = 14;
+          let side = 1;
+          for (let i = 0; i + 3 < road.pts.length && n < max; i += 2) {
+            const ax = road.pts[i]!;
+            const az = road.pts[i + 1]!;
+            const bx = road.pts[i + 2]!;
+            const bz = road.pts[i + 3]!;
+            const L = Math.hypot(bx - ax, bz - az);
+            if (L < 0.01) continue;
+            const dx = (bx - ax) / L;
+            const dz = (bz - az) / L;
+            let s = carry;
+            for (; s < L; s += 28) {
+              const x0 = ax + dx * s;
+              const z0 = az + dz * s;
+              side = -side;
+              if (Math.abs(x0 - cx) > half || Math.abs(z0 - cz) > half || !inMap(x0, z0)) continue;
+              const x = x0 - dz * off * side;
+              const z = z0 + dx * off * side;
+              const y = p.heightAt(x, z);
+              if (!Number.isFinite(y) || y < POLE_MIN_Y || !offRoad(p, x, z, 0.6) || p.buildingNear(x, z, 3)) continue;
+              // Ni dans les rues des villages d'altitude, ni autour du Circuit.
+              if (!p.read(x, z) || p.urban > 0.2 || (Math.abs(x - RING.x) < RING.half + 80 && Math.abs(z - RING.z) < RING.radius + 80)) continue;
+              c.mesh.put(T, x, y - 0.05, z, 0, 1, 1, 1, WHITE);
+              n++;
+            }
+            carry = s - L;
+          }
+          yield;
+        }
+      }
+      c.flush();
+    },
+  };
+}
+
+function poleSites(): Site[] {
+  const out: Site[] = [];
+  for (let x = -19000 + POLE_STEP / 2; x < 19000; x += POLE_STEP) for (let z = -13000 + POLE_STEP / 2; z < 13000; z += POLE_STEP) out.push(snowPoles(x, z));
+  return out;
+}
+
 // ───────────────────────────── Aurores boréales
 
 /**
@@ -822,6 +1556,9 @@ export function grandNordSites(): Site[] {
     circuit(k),
     bikePark(k),
     cycloCross(k),
+    ...rockSites(),
+    ...fallSites(),
+    ...poleSites(),
     ...skies,
   ];
 }

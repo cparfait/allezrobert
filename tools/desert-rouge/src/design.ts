@@ -198,11 +198,45 @@ export interface Mesa {
   wall: number;
   apron: number;
   ramp?: { ang: number; len: number; half: number };
+  /** Part de la hauteur portée par le talus d'éboulis (0,16 par défaut ; les buttes témoins : un vrai cône d'éboulis). */
+  skirt?: number;
   /** Niveau du sommet (m), calculé au premier appel. */
   top: number;
 }
 
 const mesa = (id: string, name: string | undefined, p: Vec2, rx: number, rz: number, rot: number, h: number, extra: Partial<Mesa> = {}): Mesa => ({ id, ...(name ? { name } : {}), x: Math.round(p[0]), z: Math.round(p[1]), rx, rz, rot, h, wall: Math.max(18, Math.min(60, Math.min(rx, rz) * 0.08)), apron: Math.min(260, h * 1.4), top: NaN, ...extra });
+
+/**
+ * Buttes témoins du plateau (27/11/2026, identité « Sud-Ouest américain ») : hautes tours à sommet plat et aiguilles
+ * dressées seules sur la plaine, parois verticales au-dessus d'un cône d'éboulis, vues de loin depuis les routes.
+ * Posées à plus de 500 m de toute route du graphe, sur un sol plat (écart < 14 m sur 300 m) : les tracés ne changent pas.
+ * [x, z, rayon, hauteur, nom].
+ */
+const SENTINEL_SPOTS: ReadonlyArray<readonly [number, number, number, number, string?]> = [
+  [5750, -7750, 150, 135, 'La Sentinelle'],
+  [9750, -1000, 52, 95, "L'Aiguille Rouge"],
+  [-4500, -6000, 175, 120, 'Le Château Rouge'],
+  [7250, -2750, 135, 115, "L'Enclume"],
+  [7480, -2560, 42, 100],
+  [1500, -8750, 160, 140, 'La Butte du Corbeau'],
+  [2500, -3250, 48, 88, 'La Chandelle'],
+  [-5500, -8750, 185, 110, 'Le Vieux Fort'],
+  [7750, -6750, 58, 110],
+  [-1250, -6500, 140, 120],
+  [0, -9750, 165, 100],
+  [-2750, -4000, 48, 85],
+  [1750, -6750, 42, 78],
+  [9500, -5000, 200, 150, 'La Table du Couchant'],
+  [-4750, -3250, 38, 70],
+  [5500, -3500, 95, 80],
+  [-5000, -750, 220, 115],
+];
+const SENTINELLES: Mesa[] = SENTINEL_SPOTS.map(([x, z, r, h, name], i) => {
+  const spire = r < 70;
+  return mesa(`sentinelle-${i}`, name, [x, z], r, r * (spire ? 0.85 : 0.72), i * 1.3, h, spire
+    ? { wall: Math.max(8, r * 0.18), apron: Math.min(150, h * 1.3), skirt: 0.32 }
+    : { wall: Math.max(12, r * 0.09), apron: Math.min(230, h * 1.5), skirt: 0.3 });
+});
 
 /** Buttes Rouges (bike park, sentier des Arches) : petites tours à sommet plat entre Rocherouge et L'Oasis. */
 const BUTTES_C = polar(0.15, ARC.R - 4000);
@@ -217,6 +251,7 @@ export const MESAS: Mesa[] = [
   mesa('temoin-1', undefined, polar(-0.62, ARC.R - 900), 170, 130, 0.5, 70, { wall: 14, apron: 90 }),
   mesa('temoin-2', undefined, polar(-0.5, ARC.R + 3800), 210, 150, 1.1, 80, { wall: 16, apron: 100 }),
   mesa('temoin-3', undefined, polar(0.45, ARC.R + 2600), 160, 120, 0.2, 60, { wall: 14, apron: 80 }),
+  ...SENTINELLES,
 ];
 
 /** Bike park des Buttes : entre les Buttes Rouges (voir MESAS). */
@@ -457,7 +492,8 @@ export function mesaShare(m: Mesa, x: number, z: number): number {
   const w = m.wall / rm;
   const a = m.apron / rm;
   if (e > 1 + a + 0.05 && !m.ramp) return 0;
-  let f = 0.84 * (1 - smoothstep(1 - w, 1, e)) + 0.16 * (1 - smoothstep(1 - w, 1 + a, e));
+  const k = m.skirt ?? 0.16;
+  let f = (1 - k) * (1 - smoothstep(1 - w, 1, e)) + k * (1 - smoothstep(1 - w, 1 + a, e));
   if (m.ramp) {
     const ang = Math.atan2(z - m.z, x - m.x);
     const s = 1 - smoothstep(m.ramp.half * 0.65, m.ramp.half, Math.abs(angDiff(ang, m.ramp.ang)));

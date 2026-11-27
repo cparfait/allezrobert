@@ -125,7 +125,9 @@ le sont. Après un changement du relief ou du réseau, relancer `sites-data.ts` 
 - Biome : arbres de jungle à la place des feuillus, bambous à la place des sapins (et hors des bois), herbe haute, ni
   boîtes aux lettres, ni poubelles, ni poules, ni vaches (les buffles du décor restent).
 - Thème : rizières inondées vert tendre et vert d'eau toute l'année (jamais de blé blond), jungle très sombre, feuillage
-  tropical très vert et profond, sable blanc, roche calcaire, pas de neige, eau turquoise.
+  tropical très vert et profond, sable blanc, roche calcaire claire, pas de neige, eau de jade.
+- Lumière (`theme.light`, 27/11/2026) : air chaud et humide, horizon vert-gris laiteux, brume (`haze` 1,4) qui étage
+  les pitons en silhouettes de plus en plus pâles, lumière un peu dorée, couleurs un peu adoucies.
 - Bâtiments : maisons en bois sombre (jamais de brique ni de crépi), toits de chaume ou de tuiles relevés à grands
   débords, temples rouge et or, stupas dorés, ruines moussues.
 - Décor propre (`lands/rizieresSites.ts`) : ports de Plage-de-Jade, des Pitons et des Jonques ; tribunes du Circuit ;
@@ -134,3 +136,8 @@ le sont. Après un changement du relief ou du réseau, relancer `sites-data.ts` 
   barques sur le fleuve, le delta, le Bras de la Lagune et le Dragon ; ponts suspendus et passerelles ; buffles et hérons
   dans les rizières ; cocotiers ; bambous ; deux cascades ; bike park et cyclo-cross ; marché de nuit. Toutes les
   lanternes s'allument la nuit (`islandClock()`).
+- Pitons de la plaine (`PLAIN_PITONS`, 27/11/2026) : 46 tours calcaires couvertes de jungle qui sortent des rizières,
+  surtout en deux groupes (plaine des Digues, de Rive-des-Lotus au Circuit ; plaine de l'est, au sud de Vat-Robert),
+  quelques-unes près du Lac des Lotus, des Pilotis et dans le delta. Rayon 42 à 105 m, hauteur 80 à 185 m, quatre formes
+  (≈ 195 triangles chacune), vues jusqu'à 4,2 km ; pied à plus de 45 m de toute route, chemin, cours d'eau ou bâtiment.
+  Une sur trois a une nappe de brume à son pied, marquée le matin. Les pitons de la baie restent dans le relief.

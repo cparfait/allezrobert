@@ -130,4 +130,15 @@ met à jour le catalogue partagé. Les tuiles (`tiles/`) ne sont pas versionnée
   col et des sommets, belvédère des Aurores ; tribunes, portique et drapeaux du Circuit ; balisage, tremplins et
   portique du bike park de Fjellheim ; piquets, rubalise et tentes du cyclo-cross de la Toundra ; **aurores boréales**
   la nuit (rubans verts et violets additifs, animés, au nord du coureur, dès que la nuit dépasse 0,3).
+- **Identité (27/11/2026), inspirée de la Norvège, sans aucun lieu réel reproduit** :
+  - lumière froide et ciel bas (`theme.light`) : horizon gris-bleu `#8d9ba6` (mélange 0,55), brume 1,1, chaleur −0,55,
+    saturation 0,9 ; eau des fjords sombre, presque ardoise (`#2c4552`) ;
+  - maisons : rouge de Falun pour une sur deux, toits de tourbe plus fréquents ; cabanes sur pilotis plus nombreuses
+    (jusqu'à 13 par village), surtout rouges, de tailles inégales ;
+  - **cascades** sur les parois des fjords (`fallSites`) : tronçons de 900 m le long des sept fjords, une ou deux chutes
+    par tronçon (deux sur trois), tracées en suivant la plus grande pente d'un point haut et raide jusqu'à l'eau (au
+    moins 55 m de chute, jamais sur une route ni une maison) ; ruban blanc et bleuté drapé sur la paroi dans le décor
+    fixe, voile animé (filets qui coulent, nœuds TSL) et embruns de près, écume au pied ; gelées en hiver ;
+  - **jalons à neige** orange à bande sombre au bord des routes revêtues au-dessus de 200 m (col du Renne, Vidda,
+    Fjellheim), tous les 28 m en alternance, hors des villages et du Circuit (`poleSites`, grille de 1,5 km).
 - Ni clôtures ni poteaux sur la promenade de Port-Boréal, les quais et les cales du bac (`grandNordNoFence`).

@@ -2,7 +2,8 @@
  * Les Rizières et la jungle (mode Poly) : données du monde pour le client (généré par tools/rizieres, voir
  * docs/RIZIERES.md). Longue terre couchée en biais que le Grand Fleuve traverse d'un bout à l'autre jusqu'à son delta
  * à quatre bras, collines de rizières en terrasses de part et d'autre, jungle très sombre sur les reliefs, baie semée
- * de pitons calcaires, temples, pagodes et ruines envahies.
+ * de pitons calcaires, temples, pagodes et ruines envahies ; pitons aussi dans la plaine des rizières (décor), air
+ * humide et brumeux (theme.light).
  */
 import { rng } from '../../engine/noise.ts';
 import type { TileBuilding } from '../types.ts';
@@ -116,7 +117,8 @@ export const RIZIERES: PolyLand = {
       winter: { forest: '#183c20', field: '#9ad27a', field2: '#86c9b0', meadow: '#5fa848', urban: '#ac8e66', dirt: '#b0603a' },
     },
     sand: ['#e6dfcc', '#fbf8ee'],
-    rock: '#a9a9a2',
+    // Calcaire clair et un peu chaud des pitons (coulures plus sombres dans le décor, rizieresSites.ts).
+    rock: '#aeac9f',
     snowLine: { spring: 9000, summer: 9000, autumn: 9000, winter: 9000 },
     frost: { spring: 0, summer: 0, autumn: 0, winter: 0 },
     // Feuillage tropical très vert et profond, toute l'année.
@@ -127,10 +129,14 @@ export const RIZIERES: PolyLand = {
       winter: ['#1a5a24', '#246a2c', '#33702a'],
     },
     treelineM: 1700,
-    water: '#2fb7a8',
+    // Eau de jade, plus sourde que le turquoise des lagons (fleuve limoneux, baie des pitons).
+    water: '#3ba596',
+    // Air chaud et humide du Vietnam et du sud de la Chine : horizon vert-gris laiteux, brume qui étage les pitons en
+    // silhouettes de plus en plus pâles, lumière un peu dorée, couleurs légèrement adoucies.
+    light: { horizon: '#c6d3c4', horizonMix: 0.7, haze: 1.4, warmth: 0.12, saturation: 0.93 },
   },
   // Jungle et bambous à la place des feuillus et des sapins, herbe haute, ni boîtes aux lettres ni vaches (buffles du décor).
-  biome: { tree: 'jungle', conifer: 'bamboo', grass: 1.3, noVillageProps: true, noHerds: true, grassColours: { spring: ['#3f8f3a', '#7ccc4e'], summer: ['#3a8a36', '#74c64a'], autumn: ['#45903a', '#86c650'], winter: ['#4a8a40', '#88c05a'] } },
+  biome: { tree: 'jungle', conifer: 'bamboo', grass: 1.3, noVillageProps: true, noHerds: true, grassColours: { spring: ['#3f8f3a', '#7ccc4e'], summer: ['#3a8a36', '#74c64a'], autumn: ['#45903a', '#86c650'], winter: ['#4a8a40', '#88c05a'] } , roadside: { flowers: ['#e0413a', '#f7f4ee'], flowerRate: 0.25, rock: '#6f7f66', rockRate: 0.08, rockSize: 1.4, rockMoss: '#3f7a32', ferns: 0.45, fernColour: '#2f7a34' } },
   ring: RIZIERES_RING,
   sites: rizieresSites,
   building: rizieresBuilding,

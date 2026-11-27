@@ -245,6 +245,35 @@ function reeds(): Template {
   return template(parts);
 }
 
+/** Fougère : sept frondes en lames aplaties qui s'arquent depuis le cœur (≈ 40 triangles). Couleur de l'objet. */
+function fern(): Template {
+  const parts = [];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + (i % 2) * 0.3;
+    const frond = new THREE.ConeGeometry(0.16, 1.1, 3, 1, true).scale(1, 1, 0.25).rotateZ(-Math.PI / 2 + 0.55 + (i % 3) * 0.12).translate(0.5, 0.32, 0).rotateY(a);
+    parts.push(part(frond, '#ffffff', 1));
+  }
+  return template(parts);
+}
+
+/** Touffe d'herbe sèche : brins en lames dressées (≈ 24 triangles). Couleur de l'objet. */
+function tuft(): Template {
+  const parts = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    parts.push(part(new THREE.ConeGeometry(0.05, 0.55, 3, 1, true).rotateX(Math.sin(a) * 0.35).rotateZ(Math.cos(a) * 0.35).translate(Math.cos(a) * 0.08, 0.27, Math.sin(a) * 0.08), '#ffffff', 1));
+  }
+  return template(parts);
+}
+
+/** Gros bloc à grandes facettes (dodécaèdre écrasé) et sa calotte moussue à part (couleur de l'objet pour les deux). */
+function boulder(): Template {
+  return template([part(new THREE.DodecahedronGeometry(1, 0).scale(1.15, 0.8, 1), '#ffffff', 1)]);
+}
+function boulderMoss(): Template {
+  return template([part(new THREE.DodecahedronGeometry(1, 0).scale(1.1, 0.32, 0.95).translate(0, 0.62, 0), '#ffffff', 1)]);
+}
+
 /** Tous les gabarits, construits une fois (au premier tronçon). */
 export function lifeTemplates() {
   return {
@@ -254,6 +283,10 @@ export function lifeTemplates() {
     pole: pole(),
     flower: flower(),
     rock: template([part(new THREE.IcosahedronGeometry(1, 0), '#ffffff', 1)]),
+    boulder: boulder(),
+    boulderMoss: boulderMoss(),
+    fern: fern(),
+    tuft: tuft(),
     bush: bush(),
     bushBerries: bush('#c8262c'),
     bushBlossom: bush('#f6f0f4'),

@@ -10,7 +10,12 @@ import { meshOf, strollPath, type Site, type SiteContext } from '../polySites.ts
  * (animé), fumerolles, bassins thermaux d'Aigues-Chaudes, Pont des Orgues (piles, pylônes, haubans) et Chaussée
  * (enrochements, lampadaires), phare des Orgues (feu tournant la nuit), ports et bateaux au large, champs de lave
  * (blocs, dalles cordées, petits cônes), bike park du Mont Cendre, cyclo-cross des Cendres, tribunes du Circuit,
- * dôme de l'observatoire, belvédère du cratère, palmiers du front de mer. Même mécanique que les lieux de l'île
+ * dôme de l'observatoire, belvédère du cratère, lampadaires et bancs du front de mer ; gros blocs de lave à facettes
+ * en tas le long des bords des coulées et sur les pentes du volcan, orgues de basalte autour du phare.
+ * Identité islandaise (27/11/2026) : coulées anciennes couvertes de mousse vert vif (buttes de mousse, blocs
+ * moussus), lupins bleu-violet au bord des routes et en prairies, cascades (ruban d'eau, écume et embruns) sur les
+ * falaises de la côte, le plateau des Orgues et les rivières, églises blanches à toit rouge et leur enclos, maisons
+ * isolées en tôle peinte, aiguilles de basalte au large des plages de sable noir. Même mécanique que les lieux de l'île
  * (polySites.ts) : chaque lieu est construit par pas quand le coureur approche, puis oublié. Cotes : la copie
  * des sorties du générateur dans archipel-des-volcansData.ts.
  */
@@ -51,8 +56,51 @@ export const ARCHIPEL_RING = { x: A.anneau.cx, z: A.anneau.cz, half: A.anneau.ha
 
 // ───────────────────────────── Gabarits
 
+/**
+ * Bosselle un polyèdre : chaque sommet est déplacé selon sa position (les faces restent jointives), pour des
+ * blocs à grandes facettes irrégulières au lieu de solides réguliers.
+ */
+function facet(g: THREE.BufferGeometry, seed: number, amt: number): THREE.BufferGeometry {
+  const ng = g.index ? g.toNonIndexed() : g;
+  const p = ng.getAttribute('position') as THREE.BufferAttribute;
+  const h = (x: number, y: number, z: number, k: number) => {
+    const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7 + seed * 13.37 + k * 57.9) * 43758.5453;
+    return s - Math.floor(s) - 0.5;
+  };
+  for (let i = 0; i < p.count; i++) {
+    const x = Math.round(p.getX(i) * 1000) / 1000;
+    const y = Math.round(p.getY(i) * 1000) / 1000;
+    const z = Math.round(p.getZ(i) * 1000) / 1000;
+    p.setXYZ(i, x + h(x, y, z, 0) * amt, y + h(x, y, z, 1) * amt, z + h(x, y, z, 2) * amt);
+  }
+  return ng;
+}
+
+/** Orgues de basalte : colonnes hexagonales jointives (rayon 0,55 m), hauteurs données du centre vers le bord. */
+function columns(heights: number[]): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  const d = 0.97;
+  // Centre, premier anneau (6), puis quelques colonnes du second anneau.
+  const at: P2[] = [[0, 0]];
+  for (let k = 0; k < 6; k++) at.push([Math.sin(Math.PI / 6 + (k * Math.PI) / 3) * d, Math.cos(Math.PI / 6 + (k * Math.PI) / 3) * d]);
+  for (let k = 0; k < 6; k++) at.push([Math.sin((k * Math.PI) / 3) * d * Math.sqrt(3), Math.cos((k * Math.PI) / 3) * d * Math.sqrt(3)]);
+  heights.forEach((hgt, i) => {
+    const [x, z] = at[i]!;
+    out.push(part(prism(0.55, 0.55, -0.6, hgt, 6, x, z), i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? '#e2e2e2' : '#f0f0f0', 1));
+  });
+  return out;
+}
+
+/**
+ * Toit à deux pans : prisme triangulaire de largeur `w` (débords compris) et de hauteur `h`, faîtage le long de z,
+ * posé à la hauteur `y` (bas des pans).
+ */
+function gable(w: number, h: number, len: number, x: number, y: number, z: number): THREE.BufferGeometry {
+  return new THREE.CylinderGeometry(1, 1, len, 3).rotateX(-Math.PI / 2).scale(w / (2 * 0.866), h / 1.5, 1).translate(x, y + h / 3, z);
+}
+
 function kit() {
-  const rock = (r: number, col: string, sy = 0.7) => part(new THREE.IcosahedronGeometry(r, 0).scale(1, sy, 1.15).translate(0, r * sy * 0.45, 0), col, 1);
+  const rock =(r: number, col: string, sy = 0.7) => part(new THREE.IcosahedronGeometry(r, 0).scale(1, sy, 1.15).translate(0, r * sy * 0.45, 0), col, 1);
   return {
     puff: template([part(new THREE.IcosahedronGeometry(1, 0), '#ffffff', 1)]),
     /** Bouche de fumerolle : croûte de soufre, cailloux, trou sombre. */
@@ -76,8 +124,6 @@ function kit() {
     ]),
     /** Baigneur dans l'eau jusqu'à la poitrine. */
     bather: template([part(box(0.42, 0.42, 0.26, 0, 0.21), '#e0b48f'), part(new THREE.IcosahedronGeometry(0.14, 0).translate(0, 0.58, 0), '#e0b48f'), part(box(0.24, 0.1, 0.22, 0, 0.7), '#3a2a1e')]),
-    /** Transat et parasol des thermes. */
-    deckchair: template([part(box(0.65, 0.12, 1.8, 0, 0.35).rotateX(-0.08), '#ffffff', 1), part(box(0.65, 0.7, 0.1, 0, 0.7, -0.85).rotateX(0.5), '#ffffff', 1), part(prism(0.03, 0.03, 0, 2.3, 5, 0.8, 0), '#e9e6dc'), part(new THREE.ConeGeometry(1.2, 0.45, 8).translate(0.8, 2.3, 0), '#ffffff', 1)]),
     /** Pile du pont (unité de hauteur : 1 m, posée sur le fond). */
     pier: template([part(box(1.6, 1, 1.6, 0, 0.5), '#b7b1a6')]),
     /** Chevêtre sous le tablier, en travers (x). */
@@ -116,12 +162,6 @@ function kit() {
     sign: template([part(box(0.12, 1.6, 0.12, -0.9, 0.8), '#5d4630'), part(box(0.12, 1.6, 0.12, 0.9, 0.8), '#5d4630'), part(box(2.2, 1.1, 0.1, 0, 1.6).rotateX(-0.35), '#6d5236'), part(box(2, 0.9, 0.04, 0, 1.62, 0.06).rotateX(-0.35), '#e8dcc2')]),
     rail: template([...[-2, 0, 2].map((x) => part(box(0.12, 1.05, 0.12, x, 0.52), '#6d5236')), part(box(4.1, 0.1, 0.1, 0, 1.0), '#8a6a46'), part(box(4.1, 0.08, 0.08, 0, 0.55), '#8a6a46')]),
     bench: template([part(box(1.8, 0.08, 0.45, 0, 0.45), '#8a6a46'), ...[-0.75, 0.75].map((x) => part(box(0.08, 0.45, 0.4, x, 0.22), '#3a3f44')), part(box(1.8, 0.35, 0.06, 0, 0.75, -0.22), '#8a6a46')]),
-    /** Palmier (6 à 9 m) : stipe en tronçons, palmes en étoile. */
-    palm: template([
-      ...Array.from({ length: 5 }, (_, i) => part(prism(0.24 - i * 0.02, 0.22 - i * 0.02, i * 1.5, i * 1.5 + 1.55, 6, Math.sin(i * 0.5) * 0.25 * i * 0.3, 0), i % 2 ? '#8a6e4e' : '#7a5f43')),
-      ...Array.from({ length: 7 }, (_, i) => part(box(0.7, 0.08, 3.6, 0, 0, 1.8).rotateX(0.45).rotateY((i / 7) * Math.PI * 2).translate(0.5, 7.6, 0), '#ffffff', 1)),
-      part(new THREE.IcosahedronGeometry(0.35, 0).translate(0.5, 7.4, 0), '#6b4a2a'),
-    ]),
     /** Bateau de pêche au large (+z : avant). */
     fishingBoat: template([
       part(prism(0.9, 1.4, -0.3, 0.9, 6).scale(1, 1, 3.1), '#ffffff', 1),
@@ -158,6 +198,107 @@ function kit() {
     mound: template([part(new THREE.CylinderGeometry(1.2, 3.4, 1.6, 8).scale(1.4, 1, 1).translate(0, 0.8, 0), '#2b2725')]),
     berm: template([part(box(6, 1.6, 0.18, 0, 0.8).rotateX(-0.35), '#9a7a58'), ...[-2.8, 0, 2.8].map((x) => part(box(0.15, 1.7, 0.15, x, 0.85, 0.3), '#6d5236'))]),
     hut: template([part(box(5, 3, 4, 0, 1.5), '#e9e6dc'), part(new THREE.ConeGeometry(4, 1.6, 4).rotateY(Math.PI / 4).scale(1, 1, 0.85).translate(0, 3.8, 0), '#c8352e'), part(box(1.2, 2, 0.06, 0, 1, 2.02), '#5d4630')]),
+    /** Gros bloc de lave à grandes facettes (teinté), ≈ 2,4 × 1,5 × 2 m à l'échelle 1. */
+    lavaBlock: template([part(facet(new THREE.DodecahedronGeometry(1, 0).scale(1.2, 0.75, 1), 3, 0.38).translate(0, 0.5, 0), '#ffffff', 1)]),
+    /** Tas de blocs : un gros, trois au pied, un perché dessus. */
+    lavaHeap: template([
+      part(facet(new THREE.DodecahedronGeometry(1.1, 0).scale(1.2, 0.8, 1), 5, 0.4).translate(0, 0.6, 0), '#ffffff', 1),
+      part(facet(new THREE.IcosahedronGeometry(0.7, 0), 6, 0.3).translate(1.35, 0.35, 0.4), '#ffffff', 1),
+      part(facet(new THREE.IcosahedronGeometry(0.55, 0), 7, 0.25).translate(-1.15, 0.3, 0.7), '#e8e8e8', 1),
+      part(facet(new THREE.IcosahedronGeometry(0.45, 0), 8, 0.2).translate(0.2, 0.25, -1.3), '#f4f4f4', 1),
+      part(facet(new THREE.IcosahedronGeometry(0.5, 0).scale(1.2, 0.8, 1), 9, 0.25).translate(0.35, 1.3, 0.15), '#dcdcdc', 1),
+    ]),
+    /** Vieux bloc des basses pentes : lave teintée, dessus couvert de mousse et de fougères rases. */
+    lavaMoss: template([
+      part(facet(new THREE.DodecahedronGeometry(1, 0).scale(1.2, 0.75, 1), 11, 0.38).translate(0, 0.5, 0), '#ffffff', 1),
+      part(facet(new THREE.IcosahedronGeometry(1, 0).scale(1.15, 0.26, 0.95), 12, 0.15).translate(0.05, 1.08, 0), '#7ea544'),
+    ]),
+    /** Butte de mousse des vieilles coulées (teintée), ≈ 2,6 × 0,9 × 2,2 m à l'échelle 1. */
+    hummock: template([part(facet(new THREE.IcosahedronGeometry(1, 0).scale(1.3, 0.45, 1.1), 13, 0.22).translate(0, 0.12, 0), '#ffffff', 1)]),
+    /** Dalle cordée sous la mousse : lave sombre, coussin de mousse dessus. */
+    slabMoss: template([
+      part(new THREE.CylinderGeometry(2.2, 2.6, 0.45, 7).scale(1.3, 1, 0.8).translate(0, 0.15, 0), '#ffffff', 1),
+      part(facet(new THREE.IcosahedronGeometry(1, 0).scale(2.3, 0.3, 1.5), 14, 0.2).translate(0.2, 0.42, 0.1), '#86ab47'),
+    ]),
+    /** Orgues de basalte : faisceau de colonnes en gradins (≈ 5 m au centre). */
+    organ: template(columns([5.2, 4.4, 3.6, 4.8, 2.9, 3.9, 3.3, 1.9, 2.4, 1.4, 2.1, 1.2, 1.7])),
+    /** Pavé de colonnes rases, comme une chaussée de géants. */
+    organLow: template(columns([1.1, 0.8, 1.3, 0.6, 0.9, 0.5, 1.0])),
+    /** Touffe de lupins : feuilles en rosette et trois épis (teintés bleu-violet). */
+    tuft: template([
+      part(new THREE.OctahedronGeometry(0.42, 0).scale(1, 0.35, 1).translate(0, 0.12, 0), '#4f7a35'),
+      ...([[0, 0, 0.95], [0.22, 0.12, 0.75], [-0.18, -0.16, 0.82]] as const).flatMap(([x, z, h]) => [
+        part(prism(0.025, 0.02, 0, h * 0.55, 3, x, z), '#4a7334'),
+        part(new THREE.ConeGeometry(0.09, h * 0.5, 4).translate(x, h * 0.8, z), '#ffffff', 1),
+      ]),
+    ]),
+    /** Grande touffe de lupins : rosette large et six épis. */
+    bush: template([
+      part(new THREE.IcosahedronGeometry(0.7, 0).scale(1.2, 0.4, 1.1).translate(0, 0.2, 0), '#4b7633'),
+      ...Array.from({ length: 6 }, (_, i) => {
+        const a = i * 1.05 + 0.4;
+        const d = i ? 0.45 : 0;
+        const h = 0.9 + ((i * 37) % 5) * 0.08;
+        return [part(prism(0.03, 0.02, 0, h * 0.55, 3, Math.cos(a) * d, Math.sin(a) * d), '#4a7334'), part(new THREE.ConeGeometry(0.1, h * 0.5, 4).translate(Math.cos(a) * d, h * 0.8, Math.sin(a) * d), '#ffffff', 1)];
+      }).flat(),
+    ]),
+    /** Église blanche à toit rouge (nef le long de z, clocher et porte en +z) : ≈ 6 × 15 m, flèche à 14 m. */
+    church: template([
+      part(box(6, 4.6, 11, 0, 2.3, -1), '#f6f5f0'),
+      part(gable(6.8, 3.4, 11.6, 0, 4.6, -1), '#b8302a'),
+      part(box(3.2, 7.4, 3.2, 0, 3.7, 6), '#f6f5f0'),
+      part(new THREE.ConeGeometry(2.4, 5.6, 4).rotateY(Math.PI / 4).translate(0, 7.4 + 2.8, 6), '#b8302a'),
+      part(box(0.12, 1.4, 0.12, 0, 13.7, 6), '#2b2f33'),
+      part(box(0.8, 0.12, 0.12, 0, 13.9, 6), '#2b2f33'),
+      part(box(1.3, 2.3, 0.08, 0, 1.15, 7.63), '#5a2f28'),
+      part(box(0.8, 1, 0.06, 0, 5.6, 7.62), '#3e4b55'),
+      ...[-1, 1].flatMap((sd) => [-4.5, -1, 2.5].map((zz) => part(box(0.06, 1.5, 0.9, sd * 3.02, 2.6, zz), '#3e4b55'))),
+      part(box(3.6, 0.3, 3.6, 0, 0.15, 6), '#d9d6cc'),
+    ]),
+    /** Enclos de l'église (20 × 26 m, entrée en +z) : muret blanc, croix et stèles. */
+    churchyard: template([
+      part(box(20, 0.8, 0.4, 0, 0.4, -13), '#e9e7e0'),
+      part(box(0.4, 0.8, 26, -10, 0.4, 0), '#e9e7e0'),
+      part(box(0.4, 0.8, 26, 10, 0.4, 0), '#e9e7e0'),
+      part(box(7.5, 0.8, 0.4, -6.25, 0.4, 13), '#e9e7e0'),
+      part(box(7.5, 0.8, 0.4, 6.25, 0.4, 13), '#e9e7e0'),
+      ...Array.from({ length: 10 }, (_, i) => {
+        const gx = -7 + (i % 5) * 1.8;
+        const gz = -10 + Math.floor(i / 5) * 2.2;
+        return i % 2 ? part(box(0.5, 0.7, 0.1, gx, 0.35, gz), '#9a9a96') : part(box(0.08, 0.9, 0.08, gx, 0.45, gz), '#f3f3ef');
+      }),
+    ]),
+    /** Maisons de tôle (murs teintés) à toit rouge, vert ou bleu ardoise : 6 × 8 m, pignons en ±z, porte en +z. */
+    tin: (['#b3332b', '#3f6b4b', '#3d5975'] as const).map((roof) =>
+      template([
+        part(box(6, 3.4, 8, 0, 1.7, 0), '#ffffff', 1),
+        part(gable(6.8, 2.6, 8.6, 0, 3.4, 0), roof),
+        part(box(0.7, 1.4, 0.7, 1.4, 5.2, -1.6), '#f2f1ec'),
+        ...[-1, 1].flatMap((sd) => [-2.2, 0.4, 2.6].map((zz) => part(box(0.06, 1.1, 0.95, sd * 3.02, 1.9, zz), '#2f3a44'))),
+        ...[-1, 1].map((sd) => part(box(1, 1, 0.06, sd * 1.4, 4.1, 4.02), '#2f3a44')),
+        part(box(1, 2, 0.06, 1.6, 1, 4.03), '#7a3a2a'),
+        part(box(6.1, 0.3, 8.1, 0, 0.15, 0), '#3a3735'),
+      ]),
+    ),
+    /** Remise de tôle (teintée), toit à deux pans. */
+    tinShed: template([part(box(4, 2.6, 5, 0, 1.3, 0), '#ffffff', 1), part(gable(4.5, 1.4, 5.4, 0, 2.6, 0), '#ffffff', 1), part(box(1.8, 2, 0.06, 0, 1, 2.53), '#2b2b2b')]),
+    /** Tronçon de cascade : feuille d'eau d'un mètre (largeur x, longueur y, épaisseur z), teintée. */
+    sheet: template([part(box(1, 1, 0.14, 0, 0.5, 0), '#ffffff', 1)]),
+    /** Écume au pied d'une cascade. */
+    foam: template([
+      part(new THREE.IcosahedronGeometry(1, 0).scale(1.4, 0.35, 1.1), '#f4f8f8'),
+      ...([[1.1, 0.4], [-1, 0.6], [0.3, -1.1], [-0.6, -0.8]] as const).map(([x, z], i) => part(new THREE.IcosahedronGeometry(0.55 + i * 0.08, 0).scale(1, 0.5, 1).translate(x, 0.1, z), i % 2 ? '#e6f1f3' : '#ffffff')),
+    ]),
+    /** Vasque au pied d'une cascade (teintée). */
+    plunge: template([part(new THREE.CylinderGeometry(1, 1, 0.08, 10), '#ffffff', 1)]),
+    /** Aiguille de basalte au large (≈ 20 m, base à y = 0, teintée), coiffe de mousse et de fientes. */
+    seaStack: template([
+      part(facet(new THREE.CylinderGeometry(3.4, 4.6, 8, 6).translate(0, 4, 0), 21, 0.5), '#ffffff', 1),
+      part(facet(new THREE.CylinderGeometry(2.5, 3.3, 7.5, 6).translate(0.3, 11.5, 0.2), 22, 0.45), '#ffffff', 1),
+      part(facet(new THREE.CylinderGeometry(1.3, 2.4, 5, 5).translate(0.5, 17.5, 0.1), 23, 0.35), '#ffffff', 1),
+      part(new THREE.CylinderGeometry(2.0, 2.2, 0.3, 5).translate(0.5, 19.9, 0.1), '#e8e6dc'),
+      part(facet(new THREE.IcosahedronGeometry(1.5, 0).scale(1, 0.35, 1).translate(0.5, 20.2, 0.1), 24, 0.2), '#7f9a52'),
+    ]),
     startRamp: template([part(box(3, 0.3, 6, 0, 2.4, 0).rotateX(0.3), '#9a7a58'), part(box(3, 2.5, 2, 0, 1.25, -3), '#6d5236'), ...[-1.4, 1.4].map((x) => part(box(0.1, 1, 6, x, 3.1, 0).rotateX(0.3), '#e9e6dc'))]),
   };
 }
@@ -293,7 +434,7 @@ function fumaroles(k: () => Kit, id: string, x0: number, z0: number, n: number, 
   };
 }
 
-/** Bassins thermaux d'Aigues-Chaudes : trois bassins fumants, baigneurs, transats. */
+/** Bassins thermaux d'Aigues-Chaudes : trois bassins fumants, baigneurs, bancs de bois. */
 function thermalPools(k: () => Kit): Site {
   const [x0, z0] = A.thermes;
   return {
@@ -321,7 +462,7 @@ function thermalPools(k: () => Kit): Site {
           const dx = x + Math.cos(yaw) * (-3 + d * 3) - Math.sin(yaw) * 4.6;
           const dz = z - Math.sin(yaw) * (-3 + d * 3) - Math.cos(yaw) * 4.6;
           const dy = pr.heightAt(dx, dz);
-          if (Number.isFinite(dy)) c.mesh.put(K.deckchair, dx, dy, dz, yaw, 1, 1, 1, new THREE.Color(['#e86f5a', '#3fa7b5', '#f2b134'][d]!));
+          if (Number.isFinite(dy) && c.probe.read(dx, dz) && c.probe.road < 0.02) c.mesh.put(K.bench, dx, dy, dz, yaw, 1, 1, 1, WHITE);
         }
         puffs(c, K, 'archipel-vapeur', x, y + 0.4, z, { n: 5, rise: 9, size: 1.8, drift: [3, -1], period: 12, spread: 5, colour: '#f6f5f0', seed: 4500 + made });
         made++;
@@ -559,6 +700,26 @@ function lavaField(k: () => Kit, f: (typeof A.lava)[number], x0: number, z0: num
       const r = rng(9100 + i);
       const tints = [new THREE.Color('#2b2725'), new THREE.Color('#3a3532'), new THREE.Color('#24201f'), new THREE.Color('#4a3f38')];
       const R = Math.min(320, f.w * 0.8);
+      // Coulée ancienne (loin du cratère) : la mousse a tout recouvert, blocs moussus et buttes vert vif.
+      const V = A.volcano;
+      const old = Math.hypot(x0 - V.x, z0 - V.z) > 2800;
+      if (old) {
+        const tries = c.density < 0.7 ? 160 : 260;
+        for (let j = 0; j < tries; j++) {
+          const a = r() * 6.28;
+          const d = Math.sqrt(r()) * R;
+          const x = x0 + Math.cos(a) * d;
+          const z = z0 + Math.sin(a) * d;
+          if (distLine(f.pts, x, z) > f.w * 0.62) continue;
+          const s = 0.7 + r() * 1.3;
+          const pr = c.probe;
+          if (!freeSpot(pr, x, z, 1.4 * s) || pr.urban > 0.2) continue;
+          const y = pr.heightAt(x, z);
+          if (!Number.isFinite(y) || y < 0.5) continue;
+          c.mesh.put(K.hummock, x, y - 0.1, z, r() * 6.28, s, s * (0.7 + r() * 0.6), s, MOSS_TINTS[Math.floor(r() * MOSS_TINTS.length)]!);
+          if (j % 60 === 59) yield;
+        }
+      }
       for (let j = 0; j < 260; j++) {
         const a = r() * 6.28;
         const d = Math.sqrt(r()) * R;
@@ -573,8 +734,8 @@ function lavaField(k: () => Kit, f: (typeof A.lava)[number], x0: number, z0: num
         const tint = tints[Math.floor(r() * tints.length)]!;
         if (roll < 0.62) {
           const s = 0.5 + r() * r() * 2.4;
-          c.mesh.put(K.boulder, x, y - 0.15 * s, z, r() * 6.28, s, s * (0.6 + r() * 0.5), s, tint);
-        } else if (roll < 0.93) c.mesh.put(K.slab, x, y - 0.1, z, r() * 6.28, 0.6 + r() * 0.9, 0.7 + r() * 0.6, 0.6 + r() * 0.9, tint);
+          c.mesh.put(old && r() < 0.75 ? K.lavaMoss : K.boulder, x, y - 0.15 * s, z, r() * 6.28, s, s * (0.6 + r() * 0.5), s, tint);
+        } else if (roll < 0.93) c.mesh.put(old && r() < 0.8 ? K.slabMoss : K.slab, x, y - 0.1, z, r() * 6.28, 0.6 + r() * 0.9, 0.7 + r() * 0.6, 0.6 + r() * 0.9, tint);
         else c.mesh.put(K.hornito, x, y - 0.2, z, r() * 6.28, 0.7 + r() * 0.6, 0.6 + r() * 0.8, 0.7 + r() * 0.6, tint);
         if (j % 50 === 49) yield;
       }
@@ -769,8 +930,8 @@ function summit(k: () => Kit): Site {
   };
 }
 
-/** Palmiers du front de mer de Sainte-Iris (côté plage de la promenade) et du village de Sable-Noir. */
-function palms(k: () => Kit, id: string, line: readonly number[], side: number, every: number, seed: number): Site {
+/** Front de mer de Sainte-Iris et rue de Sable-Noir : lampadaires et bancs côté mer (plus de palmiers sous ce ciel). */
+function seafront(k: () => Kit, id: string, line: readonly number[], side: number, every: number, seed: number): Site {
   const n = line.length / 3;
   const mid = along(line, Math.floor(n / 2));
   return {
@@ -782,19 +943,466 @@ function palms(k: () => Kit, id: string, line: readonly number[], side: number, 
     *build(c) {
       const K = k();
       const r = rng(seed);
-      const greens = ['#3f9e3c', '#2f8a3a', '#5aa83f'].map((q) => new THREE.Color(q));
+      let k2 = 0;
       for (let i = 0; i < n; i += every) {
         const p = along(line, i);
-        const lat = side * (5.5 + r() * 2);
-        const x = p.x + p.dz * lat;
-        const z = p.z - p.dx * lat;
         const pr = c.probe;
-        if (!pr.read(x, z) || pr.road > 0.05 || pr.buildingNear(x, z, 2)) continue;
+        for (const lat of [4.4, 5.6]) {
+          const x = p.x + p.dz * side * lat;
+          const z = p.z - p.dx * side * lat;
+          if (!freeSpot(pr, x, z, 0.5)) continue;
+          const y = pr.heightAt(x, z);
+          if (!Number.isFinite(y) || y < 0.3) continue;
+          // Lampadaire (bras vers la promenade) ou banc tourné vers elle, en alternance.
+          if (k2++ % 2 === 0) c.mesh.put(K.lamp, x, y, z, Math.atan2(-side * p.dx, -side * p.dz), 1, 1, 1, WHITE);
+          else c.mesh.put(K.bench, x, y, z, Math.atan2(-side * p.dz, side * p.dx), 1, 1, 1, WHITE);
+          break;
+        }
+        if (i % 40 === 0) yield;
+      }
+      void r;
+    },
+  };
+}
+
+// ───────────────────────────── Rochers, orgues et fleurs
+
+const LAVA_TINTS = ['#2b2725', '#35302d', '#24201f', '#3f3632', '#2f2a2a'].map((q) => new THREE.Color(q));
+/** Mousse des vieilles coulées : vert vif, vert jaune, vert olive. */
+const MOSS_TINTS = ['#7fa346', '#8db04a', '#6f9a3e', '#99b552', '#789c40'].map((q) => new THREE.Color(q));
+const RING4: ReadonlyArray<readonly [number, number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+const RING8: ReadonlyArray<readonly [number, number]> = [...RING4, [0.71, 0.71], [-0.71, 0.71], [0.71, -0.71], [-0.71, -0.71]];
+
+/**
+ * Emplacement libre pour un objet de rayon `r` : jamais sur une chaussée (centre et quatre points du pourtour,
+ * route < 0,02), ni dans l'eau, ni contre un bâtiment. La sonde reste lue au centre.
+ */
+function freeSpot(pr: SiteContext['probe'], x: number, z: number, r: number, waterMax = 0.1): boolean {
+  for (const [dx, dz] of RING4) if (!pr.read(x + dx * r, z + dz * r) || pr.road >= 0.02) return false;
+  if (!pr.read(x, z) || pr.road >= 0.02 || pr.water > waterMax) return false;
+  return !pr.buildingNear(x, z, r + 2);
+}
+
+/** Bourrelets d'une coulée : tas et gros blocs à facettes le long des deux bords, sur ± `half` m autour d'un point. */
+function lavaLevee(k: () => Kit, f: (typeof A.lava)[number], x0: number, z0: number, ux: number, uz: number, half: number, i: number): Site {
+  return {
+    id: `bourrelets-${i}`,
+    x: x0,
+    z: z0,
+    reach: 900,
+    needs: [[x0, z0], [x0 + ux * half, z0 + uz * half], [x0 - ux * half, z0 - uz * half]],
+    *build(c) {
+      const K = k();
+      const r = rng(9700 + i);
+      const V = A.volcano;
+      const keep = c.density < 0.7 ? 0.33 : 0.55;
+      let made = 0;
+      for (let t = -half; t < half; t += 13) {
+        for (const side of [-1, 1]) {
+          if (r() > keep) continue;
+          const lat = side * f.w * (0.47 + (r() - 0.4) * 0.16);
+          const x = x0 + ux * t + uz * lat;
+          const z = z0 + uz * t - ux * lat;
+          if (Math.hypot(x - V.x, z - V.z) < V.rim + 40) continue;
+          const heap = r() < 0.4;
+          const s = heap ? 0.9 + r() * 1.3 : 0.8 + r() * r() * 2.6;
+          const pr = c.probe;
+          if (!freeSpot(pr, x, z, 1.6 * s) || pr.urban > 0.2 || pr.treeNear(x, z, 1.2 * s)) continue;
+          const y = pr.heightAt(x, z);
+          if (!Number.isFinite(y) || y < 0.5) continue;
+          // Loin du cratère, la mousse a gagné les bourrelets.
+          const moss = !heap && Math.hypot(x - V.x, z - V.z) > 2800 && r() < 0.6;
+          c.mesh.put(heap ? K.lavaHeap : moss ? K.lavaMoss : K.lavaBlock, x, y - 0.15 * s, z, r() * 6.28, s, s * (0.75 + r() * 0.4), s, LAVA_TINTS[Math.floor(r() * LAVA_TINTS.length)]!);
+          if (++made % 15 === 0) yield;
+        }
+      }
+    },
+  };
+}
+
+/** Pentes du volcan : blocs épars et tas ; plus bas (> 1,5 km du cratère), vieux blocs moussus. */
+function volcanoSlope(k: () => Kit, i: number, x0: number, z0: number): Site {
+  return {
+    id: `pentes-${i}`,
+    x: x0,
+    z: z0,
+    reach: 800,
+    needs: [[x0, z0]],
+    *build(c) {
+      const K = k();
+      const r = rng(9900 + i * 7);
+      const V = A.volcano;
+      const tries = c.density < 0.7 ? 55 : 90;
+      for (let j = 0; j < tries; j++) {
+        const a = r() * 6.28;
+        const d = Math.sqrt(r()) * 260;
+        const x = x0 + Math.cos(a) * d;
+        const z = z0 + Math.sin(a) * d;
+        const dV = Math.hypot(x - V.x, z - V.z);
+        if (dV < V.rim + 60) continue;
+        const roll = r();
+        const moss = dV > 1500 && roll < 0.4;
+        const heap = !moss && roll > 0.75;
+        const s = heap ? 0.8 + r() * 1.1 : 0.7 + r() * r() * 3;
+        const pr = c.probe;
+        if (!freeSpot(pr, x, z, 1.6 * s) || pr.urban > 0.2 || pr.forest > (moss ? 0.7 : 0.4) || pr.treeNear(x, z, 1.2 * s)) continue;
+        const y = pr.heightAt(x, z);
+        if (!Number.isFinite(y) || y < 0.5) continue;
+        c.mesh.put(moss ? K.lavaMoss : heap ? K.lavaHeap : K.lavaBlock, x, y - 0.18 * s, z, r() * 6.28, s, s * (0.7 + r() * 0.45), s, LAVA_TINTS[Math.floor(r() * LAVA_TINTS.length)]!);
+        if (j % 20 === 19) yield;
+      }
+    },
+  };
+}
+
+/** Orgues de basalte autour du phare : faisceaux de colonnes en gradins et pavés de colonnes rases. */
+function basaltOrgans(k: () => Kit): Site {
+  const [px, pz] = A.lighthouse;
+  return {
+    id: 'orgues-du-phare',
+    x: px,
+    z: pz,
+    reach: 1400,
+    needs: [[px, pz], [px - 200, pz], [px, pz + 200], [px, pz - 200]],
+    *build(c) {
+      const K = k();
+      const r = rng(5151);
+      const greys = ['#3b3d40', '#2f3134', '#46484b', '#36383a'].map((q) => new THREE.Color(q));
+      let made = 0;
+      for (let j = 0; j < 160 && made < 16; j++) {
+        const a = r() * 6.28;
+        const d = 30 + r() * 200;
+        const x = px + Math.cos(a) * d;
+        const z = pz + Math.sin(a) * d;
+        const tall = r() < 0.55;
+        const s = 0.8 + r() * 0.6;
+        const pr = c.probe;
+        // Le basalte peut descendre jusqu'au rivage, pas dans la mer.
+        if (!freeSpot(pr, x, z, 2.3 * s, 0.35) || pr.urban > 0.3 || pr.treeNear(x, z, 2 * s)) continue;
         const y = pr.heightAt(x, z);
         if (!Number.isFinite(y) || y < 0.3) continue;
-        const s = 0.8 + r() * 0.4;
-        c.mesh.put(K.palm, x, y - 0.1, z, r() * 6.28, s, s, s, greens[Math.floor(r() * 3)]!);
-        if (i % 40 === 0) yield;
+        const yaw = r() * 6.28;
+        c.mesh.put(tall ? K.organ : K.organLow, x, y, z, yaw, s, s * (0.8 + r() * 0.5), s, greys[Math.floor(r() * greys.length)]!);
+        // Un pavé de colonnes rases au pied des grands faisceaux.
+        if (tall) {
+          const qx = x + Math.cos(yaw) * 4.2 * s;
+          const qz = z - Math.sin(yaw) * 4.2 * s;
+          const qy = pr.heightAt(qx, qz);
+          if (Number.isFinite(qy) && qy > 0.3 && freeSpot(pr, qx, qz, 2 * s, 0.35)) c.mesh.put(K.organLow, qx, qy, qz, yaw + 0.5, s, s, s, greys[Math.floor(r() * greys.length)]!);
+        }
+        made++;
+        if (made % 4 === 0) yield;
+      }
+    },
+  };
+}
+
+/**
+ * Lupins bleu-violet (quelques roses et blancs) en touffes et grandes touffes, au bord des rues (chaussée à moins
+ * de 5 m) et en haut des plages (sable à moins de 9 m), jamais sur la chaussée ni sur le sable. `meadow` : prairie
+ * de lupins, partout sur la terre ouverte (sans bord de route), comme les pentes bleues des étés islandais.
+ */
+function flowerPatch(k: () => Kit, id: string, x0: number, z0: number, R: number, tries: number, seed: number, meadow = false): Site {
+  return {
+    id,
+    x: x0,
+    z: z0,
+    reach: R + 500,
+    needs: [[x0, z0]],
+    *build(c) {
+      const K = k();
+      const r = rng(seed);
+      const colours = ['#5b4fc4', '#6c5cd6', '#4f63c8', '#7a63c9', '#5b4fc4', '#6c5cd6', '#d58fbf', '#efeaf4'].map((q) => new THREE.Color(q));
+      const n = Math.round(tries * (c.density < 0.7 ? 0.6 : 1));
+      const pr = c.probe;
+      let made = 0;
+      for (let j = 0; j < n && made < (meadow ? 150 : 220); j++) {
+        if (j % 80 === 79) yield;
+        const a = r() * 6.28;
+        const d = Math.sqrt(r()) * R;
+        const x = x0 + Math.cos(a) * d;
+        const z = z0 + Math.sin(a) * d;
+        if (!pr.read(x, z) || pr.road >= 0.02 || pr.water > 0.1 || pr.sand > 0.5) continue;
+        let edge = meadow && pr.open(x, z);
+        if (!edge) for (const [dx, dz] of RING8) {
+          if ((pr.read(x + dx * 5, z + dz * 5) && pr.road > 0.3) || (pr.read(x + dx * 9, z + dz * 9) && pr.sand > 0.5)) {
+            edge = true;
+            break;
+          }
+        }
+        if (!edge) continue;
+        const col = colours[Math.floor(r() * colours.length)]!;
+        const count = 1 + Math.floor(r() * 3);
+        for (let q = 0; q < count; q++) {
+          const fx = x + (q ? (r() - 0.5) * 3 : 0);
+          const fz = z + (q ? (r() - 0.5) * 3 : 0);
+          if (!freeSpot(pr, fx, fz, 0.9) || pr.sand > 0.5 || pr.treeNear(fx, fz, 1.2)) continue;
+          const y = pr.heightAt(fx, fz);
+          if (!Number.isFinite(y) || y < 0.3) continue;
+          const bush = r() < (meadow ? 0.5 : 0.3);
+          const s = 0.8 + r() * 0.5;
+          c.mesh.put(bush ? K.bush : K.tuft, fx, y - 0.05, fz, r() * 6.28, s, s, s, q && r() < 0.3 ? colours[Math.floor(r() * colours.length)]! : col);
+          // Papillons (skyLife) sur les touffes.
+          if (q === 0) c.flowers.push(fx, y + 0.4, fz);
+          made++;
+        }
+      }
+    },
+  };
+}
+
+// ───────────────────────────── Cascades, églises, maisons de tôle, aiguilles
+
+/**
+ * Cascades (relevées sur le relief du générateur : plus forte chute locale, sens de la pente `a`) : falaises de la
+ * côte, rebord du plateau des Orgues, ressauts des rivières. `w` : largeur du ruban d'eau (m).
+ */
+const FALLS: ReadonlyArray<{ id: string; x: number; z: number; a: number; w: number }> = [
+  { id: 'cascade-des-orgues', x: 15860, z: -4285, a: 1.96, w: 7 },
+  { id: 'cascade-de-la-ravine', x: 1895, z: -4354, a: -0.18, w: 5 },
+  { id: 'cascade-des-vignes', x: -8143, z: -5672, a: -2.68, w: 4.5 },
+  { id: 'cascade-du-cap', x: 18410, z: -3655, a: 0.39, w: 4 },
+  { id: 'cascade-des-falaises', x: 15155, z: -7630, a: 3.93, w: 5 },
+  { id: 'cascade-du-sud', x: 6275, z: -9040, a: 4.71, w: 6 },
+  { id: 'cascade-de-l-ouest', x: -6025, z: 9755, a: 1.57, w: 4 },
+];
+
+/**
+ * Cascade : le profil du sol est relu dans le sens de la pente (pas de 1 m), la chute est le tronçon le plus raide ;
+ * deux rubans d'eau (cœur blanc, voile bleu pâle) le suivent juste au-dessus du sol, de la lèvre au pied (ou à la
+ * mer), avec écume, vasque, embruns et paquets d'eau qui tombent. Rien si la chute fait moins de 3 m ou si une
+ * chaussée passe dessous.
+ */
+function waterfall(k: () => Kit, f: (typeof FALLS)[number]): Site {
+  const ux = Math.cos(f.a);
+  const uz = Math.sin(f.a);
+  return {
+    id: f.id,
+    x: f.x,
+    z: f.z,
+    reach: 1600,
+    needs: [[f.x - ux * 30, f.z - uz * 30], [f.x + ux * 60, f.z + uz * 60]],
+    *build(c) {
+      const K = k();
+      const pr = c.probe;
+      const T0 = -30;
+      const hs: number[] = [];
+      for (let t = T0; t <= 60; t++) hs.push(pr.heightAt(f.x + ux * t, f.z + uz * t));
+      if (hs.some((h) => !Number.isFinite(h))) return;
+      // Tronçon le plus raide (sur 4 m), puis lèvre et pied là où la pente retombe sous 0,25 m/m.
+      let kMax = 2;
+      for (let i = 2; i + 2 < hs.length; i++) if (hs[i - 2]! - hs[i + 2]! > hs[kMax - 2]! - hs[kMax + 2]!) kMax = i;
+      let top = kMax;
+      while (top > 0 && hs[top - 1]! - hs[top]! > 0.25) top--;
+      let bot = kMax;
+      while (bot + 1 < hs.length && hs[bot]! - hs[bot + 1]! > 0.25 && hs[bot]! > 0.2) bot++;
+      const level = (i: number) => Math.max(hs[i]!, 0);
+      const drop = level(top) - level(bot);
+      if (drop < 3) return;
+      // Jamais sur une chaussée ni contre un bâtiment, de la lèvre au pied.
+      for (let i = Math.max(0, top - 2); i <= bot; i++) {
+        const x = f.x + ux * (i + T0);
+        const z = f.z + uz * (i + T0);
+        if (!pr.read(x, z) || pr.road >= 0.02 || pr.buildingNear(x, z, f.w)) return;
+      }
+      yield;
+      // Rubans : un tronçon par mètre, décollés du sol (assez pour passer les bosses entre deux échantillons).
+      const px = -uz;
+      const pz = ux;
+      const core = new THREE.Color('#eef6f8');
+      const veil = new THREE.Color('#a9d3de');
+      const pts: number[] = [];
+      for (let i = top - 1; i <= bot; i++) {
+        const t = Math.max(0, i) + T0;
+        pts.push(f.x + ux * t, level(Math.max(0, i)), f.z + uz * t);
+      }
+      for (const [w, lift, col] of [[f.w, 0.35, veil], [f.w * 0.55, 0.5, core]] as const) {
+        for (let j = 0; j + 5 < pts.length; j += 3) {
+          const x0 = pts[j]!;
+          const y0 = pts[j + 1]! + lift;
+          const z0 = pts[j + 2]!;
+          const bx = pts[j + 3]! - x0;
+          const by = pts[j + 4]! + lift - y0;
+          const bz = pts[j + 5]! - z0;
+          // Normale du ruban : B × A (A en travers, à plat), à l'échelle 1.
+          let nx = by * pz;
+          let ny = bz * px - bx * pz;
+          let nz = -by * px;
+          const nl = Math.hypot(nx, ny, nz) || 1;
+          nx /= nl;
+          ny /= nl;
+          nz /= nl;
+          c.mesh.putBasis(K.sheet, x0, y0, z0, px * w, 0, pz * w, bx, by, bz, nx, ny, nz, col.r, col.g, col.b);
+        }
+      }
+      // Pied : écume, vasque (pas en mer), embruns, paquets d'eau qui tombent le long du ruban.
+      const fx = pts[pts.length - 3]!;
+      const fy = pts[pts.length - 2]!;
+      const fz = pts[pts.length - 1]!;
+      const sea = hs[bot]! < 0.3;
+      if (!sea) c.mesh.put(K.plunge, fx + ux * 1.5, fy + 0.06, fz + uz * 1.5, 0, f.w * 0.9, 1, f.w * 0.8, new THREE.Color('#8cc3cf'));
+      c.mesh.put(K.foam, fx + ux * 0.8, fy + 0.1, fz + uz * 0.8, f.a, f.w * 0.3, 0.8, f.w * 0.3, WHITE);
+      puffs(c, K, 'archipel-embruns', fx + ux * 1.5, fy + 0.5, fz + uz * 1.5, { n: 6, rise: Math.min(10, drop * 0.5), size: 0.9 + f.w * 0.18, drift: [ux * 4, uz * 4], period: 5.5, spread: f.w * 0.6, colour: '#f4f8f8', seed: Math.round(f.x) });
+      const r = rng(Math.round(f.z));
+      const n = pts.length / 3;
+      for (let i = 0; i < 4; i++) {
+        const m = meshOf([{ t: K.puff, x: 0, y: 0, z: 0, c: core }], c.mat);
+        m.name = 'archipel-cascade';
+        m.castShadow = false;
+        const ph = r();
+        const lat = (r() - 0.5) * f.w * 0.5;
+        c.moving.push({
+          object: m,
+          step: (time) => {
+            const q = (time * 0.9 + ph) % 1;
+            const s = q * (n - 1);
+            const a = Math.floor(s);
+            const b = Math.min(n - 1, a + 1);
+            const u = s - a;
+            m.position.set(pts[a * 3]! + (pts[b * 3]! - pts[a * 3]!) * u + px * lat, pts[a * 3 + 1]! + (pts[b * 3 + 1]! - pts[a * 3 + 1]!) * u + 0.6, pts[a * 3 + 2]! + (pts[b * 3 + 2]! - pts[a * 3 + 2]!) * u + pz * lat);
+            m.scale.set(0.35 + f.w * 0.05, 0.7, 0.35 + f.w * 0.05);
+          },
+        });
+      }
+      // Promeneurs venus voir la cascade, au pied (pas en mer).
+      if (!sea) strollPath(c, [[fx + ux * 12 - px * 10, fz + uz * 12 - pz * 10], [fx + ux * 14 + px * 10, fz + uz * 14 + pz * 10], [fx + ux * 12 - px * 10, fz + uz * 12 - pz * 10]], Math.round(f.x) + 7);
+    },
+  };
+}
+
+/**
+ * Emplacement plat et libre près d'un point de route (entre `rMin` et `rMax` m), pour un objet de rayon `rad` :
+ * jamais sur une chaussée, ni dans l'eau, le bois, le sable ou contre un bâtiment ; pente < `slope` m sur le rayon.
+ * Renvoie (x, y le plus bas des quatre coins, z) ou null.
+ */
+function flatSpot(pr: SiteContext['probe'], x0: number, z0: number, rMin: number, rMax: number, rad: number, seed: number, slope = 1.6): [number, number, number] | null {
+  const r = rng(seed);
+  for (let i = 0; i < 90; i++) {
+    const a = r() * 6.28;
+    const d = rMin + r() * (rMax - rMin);
+    const x = x0 + Math.cos(a) * d;
+    const z = z0 + Math.sin(a) * d;
+    if (!freeSpot(pr, x, z, rad, 0.05) || pr.forest > 0.3 || pr.sand > 0.3 || pr.treeNear(x, z, rad)) continue;
+    const ys = [pr.heightAt(x, z), ...RING4.map(([dx, dz]) => pr.heightAt(x + dx * rad, z + dz * rad))];
+    if (ys.some((y) => !Number.isFinite(y))) continue;
+    const lo = Math.min(...ys);
+    if (Math.max(...ys) - lo > slope || lo < 1) continue;
+    return [x, lo - 0.15, z];
+  }
+  return null;
+}
+
+/** Églises blanches à toit rouge, porte tournée vers la route : celle de Sainte-Iris et trois isolées sur la côte. */
+const CHURCHES: ReadonlyArray<{ id: string; x: number; z: number; rMin: number; rMax: number }> = [
+  { id: 'eglise-de-sainte-iris', x: -389, z: 7902, rMin: 60, rMax: 380 },
+  { id: 'eglise-de-la-grande-anse', x: 16015, z: 9804, rMin: 30, rMax: 120 },
+  { id: 'eglise-des-cendres', x: -12148, z: 240, rMin: 30, rMax: 120 },
+  { id: 'eglise-du-pont', x: 10668, z: -4154, rMin: 30, rMax: 120 },
+];
+
+function church(k: () => Kit, ch: (typeof CHURCHES)[number]): Site {
+  return {
+    id: ch.id,
+    x: ch.x,
+    z: ch.z,
+    reach: 2200,
+    needs: [[ch.x, ch.z], [ch.x + ch.rMax, ch.z], [ch.x - ch.rMax, ch.z], [ch.x, ch.z + ch.rMax], [ch.x, ch.z - ch.rMax]],
+    *build(c) {
+      const K = k();
+      yield;
+      const at = flatSpot(c.probe, ch.x, ch.z, ch.rMin, ch.rMax, 16, Math.round(ch.x * 7 + ch.z), 2.2);
+      if (!at) return;
+      const [x, y, z] = at;
+      const yaw = Math.atan2(ch.x - x, ch.z - z);
+      c.mesh.put(K.churchyard, x, y, z, yaw, 1, 1, 1, WHITE);
+      c.mesh.put(K.church, x, y, z, yaw, 1, 1, 1, WHITE);
+      // Paroissiens devant la porte.
+      for (let s = 0; s < 3; s++) {
+        const d = 16 + s * 1.2;
+        c.spots.push({ kind: 'villager', x: x + Math.sin(yaw) * d + Math.cos(yaw) * (s - 1) * 1.4, y: c.probe.heightAt(x + Math.sin(yaw) * d, z + Math.cos(yaw) * d), z: z + Math.cos(yaw) * d - Math.sin(yaw) * (s - 1) * 1.4, yaw: yaw + Math.PI, seed: (s * 0.31 + x * 0.001) % 1 });
+      }
+    },
+  };
+}
+
+/** Maisons isolées en tôle (et leur remise) au bord des routes de campagne, loin des villages. */
+const TIN_HOMES: ReadonlyArray<readonly [number, number]> = [
+  [8291, 4450], [14310, -5630], [11806, 9796], [-1955, 7429], [7170, 7270], [16606, -7161], [-11047, 2593],
+  [1991, 7810], [15661, -1427], [-7912, 7170], [8875, -5486], [13664, 7734], [-9550, -4565], [4751, 8279],
+];
+const TIN_WALL_TINTS = ['#f3f2ed', '#ebe6d6', '#dfe3e2', '#efe1ad', '#b5443a', '#33363a', '#f3f2ed'].map((q) => new THREE.Color(q));
+const TIN_SHED_TINTS = ['#a8402f', '#8f3a2c', '#33363a', '#b3332b'].map((q) => new THREE.Color(q));
+
+function tinHome(k: () => Kit, i: number, x0: number, z0: number): Site {
+  return {
+    id: `maison-de-tole-${i}`,
+    x: x0,
+    z: z0,
+    reach: 1400,
+    needs: [[x0, z0], [x0 + 90, z0], [x0 - 90, z0], [x0, z0 + 90], [x0, z0 - 90]],
+    *build(c) {
+      const K = k();
+      const r = rng(7300 + i * 29);
+      yield;
+      const at = flatSpot(c.probe, x0, z0, 22, 90, 7, 7400 + i * 31);
+      if (!at) return;
+      const [x, y, z] = at;
+      const yaw = Math.atan2(x0 - x, z0 - z) + (r() - 0.5) * 0.4;
+      c.mesh.put(K.tin[Math.floor(r() * K.tin.length)]!, x, y, z, yaw, 1, 0.95 + r() * 0.15, 1, TIN_WALL_TINTS[Math.floor(r() * TIN_WALL_TINTS.length)]!);
+      // Remise à côté, si la place est libre.
+      const sx = x + Math.cos(yaw) * 9;
+      const sz = z - Math.sin(yaw) * 9;
+      if (freeSpot(c.probe, sx, sz, 3.5, 0.05)) {
+        const sy = c.probe.heightAt(sx, sz);
+        if (Number.isFinite(sy) && Math.abs(sy - y) < 1.5) c.mesh.put(K.tinShed, sx, Math.min(sy, y + 0.15) - 0.1, sz, yaw + Math.PI / 2, 1, 1, 1, TIN_SHED_TINTS[Math.floor(r() * TIN_SHED_TINTS.length)]!);
+      }
+    },
+  };
+}
+
+/** Aiguilles de basalte au large des plages de sable noir (Plage des Cendres, Sable-Noir, Grande Anse). */
+function seaStacks(k: () => Kit, id: string, x0: number, z0: number, seed: number): Site {
+  return {
+    id,
+    x: x0,
+    z: z0,
+    reach: 3500,
+    needs: [[x0, z0]],
+    *build(c) {
+      const K = k();
+      const pr = c.probe;
+      const r = rng(seed);
+      // Direction de la mer la plus proche (24 caps, pas de 10 m, jusqu'à 900 m).
+      let best = { d: Infinity, a: 0 };
+      for (let q = 0; q < 24; q++) {
+        const a = (q / 24) * Math.PI * 2;
+        for (let d = 0; d < 900; d += 10) {
+          const h = pr.heightAt(x0 + Math.cos(a) * d, z0 + Math.sin(a) * d);
+          if (!Number.isFinite(h)) break;
+          if (h < -2.5) {
+            if (d < best.d) best = { d, a };
+            break;
+          }
+        }
+      }
+      if (!Number.isFinite(best.d)) return;
+      yield;
+      const tints = ['#2a2827', '#34312f', '#232120'].map((q) => new THREE.Color(q));
+      let made = 0;
+      for (let j = 0; j < 30 && made < 5; j++) {
+        const a = best.a + (r() - 0.5) * 0.7;
+        const d = best.d + 40 + r() * 160;
+        const x = x0 + Math.cos(a) * d;
+        const z = z0 + Math.sin(a) * d;
+        const h = pr.heightAt(x, z);
+        if (!Number.isFinite(h) || h > -2 || h < -18) continue;
+        if (pr.read(x, z) && pr.road >= 0.02) continue;
+        const tall = 12 + r() * 14;
+        const s = 0.6 + r() * 0.6;
+        c.mesh.put(K.seaStack, x, h - 0.5, z, r() * 6.28, s, (tall - h) / 20, s, tints[Math.floor(r() * tints.length)]!);
+        // Oiseaux de mer sur la coiffe.
+        c.perches.push({ pts: new Float32Array([x + 0.5 * s, tall + 0.3, z, x - 0.4 * s, tall + 0.2, z + 0.5 * s]), yaw: r() * 6, ground: true, x, z, gull: true });
+        made++;
       }
     },
   };
@@ -823,8 +1431,48 @@ export function archipelSites(): Site[] {
       for (let d = 500; d < L; d += 1400) sites.push(lavaField(k, f, ax + ((bx - ax) * d) / L, az + ((bz - az) * d) / L, li++));
     }
   }
-  if (A.promenade.length) sites.push(palms(k, 'palmiers-sainte-iris', A.promenade, A.promenadeSea, 6, 7070));
-  if (A.sableNoirStreet.length) sites.push(palms(k, 'palmiers-sable-noir', A.sableNoirStreet, 1, 8, 7171));
+  // Bourrelets des coulées : des lieux d'environ 700 m bout à bout sur chaque tronçon.
+  let bi = 0;
+  for (const f of A.lava) {
+    for (let s = 0; s + 1 < f.pts.length; s++) {
+      const [ax, az] = f.pts[s]!;
+      const [bx, bz] = f.pts[s + 1]!;
+      const L = Math.hypot(bx - ax, bz - az);
+      const ux = (bx - ax) / L;
+      const uz = (bz - az) / L;
+      const m = Math.max(1, Math.round(L / 700));
+      for (let j = 0; j < m; j++) {
+        const d = ((j + 0.5) * L) / m;
+        sites.push(lavaLevee(k, f, ax + ux * d, az + uz * d, ux, uz, L / m / 2, bi++));
+      }
+    }
+  }
+  // Pentes du volcan : trois couronnes de lieux autour du cratère.
+  let vi = 0;
+  for (const [R, m] of [[850, 6], [1350, 9], [1950, 12]] as const) {
+    for (let j = 0; j < m; j++) {
+      const a = (j / m) * Math.PI * 2 + R * 0.001;
+      sites.push(volcanoSlope(k, vi++, A.volcano.x + Math.cos(a) * R, A.volcano.z + Math.sin(a) * R));
+    }
+  }
+  sites.push(basaltOrgans(k));
+  // Lupins : rues de Sainte-Iris, front de mer et Plage des Cendres, village et plages de Sable-Noir ; prairies de
+  // lupins le long des routes de la Plaine, de Port-Lave, du plateau des Orgues et de Sable-Noir.
+  sites.push(flowerPatch(k, 'lupins-sainte-iris', -389, 7902, 520, 900, 8181));
+  sites.push(flowerPatch(k, 'lupins-plage-des-cendres', -850, 8560, 650, 900, 8282));
+  sites.push(flowerPatch(k, 'lupins-sable-noir', 12900, 8900, 550, 700, 8383));
+  for (const [i, [x, z]] of ([[-6459, 5089], [-7912, 7170], [-4511, 8150], [14310, -5630], [16155, 7508], [7170, 7270]] as const).entries()) {
+    sites.push(flowerPatch(k, `prairie-de-lupins-${i}`, x, z, 260, 520, 8400 + i * 13, true));
+  }
+  // Identité islandaise : cascades, églises blanches, maisons de tôle, aiguilles de basalte au large du sable noir.
+  for (const f of FALLS) sites.push(waterfall(k, f));
+  for (const ch of CHURCHES) sites.push(church(k, ch));
+  for (const [i, [x, z]] of TIN_HOMES.entries()) sites.push(tinHome(k, i, x, z));
+  sites.push(seaStacks(k, 'aiguilles-des-cendres', -418, 8482, 6601));
+  sites.push(seaStacks(k, 'aiguilles-de-sable-noir', 11806, 9796, 6602));
+  sites.push(seaStacks(k, 'aiguilles-de-la-grande-anse', 16015, 9804, 6603));
+  if (A.promenade.length) sites.push(seafront(k, 'front-de-mer-sainte-iris', A.promenade, A.promenadeSea, 6, 7070));
+  if (A.sableNoirStreet.length) sites.push(seafront(k, 'rue-de-sable-noir', A.sableNoirStreet, 1, 8, 7171));
   return sites;
 }
 

@@ -34,6 +34,21 @@ export interface PolyTheme {
   treelineM?: number;
   /** Couleur de l'eau (lacs, rivières, mer peu profonde). */
   water?: string;
+  /** Lumière et air du monde (environment.ts) : l'ambiance d'un vrai paysage (désert sec, fjord froid, jungle humide…). */
+  light?: PolyLight;
+}
+
+/** Lumière d'un monde Poly, appliquée par-dessus l'heure, la saison et la météo (27/11/2026). */
+export interface PolyLight {
+  /** Teinte de l'horizon et du brouillard (hex), et part de mélange (0 à 1, par défaut 0,6). */
+  horizon?: string;
+  horizonMix?: number;
+  /** Brume en plus (0 : aucune ; 1 : air humide ; 3 : brume marquée). */
+  haze?: number;
+  /** Chaleur de la lumière (−1 froide et bleutée, 0 neutre, +1 chaude et dorée). */
+  warmth?: number;
+  /** Saturation des couleurs (facteur, 1 : inchangée). */
+  saturation?: number;
 }
 
 /**
@@ -55,6 +70,28 @@ export interface PolyBiome {
   noVillageProps?: boolean;
   /** Pas de vaches, moutons ni chevaux dans les prés. */
   noHerds?: boolean;
+  /** Bas-côtés propres au monde (roadsideLife.ts) ; absent : ceux de l'île (fleurs variées, petits cailloux, buissons). */
+  roadside?: PolyRoadside;
+}
+
+/** Ce qui pousse et traîne au bord des routes d'un monde : chaque monde a les siens (27/11/2026). */
+export interface PolyRoadside {
+  /** Couleurs des touffes de fleurs (vide : pas de fleurs) et part des touffes gardées (0 à 1). */
+  flowers?: string[];
+  flowerRate?: number;
+  /** Rochers : couleur, fréquence (part des pas de 3 m, l'île : 0,06), taille (facteur, l'île : 1), dessus moussu. */
+  rock?: string;
+  rockRate?: number;
+  rockSize?: number;
+  rockMoss?: string;
+  /** Fougères (part des pas de 3 m) et couleur. */
+  ferns?: number;
+  fernColour?: string;
+  /** Touffes d'herbe sèche (part des pas de 3 m) et couleur. */
+  tufts?: number;
+  tuftColour?: string;
+  /** Buissons de l'île (faux : aucun). */
+  bushes?: boolean;
 }
 
 /** Circuit du monde (pas de voitures ni de clôtures dessus), comme l'Anneau de l'île. */

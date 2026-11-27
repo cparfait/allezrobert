@@ -9,9 +9,12 @@ import type { TileBuilding } from '../types.ts';
 import type { PolyLand } from './types.ts';
 import { grandNordNoFence, grandNordSites } from './grand-nordSites.ts';
 
-/** Maisons de bois peintes : rouge de Falun, ocre jaune, blanc ; toits sombres, parfois de tourbe. */
-const WOOD_WALLS = ['#a8322d', '#b23b2c', '#9e2f2a', '#e2b54a', '#d9a73f', '#f1efe6', '#ece9df', '#7f98a6'] as const;
-const ROOFS = ['#3b3d3f', '#2f3236', '#4a3b33', '#5d6b3a', '#3b3d3f', '#6b2f2a'] as const;
+/**
+ * Maisons de bois peintes : rouge de Falun d'abord (une maison sur deux), ocre jaune, blanc, rares gris-bleu ; toits
+ * sombres d'ardoise ou de tôle, un sur trois en tourbe herbue.
+ */
+const WOOD_WALLS = ['#a8322d', '#b23b2c', '#9e2f2a', '#a8322d', '#b8402f', '#e2b54a', '#d9a73f', '#f1efe6', '#ece9df', '#7f98a6'] as const;
+const ROOFS = ['#3b3d3f', '#2f3236', '#4a3b33', '#5d6b3a', '#56663a', '#3b3d3f', '#6b2f2a', '#5d6b3a'] as const;
 
 /** Tout en bois peint (jamais de brique ni de crépi) ; toits très pentus, sombres et débordants pour les maisons. */
 function grandNordBuilding(b: TileBuilding): TileBuilding {
@@ -125,9 +128,12 @@ export const GRAND_NORD: PolyLand = {
       winter: ['#2b4030', '#33493a', '#e8ecef'],
     },
     treelineM: 420,
-    water: '#4a6878',
+    // Eau des fjords : sombre, presque ardoise, à peine verte.
+    water: '#2c4552',
+    // Ciel bas et lumière froide : horizon gris-bleu, un peu de brume d'air marin, couleurs retenues.
+    light: { horizon: '#8d9ba6', horizonMix: 0.55, haze: 1.1, warmth: -0.55, saturation: 0.9 },
   },
-  biome: { tree: 'birch', grass: 0.3, trees: 0.6, noVillageProps: true, noHerds: true, grassColours: { spring: ['#6f7a45', '#a7a46a'], summer: ['#76804a', '#b0aa6c'], autumn: ['#8a6a3c', '#c0874a'], winter: ['#8c8a78', '#c9c6b4'] } },
+  biome: { tree: 'birch', grass: 0.3, trees: 0.6, noVillageProps: true, noHerds: true, grassColours: { spring: ['#6f7a45', '#a7a46a'], summer: ['#76804a', '#b0aa6c'], autumn: ['#8a6a3c', '#c0874a'], winter: ['#8c8a78', '#c9c6b4'] } , roadside: { flowers: ['#9a6bd8', '#b77cc4', '#f2efe8'], flowerRate: 0.5, rock: '#8b8f93', rockRate: 0.14, rockSize: 1.6, rockMoss: '#6f8a4a', bushes: false } },
   ring: { x: 3000, z: 2500, half: 560, radius: 215 },
   sites: grandNordSites,
   building: grandNordBuilding,

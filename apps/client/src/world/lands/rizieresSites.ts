@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { float, smoothstep, uniform, uv } from 'three/tsl';
 import { rng } from '../../engine/noise.ts';
 import { box, part, prism, segmentsIn, template, type Template } from '../lowPolyKit.ts';
 import { buildHarbour, harbourCorners, harbourTemplates, type HarbourSite, type HarbourTemplates } from '../polyHarbour.ts';
@@ -11,7 +12,8 @@ import type { LoadedTile } from '../types.ts';
  * Décor propre des Rizières et de la jungle (mode Poly, tools/rizieres) : ports, tribunes du Circuit des Rizières,
  * pagodes, stupas et lanternes des temples, ruines envahies par la jungle, villages sur pilotis, marché flottant,
  * barques sur le Grand Fleuve et la Rivière du Dragon, ponts suspendus, buffles d'eau dans les rizières, palmiers et
- * bambous, cascades, bike park de la jungle et cyclo-cross des Digues, lanternes de fête la nuit (islandClock()).
+ * bambous, cascades, bike park de la jungle et cyclo-cross des Digues, lanternes de fête la nuit (islandClock()),
+ * pitons calcaires qui sortent des rizières de la plaine, avec leurs nappes de brume du matin.
  * Même mécanique que les lieux de l'île (polySites.ts) : chaque lieu est construit par pas quand le coureur approche.
  */
 const WHITE = new THREE.Color(0xffffff);
@@ -75,6 +77,47 @@ const FALLS: ReadonlyArray<{ id: string; x: number; z: number; h: number }> = [
 const BIKE_PARK: readonly [number, number] = [-2227, -3727];
 const CYCLO_CROSS: readonly [number, number] = [-6452, 6311];
 const COL_JUNGLE: readonly [number, number] = [10888, -5961];
+/**
+ * Pitons calcaires de la plaine (identité du monde, 27/11/2026) : tours à flancs verticaux qui sortent des rizières,
+ * en deux grands groupes (plaine des Digues, entre Rive-des-Lotus et le Circuit ; plaine de l'est, au sud de
+ * Vat-Robert), quelques-uns isolés près du Lac des Lotus, des Pilotis et dans le delta. Les pitons de la baie sont
+ * dans le relief du générateur (tools/rizieres, karstPitons()).
+ * [x, z, pied (m, plus bas point du terrain du générateur sur le pourtour), rayon au pied (m), hauteur (m), forme 0 … 3].
+ * Choisis hors de tout : chaque pied est à plus de 45 m de toute route, chemin, cours d'eau ou bâtiment des tuiles
+ * installées (worlds/rizieres/tiles), hors des lacs, du fleuve, des villes et des ports.
+ */
+const PLAIN_PITONS: ReadonlyArray<readonly [number, number, number, number, number, number]> = [
+  [1200, -160, 19, 99, 185, 2], [-6120, 2760, 13.3, 59, 122, 2], [-5760, 2680, 13.4, 49, 97, 2], [1520, -280, 19.9, 65, 129, 2], [840, -120, 18.9, 61, 108, 1],
+  [1120, -560, 19, 105, 185, 1], [-6440, 2480, 12.9, 84, 185, 3], [-6120, 3120, 18.4, 84, 185, 3], [-5920, 2280, 13.1, 89, 185, 3], [1240, 200, 20.7, 93, 162, 1],
+  [-6560, 2960, 12.5, 59, 131, 3], [-5760, 3080, 20.5, 50, 117, 3], [720, -520, 19.5, 51, 115, 3], [1520, -720, 19.7, 70, 160, 3], [-5360, 2560, 13.1, 105, 185, 2],
+  [480, 0, 18.6, 90, 166, 1], [-6800, 2600, 12.1, 68, 151, 3], [1920, -360, 19.5, 78, 168, 3], [-5480, 2160, 13.6, 49, 106, 3], [1800, 80, 24.3, 79, 160, 2],
+  [1040, 520, 20.6, 72, 106, 0], [400, -400, 19.2, 50, 106, 2], [1600, 360, 22.3, 83, 148, 1], [1880, -800, 19.6, 79, 173, 3], [-3280, 600, 30.1, 59, 98, 0],
+  [-6920, 3040, 11, 91, 154, 1], [-6000, 3440, 20.4, 71, 142, 2], [-3040, 840, 20.9, 54, 109, 2], [-5600, 3400, 23, 103, 185, 1], [-3560, 360, 32.5, 72, 107, 0],
+  [-2960, 360, 32.1, 92, 184, 2], [160, 200, 18.2, 75, 125, 0], [-15720, 2840, 7.4, 96, 140, 0], [-13240, 5800, 2.8, 95, 141, 0], [-5080, 2000, 13.1, 103, 180, 1],
+  [-5040, 2400, 13.2, 62, 133, 3], [-10760, 8520, 9.3, 91, 185, 3], [440, -800, 29.6, 77, 122, 0], [-13320, 240, 10.6, 52, 117, 3], [2200, -960, 19.3, 95, 185, 2],
+  [3840, -2360, 41.3, 91, 182, 2], [2240, -560, 19.2, 91, 185, 3], [3440, -2400, 41, 79, 177, 3], [-2720, 1000, 14.5, 59, 119, 2], [-9120, 5000, 22.4, 59, 91, 0],
+  [-11000, 8760, 8.7, 49, 82, 1],
+];
+/**
+ * Sentiers de la jungle : un point tous les ≈ 650 m (écart ≥ 450 m) le long des parcours VTT et gravel qui traversent
+ * la forêt (routes/*.json : VTT des Nuages, VTT du Mont du Tigre, Descente de la Jungle, VTT du Dragon, Gravel des
+ * Nuages, Gravel des Bambous, Bike park de la jungle). Autour de chacun : troncs couchés, rochers moussus, fougères
+ * géantes au bord des sentiers, en forêt seulement (sonde `forest`).
+ */
+const JUNGLE_TRAILS: ReadonlyArray<readonly [number, number]> = [
+  // VTT des Nuages, Bike park de la jungle (au-dessus du Village-des-Nuages).
+  [-4030, -4750], [-3579, -5107], [-3290, -4553], [-3286, -4024], [-2690, -4051], [-2106, -3990],
+  // VTT du Mont du Tigre.
+  [12389, -3070], [13023, -3034], [13538, -2749], [13160, -2124], [12533, -2150],
+  // Descente de la Jungle (du col vers la Bambouseraie).
+  [11850, -5330], [11544, -4762], [11198, -4303], [10758, -3866], [10287, -3519], [9725, -3390],
+  // VTT du Dragon (gorges et forêt des Théiers).
+  [12191, -2490], [13683, -2317], [14486, -1819], [14847, -1339], [14963, -717], [11667, -2223], [11072, -2031], [10478, -1967], [10621, -1370], [10325, -792],
+  // Gravel des Nuages.
+  [-8152, -3011], [-7772, -3296], [-7255, -3250], [-6789, -3017], [-6184, -2930], [-5831, -2489], [-6372, -2251], [-6895, -2079], [-7455, -1798], [-8062, -1790], [-8515, -2140],
+  // Gravel des Bambous (seule la partie boisée, au nord).
+  [209, -5191], [726, -5532],
+];
 
 // ───────────────────────────── Gabarits
 
@@ -236,7 +279,179 @@ function kit() {
       part(box(2.2, 0.2, 1, 0, 0.9, 0.2), '#f4a62a'),
     ]),
     prayer: template([part(box(0.05, 0.4, 0.5, 0, 0), '#ffffff', 1)]),
+    /**
+     * Tronc couché de la jungle, le long de z local (de −4 à +4 m) : fût à six pans, bande de mousse sur le dessus,
+     * galette de racines arrachée à un bout, moignon de branche.
+     */
+    log: template([
+      part(new THREE.CylinderGeometry(0.46, 0.56, 8, 6, 1).rotateX(Math.PI / 2).rotateZ(0.3).translate(0, 0.5, 0), '#7a5a3e', 1),
+      part(box(0.62, 0.16, 6.4, 0, 1.0, 0.4).rotateZ(0.04), '#4f8a32'),
+      part(new THREE.CylinderGeometry(1.35, 1.2, 0.4, 7, 1).rotateX(Math.PI / 2).translate(0, 0.95, -4.15), '#6b5038'),
+      part(new THREE.IcosahedronGeometry(0.75, 0).scale(1.4, 0.5, 0.5).translate(0, 1.95, -4.3), '#4a7f2e'),
+      part(new THREE.CylinderGeometry(0.1, 0.18, 1.7, 4, 1).rotateZ(-0.7).translate(0.75, 1.2, 1.8), '#6b5038', 1),
+    ]),
+    /** Gros rocher moussu à grandes facettes : bloc gris-vert, calotte de mousse posée de travers. */
+    mossRock: template([
+      part(new THREE.IcosahedronGeometry(1, 0).rotateY(0.6).rotateX(0.35).scale(1.6, 1.05, 1.25).translate(0, 0.55, 0), '#858b78', 1),
+      part(new THREE.IcosahedronGeometry(1, 0).rotateY(1.4).scale(1.4, 0.42, 1.08).translate(0.1, 1.25, -0.05).rotateZ(0.08), '#4a7d30'),
+    ]),
+    /** Tas de trois blocs moussus (un gros, deux plus petits appuyés contre lui). */
+    rockPile: template([
+      part(new THREE.IcosahedronGeometry(1, 0).rotateY(0.3).rotateX(0.5).scale(1.7, 1.2, 1.4).translate(0, 0.7, 0), '#7f8674', 1),
+      part(new THREE.IcosahedronGeometry(1, 0).rotateY(1.1).scale(1.5, 0.45, 1.2).translate(0, 1.55, 0.05), '#477a2d'),
+      part(new THREE.IcosahedronGeometry(1, 0).rotateY(2.1).rotateZ(0.4).scale(1.0, 0.8, 0.9).translate(1.9, 0.4, 0.6), '#8f9482', 1),
+      part(new THREE.IcosahedronGeometry(1, 0).rotateY(2.6).scale(0.85, 0.3, 0.75).translate(1.95, 1.0, 0.6), '#558a35'),
+      part(new THREE.IcosahedronGeometry(1, 0).rotateX(0.9).scale(0.75, 0.6, 0.8).translate(-1.4, 0.3, 1.2), '#7a8070', 1),
+    ]),
+    /** Fougère géante : dix palmes arquées, pliées sur la nervure, visibles des deux faces. */
+    fern: template(fernFronds(10, 3.2, 0.62)),
+    /** Pitons calcaires de la plaine : quatre formes (voir karstTower). */
+    pitons: [0, 1, 2, 3].map(karstTower),
   };
+}
+
+/**
+ * Profils (hauteur, rayon) des pitons, gabarit unité (pied de rayon 1 en y = 0, sommet en y = 1) : tour à flancs
+ * droits et ventre en surplomb, pain de sucre, piton bossu à deux étages, aiguille. Le premier anneau est sous le sol.
+ */
+const PITON_PROFILES: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  [[-0.06, 1.05], [0.03, 1], [0.2, 0.9], [0.42, 0.88], [0.62, 0.92], [0.78, 0.84], [0.9, 0.62], [0.97, 0.34]],
+  [[-0.06, 1.06], [0.03, 1], [0.18, 0.86], [0.38, 0.76], [0.56, 0.7], [0.74, 0.6], [0.88, 0.44], [0.96, 0.22]],
+  [[-0.06, 1.05], [0.03, 1], [0.24, 0.94], [0.44, 0.9], [0.52, 0.66], [0.72, 0.64], [0.88, 0.5], [0.96, 0.26]],
+  [[-0.06, 1.08], [0.03, 1], [0.16, 0.8], [0.36, 0.66], [0.58, 0.6], [0.76, 0.56], [0.9, 0.42], [0.97, 0.2]],
+];
+const PITON_ROCK = ['#aeac9f', '#a3a296', '#b6b3a5'].map((c) => new THREE.Color(c));
+const PITON_STREAK = new THREE.Color('#878980');
+const PITON_WET = new THREE.Color('#686d66');
+const PITON_MOSS = new THREE.Color('#7d8a6c');
+const PITON_JUNGLE = ['#2a5424', '#356a2a', '#24491f'].map((c) => new THREE.Color(c));
+const PITON_SCRUB = new THREE.Color('#3f6f2f');
+
+/**
+ * Piton calcaire (gabarit unité, ≈ 190 triangles) : neuf pans irréguliers par anneau, anneaux un peu décalés (le
+ * piton penche), couleur par facette : roche calcaire claire, coulures sombres en colonnes sous les vires, mousse au
+ * pied, jungle sur la couronne et sur les vires (facettes tournées vers le ciel), broussailles au pied ; trois
+ * bouquets d'arbres accrochés aux flancs.
+ */
+function karstTower(form: number): Template {
+  const r = rng(8800 + form * 97);
+  const prof = PITON_PROFILES[form]!;
+  const N = 9;
+  const rings: Array<Array<[number, number, number]>> = [];
+  let ox = 0;
+  let oz = 0;
+  for (let i = 0; i < prof.length; i++) {
+    const [y, rad] = prof[i]!;
+    if (i > 1) {
+      ox += (r() - 0.5) * 0.07;
+      oz += (r() - 0.5) * 0.07;
+    }
+    const ring: Array<[number, number, number]> = [];
+    for (let j = 0; j < N; j++) {
+      const a = ((j + (r() - 0.5) * 0.5) / N) * Math.PI * 2;
+      const k = rad * (i < 2 ? 0.95 + r() * 0.1 : 0.84 + r() * 0.3);
+      ring.push([ox + Math.sin(a) * k, y + (i > 1 ? (r() - 0.5) * 0.035 : 0), oz + Math.cos(a) * k]);
+    }
+    rings.push(ring);
+  }
+  const apex: [number, number, number] = [ox + (r() - 0.5) * 0.06, 1, oz + (r() - 0.5) * 0.06];
+  // Colonnes de coulures (pans j) et vires : départ de la jungle par colonne.
+  const streak = Array.from({ length: N }, () => r());
+  const crown = Array.from({ length: N }, () => prof.length - 3 + (r() < 0.35 ? -1 : 0));
+  const pos: number[] = [];
+  const col: number[] = [];
+  const tint: number[] = [];
+  const tri = (a: readonly number[], b: readonly number[], c: readonly number[], ring: number, j: number) => {
+    // Normale (y allongé comme un piton réel, ≈ 1,8 fois plus haut que large) ; tournée vers l'extérieur.
+    const ux = b[0]! - a[0]!, uy = (b[1]! - a[1]!) * 1.8, uz = b[2]! - a[2]!;
+    const vx = c[0]! - a[0]!, vy = (c[1]! - a[1]!) * 1.8, vz = c[2]! - a[2]!;
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const cx = (a[0]! + b[0]! + c[0]!) / 3 - ox * 0.5;
+    const cy = (a[1]! + b[1]! + c[1]!) / 3;
+    const cz = (a[2]! + b[2]! + c[2]!) / 3 - oz * 0.5;
+    let p = [a, b, c];
+    if (nx * cx + ny * (cy - 0.45) * 0.5 + nz * cz < 0) {
+      p = [a, c, b];
+      nx = -nx;
+      ny = -ny;
+      nz = -nz;
+    }
+    const up = ny / (Math.hypot(nx, ny, nz) || 1);
+    let colour: THREE.Color;
+    let t = 1;
+    if (ring === 0) colour = PITON_SCRUB;
+    else if (ring >= crown[j]! || up > 0.55) {
+      colour = PITON_JUNGLE[(j + ring) % 3]!;
+      t = 0.6;
+    } else if (ring === 1) colour = streak[j]! < 0.5 ? PITON_MOSS : PITON_ROCK[j % 3]!;
+    else if (streak[j]! < 0.22 && ring >= crown[j]! - 2) colour = PITON_WET;
+    else if (streak[j]! < 0.42) colour = PITON_STREAK;
+    else colour = PITON_ROCK[(j + ring) % 3]!;
+    for (const v of p) {
+      pos.push(v[0]!, v[1]!, v[2]!);
+      col.push(colour.r, colour.g, colour.b);
+      tint.push(t);
+    }
+  };
+  for (let i = 0; i + 1 < rings.length; i++)
+    for (let j = 0; j < N; j++) {
+      const a = rings[i]![j]!;
+      const b = rings[i]![(j + 1) % N]!;
+      const c = rings[i + 1]![(j + 1) % N]!;
+      const d = rings[i + 1]![j]!;
+      tri(a, b, c, i, j);
+      tri(a, c, d, i, j);
+    }
+  const top = rings[rings.length - 1]!;
+  for (let j = 0; j < N; j++) tri(top[j]!, top[(j + 1) % N]!, apex, rings.length, j);
+  // Bouquets d'arbres accrochés aux flancs (icosaèdres aplatis, posés sur un sommet d'anneau).
+  const parts: THREE.BufferGeometry[] = [];
+  for (let n = 0; n < 3; n++) {
+    const ring = rings[2 + Math.floor(r() * (rings.length - 4))]!;
+    const v = ring[Math.floor(r() * N)]!;
+    parts.push(part(new THREE.IcosahedronGeometry(1, 0).scale(0.2, 0.06, 0.2).translate(v[0] * 1.04, v[1] + 0.02, v[2] * 1.04), PITON_JUNGLE[n % 3]!, 0.6));
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('tint', new THREE.Float32BufferAttribute(tint, 1));
+  g.setAttribute('head', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3), 1));
+  return template([g, ...parts]);
+}
+
+/**
+ * Palmes d'une fougère : chacune part du cœur, monte puis retombe vers sa pointe ; pliée en V sur la nervure (deux
+ * facettes par moitié), chaque triangle doublé à l'envers pour se voir des deux côtés (4 × 2 triangles par palme).
+ */
+function fernFronds(n: number, len: number, wid: number): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.39996 + 0.3;
+    const lift = 0.55 + (i % 3) * 0.2;
+    const L = len * (0.8 + ((i * 7) % 5) * 0.06);
+    const dx = Math.sin(a);
+    const dz = Math.cos(a);
+    const px = dz;
+    const pz = -dx;
+    // Base, milieu (nervure un peu relevée, deux bords), pointe retombante.
+    const b: [number, number, number] = [dx * 0.1, 0.1, dz * 0.1];
+    const mc: [number, number, number] = [dx * L * 0.5, L * lift * 0.7 + 0.12, dz * L * 0.5];
+    const ml: [number, number, number] = [mc[0] + px * wid, mc[1] - 0.18, mc[2] + pz * wid];
+    const mr: [number, number, number] = [mc[0] - px * wid, mc[1] - 0.18, mc[2] - pz * wid];
+    const t: [number, number, number] = [dx * L, L * lift * 0.35, dz * L];
+    const tris = [b, ml, mc, b, mc, mr, ml, t, mc, mc, t, mr];
+    const pos: number[] = [];
+    for (let k = 0; k < tris.length; k += 3) {
+      pos.push(...tris[k]!, ...tris[k + 1]!, ...tris[k + 2]!);
+      pos.push(...tris[k]!, ...tris[k + 2]!, ...tris[k + 1]!);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.push(part(g, i % 2 ? '#3f8a35' : '#5aa23c', 1));
+  }
+  return out;
 }
 type Kit = ReturnType<typeof kit>;
 
@@ -1117,6 +1332,248 @@ function nightMarket(k: () => Kit): Site {
   };
 }
 
+/** Sous-bois de jungle sous (x, z) : sol lu, en forêt, hors chaussée, hors eau, loin des bâtiments. */
+function jungleGround(c: SiteContext, x: number, z: number, forest = 0.35): boolean {
+  const p = c.probe;
+  return p.read(x, z) && p.forest >= forest && p.road < 0.02 && p.water < 0.1 && !p.buildingNear(x, z, 3);
+}
+
+/**
+ * Bord d'un sentier de jungle : troncs couchés (à peu près parallèles au sentier, posés dans la pente), gros rochers
+ * moussus seuls ou en tas, touffes de fougères géantes ; brume basse dans le creux du vallon pour certains points.
+ */
+function jungleTrail(k: () => Kit, i: number, x0: number, z0: number, mist: boolean): Site {
+  const R = 260;
+  return {
+    id: `sous-bois-${i}`,
+    x: x0,
+    z: z0,
+    reach: 700,
+    needs: [[x0, z0], [x0 - R, z0 - R], [x0 + R, z0 + R]],
+    *build(c) {
+      const K = k();
+      const r = rng(7300 + i * 31);
+      const logTints = [C('#ffffff'), C('#d9cbb8'), C('#b8a48c')];
+      const rockTints = [C('#ffffff'), C('#e4e8d8'), C('#c9cfbc')];
+      const fernTints = [C('#ffffff'), C('#d6efb0'), C('#b5d68a')];
+      let logs = 0;
+      let rocks = 0;
+      let ferns = 0;
+      let work = 0;
+      for (const t of c.probe.tilesIn(x0 - R, z0 - R, x0 + R, z0 + R).slice())
+        for (const road of t.features.roads) {
+          // Sentiers, pistes et petites routes de la jungle (≤ 4,5 m) ; pas les routes principales.
+          if (road.width > 4.6 || road.bridge || road.tunnel) continue;
+          const p = road.pts;
+          let run = r() * 20;
+          for (let j = 2; j + 1 < p.length; j += 2) {
+            const ax = p[j - 2]!;
+            const az = p[j - 1]!;
+            const bx = p[j]!;
+            const bz = p[j + 1]!;
+            const l = Math.hypot(bx - ax, bz - az);
+            run += l;
+            if (run < 26 || l < 0.5) continue;
+            run = 0;
+            if (Math.hypot(bx - x0, bz - z0) > R) continue;
+            const ux = (bx - ax) / l;
+            const uz = (bz - az) / l;
+            const s = r() < 0.5 ? 1 : -1;
+            const nx = -uz * s;
+            const nz = ux * s;
+            const edge = road.width / 2;
+            const roll = r();
+            if (++work % 12 === 0) yield;
+            if (roll < 0.22 && logs < 10) {
+              // Tronc couché : les deux bouts hors du sentier, dans la pente (pas plus de ≈ 20°).
+              const sc = 0.75 + r() * 0.5;
+              const yaw = Math.atan2(ux, uz) + (r() - 0.5) * 0.7;
+              const dx = Math.sin(yaw);
+              const dz = Math.cos(yaw);
+              const off = edge + 2.2 + 1.4 * sc + r() * 3;
+              const px = bx + nx * off;
+              const pz = bz + nz * off;
+              const half = 4 * sc;
+              const e0x = px - dx * (half + 1.3);
+              const e0z = pz - dz * (half + 1.3);
+              const e1x = px + dx * half;
+              const e1z = pz + dz * half;
+              if (!jungleGround(c, px, pz) || !jungleGround(c, e0x, e0z, 0.2) || !jungleGround(c, e1x, e1z, 0.2)) continue;
+              const h0 = c.probe.heightAt(px - dx * half, pz - dz * half);
+              const h1 = c.probe.heightAt(e1x, e1z);
+              if (!Number.isFinite(h0) || !Number.isFinite(h1) || Math.abs(h1 - h0) > 2.8 * sc) continue;
+              const tint = logTints[logs % 3]!;
+              // Base : x en travers, y vertical, z le long du tronc (penché comme la pente).
+              c.mesh.putBasis(K.log, px, (h0 + h1) / 2 - 0.2 * sc, pz, dz * sc, 0, -dx * sc, 0, sc, 0, dx * sc, (h1 - h0) / 8, dz * sc, tint.r, tint.g, tint.b);
+              logs++;
+            } else if (roll < 0.5 && rocks < 14) {
+              // Rocher moussu (gros bloc ou tas), un peu enfoncé ; son pourtour aussi hors du sentier.
+              const pile = r() < 0.35;
+              const sc = pile ? 1.1 + r() * 0.9 : 1.0 + r() * 1.6;
+              const rad = (pile ? 2.6 : 1.7) * sc;
+              const off = edge + 1.5 + rad + r() * 4;
+              const px = bx + nx * off;
+              const pz = bz + nz * off;
+              if (!jungleGround(c, px, pz) || !jungleGround(c, px - nx * rad, pz - nz * rad, 0.2)) continue;
+              const y = c.probe.heightAt(px, pz);
+              if (!Number.isFinite(y)) continue;
+              const yAway = c.probe.heightAt(px + nx * rad, pz + nz * rad);
+              c.mesh.put(pile ? K.rockPile : K.mossRock, px, Math.min(y, Number.isFinite(yAway) ? yAway : y) - 0.25 * sc, pz, r() * 6.28, sc, sc * (0.85 + r() * 0.3), sc, rockTints[rocks % 3]!);
+              rocks++;
+            } else if (ferns < 26) {
+              // Touffe de deux à quatre fougères géantes.
+              const n = 2 + Math.floor(r() * 3);
+              const off = edge + 2 + r() * 3;
+              for (let f = 0; f < n && ferns < 26; f++) {
+                const px = bx + nx * (off + f * 1.6) + ux * (r() - 0.5) * 4;
+                const pz = bz + nz * (off + f * 1.6) + uz * (r() - 0.5) * 4;
+                if (!jungleGround(c, px, pz)) continue;
+                const y = c.probe.heightAt(px, pz);
+                if (!Number.isFinite(y)) continue;
+                const sc = 0.8 + r() * 0.6;
+                c.mesh.put(K.fern, px, y - 0.05, pz, r() * 6.28, sc, sc * (0.85 + r() * 0.3), sc, fernTints[ferns % 3]!);
+                ferns++;
+              }
+            }
+          }
+        }
+      if (mist) {
+        yield;
+        jungleMist(c, x0, z0, i);
+      }
+    },
+  };
+}
+
+/**
+ * Nappes de brume basse dans le creux d'un vallon de jungle : deux plans transparents très légers et flous sur les
+ * bords par creux, au plus deux creux. Plus marquée le matin (islandClock().hour autour de 7 h), à peine visible
+ * l'après-midi, un léger retour le soir.
+ */
+function jungleMist(c: SiteContext, x0: number, z0: number, seed: number): void {
+  // Creux : points de forêt les plus bas d'une grille de 9 × 9 (pas de 35 m), hors bord de grille.
+  const cand: Array<[number, number, number]> = [];
+  for (let gx = -3; gx <= 3; gx++)
+    for (let gz = -3; gz <= 3; gz++) {
+      const x = x0 + gx * 35;
+      const z = z0 + gz * 35;
+      const p = c.probe;
+      if (!p.read(x, z) || p.forest < 0.4 || p.water > 0.2) continue;
+      const y = p.heightAt(x, z);
+      if (Number.isFinite(y)) cand.push([x, y, z]);
+    }
+  cand.sort((a, b) => a[1] - b[1]);
+  const spots: Array<[number, number, number, number]> = [];
+  for (const [x, y, z] of cand) {
+    if (spots.length >= 2) break;
+    if (spots.some((s) => Math.hypot(s[0] - x, s[2] - z) < 80)) continue;
+    // Relief autour : la nappe rétrécit sur un versant raide, et rien sur une crête (le point doit être un creux).
+    let rise = 0;
+    let below = 0;
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const h = c.probe.heightAt(x + Math.cos(a) * 28, z + Math.sin(a) * 28);
+      if (!Number.isFinite(h)) continue;
+      rise = Math.max(rise, h - y);
+      if (h < y - 0.5) below++;
+    }
+    if (below > 2) continue;
+    spots.push([x, y, z, Math.max(30, Math.min(72, 76 - rise * 3.5))]);
+  }
+  if (!spots.length) return;
+  const r = rng(9100 + seed);
+  const geos: THREE.BufferGeometry[] = [];
+  for (const [x, y, z, w] of spots)
+    for (let layer = 0; layer < 2; layer++) {
+      const ww = w * (1 - layer * 0.25);
+      geos.push(new THREE.PlaneGeometry(ww, ww * 0.6).rotateX(-Math.PI / 2).rotateY(r() * Math.PI).translate(x + (r() - 0.5) * 8, y + 1.6 + layer * 2.2, z + (r() - 0.5) * 8));
+    }
+  const op = uniform(0.1);
+  const mat = new THREE.MeshBasicNodeMaterial({ color: '#eef4ee', transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const d = uv().sub(0.5).mul(2).length();
+  mat.opacityNode = op.mul(float(1).sub(smoothstep(0.25, 1, d)));
+  const m = new THREE.Mesh(mergeGeometries(geos), mat);
+  m.name = 'rizieres-brume';
+  m.castShadow = false;
+  m.receiveShadow = false;
+  m.renderOrder = 2;
+  const ph = seed * 1.7;
+  c.moving.push({
+    object: m,
+    step: (time) => {
+      const { hour } = islandClock();
+      const morning = Math.max(0, 1 - Math.abs(hour - 7) / 3.5);
+      const evening = Math.max(0, 1 - Math.abs(hour - 20) / 3);
+      op.value = 0.07 + 0.26 * morning + 0.06 * evening;
+      // Lente dérive de la nappe.
+      m.position.set(Math.sin(time * 0.05 + ph) * 3, Math.sin(time * 0.11 + ph) * 0.3, Math.cos(time * 0.04 + ph) * 3);
+    },
+  });
+}
+
+/**
+ * Piton calcaire de la plaine (PLAIN_PITONS) : vu de loin (pied connu d'avance, sans attendre la tuile), dans la brume
+ * de l'air humide. Si la tuile est chargée, le pied est revérifié : pas de piton sur une chaussée ni sur un bâtiment.
+ * Un piton sur trois a une nappe de brume à son pied, marquée le matin (islandClock()).
+ */
+function plainPiton(k: () => Kit, i: number): Site {
+  const [x, z, y, R, H, form] = PLAIN_PITONS[i]!;
+  return {
+    id: `piton-${i}`,
+    x,
+    z,
+    reach: 4200,
+    needs: [],
+    *build(c) {
+      const K = k();
+      yield;
+      const p = c.probe;
+      for (let s = 0; s <= 8; s++) {
+        const a = (s / 8) * Math.PI * 2;
+        const f = s === 8 ? 0 : 1.08;
+        if (p.read(x + Math.cos(a) * R * f, z + Math.sin(a) * R * f) && p.road >= 0.02) return;
+      }
+      if (p.tileAt(x, z) && p.buildingNear(x, z, R)) return;
+      const r = rng(5200 + i * 13);
+      const g = 0.92 + r() * 0.1;
+      c.mesh.put(K.pitons[form]!, x, y - 4, z, r() * 6.28, R, H + 4, R * (0.85 + r() * 0.3), new THREE.Color(g, g, g * 0.97));
+      if (i % 3 === 0) {
+        yield;
+        pitonMist(c, x, y, z, R, i);
+      }
+    },
+  };
+}
+
+/** Nappe de brume au pied d'un piton : deux grands plans très légers, flous sur les bords ; marquée de 5 h à 10 h. */
+function pitonMist(c: SiteContext, x: number, y: number, z: number, R: number, seed: number): void {
+  const r = rng(9400 + seed);
+  const geos: THREE.BufferGeometry[] = [];
+  for (let layer = 0; layer < 2; layer++) {
+    const w = R * (3.4 - layer * 0.9);
+    geos.push(new THREE.PlaneGeometry(w, w * 0.7).rotateX(-Math.PI / 2).rotateY(r() * Math.PI).translate(x + (r() - 0.5) * R * 0.4, y + 5 + layer * 7, z + (r() - 0.5) * R * 0.4));
+  }
+  const op = uniform(0.1);
+  const mat = new THREE.MeshBasicNodeMaterial({ color: '#eef3ec', transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const d = uv().sub(0.5).mul(2).length();
+  mat.opacityNode = op.mul(float(1).sub(smoothstep(0.2, 1, d)));
+  const m = new THREE.Mesh(mergeGeometries(geos), mat);
+  m.name = 'rizieres-brume-piton';
+  m.castShadow = false;
+  m.receiveShadow = false;
+  m.renderOrder = 2;
+  const ph = seed * 2.3;
+  c.moving.push({
+    object: m,
+    step: (time) => {
+      const { hour, night } = islandClock();
+      const morning = Math.max(0, 1 - Math.abs(hour - 7.5) / 3);
+      op.value = (0.05 + 0.3 * morning) * (1 - 0.6 * night);
+      m.position.set(Math.sin(time * 0.03 + ph) * 6, 0, Math.cos(time * 0.025 + ph) * 6);
+    },
+  });
+}
+
 /** Lieux des Rizières et de la jungle (lands/rizieres.ts). */
 export function rizieresSites(): Site[] {
   let templates: Kit | undefined;
@@ -1160,6 +1617,10 @@ export function rizieresSites(): Site[] {
     bikePark(k),
     cycloCross(k),
     nightMarket(k),
+    // Sous-bois des sentiers de jungle ; brume basse un point sur trois.
+    ...JUNGLE_TRAILS.map(([x, z], i) => jungleTrail(k, i, x, z, i % 3 === 0)),
+    // Pitons calcaires qui sortent des rizières de la plaine.
+    ...PLAIN_PITONS.map((_, i) => plainPiton(k, i)),
   ];
 }
 

@@ -731,6 +731,15 @@ export class RoadsideLife {
     }
 
     // ── Fleurs en touffes, cailloux et buissons sur les bas-côtés ──
+    // Bas-côtés propres au monde Poly (lands/types.ts, PolyRoadside) : chaque monde a ses fleurs, ses rochers, ses plantes.
+    const rs = polyLand(activePolyWorld())?.biome?.roadside;
+    const flowerCols = rs?.flowers ? rs.flowers.map((c) => new THREE.Color(c)) : FLOWERS;
+    const rockCol = rs?.rock ? new THREE.Color(rs.rock) : null;
+    const mossCol = rs?.rockMoss ? new THREE.Color(rs.rockMoss) : null;
+    const fernCol = new THREE.Color(rs?.fernColour ?? '#3f8a3a');
+    const tuftCol = new THREE.Color(rs?.tuftColour ?? '#b9a463');
+    // Sol libre pour les rochers et plantes du monde : le sable compte (désert, plages), pas la route, l'eau ni le bourg.
+    const freeGround = (x: number, z: number) => probe.read(x, z) && probe.road < 0.25 && probe.water < 0.2 && probe.urban < 0.3 && !probe.buildingNear(x, z, 1.5);
     for (let d = d0; d < d1; d += 3) {
       const half = halfAt(d);
       const span = inSpan(d, 2);
@@ -738,7 +747,8 @@ export class RoadsideLife {
         if (r() > 0.42) continue;
         track.positionAt(d + r() * 3, side * (half + 0.9 + r() * 5), s);
         if (this.season === 'winter' || span || !probe.open(s.x, s.z) || sideRoad(s.x, s.z, s.dirX, s.dirZ, 0.5)) continue;
-        const col = FLOWERS[Math.floor(r() * FLOWERS.length)] as THREE.Color;
+        if (!flowerCols.length || (rs?.flowerRate !== undefined && r() > rs.flowerRate)) continue;
+        const col = flowerCols[Math.floor(r() * flowerCols.length)] as THREE.Color;
         const n = 2 + Math.floor(r() * 5);
         let fy = Number.NaN;
         for (let i = 0; i < n; i++) {
@@ -752,18 +762,51 @@ export class RoadsideLife {
         }
         if (Number.isFinite(fy)) flowers.push(s.x, fy + 0.4, s.z);
       }
-      if (r() < 0.06) {
+      if (r() < (rs?.rockRate ?? 0.06)) {
         const side = r() < 0.5 ? -1 : 1;
-        track.positionAt(d, side * (half + 1.5 + r() * 7), s);
+        const big = rs?.rockSize ?? 1;
+        track.positionAt(d, side * (half + 1.5 + (big - 1) + r() * 7), s);
         const y = ground(s.x, s.z);
         // pas dans une lisière, sous un arbre, contre une maison ni sur un chemin
-        if (Number.isFinite(y) && !span && probe.clear(s.x, s.z, 1.5) && !onAnyRoad(s.x, s.z, 0.8)) {
-          const sc = 0.2 + r() * 0.45;
-          const grey = tmpC.setHSL(0.08, 0.06, 0.45 + r() * 0.15);
-          sb.put(tpl.rock, s.x, y - sc * 0.35, s.z, r() * 6.28, sc * 1.2, sc * 0.8, sc, grey);
+        if (Number.isFinite(y) && !span && (rockCol ? freeGround(s.x, s.z) : probe.clear(s.x, s.z, 1.5 * big)) && !onAnyRoad(s.x, s.z, 0.8 + (big - 1))) {
+          const sc = (0.2 + r() * 0.45) * big;
+          if (rockCol) {
+            // Bloc du monde à grandes facettes, parfois en tas de deux ou trois, dessus moussu s'il y a lieu.
+            const n = big > 1 && r() < 0.35 ? 2 + Math.floor(r() * 2) : 1;
+            for (let k = 0; k < n; k++) {
+              const kx = s.x + (k ? (r() - 0.5) * 2.4 * sc : 0);
+              const kz = s.z + (k ? (r() - 0.5) * 2.4 * sc : 0);
+              const ky = k ? ground(kx, kz) : y;
+              if (!Number.isFinite(ky) || onAnyRoad(kx, kz, 0.8 + sc)) continue;
+              const ks = k ? sc * (0.5 + r() * 0.3) : sc;
+              const rot = r() * 6.28;
+              const tint = tmpC.copy(rockCol).offsetHSL(0, (r() - 0.5) * 0.06, (r() - 0.5) * 0.08);
+              sb.put(tpl.boulder, kx, ky - ks * 0.3, kz, rot, ks, ks, ks, tint);
+              if (mossCol) sb.put(tpl.boulderMoss, kx, ky - ks * 0.3, kz, rot, ks, ks, ks, mossCol);
+            }
+          } else {
+            const grey = tmpC.setHSL(0.08, 0.06, 0.45 + r() * 0.15);
+            sb.put(tpl.rock, s.x, y - sc * 0.35, s.z, r() * 6.28, sc * 1.2, sc * 0.8, sc, grey);
+          }
         }
       }
-      if (r() < 0.07 * props) {
+      // Fougères et touffes sèches du monde, en petits groupes sur le bas-côté.
+      for (const [rate, t, c, size] of [[rs?.ferns ?? 0, tpl.fern, fernCol, 1.1], [rs?.tufts ?? 0, tpl.tuft, tuftCol, 0.9]] as const) {
+        if (!rate || r() > rate || span) continue;
+        const side = r() < 0.5 ? -1 : 1;
+        track.positionAt(d + r() * 3, side * (half + 1.2 + r() * 5), s);
+        if (!freeGround(s.x, s.z) || onAnyRoad(s.x, s.z, 0.8)) continue;
+        const n = 1 + Math.floor(r() * 3);
+        for (let k = 0; k < n; k++) {
+          const x = s.x + (r() - 0.5) * 2;
+          const z = s.z + (r() - 0.5) * 2;
+          const y = ground(x, z);
+          if (!Number.isFinite(y)) continue;
+          const sc = size * (0.7 + r() * 0.7);
+          sb.put(t, x, y - 0.03, z, r() * 6.28, sc, sc, sc, tmpC.copy(c).offsetHSL(0, 0, (r() - 0.5) * 0.08));
+        }
+      }
+      if (rs?.bushes !== false && r() < 0.07 * props) {
         const side = r() < 0.5 ? -1 : 1;
         track.positionAt(d, side * (half + 2 + r() * 6), s);
         const y = ground(s.x, s.z);

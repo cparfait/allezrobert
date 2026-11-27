@@ -13,6 +13,9 @@ import { LOW_POLY_SKY, LowPolySky } from './lowPolySky.ts';
 import type { QualitySettings } from '../engine/quality.ts';
 import { SHADOW_DITHER, stableShadowFilter } from '../engine/stableShadowFilter.ts';
 import { mainRenderer, type Grade } from '../engine/renderer.ts';
+import { polyLand } from './lands/index.ts';
+import { activePolyWorld } from './polyWorlds.ts';
+import type { PolyLight } from './lands/types.ts';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
@@ -146,6 +149,9 @@ const envMoonDir = new THREE.Vector3();
 const envLightDir = new THREE.Vector3();
 const envOrigin = new THREE.Vector3();
 const envGlow = new THREE.Color();
+const envLightC = new THREE.Color();
+/** Lumière du monde Poly chargé (lands/types.ts) ; aucune hors du mode Poly. */
+const polyLight = (): PolyLight | undefined => (LOW_POLY ? polyLand(activePolyWorld())?.theme.light : undefined);
 
 /** Couleurs de lumière selon l'élévation du soleil et la saison (voir ART_DIRECTION.md). */
 function palette(el: number, season: Season, weather: Weather, clarity = 1): Palette {
@@ -374,6 +380,11 @@ export class Environment {
     this.lowPolySky?.update(_dt, center, pal.hemiSky, pal.fog, this.sunDir, this.sun.color, sunStrength, weather.clouds, weather.windMs, weather.windFrom);
     this.fog.color.copy(pal.fog);
     this.fog.density = 0.00012 * clarity + weather.fog * 0.0022 + weather.rain * 0.0004;
+    // Lumière propre au monde Poly (lands/types.ts, PolyLight) : teinte de l'horizon et brume.
+    const light = polyLight();
+    // De jour seulement : la nuit, l'horizon garde le bleu nuit de la palette.
+    if (light?.horizon) this.fog.color.lerp(envLightC.set(light.horizon), (light.horizonMix ?? 0.6) * (1 - nightK));
+    if (light?.haze) this.fog.density += light.haze * 0.00025;
     // Ombres des nuages sur le sol : défilent avec le vent, seulement quand le soleil perce.
     stepClouds(_dt, weather.clouds, THREE.MathUtils.smoothstep(this.sunDir.y, 0.02, 0.15), weather.windMs, weather.windFrom);
     // Soleil pour le contre-jour du feuillage (sunlight.ts) : seulement s'il perce.
@@ -425,7 +436,9 @@ export class Environment {
     out.saturation = (sat - night * 0.25) * (1 - weather.rain * (LOW_POLY ? 0.22 : 0.32) - weather.fog * 0.15) * SAT_K.value;
     out.vibrance = vib * (1 - night);
     // Balance des blancs (réglage) : de jour seulement, la nuit garde son bleu.
-    const warm = ((LOW_POLY ? 0 : WARM_DEFAULT) + WARM_K.value) * (1 - night);
+    const light = polyLight();
+    if (light?.saturation) out.saturation *= light.saturation;
+    const warm = ((LOW_POLY ? 0 : WARM_DEFAULT) + WARM_K.value + (light?.warmth ?? 0)) * (1 - night);
     out.tint.setRGB(r + golden * 0.06 - night * 0.08 + warm * 0.04, g - golden * 0.01 - night * 0.04 + warm * 0.01, 1 - golden * 0.08 + night * 0.1 + (season === 'winter' ? 0.03 : 0) - warm * 0.07);
     // Virage : ombres fraîches (ciel) et lumières chaudes (soleil), plus marqué à l'heure dorée, neutre sous la pluie.
     const split = (0.035 + golden * 0.045) * (1 - night) * (1 - weather.rain * 0.8) * (season === 'winter' ? 0.6 : 1);

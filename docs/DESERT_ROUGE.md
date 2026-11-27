@@ -40,6 +40,14 @@
 | **Ksar-Rouge** | haut plateau, côté golfe | village et **Citadelle Rouge** (enceinte, tours, donjon) |
 | **Cap-Brique** | anse au fond est du golfe | port de pêche sous les falaises du Levant |
 | **Les Buttes Rouges** | entre Rocherouge et L'Oasis | dix buttes à sommet plat, bike park, arches de pierre ; la Dent Rouge et la Mesa du Lion plus loin |
+| **Buttes témoins** | plaine et plateau, du Chott au Vautour | dix-sept tours à sommet plat et aiguilles dressées seules sur la plaine (70 à 150 m, cône d'éboulis au pied) : La Sentinelle, L'Aiguille Rouge, Le Château Rouge, L'Enclume, La Butte du Corbeau, La Chandelle, Le Vieux Fort, La Table du Couchant… |
+
+**Identité (27/11/2026) : le Sud-Ouest américain** (Utah, Arizona), sans reproduire aucun lieu : buttes et mesas
+isolées sur une plaine plate, roche rouge-orangé en strates (bandes crème de temps en temps, corniche claire), sable
+clair des dunes, longues routes droites, yuccas, armoises, grands cactus à bras, arbres à pompons, ranchs à éolienne de
+pompage, troupeaux menés par des cavaliers, virevoltants, lumière chaude et sèche, couleurs franches. Les buttes
+témoins (`SENTINEL_SPOTS` dans `design.ts`) sont posées à plus de 500 m de toute route, sur un sol plat : aucun tracé
+n'a changé. Leur talus d'éboulis porte 30 % de la hauteur (`skirt` des mesas, 16 % par défaut).
 
 Relief (`design.ts`) : rivage (`shoreDist`, `cliffAt` : falaises sur la côte nord sauf l'anse de Port-Vent et la côte
 des Dunes, plages dans le golfe, falaises du Levant au fond est du golfe), plateau incliné (`TILT`) et gradins
@@ -114,11 +122,16 @@ Sans `ISLAND_OUT`, `build.ts` écrit dans `apps/client/public/worlds/desert-roug
 - Bâtiments : terre crue ocre (les rouges brique ramenés vers l'ocre), murs pleins sans volets (rendu en nature
   `ruins` : portes de bois), terrasses de la couleur des murs ; maisons blanches du bord de mer inchangées.
 - Clôtures : nulle part, sauf autour des oasis (jardins de la palmeraie).
-- Thème : sol ocre (`meadow` #c47a45), terre battue ocre près des maisons (`urban`), terre rouge (`dirt`), champs en
-  vert palmeraie (seulement autour des sources), sable rouge orangé, roche rouge brique, pas de neige ni de givre,
-  eau turquoise.
-- Décor propre (`world/lands/desert-rougeSites.ts`) : palmeraies des six oasis (puits, tentes, dromadaires couchés),
-  guelta du Vautour, deux caravanes de dromadaires qui marchent, cinq arches de pierre, peu de plantes (touffes sèches,
-  quelques cactus) et surtout des cailloux semés par carrés de 2 km, croûte de sel du Chott Blanc, tribunes du Circuit,
+- Thème : plaine rouge-orangé (`meadow` #c97745 l'été), terre battue ocre près des maisons (`urban`), terre rouge
+  (`dirt`), champs en vert palmeraie (seulement autour des sources), sable clair (#d09062 / #ecc594), roche rouge
+  (#a8482a), pas de neige ni de givre, eau turquoise. Lumière (`theme.light`) : pas de brume en plus, chaleur 0,45,
+  saturation 1,14. Pas de teinte d'horizon : `environment.ts` la mêle au brouillard à toute heure, la nuit comprise
+  (il faudrait l'atténuer la nuit pour donner au désert un horizon bleu pâle de jour).
+- Décor propre (`world/lands/desert-rougeSites.ts`) : palmeraies des six oasis avec un ranch (éolienne de pompage dont
+  le rotor tourne, réservoir, abreuvoir, chevaux à l'attache, feu de camp), guelta du Vautour, deux troupeaux de vaches
+  à longues cornes menés par deux cavaliers, virevoltants qui roulent au vent près des routes (carrés de 1 km, 2 à 4
+  chacun), cinq arches de pierre, armoises, yuccas, grands cactus, touffes sèches et cailloux semés par carrés de 2 km,
+  croûte de sel du Chott Blanc, tribunes du Circuit,
   montgolfières au-dessus du Grand Canyon au lever du jour (heure du monde par `islandClock()`), bike park des Buttes,
-  cyclo-cross des Sables, dôme de l'observatoire, cairns de la Tête du Vautour, puits et palmiers des villages, ports.
+  cyclo-cross des Sables (barnums), dôme de l'observatoire, cairns de la Tête du Vautour, puits, palmiers et éolienne des
+  villages, ports.

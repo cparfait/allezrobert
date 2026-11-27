@@ -21,7 +21,7 @@
 | **Le Volcan** | nord de la Grande Île | cône d'≈ 1 440 m (profil exp(−(r/S)^1,5)), cratère de 520 m de rayon, lac du Cratère (≈ 1 220 m), brèche au sud-est du rebord où arrive la route |
 | **Aigues-Chaudes** | flanc sud, ≈ 345 m | village thermal : thermes, bassins fumants, fumerolles ; départ de la route du Cratère |
 | **Observatoire du volcan** | épaule est, ≈ 1 000 m | tour et coupole, station de surveillance ; route en lacets qui bifurque de la route du Cratère |
-| **Sainte-Iris** | baie des Cendres (sud) | petite ville colorée : boulevard de la Baie, promenade en bois, marché couvert, hôtels, cabines, palmiers, port |
+| **Sainte-Iris** | baie des Cendres (sud) | petite ville colorée : boulevard de la Baie, promenade en bois, marché couvert, hôtels, cabines, port |
 | **Port-Lave** | côte sud-ouest | port de pêche au pied de la Coulée du Sud |
 | **La Plaine** | plaine de l'ouest | bourg de départ, place, critérium |
 | **Circuit des Laves** | plaine de l'ouest | boucle plate de 3,6 km, tribunes, portique, drapeaux (sans voitures ni clôtures) |
@@ -86,12 +86,32 @@ Sans `ISLAND_OUT`, le générateur écrit dans `apps/client/public/worlds/archip
 
 - Données du monde (titre, lieux de la carte, parcours en tête, lieux à découvrir, nom du Tour à étapes, thème,
   circuit) : `apps/client/src/world/lands/archipel-des-volcans.ts`.
-- Thème : sol très vert toute l'année, terre sombre, sable noir (`#2f2c2b` / `#4f4a46`), roche `#3a3634`, eau
-  turquoise, neige au sommet en hiver seulement.
+- Identité : l'**Islande** (27/11/2026). On s'en inspire sans reproduire aucun lieu précis : il faut qu'au premier
+  coup d'œil on sache qu'on est dans l'Archipel.
+  - Thème : prés et lande vert mousse, roussis à l'automne, givrés l'hiver ; terre volcanique noire, sable noir
+    (`#1f1d1c` / `#3b3836`), roche `#33302e`, mer bleu pétrole (`#2c6c80`), calotte de neige sur le volcan (sous
+    1 320 m l'été, 620 m l'hiver).
+  - Lumière (`theme.light`) : horizon gris bleuté, brume 1,3, lumière froide (−0,35), couleurs un peu éteintes (0,92).
+  - Biome : peu d'arbres (bouleaux, 18 %), herbe rase, moutons, vaches et chevaux dans les prés ; au bord des routes,
+    lupins bleu-violet, rochers de lave moussus, touffes d'herbe sèche, pas de buissons.
+  - Bâtiments (`building`) : villages en enduits crème et ocre, toits de tuile cuite et de basalte (palette validée
+    par l'utilisateur) ; églises et chapelles blanches à toit de tôle rouge ; hors des villages, fermes, granges et
+    maisons en tôle peinte (blanc, crème, gris, jaune paille, rouge, noir) à toits de tôle rouges, verts, bleus, noirs.
 - Décor propre (`lands/archipel-des-volcansSites.ts`) : panache de fumée du volcan (animé, lueur rouge la nuit),
   fumerolles, bassins thermaux, Pont des Orgues (piles, pylônes, haubans, lampadaires), Chaussée (enrochements,
   bornes), Phare des Orgues (feu tournant la nuit), trois ports et bateaux au large, champs de lave (blocs, dalles
   cordées, hornitos), bike park du Mont Cendre, cyclo-cross des Cendres, tribunes du Circuit, coupole de
-  l'observatoire, belvédère du cratère, palmiers. Toitures colorées de Sainte-Iris, Port-Lave et Sable-Noir
-  (`building`), pas de clôtures sur la promenade, les quais, le pont et la chaussée (`noFence`).
+  l'observatoire, belvédère du cratère, lampadaires et bancs du front de mer, blocs de lave et orgues de basalte.
+  Pas de clôtures sur la promenade, les quais, le pont et la chaussée (`noFence`).
+- Décor islandais :
+  - coulées anciennes (à plus de 2,8 km du cratère) couvertes de mousse : buttes de mousse vert vif, blocs et dalles
+    moussus ;
+  - sept cascades (`FALLS`, relevées sur le relief du générateur) : rebord du plateau des Orgues (≈ 20 m), Ravine
+    des Pluies, Rivière des Vignes, et quatre falaises de la côte (≈ 30 à 37 m, jusqu'à la mer) ; ruban d'eau qui suit
+    le profil du sol, écume, vasque, embruns et paquets d'eau animés ;
+  - quatre églises blanches à toit rouge dans leur enclos (Sainte-Iris, qui n'en avait pas, et trois isolées sur la
+    côte), porte tournée vers la route ;
+  - quatorze maisons isolées en tôle et leur remise, au bord des routes de campagne ;
+  - aiguilles de basalte au large des plages de sable noir (Plage des Cendres, Sable-Noir, Grande Anse), mouettes ;
+  - lupins en touffes à Sainte-Iris et Sable-Noir, et six prairies de lupins le long des routes.
 - Pas encore : envoi des tuiles sur le serveur et pack hors ligne publié.
