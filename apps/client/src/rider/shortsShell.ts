@@ -18,8 +18,11 @@ const SHELL_CELL = 0.05;
 /** Lissage des sommets (passes, part du déplacement vers la moyenne des voisins) : facettes régulières. */
 const SMOOTH_PASSES = 6;
 const SMOOTH_K = 0.5;
-/** Rayon d'adoucissement des unions (m) : pas d'arête entre fessier, taille et cuisses. */
-const BLEND = 0.04;
+/** Rayon d'adoucissement des unions (m) : pas d'arête entre fessier, taille et cuisses (0,075 depuis le 27/11/2026 : coins en pointe sur les côtés). */
+const BLEND = 0.075;
+/** Écart de chaque fesse à l'axe (m) et fondu entre les deux : sillon léger, pas de fente. */
+const GLUTE_X = 0.058;
+const CLEFT_BLEND = 0.05;
 /** Fondu fessier → taille, plus large : le haut des fesses ne fait pas de bosse sous le maillot (26/11/2026). */
 const WAIST_BLEND = 0.09;
 
@@ -81,7 +84,7 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   // derrière (fesses) que devant (bas-ventre), plus haut que bas.
   const gC = H.clone().add(new THREE.Vector3(0, -0.03, -0.02));
   // Bassin plus profond qu'avant le 25/11/2026 (modèle de référence de l'utilisateur : ≈ 24 cm d'avant en arrière).
-  const gR = { x: 0.168 * hips * s, up: 0.065 * s, down: 0.07 * s, front: 0.098 * s, back: 0.1 * s };
+  const gR = { lobe: 0.086 * hips * s, up: 0.065 * s, down: 0.068 * s, front: 0.098 * s, back: 0.1 * s };
   // Taille : capsule ovale le long du bas du dos, coupée sous l'ourlet du maillot (rentrée sous le tronc : en selle,
   // penché, le haut de la coque dépassait derrière en bosse froissée).
   const top = P.hemP.clone().addScaledVector(up, -0.05);
@@ -98,12 +101,18 @@ export function shortsShell(rest: BodyJoints, P: ShellParams): { vertices: Shell
   const tmp = new THREE.Vector3();
   const q = new THREE.Vector3();
   const sdf = (p: THREE.Vector3): number => {
-    // Fessier : ellipsoïde dissymétrique (distance approchée).
+    // Fessier : deux lobes ronds (un par fesse) unis en douceur, avec un léger sillon derrière (27/11/2026 : un seul
+    // ellipsoïde faisait un bloc large, pointu sur les côtés), plus un bassin étroit devant qui les relie.
+    let d = Infinity;
+    for (const side of [1, -1]) {
+      q.subVectors(p, gC);
+      q.x -= side * GLUTE_X * hips * s;
+      const ex = q.x / gR.lobe;
+      const ey = q.y / (q.y > 0 ? gR.up : gR.down);
+      const ez = q.z / (q.z > 0 ? gR.front : gR.back);
+      d = smin(d, (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1) * Math.min(gR.down, gR.lobe), CLEFT_BLEND);
+    }
     q.subVectors(p, gC);
-    const ex = q.x / gR.x;
-    const ey = q.y / (q.y > 0 ? gR.up : gR.down);
-    const ez = q.z / (q.z > 0 ? gR.front : gR.back);
-    let d = (Math.sqrt(ex * ex + ey * ey + ez * ez) - 1) * Math.min(gR.down, gR.front);
     d = smin(d, capsule(p, H, top, waistR, waistR * 0.96, waistSx, tmp), WAIST_BLEND);
     // Cuisses : rayon qui finit sous celui du tube de la cuisse (≈ 8,2 cm à mi-cuisse) : la coque y rentre.
     for (const L of legs) d = smin(d, capsule(p, L.a, L.hem, 0.088 * s, 0.072 * s, 1, tmp), BLEND);

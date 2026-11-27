@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { attribute, mix } from 'three/tsl';
+import { attribute, mix, normalFlat, normalView } from 'three/tsl';
 import type { AvatarLook } from '@allezrobert/shared';
 import { jerseyPattern } from './jerseyPattern.ts';
 import { shortsShell } from './shortsShell.ts';
@@ -151,6 +151,9 @@ function keySampler(keys: Key[]): (t: number) => Key {
   };
   return keyAt;
 }
+
+/** Part de lissage de l'éclairage de la coque du cuissard (0 : facettes, 1 : lisse). */
+const SHELL_SOFT = 0.7;
 
 class Builder {
   readonly pos: number[] = [];
@@ -440,10 +443,14 @@ export class SweptBody {
       knee.dispose();
     });
     // ── Cuissard : coque d'un seul tenant (bassin, taille, haut des cuisses) par-dessus les tubes ──
+    let softFrom = 0;
+    let softTo = 0;
     if (SHELL) {
       const shell = shortsShell(rest, { hemP: pointAt(trunkPts, hem), thighEnd: SHELL_THIGH_END, scale: s, female: look.female, hipW: hips, waistW: (F.waW + F.hiW) / 2 });
       const base = b.pos.length / 3;
+      softFrom = base;
       for (const v of shell.vertices) b.vertex(v.p, look.shorts, v.bones);
+      softTo = b.pos.length / 3;
       for (const i of shell.index) b.index.push(base + i);
     }
     // ── Bras : haut de l'épaule → épaule → coude → poignet ──
@@ -483,8 +490,18 @@ export class SweptBody {
     geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(b.sw, 4));
     geo.setIndex(b.index);
     geo.computeVertexNormals();
+    // Coque du cuissard à mi-chemin entre facettes et surface lisse (27/11/2026) : fessier rond, sans froissé ;
+    // le reste du corps garde ses facettes franches.
+    const soft = new Float32Array(b.pos.length / 3);
+    soft.fill(SHELL_SOFT, softFrom, softTo);
+    // Le reste du tissu du cuissard (haut des cuisses) aussi : sinon ses facettes dépassaient en pointes au bord du fessier.
+    const sh = look.shorts;
+    for (let i = 0; i < soft.length; i++) {
+      if (Math.abs((b.col[i * 3] as number) - sh.r) + Math.abs((b.col[i * 3 + 1] as number) - sh.g) + Math.abs((b.col[i * 3 + 2] as number) - sh.b) < 1e-4) soft[i] = SHELL_SOFT;
+    }
+    geo.setAttribute('soft', new THREE.BufferAttribute(soft, 1));
     const mat = new THREE.MeshStandardNodeMaterial({ vertexColors: !look.pattern, roughness: 0.75, metalness: 0, side: THREE.DoubleSide });
-    mat.flatShading = true;
+    mat.normalNode = mix(normalFlat, normalView, attribute<'float'>('soft', 'float')).normalize();
     if (look.pattern) {
       // Repère du maillot au repos (comme addJerseyFrame pour l'avatar réaliste) : y de l'ourlet vers la base du
       // cou le long du buste penché, x latéral, z vers la poitrine.
