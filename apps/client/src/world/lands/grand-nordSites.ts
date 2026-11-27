@@ -72,7 +72,7 @@ const HERDS: ReadonlyArray<readonly [number, number, number]> = [
 const BIKE_PARK: XZ = [-5900, -4300];
 const CYCLO_CROSS: XZ = [6900, 4300];
 /** Galerie paravalanche sur la descente nord du col du Renne (axe de la route, du haut vers le bas). */
-const GALLERY: ReadonlyArray<XZ> = [[3452.7, -3869.8], [3465.6, -3885], [3470.7, -3904.3], [3475.3, -3923.8], [3479.9, -3943.2], [3484.5, -3962.7], [3489.3, -3982.1]];
+const GALLERY: ReadonlyArray<XZ> = [[3447.4, -3863.8], [3460.7, -3878.7], [3478.5, -3886.1], [3498.4, -3888.3], [3518.3, -3890.6], [3538.2, -3892.8], [3558, -3895]];
 
 // ───────────────────────────── Gabarits
 
@@ -1202,14 +1202,16 @@ function fjordFalls(f: (typeof FJORD_AXES)[number], s0: number, total: number, f
       for (let t = 0; t < 70; t++) {
         const at = alongLine(f.pts, Math.min(total, s0 + r() * FALL_STEP));
         const side = r() < 0.5 ? -1 : 1;
-        const off = side * (w + 50 + r() * 520);
+        // Parois creusées (design.ts) : le ressaut presque vertical est dans les 400 premiers mètres de la rive.
+        const off = side * (w + 30 + r() * 390);
         const x = at.x - at.dz * off;
         const z = at.z + at.dx * off;
         if (!inMap(x, z) || !keepClear(x, z)) continue;
         const h = p.heightAt(x, z);
-        if (!Number.isFinite(h) || h < 70 || h > 520 || slope(p, x, z) < 0.65 || !offRoad(p, x, z, 5)) continue;
+        if (!Number.isFinite(h) || h < 70 || h > 520 || slope(p, x, z) < 0.9 || !offRoad(p, x, z, 5)) continue;
         const fall = traceFall(p, x, z);
-        if (fall && fall.drop >= 55) found.push(fall);
+        // Chutes franches seulement : au moins 60 m, à plus de 40° en moyenne (pas de longue pente d'eau).
+        if (fall && fall.drop >= 60 && fall.drop > (fall.pts.length - 1) * 5 * 0.85) found.push(fall);
         if (t % 8 === 7) yield;
       }
       // Les plus hautes d'abord, à plus de 220 m l'une de l'autre.

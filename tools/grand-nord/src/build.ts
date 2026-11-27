@@ -97,12 +97,15 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
       break;
     }
   }
-  const lacets = (from: Vec2, to: Vec2, grade: number, half: number): Vec2[] => simplifyPath(switchbacks(from, to, { grade, halfWidth: half, turn: 30, blocked: wet }), 3);
+  const lacets = (from: Vec2, to: Vec2, grade: number, half: number, straight?: number): Vec2[] => simplifyPath(switchbacks(from, to, { grade, halfWidth: half, turn: 30, blocked: wet, straight }), 3);
   const southPts = [lc.p, ...lacets(ahead(lc, 60), col, 0.062, 420)];
-  // Versant nord : départ du col droit vers le pied (prolongement de la montée sud, sans revenir sur elle).
+  // Versant nord : départ du col droit vers le pied (prolongement de la montée sud, sans revenir sur elle). Sous le
+  // col, la paroi de la combe de Nordvik (≈ 50 %, design.ts) : vrais lacets serrés et superposés (≈ 8 % sur les
+  // lacets, ≈ 11 % en moyenne avec les épingles), qui ne s'écartent que de 160 m de l'axe : sept ou huit épingles à
+  // flanc de paroi, à 60 ou 70 m l'une de l'autre. Le fond de la combe (≤ 11 %) se monte tout droit.
   const toFoot = Math.hypot(foot[0] - col[0], foot[1] - col[1]) || 1;
   const leadN: Vec2 = [col[0] + ((foot[0] - col[0]) / toFoot) * 60, col[1] + ((foot[1] - col[1]) / toFoot) * 60];
-  const northPts = lacets(foot, leadN, 0.062, 260).reverse();
+  const northPts = lacets(foot, leadN, 0.055, 160, 0.11).reverse();
   /** Dernier point où `a` coupe `b` : la route `a` part de là (carrefour en T), sans recroiser `b` ensuite. */
   const fromLastCross = (a: Vec2[], b: Vec2[]): Vec2[] => {
     let cut = -1;
@@ -323,7 +326,8 @@ const TRAILS: Trail[] = [
   { name: 'Sentier de la Dent du Renne', mtb: true, at: [6300, -2200], r: 550, n: 8 },
   { name: 'Descente du Renne', mtb: true, line: [[4500, -3100], [4450, -2400], [4550, -1500]] },
   { name: 'Sentier des Gorges', mtb: true, at: [9900, 1700], r: 500, n: 7 },
-  { name: 'Sentier de Skarvik', mtb: true, at: [9300, 6700], r: 650, n: 8 },
+  // Tirage 2 : la boucle reste praticable (VTT de Skarvik) depuis que les parois du fjord sont creusées.
+  { name: 'Sentier de Skarvik', mtb: true, at: [9300, 6700], r: 650, n: 8, seed: 2 },
   { name: 'Sentier du Grand Fjord', mtb: true, at: [-4300, -400], r: 650, n: 8 },
   { name: 'Sentier des Bouleaux', mtb: true, at: [-1600, 3300], r: 800, n: 8 },
   // Petites boucles : cyclo-cross sur la toundra des Mille-Lacs (mousses, sable, terre) et bike park de Fjellheim.
@@ -561,6 +565,8 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   // Montée de la Calotte : de Fjellheim, au fond de son fjord, jusqu'au refuge au bord de la glace, par le vallon.
   const top: Vec2 = SPOTS.refuge;
   connect(P, G('fjellheim', top), top, [{ ...C.lane, gmax: 0.12 }, steep], 'Route de la Calotte', 300);
+  // Le maillage de petites routes (retiré en partie ensuite) ne doit pas renommer la route de la Calotte.
+  const calotte = [...P.grid.labels].filter(([, l]) => l === 'Route de la Calotte').map(([k]) => k);
   // e. Pistes cyclables et voies vertes (plateau, strandflat).
   const cyc = [C.cycleway, { ...C.cycleway, gmax: 0.06 }];
   connect(P, G('nordrobert', anneauGate(2)), anneauGate(2), cyc, 'La Piste du Circuit');
@@ -569,6 +575,7 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   // f. Chemins des fermes, puis maillage de petites routes.
   for (const f of farms) spur(P, f.gate, C.lane, 5, 'Chemin rural');
   meshRoads(P);
+  for (const k of calotte) P.grid.labels.set(k, 'Route de la Calotte');
   for (let c = 0; c < P.grid.N; c++) P.grid.wob[c] = 1 + (P.grid.wob[c]! - 1) * TRACK_WOB;
   const r = rng(31337);
   const loopPts = (cx: number, cz: number, R: number, n: number, jit: number, r0 = r): Vec2[] =>
@@ -1402,6 +1409,22 @@ async function main(): Promise<void> {
 
   // Graphe et itinéraires.
   const graph = buildGraph(roads);
+  // Creux des chemins qui ne paraissent qu'une fois le graphe rééchantillonné (points resserrés au bord d'un
+  // carrefour) : point bas remonté de quelques centimètres, jamais les extrémités (nœuds partagés).
+  for (const e of graph.edges) {
+    if (e.kind !== 'track') continue;
+    const m = e.pts.length / 3;
+    for (let it = 0; it < 20; it++) {
+      let ch = false;
+      for (let i = 4; i + 4 < m; i++) {
+        const sag = (e.pts[(i - 4) * 3 + 1]! + e.pts[(i + 4) * 3 + 1]!) / 2 - e.pts[i * 3 + 1]!;
+        if (sag <= 0.1) continue;
+        e.pts[i * 3 + 1]! += Math.min(0.03, sag - 0.08);
+        ch = true;
+      }
+      if (!ch) break;
+    }
+  }
   writeFileSync(join(OUT, 'graph.json'), JSON.stringify(graph));
   if (process.env.ISLAND_DEBUG_SAG)
     for (const e of graph.edges)

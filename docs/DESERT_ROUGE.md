@@ -59,7 +59,12 @@ Occupation du sol (`land.ts`) : sol nu ocre partout ; palmiers et jardins irrigu
 Salines (`quarry`).
 Bâtiments (`settle.ts`) : terre crue ocre, toits plats en terrasse ; les maisons sont écrites en nature `hut` (le jeu
 n'y pose ni boîtes aux lettres, ni poubelles, ni poules) ; chaux blanche à Port-Corail ; tours de guet, maisons
-communes à haute tour, Citadelle Rouge, caravansérails du Chott et de l'Étoile.
+communes à tour basse, Citadelle Rouge, caravansérails du Chott et de l'Étoile.
+Villages en pueblo (`Builder.pueblo`) : maisons de 1 à 2 niveaux, volumes accolés en gradins (avant d'un niveau sur
+rue avec terrasse, arrière d'un ou deux niveaux, parfois plus étroit et décalé), rangées mitoyennes coupées d'une
+ruelle toutes les trois maisons ; dans Rocherouge et le long des grandes rues, seconde rangée plus haute derrière une
+ruelle de service. Place au centre de chaque village, quatre placettes aux bouts des rues de derrière de Rocherouge.
+Seule Port-Corail garde des maisons blanches de 2 à 3 niveaux (et ses hôtels du front de mer).
 
 ## Réseau et parcours
 

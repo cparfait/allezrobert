@@ -2,8 +2,8 @@
  * Les Rizières et la jungle (mode Poly) : données du monde pour le client (généré par tools/rizieres, voir
  * docs/RIZIERES.md). Longue terre couchée en biais que le Grand Fleuve traverse d'un bout à l'autre jusqu'à son delta
  * à quatre bras, collines de rizières en terrasses de part et d'autre, jungle très sombre sur les reliefs, baie semée
- * de pitons calcaires, temples, pagodes et ruines envahies ; pitons aussi dans la plaine des rizières (décor), air
- * humide et brumeux (theme.light).
+ * de pitons calcaires, temples, pagodes et ruines envahies ; pitons aussi dans la plaine des rizières (cœur dans le
+ * relief, habillé par le décor), air humide et brumeux (theme.light).
  */
 import { rng } from '../../engine/noise.ts';
 import type { TileBuilding } from '../types.ts';

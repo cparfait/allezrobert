@@ -14,6 +14,11 @@ export interface ClimbOptions {
   step?: number;
   /** Côté du premier lacet (+1 / −1) ; par défaut, le côté où le terrain monte le moins vite. */
   firstSide?: number;
+  /**
+   * Pente (fraction) sous laquelle on monte tout droit vers l'arrivée, même au-dessus de `grade` : le fond de la
+   * vallée se fait sans lacets, la paroi au-dessus en lacets serrés.
+   */
+  straight?: number;
   /** Lieux à éviter (lacs, rivières, villages). */
   blocked?: (x: number, z: number) => boolean;
 }
@@ -47,7 +52,9 @@ export function switchbacks(from: Vec2, to: Vec2, o: ClimbOptions): Vec2[] {
     // Direction : entre « en travers » (β = 0) et « droit vers le haut » (β = 90°), la pente la plus proche de la cible.
     let best: Vec2 = A;
     let bestErr = Infinity;
-    for (let b = 0; b <= 90; b += 3) {
+    const gUp = (terrain(p[0] + A[0] * step * 4, p[1] + A[1] * step * 4) - h0) / (step * 4);
+    if (o.straight !== undefined && gUp <= o.straight) bestErr = -Infinity;
+    for (let b = 0; b <= 90 && bestErr > -Infinity; b += 3) {
       const r = (b * Math.PI) / 180;
       const u: Vec2 = [Math.cos(r) * Ap[0] * side + Math.sin(r) * A[0], Math.cos(r) * Ap[1] * side + Math.sin(r) * A[1]];
       const g = (terrain(p[0] + u[0] * step, p[1] + u[1] * step) - h0) / step;

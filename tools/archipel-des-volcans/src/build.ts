@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
-import { ANNEAU, CINDER, HARBOURS, ISLAND, ISLES, LAKES, SEA_LINKS, TOWNS, VOLCANO, anneauLoop, coastPoint, inHarbour, inLake, inRiver, rimPoint, shoreDist, terrain, type Vec2 } from './design.ts';
+import { ANNEAU, CINDER, HARBOURS, ISLAND, ISLES, LAKES, SEA_LINKS, TOWNS, VOLCANO, anneauLoop, cliffiness, coastPoint, inHarbour, inLake, inRiver, rimPoint, shoreDist, terrain, type Vec2 } from './design.ts';
 import { chaikin, clipPolygon, clipPolyline, polygonArea, resample, type Vec3 } from './geom.ts';
 import { forestMask, lakes, parcels, shoreAreas, waterways, type LandCtx } from './land.ts';
 import { fbm, rng, smoothstep } from './noise.ts';
@@ -530,7 +530,9 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
       inset += 120;
       p = coastPoint(ang, inset);
     }
-    if (inset >= 3600) continue;
+    // Secteur en falaise : le haut de la paroi est déjà raide et bosselé ; un point repoussé loin dans les terres y
+    // ferait faire un aller-retour serré à la route du Tour. On le saute, la route relie ses voisins.
+    if (inset >= 3600 || (inset > 1000 && cliffiness(ang, 0) > 0.3)) continue;
     ring.push({ p, ang });
   }
   for (const id of ['sainte-iris', 'port-lave', 'le-pont', 'la-chaussee']) {
@@ -629,6 +631,15 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
 }
 
 const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/** Rayon (m) du cercle passant par trois points (Infinity s'ils sont alignés). */
+function circum(a: Vec2, b: Vec2, c: Vec2): number {
+  const ab = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const bc = Math.hypot(c[0] - b[0], c[1] - b[1]);
+  const ca = Math.hypot(a[0] - c[0], a[1] - c[1]);
+  const cross = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
+  return cross < 1e-9 ? Infinity : (ab * bc * ca) / (2 * cross);
+}
 
 /** Virages arrondis : chaque angle remplacé par un arc de rayon `R` (réduit si les côtés sont trop courts). */
 function fillet(pts: Vec2[], R: number): Vec2[] {
@@ -938,6 +949,19 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
       const d = seg.length >= 2 ? resample(opts.designed ? base : curved(base), 2) : seg;
       for (let i = dense.length ? 1 : 0; i < d.length; i++) dense.push(d[i]!);
       hardAt.set(hard[t + 1]!, dense.length - 1);
+    }
+    // Grandes routes : un coude resté trop serré (raccord de deux morceaux au pied d'une falaise, méandre) est
+    // adouci par lissage local, nœuds imposés et extrémités tenus. Seulement sous ≈ 9 m de rayon (contrôle à 7,5 m).
+    if (!opts.designed && CLASS_BY_RANK[Math.max(...ch.edges.map(({ k }) => edges[k]!.rank))]!.id === 'secondary') {
+      const held = new Set<number>([0, dense.length - 1, ...hardAt.values()]);
+      const tight = (i: number) => i >= 3 && i + 3 < dense.length && circum(dense[i - 3]!, dense[i]!, dense[i + 3]!) < 9;
+      for (let pass = 0; pass < 40; pass++) {
+        const hot = new Set<number>();
+        for (let i = 3; i + 3 < dense.length; i++) if (tight(i)) for (let j = i - 8; j <= i + 8; j++) if (j > 0 && j < dense.length - 1 && !held.has(j)) hot.add(j);
+        if (!hot.size) break;
+        const prev = dense.map((p) => [p[0], p[1]] as Vec2);
+        for (const j of hot) dense[j] = [prev[j]![0] + 0.5 * ((prev[j - 1]![0] + prev[j + 1]![0]) / 2 - prev[j]![0]), prev[j]![1] + 0.5 * ((prev[j - 1]![1] + prev[j + 1]![1]) / 2 - prev[j]![1])];
+      }
     }
     // Position de chaque nœud intérieur : imposée, ou point de la courbe le plus proche.
     const at: number[] = [];
@@ -1267,7 +1291,9 @@ async function main(): Promise<void> {
   {
     const c = D.cross;
     const s0 = c.pts.reduce((bi, p, i) => (p[0] > c.pts[bi]![0] ? i : bi), 0);
-    const loopPts = [...c.pts.slice(s0), ...c.pts.slice(0, s0)];
+    // Points à moins de 0,5 m du précédent retirés (reste d'un raccord du lissage).
+    const loopPts = [...c.pts.slice(s0), ...c.pts.slice(0, s0)].filter((p, i, a) => i === 0 || Math.hypot(p[0] - a[i - 1]![0], p[2] - a[i - 1]![2]) >= 0.5);
+    while (loopPts.length > 2 && Math.hypot(loopPts[0]![0] - loopPts[loopPts.length - 1]![0], loopPts[0]![2] - loopPts[loopPts.length - 1]![2]) < 0.5) loopPts.pop();
     let acc2 = 0;
     const pts = loopPts.map((p, i) => {
       if (i) acc2 += Math.hypot(p[0] - loopPts[i - 1]![0], p[2] - loopPts[i - 1]![2]);

@@ -38,7 +38,11 @@ La première version reprenait la côte en haricot, le grand lac et le réseau d
   rampes régulières (`ramp`) : depuis la Bambouseraie, vers le port des Jonques et sur l'arête du temple.
 - **Plateau des Théiers** (≈ 300 m) au sud du massif, entaillé par les **gorges du Dragon** (la rivière du Dragon finit
   dans la baie des Pitons) ; rampe régulière depuis Pont-des-Lianes.
-- **Pitons** : une soixantaine de pains de sucre calcaires, surtout dans la baie, quelques-uns à terre loin des villes.
+- **Pitons** : une soixantaine de pains de sucre calcaires, surtout dans la baie, quelques-uns à terre loin des villes
+  (`karstPitons`), et 46 tours dans la plaine des rizières (`PLAIN_PITONS`, `plainPitons`), toutes dans le relief et
+  sur la carte. Les pitons de la plaine sont dressés après le creusement des vallées (`carve` puis `plainKarst`) : le
+  fleuve ne les écrase pas. Leur relief n'est qu'un cœur (moitié du rayon au pied, ≈ 97 % de la hauteur, mesuré depuis
+  le point le plus bas du pourtour) que le décor du jeu habille ; le planificateur réserve ce cœur et 20 m autour.
 - **Lacs** : Lac des Lotus (ancien méandre du fleuve, au pied des collines du Nord), Lagune des Mangroves entre deux bras
   du delta, Étang des Nuages, deux mares.
 
@@ -140,4 +144,7 @@ le sont. Après un changement du relief ou du réseau, relancer `sites-data.ts` 
   surtout en deux groupes (plaine des Digues, de Rive-des-Lotus au Circuit ; plaine de l'est, au sud de Vat-Robert),
   quelques-unes près du Lac des Lotus, des Pilotis et dans le delta. Rayon 42 à 105 m, hauteur 80 à 185 m, quatre formes
   (≈ 195 triangles chacune), vues jusqu'à 4,2 km ; pied à plus de 45 m de toute route, chemin, cours d'eau ou bâtiment.
-  Une sur trois a une nappe de brume à son pied, marquée le matin. Les pitons de la baie restent dans le relief.
+  Une sur trois a une nappe de brume à son pied, marquée le matin. Depuis le 27/11, leur cœur est dans le relief
+  (`tools/rizieres`, `PLAIN_PITONS` de `design.ts`) : ils sont sur la carte et le sol les porte ; le gabarit du décor,
+  aux mêmes x, z, rayon, hauteur et forme, recouvre ce cœur sans le doubler. Les deux listes doivent rester identiques
+  (le pied `y` du décor est relu sur les tuiles installées). Les pitons de la baie restent dans le relief seulement.

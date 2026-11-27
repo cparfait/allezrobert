@@ -38,8 +38,11 @@ toutes parts par des fjords qui rayonnent depuis la calotte de glace du centre.
 Relief (`design.ts`) : contour dessiné en coordonnées polaires (18 rayons, spline périodique) et découpé à toutes les
 échelles (sauf l'anse de Port-Boréal) ; fjords et viks dessinés comme des lignes (`FJORDS`), distance aux fjords
 tamponnée une fois sur une grille de 20 m ; montagnes partout (bruit en crêtes, 500 à 750 m) qui montent vite derrière
-le rivage ; strandflat bas au sud-ouest ; haut-plateau (`PLATEAU`) ; calotte (`CAP`) et glacier (`GLACIER`) ; massif
-du Storfjell, selle du col, combe de Nordvik ; vallées dessinées (`VALLEYS`, fond à pente régulière, tamponnées sur une
+le rivage ; parois des fjords creusées (`fjordWall`, 27/11/2026) : un ressaut presque vertical d'environ 80 m au ras
+de l'eau puis des montagnes qui montent deux fois plus vite, eau jusqu'à −60 m, sauf au fond des fjords (1,8 km), près
+des villages et le long des vallées des rives ; strandflat bas au sud-ouest ; haut-plateau (`PLATEAU`) ; calotte
+(`CAP`) et glacier (`GLACIER`) ; massif du Storfjell, selle du col, combe de Nordvik fermée sous le col par une paroi
+de ≈ 300 m (≈ 50 %, courbes de niveau droites en travers) puis à fond plat jusqu'au Storfjord ; vallées dessinées (`VALLEYS`, fond à pente régulière, tamponnées sur une
 grille de 20 m) qui relient les fonds de fjords au plateau et entre eux ; îlots (`skerry`) et îles (`ISLES`) au large.
 `preview.ts` donne un aperçu du relief en une minute, sans construire le monde ; `probe.ts`, `dump.ts`, `dbgcol.ts` et
 `dbgtry.ts` servent à la mise au point (relief en un point, cotes reprises par le client, routes de montagne
@@ -61,7 +64,9 @@ fermes et granges rouges, hangars à bateaux sur la grève de Port-Boréal.
   Lemmings (Isbrevik → Nordvik). Pistes : piste du Circuit, voies vertes des Mille-Lacs et des Skerries, promenade de
   Port-Boréal. Maillage de petites routes là où le relief le permet (plateau, strandflat).
 - Routes de montagne en lacets (`climb.ts`) : col du Renne (versant sud depuis Rennesby, versant nord par la combe de
-  Nordvik), route du Belvédère (part en biais de la montée sud), route de la Calotte (de Fjellheim au refuge).
+  Nordvik : fond de la combe tout droit, puis lacets serrés et superposés sur la paroi sous le col, sept ou huit
+  épingles à 60 ou 70 m l'une au-dessus de l'autre, ≤ 160 m de part et d'autre de l'axe ; option `straight` de
+  `switchbacks`), route du Belvédère (part en biais de la montée sud), route de la Calotte (de Fjellheim au refuge).
 - Chemins gravel et sentiers VTT (`TRAILS`, `SKIN`) : Vidda, Mille-Lacs, Skerries, Marais, Tourbières, Pêcheurs,
   Toundra, Glacier ; Lemmings, Dent du Renne, descente du Renne, Gorges, Skarvik, Grand Fjord, Bouleaux, cyclo-cross de
   la Toundra, bike park de Fjellheim.
@@ -121,8 +126,9 @@ met à jour le catalogue partagé. Les tuiles (`tiles/`) ne sont pas versionnée
   (bouleaux jaunes en automne), eau bleu-gris, grève de galets gris, roche sombre, limite des arbres à 420 m.
 - Végétation (`biome`) : les feuillus deviennent des bouleaux, 60 % des arbres gardés, moitié moins d'herbe, ni boîtes
   aux lettres, poubelles ni poules, ni vaches, moutons ni chevaux (les rennes sont dans le décor).
-- Bâtiments : tout en bois peint (rouge de Falun, ocre, blanc, jamais de brique ni de crépi), toits très pentus,
-  sombres et débordants pour les maisons (`grandNordBuilding`).
+- Bâtiments : tout en bois peint (rouge de Falun, ocre, blanc, jamais de brique ni de crépi), façade `timber` (bois
+  peint nordique du shader des bâtiments), toits très pentus, sombres et débordants pour les maisons
+  (`grandNordBuilding`).
 - Décor propre (`world/lands/grand-nordSites.ts`) : ports de Port-Boréal, Skarvik et Nordvik ; bac animé qui traverse
   le fjord du Bac (quatre minutes l'aller-retour) et rampes des cales ; cabanes de pêcheurs sur pilotis et séchoirs à
   poisson des villages du fond des fjords (Skarvik, Nordvik, Isbrevik, Sørvik, Vatnby, Fjellheim, Port-Boréal) ; cabanes de pêche et pontons au bord des lacs de la toundra ; troupeaux de rennes (un groupe en
@@ -136,8 +142,8 @@ met à jour le catalogue partagé. Les tuiles (`tiles/`) ne sont pas versionnée
   - maisons : rouge de Falun pour une sur deux, toits de tourbe plus fréquents ; cabanes sur pilotis plus nombreuses
     (jusqu'à 13 par village), surtout rouges, de tailles inégales ;
   - **cascades** sur les parois des fjords (`fallSites`) : tronçons de 900 m le long des sept fjords, une ou deux chutes
-    par tronçon (deux sur trois), tracées en suivant la plus grande pente d'un point haut et raide jusqu'à l'eau (au
-    moins 55 m de chute, jamais sur une route ni une maison) ; ruban blanc et bleuté drapé sur la paroi dans le décor
+    par tronçon (deux sur trois), tracées en suivant la plus grande pente d'un point haut et raide (pente ≥ 0,9, dans les 400 m de la rive)
+    jusqu'à l'eau (au moins 60 m de chute, à plus de 40° en moyenne, jamais sur une route ni une maison) ; ruban blanc et bleuté drapé sur la paroi dans le décor
     fixe, voile animé (filets qui coulent, nœuds TSL) et embruns de près, écume au pied ; gelées en hiver ;
   - **jalons à neige** orange à bande sombre au bord des routes revêtues au-dessus de 200 m (col du Renne, Vidda,
     Fjellheim), tous les 28 m en alternance, hors des villages et du Circuit (`poleSites`, grille de 1,5 km).

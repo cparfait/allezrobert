@@ -39,6 +39,13 @@ Relief (`design.ts`) : une forme de rivage par île (super-ellipse déformée, c
 Pluies, Ruisseau Chaud, Rivière des Vignes), lacs (lac du Cratère, étang des Laves). Les villes du bord de mer et les
 culées ont un arrière-pays en pente douce.
 
+Falaises : sur les secteurs en falaise (`cliff` des `ISLES`), une grève de sable noir de 14 à 36 m (`cliffFoot`) au
+ras de l'eau, puis une paroi verticale (2,5 m de large, `CLIFF_FACE`, une à deux cases de la grille de 2 m) de 24 à
+56 m sur la Grande Île et Sable-Noir (`cliffHeight`). Sur l'Île des Orgues, la paroi porte directement le plateau de
+basalte : ≈ 60 à 70 m d'un seul jet, plateau presque plat dès le rebord. Les rivières ont deux ressauts
+(`RIVER_FALL_SPECS`, `riverFalls`) : 16 m sur la Ravine des Pluies, 13 m sur la Rivière des Vignes, paroi verticale
+en amphithéâtre, vasque qui rejoint la pente d'origine en aval, loin des routes.
+
 Routes sur la mer (`SEA_LINKS`) :
 
 - **Pont des Orgues** (≈ 1,15 km) : route dessinée en dos d'âne (tablier à 11 m), le sol n'est jamais remblayé sous le
@@ -48,7 +55,7 @@ Routes sur la mer (`SEA_LINKS`) :
 Occupation du sol (`land.ts`) : forêt tropicale humide sur le versant au vent jusqu'à ≈ 950 m, lande d'altitude et
 scories au-dessus, roche nue sur les coulées, au sommet et dans le cratère, falaises basaltiques, vignes sur la cendre
 (ouest et Sable-Noir), champs en terrasses (trois bandes par parcelle), vergers, prés du plateau des Orgues, plages de
-sable noir de chaque île.
+sable noir de chaque île, grèves de sable noir au pied des falaises (la roche commence à la paroi).
 
 ## Réseau et parcours
 
@@ -106,9 +113,11 @@ Sans `ISLAND_OUT`, le générateur écrit dans `apps/client/public/worlds/archip
 - Décor islandais :
   - coulées anciennes (à plus de 2,8 km du cratère) couvertes de mousse : buttes de mousse vert vif, blocs et dalles
     moussus ;
-  - sept cascades (`FALLS`, relevées sur le relief du générateur) : rebord du plateau des Orgues (≈ 20 m), Ravine
-    des Pluies, Rivière des Vignes, et quatre falaises de la côte (≈ 30 à 37 m, jusqu'à la mer) ; ruban d'eau qui suit
-    le profil du sol, écume, vasque, embruns et paquets d'eau animés ;
+  - sept cascades (`FALLS`, relevées sur le relief du générateur) qui tombent à la verticale : trois du rebord du
+    plateau des Orgues (sud, cap du Phare, nord, ≈ 60 à 70 m), deux des falaises de la Grande Île (Terrasses au sud,
+    cap de la Grande Coulée à l'ouest, ≈ 43 à 47 m), toutes sur la grève de sable noir, et les ressauts de la Ravine
+    des Pluies et de la Rivière des Vignes ; ruban d'eau détaché de la paroi, écume, vasque, embruns et paquets d'eau
+    animés ;
   - quatre églises blanches à toit rouge dans leur enclos (Sainte-Iris, qui n'en avait pas, et trois isolées sur la
     côte), porte tournée vers la route ;
   - quatorze maisons isolées en tôle et leur remise, au bord des routes de campagne ;

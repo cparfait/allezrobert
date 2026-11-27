@@ -1154,17 +1154,19 @@ function flowerPatch(k: () => Kit, id: string, x0: number, z0: number, R: number
 // ───────────────────────────── Cascades, églises, maisons de tôle, aiguilles
 
 /**
- * Cascades (relevées sur le relief du générateur : plus forte chute locale, sens de la pente `a`) : falaises de la
- * côte, rebord du plateau des Orgues, ressauts des rivières. `w` : largeur du ruban d'eau (m).
+ * Cascades (relevées sur le relief du générateur, au milieu de la paroi, sens de la plus forte pente) : paroi
+ * verticale des falaises de la côte (24 à 56 m) et du plateau des Orgues (≈ 60 à 70 m), au-dessus de la grève de sable
+ * noir, et ressauts des deux rivières (`RIVER_FALL_SPECS` de design.ts, 13 et 16 m). `a` : sens de la chute, `w` :
+ * largeur du ruban d'eau (m).
  */
 const FALLS: ReadonlyArray<{ id: string; x: number; z: number; a: number; w: number }> = [
-  { id: 'cascade-des-orgues', x: 15860, z: -4285, a: 1.96, w: 7 },
-  { id: 'cascade-de-la-ravine', x: 1895, z: -4354, a: -0.18, w: 5 },
-  { id: 'cascade-des-vignes', x: -8143, z: -5672, a: -2.68, w: 4.5 },
-  { id: 'cascade-du-cap', x: 18410, z: -3655, a: 0.39, w: 4 },
-  { id: 'cascade-des-falaises', x: 15155, z: -7630, a: 3.93, w: 5 },
-  { id: 'cascade-du-sud', x: 6275, z: -9040, a: 4.71, w: 6 },
-  { id: 'cascade-de-l-ouest', x: -6025, z: 9755, a: 1.57, w: 4 },
+  { id: 'cascade-des-orgues', x: 16759, z: -1095, a: 1.04, w: 7 },
+  { id: 'cascade-de-la-ravine', x: 3866, z: -4702, a: -0.01, w: 5 },
+  { id: 'cascade-des-vignes', x: -7641, z: -5434, a: -2.68, w: 4.5 },
+  { id: 'cascade-du-cap', x: 18519, z: -4273, a: -0.16, w: 4 },
+  { id: 'cascade-des-falaises', x: 16286, z: -7727, a: -1.1, w: 5 },
+  { id: 'cascade-du-sud', x: 4997, z: 8712, a: 1.08, w: 6 },
+  { id: 'cascade-de-l-ouest', x: -13166, z: 2146, a: 2.36, w: 4 },
 ];
 
 /**
@@ -1206,14 +1208,16 @@ function waterfall(k: () => Kit, f: (typeof FALLS)[number]): Site {
         if (!pr.read(x, z) || pr.road >= 0.02 || pr.buildingNear(x, z, f.w)) return;
       }
       yield;
-      // Rubans : un tronçon par mètre, décollés du sol (assez pour passer les bosses entre deux échantillons).
+      // Rubans : un tronçon par mètre, décollés du sol (assez pour passer les bosses entre deux échantillons). Passé
+      // la lèvre, l'eau tombe en avant de la paroi verticale (jusqu'à 2,5 m), sans s'y enfoncer.
       const px = -uz;
       const pz = ux;
       const core = new THREE.Color('#eef6f8');
       const veil = new THREE.Color('#a9d3de');
       const pts: number[] = [];
       for (let i = top - 1; i <= bot; i++) {
-        const t = Math.max(0, i) + T0;
+        const fallen = level(Math.max(0, top)) - level(Math.max(0, i));
+        const t = Math.max(0, i) + T0 + (i > top ? Math.min(2.5, 0.6 + 0.05 * fallen) : 0);
         pts.push(f.x + ux * t, level(Math.max(0, i)), f.z + uz * t);
       }
       for (const [w, lift, col] of [[f.w, 0.35, veil], [f.w * 0.55, 0.5, core]] as const) {

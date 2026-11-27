@@ -80,22 +80,24 @@ const COL_JUNGLE: readonly [number, number] = [10888, -5961];
 /**
  * Pitons calcaires de la plaine (identité du monde, 27/11/2026) : tours à flancs verticaux qui sortent des rizières,
  * en deux grands groupes (plaine des Digues, entre Rive-des-Lotus et le Circuit ; plaine de l'est, au sud de
- * Vat-Robert), quelques-uns isolés près du Lac des Lotus, des Pilotis et dans le delta. Les pitons de la baie sont
- * dans le relief du générateur (tools/rizieres, karstPitons()).
+ * Vat-Robert), quelques-uns isolés près du Lac des Lotus, des Pilotis et dans le delta. Ils sont aussi dans le relief
+ * (tools/rizieres, PLAIN_PITONS et plainPitons() de design.ts, mêmes x, z, rayon, hauteur et forme) : le sol en porte
+ * le cœur, qui les montre sur la carte ; ce gabarit l'habille sans le doubler (le cœur reste dessous, à la moitié du
+ * rayon au pied, jusqu'à ≈ 97 % de la hauteur). Les pitons de la baie sont dans le relief seulement (karstPitons()).
  * [x, z, pied (m, plus bas point du terrain du générateur sur le pourtour), rayon au pied (m), hauteur (m), forme 0 … 3].
  * Choisis hors de tout : chaque pied est à plus de 45 m de toute route, chemin, cours d'eau ou bâtiment des tuiles
  * installées (worlds/rizieres/tiles), hors des lacs, du fleuve, des villes et des ports.
  */
 const PLAIN_PITONS: ReadonlyArray<readonly [number, number, number, number, number, number]> = [
-  [1200, -160, 19, 99, 185, 2], [-6120, 2760, 13.3, 59, 122, 2], [-5760, 2680, 13.4, 49, 97, 2], [1520, -280, 19.9, 65, 129, 2], [840, -120, 18.9, 61, 108, 1],
-  [1120, -560, 19, 105, 185, 1], [-6440, 2480, 12.9, 84, 185, 3], [-6120, 3120, 18.4, 84, 185, 3], [-5920, 2280, 13.1, 89, 185, 3], [1240, 200, 20.7, 93, 162, 1],
+  [1200, -160, 19, 99, 185, 2], [-6120, 2760, 13.3, 59, 122, 2], [-5760, 2680, 13.5, 49, 97, 2], [1520, -280, 19.9, 65, 129, 2], [840, -120, 18.9, 61, 108, 1],
+  [1120, -560, 19.1, 105, 185, 1], [-6440, 2480, 12.9, 84, 185, 3], [-6120, 3120, 18.4, 84, 185, 3], [-5920, 2280, 13.1, 89, 185, 3], [1240, 200, 20.7, 93, 162, 1],
   [-6560, 2960, 12.5, 59, 131, 3], [-5760, 3080, 20.5, 50, 117, 3], [720, -520, 19.5, 51, 115, 3], [1520, -720, 19.7, 70, 160, 3], [-5360, 2560, 13.1, 105, 185, 2],
-  [480, 0, 18.6, 90, 166, 1], [-6800, 2600, 12.1, 68, 151, 3], [1920, -360, 19.5, 78, 168, 3], [-5480, 2160, 13.6, 49, 106, 3], [1800, 80, 24.3, 79, 160, 2],
-  [1040, 520, 20.6, 72, 106, 0], [400, -400, 19.2, 50, 106, 2], [1600, 360, 22.3, 83, 148, 1], [1880, -800, 19.6, 79, 173, 3], [-3280, 600, 30.1, 59, 98, 0],
-  [-6920, 3040, 11, 91, 154, 1], [-6000, 3440, 20.4, 71, 142, 2], [-3040, 840, 20.9, 54, 109, 2], [-5600, 3400, 23, 103, 185, 1], [-3560, 360, 32.5, 72, 107, 0],
-  [-2960, 360, 32.1, 92, 184, 2], [160, 200, 18.2, 75, 125, 0], [-15720, 2840, 7.4, 96, 140, 0], [-13240, 5800, 2.8, 95, 141, 0], [-5080, 2000, 13.1, 103, 180, 1],
-  [-5040, 2400, 13.2, 62, 133, 3], [-10760, 8520, 9.3, 91, 185, 3], [440, -800, 29.6, 77, 122, 0], [-13320, 240, 10.6, 52, 117, 3], [2200, -960, 19.3, 95, 185, 2],
-  [3840, -2360, 41.3, 91, 182, 2], [2240, -560, 19.2, 91, 185, 3], [3440, -2400, 41, 79, 177, 3], [-2720, 1000, 14.5, 59, 119, 2], [-9120, 5000, 22.4, 59, 91, 0],
+  [480, 0, 18.6, 90, 166, 1], [-6800, 2600, 12.2, 68, 151, 3], [1920, -360, 19.5, 78, 168, 3], [-5480, 2160, 13.6, 49, 106, 3], [1800, 80, 24.3, 79, 160, 2],
+  [1040, 520, 20.6, 72, 106, 0], [400, -400, 19.2, 50, 106, 2], [1600, 360, 22.4, 83, 148, 1], [1880, -800, 19.6, 79, 173, 3], [-3280, 600, 30.2, 59, 98, 0],
+  [-6920, 3040, 11, 91, 154, 1], [-6000, 3440, 20.4, 71, 142, 2], [-3040, 840, 21, 54, 109, 2], [-5600, 3400, 23, 103, 185, 1], [-3560, 360, 32.5, 72, 107, 0],
+  [-2960, 360, 32.2, 92, 184, 2], [160, 200, 18.2, 75, 125, 0], [-15720, 2840, 7.4, 96, 140, 0], [-13240, 5800, 2.9, 95, 141, 0], [-5080, 2000, 13.2, 103, 180, 1],
+  [-5040, 2400, 13.3, 62, 133, 3], [-10760, 8520, 9.4, 91, 185, 3], [440, -800, 29.7, 77, 122, 0], [-13320, 240, 10.6, 52, 117, 3], [2200, -960, 19.4, 95, 185, 2],
+  [3840, -2360, 41.5, 91, 182, 2], [2240, -560, 19.2, 91, 185, 3], [3440, -2400, 41.1, 79, 177, 3], [-2720, 1000, 14.5, 59, 119, 2], [-9120, 5000, 22.5, 59, 91, 0],
   [-11000, 8760, 8.7, 49, 82, 1],
 ];
 /**
@@ -1512,8 +1514,10 @@ function jungleMist(c: SiteContext, x0: number, z0: number, seed: number): void 
 }
 
 /**
- * Piton calcaire de la plaine (PLAIN_PITONS) : vu de loin (pied connu d'avance, sans attendre la tuile), dans la brume
- * de l'air humide. Si la tuile est chargée, le pied est revérifié : pas de piton sur une chaussée ni sur un bâtiment.
+ * Piton calcaire de la plaine (PLAIN_PITONS) : habillage du cœur que porte le relief, vu de loin (pied connu d'avance,
+ * sans attendre la tuile), dans la brume de l'air humide. Il doit garder exactement x, z, rayon, hauteur et forme du
+ * générateur (sinon le cœur percerait le gabarit). Si la tuile est chargée, le pied est revérifié : pas de gabarit sur
+ * une chaussée ni sur un bâtiment (le cœur reste alors nu, en roche, comme les pitons de la baie).
  * Un piton sur trois a une nappe de brume à son pied, marquée le matin (islandClock()).
  */
 function plainPiton(k: () => Kit, i: number): Site {

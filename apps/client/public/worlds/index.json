@@ -111,24 +111,24 @@
      "id": "decouverte-de-l-archipel",
      "name": "Découverte de l’Archipel",
      "nameEn": "Archipelago discovery ride",
-     "lengthM": 10812.19,
-     "elevationGainM": 72.05,
+     "lengthM": 10812.18,
+     "elevationGainM": 72.02,
      "loop": true
     },
     {
      "id": "classique-des-trois-iles",
      "name": "La Classique des Trois Îles",
      "nameEn": "Three Islands Classic",
-     "lengthM": 24360.05,
-     "elevationGainM": 283.91,
+     "lengthM": 24363.33,
+     "elevationGainM": 282.78,
      "loop": false
     },
     {
      "id": "chrono-de-la-chaussee",
      "name": "Le chrono de la Chaussée",
      "nameEn": "Causeway time trial",
-     "lengthM": 19644.77,
-     "elevationGainM": 107.79,
+     "lengthM": 19701.93,
+     "elevationGainM": 109.97,
      "loop": false
     },
     {
@@ -143,8 +143,8 @@
      "id": "montee-du-volcan",
      "name": "La montée du Volcan",
      "nameEn": "Volcano climb",
-     "lengthM": 23903.42,
-     "elevationGainM": 1433.48,
+     "lengthM": 23891.96,
+     "elevationGainM": 1433.28,
      "loop": false
     },
     {
@@ -159,8 +159,8 @@
      "id": "tour-de-l-ile",
      "name": "Le Tour de la Grande Île",
      "nameEn": "Round the Great Island",
-     "lengthM": 77647.49,
-     "elevationGainM": 902.29,
+     "lengthM": 81123.37,
+     "elevationGainM": 868.2,
      "loop": true
     },
     {
@@ -175,56 +175,56 @@
      "id": "boucle-de-la-plaine",
      "name": "La boucle de La Plaine",
      "nameEn": "La Plaine loop",
-     "lengthM": 11663.84,
-     "elevationGainM": 105.76,
+     "lengthM": 11663.76,
+     "elevationGainM": 105.59,
      "loop": true
     },
     {
      "id": "route-des-vignes",
      "name": "La route des Vignes",
      "nameEn": "Vineyard road",
-     "lengthM": 28007.99,
-     "elevationGainM": 356.63,
+     "lengthM": 28453.71,
+     "elevationGainM": 362.07,
      "loop": true
     },
     {
      "id": "route-de-la-foret",
      "name": "La route de la Forêt",
      "nameEn": "Rainforest road",
-     "lengthM": 26159.46,
-     "elevationGainM": 277.66,
+     "lengthM": 26150.91,
+     "elevationGainM": 276.83,
      "loop": true
     },
     {
      "id": "boucle-des-terrasses",
      "name": "La boucle des Terrasses",
      "nameEn": "Terraces loop",
-     "lengthM": 29168.24,
-     "elevationGainM": 492.55,
+     "lengthM": 29126.31,
+     "elevationGainM": 492.62,
      "loop": true
     },
     {
      "id": "tour-des-orgues",
      "name": "Le tour de l'Île des Orgues",
      "nameEn": "Organ Isle loop",
-     "lengthM": 18143.78,
-     "elevationGainM": 218.2,
+     "lengthM": 17417.5,
+     "elevationGainM": 255.51,
      "loop": true
     },
     {
      "id": "phare-des-orgues",
      "name": "Le Phare des Orgues",
      "nameEn": "Organ lighthouse",
-     "lengthM": 7961.04,
-     "elevationGainM": 121.08,
+     "lengthM": 7555.34,
+     "elevationGainM": 91.57,
      "loop": false
     },
     {
      "id": "tour-de-sable-noir",
      "name": "Le tour de Sable-Noir",
      "nameEn": "Black Sand isle loop",
-     "lengthM": 15530.71,
-     "elevationGainM": 90.22,
+     "lengthM": 15603.22,
+     "elevationGainM": 92.46,
      "loop": true
     },
     {
@@ -239,40 +239,40 @@
      "id": "piste-du-circuit",
      "name": "La piste du Circuit",
      "nameEn": "Circuit cycleway",
-     "lengthM": 7810.16,
-     "elevationGainM": 70.12,
+     "lengthM": 7804.6,
+     "elevationGainM": 70.01,
      "loop": true
     },
     {
      "id": "voie-verte-des-laves",
      "name": "La voie verte des Laves",
      "nameEn": "Lava greenway",
-     "lengthM": 7120.14,
-     "elevationGainM": 2.43,
+     "lengthM": 7219.33,
+     "elevationGainM": 2.28,
      "loop": false
     },
     {
      "id": "voie-verte-de-la-baie",
      "name": "La voie verte de la Baie",
      "nameEn": "Bay greenway",
-     "lengthM": 10804.51,
-     "elevationGainM": 202.71,
+     "lengthM": 10777.43,
+     "elevationGainM": 202.7,
      "loop": false
     },
     {
      "id": "voie-verte-des-cendres",
      "name": "La voie verte des Cendres",
      "nameEn": "Ash greenway",
-     "lengthM": 7662.13,
-     "elevationGainM": 1.63,
+     "lengthM": 7677.07,
+     "elevationGainM": 1.59,
      "loop": false
     },
     {
      "id": "classique-des-cendres",
      "name": "La Classique des Cendres",
      "nameEn": "Ash Classic",
-     "lengthM": 72219.23,
-     "elevationGainM": 1361.02,
+     "lengthM": 72234.1,
+     "elevationGainM": 1379.82,
      "loop": true,
      "bike": "gravel"
     },
@@ -280,8 +280,8 @@
      "id": "gravel-des-cendres",
      "name": "Gravel des Cendres",
      "nameEn": "Ash gravel",
-     "lengthM": 5612.7,
-     "elevationGainM": 158.62,
+     "lengthM": 5599.2,
+     "elevationGainM": 159.48,
      "loop": true,
      "bike": "gravel"
     },
@@ -289,8 +289,8 @@
      "id": "gravel-des-vignes",
      "name": "Gravel des Vignes",
      "nameEn": "Vineyard gravel",
-     "lengthM": 9713.99,
-     "elevationGainM": 148.77,
+     "lengthM": 7716.56,
+     "elevationGainM": 154.93,
      "loop": true,
      "bike": "gravel"
     },
@@ -298,8 +298,8 @@
      "id": "gravel-de-la-foret",
      "name": "Gravel de la Forêt",
      "nameEn": "Rainforest gravel",
-     "lengthM": 9123.62,
-     "elevationGainM": 187.91,
+     "lengthM": 9106.51,
+     "elevationGainM": 187.55,
      "loop": true,
      "bike": "gravel"
     },
@@ -316,8 +316,8 @@
      "id": "gravel-des-orgues",
      "name": "Gravel des Orgues",
      "nameEn": "Basalt organs gravel",
-     "lengthM": 7223.41,
-     "elevationGainM": 118.44,
+     "lengthM": 7317.89,
+     "elevationGainM": 89.49,
      "loop": true,
      "bike": "gravel"
     },
@@ -325,8 +325,8 @@
      "id": "gravel-de-sable-noir",
      "name": "Gravel de Sable-Noir",
      "nameEn": "Black Sand gravel",
-     "lengthM": 6408.53,
-     "elevationGainM": 90.81,
+     "lengthM": 6417.93,
+     "elevationGainM": 92,
      "loop": true,
      "bike": "gravel"
     },
@@ -343,8 +343,8 @@
      "id": "gravel-de-la-coulee",
      "name": "Gravel de la Coulée",
      "nameEn": "Lava flow gravel",
-     "lengthM": 8391.06,
-     "elevationGainM": 175.17,
+     "lengthM": 8394.17,
+     "elevationGainM": 175.18,
      "loop": true,
      "bike": "gravel"
     },
@@ -352,8 +352,8 @@
      "id": "chemin-du-littoral",
      "name": "Le chemin du Littoral",
      "nameEn": "Coastal path",
-     "lengthM": 7059.79,
-     "elevationGainM": 46.33,
+     "lengthM": 6775.86,
+     "elevationGainM": 64.53,
      "loop": false,
      "bike": "gravel"
     },
@@ -361,8 +361,8 @@
      "id": "vtt-de-la-lande",
      "name": "VTT de la Lande",
      "nameEn": "Upland heath MTB",
-     "lengthM": 7231.01,
-     "elevationGainM": 422.43,
+     "lengthM": 7230.85,
+     "elevationGainM": 422.44,
      "loop": true,
      "bike": "mtb"
     },
@@ -379,8 +379,8 @@
      "id": "vtt-de-la-foret",
      "name": "VTT de la Forêt",
      "nameEn": "Rainforest MTB",
-     "lengthM": 5387.19,
-     "elevationGainM": 165.82,
+     "lengthM": 5353.66,
+     "elevationGainM": 163.78,
      "loop": true,
      "bike": "mtb"
     },
@@ -388,8 +388,8 @@
      "id": "vtt-des-orgues",
      "name": "VTT des Orgues",
      "nameEn": "Basalt organs MTB",
-     "lengthM": 4906.43,
-     "elevationGainM": 112.07,
+     "lengthM": 4587.54,
+     "elevationGainM": 68.46,
      "loop": true,
      "bike": "mtb"
     },
@@ -397,8 +397,8 @@
      "id": "vtt-de-la-coulee",
      "name": "VTT de la Coulée",
      "nameEn": "Lava field MTB",
-     "lengthM": 5962.56,
-     "elevationGainM": 98.18,
+     "lengthM": 5859.5,
+     "elevationGainM": 95.87,
      "loop": true,
      "bike": "mtb"
     },
@@ -406,8 +406,8 @@
      "id": "vtt-de-la-ravine",
      "name": "VTT de la Ravine",
      "nameEn": "Ravine MTB",
-     "lengthM": 5180.42,
-     "elevationGainM": 92.71,
+     "lengthM": 5154.36,
+     "elevationGainM": 92.78,
      "loop": true,
      "bike": "mtb"
     },
@@ -415,17 +415,17 @@
      "id": "bike-park-du-mont-cendre",
      "name": "Le bike park du Mont Cendre",
      "nameEn": "Mont Cendre bike park",
-     "lengthM": 6850.9,
-     "elevationGainM": 135.21,
+     "lengthM": 8373.96,
+     "elevationGainM": 205.05,
      "loop": true,
      "bike": "mtb"
     }
    ],
    "pack": {
-    "version": "56dddf9f6d98",
-    "bytes": 298806202,
+    "version": "e8df25a53f8e",
+    "bytes": 298885126,
     "files": 2490,
-    "gzBytes": 38127022
+    "gzBytes": 38442115
    },
    "l93": {
     "minE": 1311000,
@@ -1068,10 +1068,10 @@
     }
    ],
    "pack": {
-    "version": "548d2327a1e0",
-    "bytes": 257213158,
+    "version": "72324c5b6545",
+    "bytes": 258193422,
     "files": 2412,
-    "gzBytes": 39413678
+    "gzBytes": 39595015
    },
    "l93": {
     "minE": 1311000,
@@ -1206,16 +1206,16 @@
      "id": "decouverte-du-grand-nord",
      "name": "Découverte du Grand Nord",
      "nameEn": "Far North discovery ride",
-     "lengthM": 11174.86,
-     "elevationGainM": 35.24,
+     "lengthM": 11177.46,
+     "elevationGainM": 35.4,
      "loop": true
     },
     {
      "id": "classique-des-fjords",
      "name": "La Classique des Fjords",
      "nameEn": "Fjords Classic",
-     "lengthM": 39292.7,
-     "elevationGainM": 648.5,
+     "lengthM": 38935.88,
+     "elevationGainM": 654.53,
      "loop": false
     },
     {
@@ -1246,16 +1246,16 @@
      "id": "col-du-renne",
      "name": "La traversée du Col du Renne",
      "nameEn": "Reindeer pass traverse",
-     "lengthM": 9714.42,
-     "elevationGainM": 234.84,
+     "lengthM": 9357.6,
+     "elevationGainM": 240.87,
      "loop": false
     },
     {
      "id": "col-du-renne-par-nordvik",
      "name": "Le Col du Renne par Nordvik",
      "nameEn": "Reindeer pass from the north",
-     "lengthM": 10553.52,
-     "elevationGainM": 466.39,
+     "lengthM": 10196.7,
+     "elevationGainM": 472.42,
      "loop": false
     },
     {
@@ -1270,8 +1270,8 @@
      "id": "grand-tour-du-col",
      "name": "De Nordrobert à Nordvik par le col",
      "nameEn": "Nordrobert to Nordvik over the pass",
-     "lengthM": 12054.92,
-     "elevationGainM": 245.2,
+     "lengthM": 11698.1,
+     "elevationGainM": 251.23,
      "loop": false
     },
     {
@@ -1294,15 +1294,15 @@
      "id": "route-de-sorvik",
      "name": "La descente sur Sørvik",
      "nameEn": "Down to Sørvik",
-     "lengthM": 11850.87,
-     "elevationGainM": 108.14,
+     "lengthM": 11843.49,
+     "elevationGainM": 107.29,
      "loop": false
     },
     {
      "id": "route-de-skarvik",
      "name": "La route de Skarvik",
      "nameEn": "Skarvik road",
-     "lengthM": 5657.8,
+     "lengthM": 5646.63,
      "elevationGainM": 36.28,
      "loop": false
     },
@@ -1382,8 +1382,8 @@
      "id": "piste-du-circuit",
      "name": "La piste du Circuit",
      "nameEn": "Circuit cycleway",
-     "lengthM": 6294.64,
-     "elevationGainM": 16.41,
+     "lengthM": 6674.08,
+     "elevationGainM": 15.32,
      "loop": true
     },
     {
@@ -1424,8 +1424,8 @@
      "id": "gravel-des-mille-lacs",
      "name": "Gravel des Mille-Lacs",
      "nameEn": "Thousand lakes gravel",
-     "lengthM": 4659.81,
-     "elevationGainM": 11.38,
+     "lengthM": 4483.4,
+     "elevationGainM": 10.02,
      "loop": true,
      "bike": "gravel"
     },
@@ -1523,8 +1523,8 @@
      "id": "vtt-de-skarvik",
      "name": "VTT de Skarvik",
      "nameEn": "Skarvik MTB trail",
-     "lengthM": 11199.96,
-     "elevationGainM": 478.04,
+     "lengthM": 14821.89,
+     "elevationGainM": 721.66,
      "loop": true,
      "bike": "mtb"
     },
@@ -1541,8 +1541,8 @@
      "id": "vtt-des-bouleaux",
      "name": "VTT des Bouleaux",
      "nameEn": "Birch MTB trail",
-     "lengthM": 17193.57,
-     "elevationGainM": 662.83,
+     "lengthM": 17179.08,
+     "elevationGainM": 663.48,
      "loop": true,
      "bike": "mtb"
     },
@@ -1550,17 +1550,17 @@
      "id": "bike-park-de-fjellheim",
      "name": "Le bike park de Fjellheim",
      "nameEn": "Fjellheim bike park",
-     "lengthM": 2098.39,
-     "elevationGainM": 62.55,
+     "lengthM": 2098.52,
+     "elevationGainM": 62.69,
      "loop": true,
      "bike": "mtb"
     }
    ],
    "pack": {
-    "version": "29811265c81c",
-    "bytes": 393791010,
+    "version": "87480c675299",
+    "bytes": 393772799,
     "files": 2686,
-    "gzBytes": 85960910
+    "gzBytes": 87228835
    },
    "l93": {
     "minE": 1311000,
@@ -5942,10 +5942,10 @@
     }
    ],
    "pack": {
-    "version": "6deee12bb3ea",
-    "bytes": 333091167,
+    "version": "ca96bbf2f5d9",
+    "bytes": 333100298,
     "files": 2551,
-    "gzBytes": 42962051
+    "gzBytes": 43051009
    },
    "l93": {
     "minE": 1311000,

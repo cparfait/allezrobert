@@ -507,6 +507,20 @@ export function chainAt(x: number, z: number): { d: number; h: number } {
 
 const COAST_TOWNS = TOWNS.filter((t) => t.seaside || t.port || t.size === 'hameau');
 
+/**
+ * Pied des falaises : largeur (m, comptée depuis le rivage) de la grève de sable noir avant la paroi, 14 à 36 m.
+ * La paroi monte à la verticale juste au-delà (sur `CLIFF_FACE` m : une à deux cases de la grille de 2 m).
+ */
+export function cliffFoot(x: number, z: number): number {
+  return 14 + 22 * clamp(0.5 + 0.9 * noise2(x / 420, z / 420, 61), 0, 1);
+}
+export const CLIFF_FACE = 2.5;
+
+/** Hauteur de la paroi d'une falaise de la Grande Île ou de Sable-Noir (m) : 24 à 56 m selon le lieu. */
+function cliffHeight(x: number, z: number): number {
+  return 24 + 32 * clamp(0.5 + 0.8 * noise2(x / 900, z / 900, 62) + 0.15 * noise2(x / 160, z / 160, 63), 0, 1);
+}
+
 /** Relief naturel sans les rivières, lacs, ports ni plateaux aplanis. */
 function natural(x: number, z: number): number {
   const { isle, d } = isleAt(x, z);
@@ -515,10 +529,16 @@ function natural(x: number, z: number): number {
   // Mer : fond qui plonge doucement devant les plages, vite au pied des falaises ; eaux peu profondes entre les îles.
   if (d < 0) return Math.max(-28, 0.25 + d * lerp(0.012, 0.1, cliff));
   const beach = 0.25 + Math.min(d, 160) * 0.012 + 12 * smoothstep(160, 1800, d);
-  const wall = 0.25 + 38 * smoothstep(4, 60, d) + 14 * smoothstep(60, 1500, d);
-  let h = beach + (wall - beach) * cliff * (1 - smoothstep(1500, 4000, d));
+  // Falaise : grève de sable noir au pied (presque plate), paroi verticale, puis le haut qui monte doucement.
+  // Sur l'Île des Orgues, la paroi porte directement le plateau de basalte (voir plus bas) : socle bas ici.
+  const foot = cliffFoot(x, z);
+  const face = smoothstep(foot, foot + CLIFF_FACE, d);
+  const wallH = isle === 1 ? 10 : cliffHeight(x, z);
+  const wall = 0.25 + 0.03 * Math.min(d, foot) + face * (wallH + 14 * smoothstep(60, 1500, d));
   const cl = cliff * (1 - smoothstep(1500, 4000, d));
-  const inland = smoothstep(150, 2400, d) * (1 - cl) + smoothstep(60, 900, d) * cl;
+  let h = beach + (wall - beach) * cl;
+  // Relief de l'intérieur : posé sur le haut de la paroi (pas de longue pente au-dessus de la falaise).
+  const inland = smoothstep(150, 2400, d) * (1 - cl) + face * (isle === 1 ? 1 : smoothstep(-300, 900, d)) * cl;
   const fade = smoothstep(120, 1200, d);
   if (isle === 0) {
     // Lieux qui doivent rester faciles : plaine du Circuit et de La Plaine, Sainte-Iris, Port-Lave, Aigues-Chaudes.
@@ -723,6 +743,64 @@ function getFlats(): Flat[] {
   return flats;
 }
 
+/**
+ * Ressauts des rivières : à la fraction `at` du cours, le lit tombe de `drop` m d'un coup (paroi verticale en
+ * amphithéâtre, cascade), puis la vasque rejoint la pente d'origine en aval.
+ */
+export const RIVER_FALL_SPECS: Array<{ id: string; river: string; at: number; drop: number }> = [
+  { id: 'cascade-de-la-ravine', river: 'la-ravine', at: 0.3, drop: 16 },
+  { id: 'cascade-des-vignes', river: 'la-riviere-des-vignes', at: 0.45, drop: 13 },
+];
+
+export interface RiverFall {
+  id: string;
+  /** Lèvre de la chute, direction de l'écoulement (rad, atan2(z, x)), hauteur, demi-largeur de l'amphithéâtre,
+   * longueur (m) sur laquelle la vasque rejoint la pente d'origine. */
+  x: number;
+  z: number;
+  dir: number;
+  drop: number;
+  half: number;
+  len: number;
+}
+let falls: RiverFall[] | null = null;
+
+export function riverFalls(): RiverFall[] {
+  if (falls) return falls;
+  falls = RIVER_FALL_SPECS.map((s) => {
+    const b = riverBeds().find((r) => r.river.id === s.river)!;
+    const n = b.pts.length;
+    const k = Math.round(s.at * (n - 1));
+    const a = b.pts[Math.max(0, k - 3)]!;
+    const c = b.pts[Math.min(n - 1, k + 3)]!;
+    // Pente du lit autour (± 100 m) : la vasque la rattrape sans jamais remonter.
+    const g = Math.max(0.02, (b.bed[Math.max(0, k - 10)]! - b.bed[Math.min(n - 1, k + 10)]!) / ((Math.min(n - 1, k + 10) - Math.max(0, k - 10)) * 10));
+    return { id: s.id, x: b.pts[k]![0], z: b.pts[k]![1], dir: Math.atan2(c[1] - a[1], c[0] - a[0]), drop: s.drop, half: b.width[k]! * 0.75, len: Math.min(900, Math.max(60, (s.drop / g) * 2.5)) };
+  });
+  return falls;
+}
+
+/** Abaissement (m) dû aux ressauts des rivières au point. */
+function fallCut(x: number, z: number): number {
+  let cut = 0;
+  for (const f of riverFalls()) {
+    const dx = x - f.x;
+    const dz = z - f.z;
+    if (Math.abs(dx) > f.len + f.half || Math.abs(dz) > f.len + f.half) continue;
+    const s = dx * Math.cos(f.dir) + dz * Math.sin(f.dir);
+    if (s <= 0 || s > f.len) continue;
+    const lat = Math.abs(-dx * Math.sin(f.dir) + dz * Math.cos(f.dir));
+    // Amphithéâtre : la lèvre s'arrondit vers l'amont sur les côtés, la paroi reste verticale.
+    const lip = (lat / f.half) ** 2 * f.half * 0.25;
+    const w = 1 - smoothstep(f.half * 0.55, f.half, lat);
+    if (w <= 0) continue;
+    const face = smoothstep(lip, lip + CLIFF_FACE, s);
+    const fade = 1 - smoothstep(f.len * 0.3, f.len, s);
+    cut = Math.max(cut, f.drop * w * face * fade);
+  }
+  return cut;
+}
+
 /** Rivières, lacs et ports creusés dans un relief. */
 function carve(h0: number, x: number, z: number): number {
   let h = h0;
@@ -732,6 +810,7 @@ function carve(h0: number, x: number, z: number): number {
     const t = smoothstep(v.chan + 2, v.width, v.dist);
     if (h > v.bed) h = v.bed + (h - v.bed) * t;
     if (v.dist < v.chan + 2) h = Math.min(h, v.bed - 1.2 * (1 - smoothstep(v.chan * 0.6, v.chan + 2, v.dist)));
+    h -= fallCut(x, z);
   }
   return h;
 }

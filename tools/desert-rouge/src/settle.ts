@@ -249,7 +249,7 @@ export class Builder {
         // Toits plats en terrasse ; de loin en loin, une tour carrée (pigeonnier, tour de guet).
         if (r() < 0.05 && !apt) {
           const tw = Math.min(len, depth) * 0.32;
-          this.add({ kind: 'tower', height: 3 * levels + 6 + r() * 4, levels: levels + 2, roof: { shape: 'flat', height: 0, material: 'earth', colour }, colour, material: 'plaster', pts: orientedRect(cx, cz, tw, tw, ang) });
+          this.add({ kind: 'tower', height: 3 * levels + 4 + r() * 2, levels: levels + 1, roof: { shape: 'flat', height: 0, material: 'earth', colour }, colour, material: 'plaster', pts: orientedRect(cx, cz, tw, tw, ang) });
           continue;
         }
         this.add({
@@ -263,6 +263,80 @@ export class Builder {
         });
       }
     }
+  }
+
+  /**
+   * Maisons de pueblo le long d'une rue : volumes bas accolés en gradins (avant d'un niveau sur rue, terrasse sur son
+   * toit plat, arrière d'un ou deux niveaux), en rangées serrées coupées de ruelles ; dans les bourgs, une seconde
+   * rangée derrière une ruelle de service, plus haute, fait monter le village en escalier vers l'arrière.
+   */
+  pueblo(road: Road, opts: { spacing: number; setback: number; depth: [number, number]; palette: keyof typeof PALETTES; inside?: (x: number, z: number) => boolean; seed: number; rows: number; sides?: number[] }): void {
+    const r = rng(opts.seed);
+    const pal = PALETTES[opts.palette];
+    const step = Math.max(2, Math.round(opts.spacing / 2));
+    const flat = (colour: string) => ({ shape: 'flat', height: 0, material: 'earth', colour });
+    let slot = 0;
+    for (let i = 4; i < road.pts.length - 4; i += step, slot++) {
+      // Ruelle (passage de 3 à 4 m) toutes les trois ou quatre maisons.
+      if (slot % 4 === 3) continue;
+      const a = road.pts[i - 2]!;
+      const b = road.pts[i + 2]!;
+      const ang = Math.atan2(b[2] - a[2], b[0] - a[0]);
+      const nx = -Math.sin(ang);
+      const nz = Math.cos(ang);
+      const ux = Math.cos(ang);
+      const uz = Math.sin(ang);
+      for (const side of opts.sides ?? [1, -1]) {
+        if (r() < 0.08) continue;
+        // Longueur sur rue : un peu moins que le pas, les maisons se touchent presque (mitoyennes).
+        const len = opts.spacing - 0.5 - r() * 0.6;
+        let base = road.width / 2 + opts.setback + r() * 0.8;
+        for (let row = 0; row < opts.rows; row++) {
+          const D = opts.depth[0] + r() * (opts.depth[1] - opts.depth[0]);
+          const f = D * (0.38 + r() * 0.14);
+          const p0 = road.pts[i]!;
+          const at = (off: number, lat: number): Vec2 => [p0[0] + (nx * off * side) + ux * lat, p0[2] + (nz * off * side) + uz * lat];
+          const [wx, wz] = at(base + D / 2, 0);
+          const whole = orientedRect(wx, wz, len / 2, D / 2, ang);
+          if (opts.inside && !opts.inside(wx, wz)) break;
+          if (!this.fits(whole, 2) || whole.some(([x, z]) => Math.abs(finalHeight(this.idx, x, z) - terrain(x, z)) > 2.5)) {
+            base += D + 3.5;
+            continue;
+          }
+          const colour = pal.walls[Math.floor(r() * pal.walls.length)]!;
+          // Rangée de derrière : plus haute (deux niveaux le plus souvent) ; rangée sur rue : avant d'un niveau.
+          const backLv = row > 0 ? (r() < 0.75 ? 2 : 1) : r() < 0.55 ? 2 : 1;
+          const frontLv = 1;
+          const parts: Array<{ off: number; lat: number; hl: number; hw: number; lv: number; c: string }> = [];
+          if (row > 0 && r() < 0.35) {
+            // Bloc d'un seul tenant, deux niveaux, dans la rangée haute.
+            parts.push({ off: base + D / 2, lat: 0, hl: len / 2, hw: D / 2, lv: backLv, c: colour });
+          } else {
+            parts.push({ off: base + f / 2, lat: 0, hl: len / 2, hw: f / 2 - 0.05, lv: frontLv, c: colour });
+            // Arrière parfois plus étroit et décalé de côté : la terrasse court aussi sur le flanc.
+            const bl = r() < 0.4 ? len * (0.6 + r() * 0.25) : len;
+            const lat = ((len - bl) / 2) * (r() < 0.5 ? -1 : 1);
+            const tint = r() < 0.5 ? colour : pal.walls[Math.floor(r() * pal.walls.length)]!;
+            parts.push({ off: base + f + (D - f) / 2, lat, hl: bl / 2, hw: (D - f) / 2 - 0.05, lv: backLv, c: tint });
+          }
+          for (const p of parts) {
+            const [px, pz] = at(p.off, p.lat);
+            const h = p.lv === 1 ? 3.1 + r() * 0.5 : 5.8 + r() * 0.5;
+            this.place({ kind: 'house', height: h, levels: p.lv, roof: flat(p.c), colour: p.c, material: 'plaster', pts: orientedRect(px, pz, p.hl, p.hw, ang) });
+          }
+          // Ruelle de service entre les deux rangées.
+          base += D + 3.5;
+        }
+      }
+    }
+  }
+
+  /** Pose sans contrôle d'emprise (déjà fait pour l'ensemble du groupe), au niveau du sol du jeu. */
+  private place(b0: Omit<Building, 'id' | 'y'>): void {
+    const b = { ...b0, kind: earthKind(b0.kind, b0.colour) };
+    const y = Math.min(...b.pts.map(([x, z]) => finalHeight(this.idx, x, z))) - 0.15;
+    this.occ.add(b.pts);
+    this.out.push({ ...b, id: `b${this.n++}`, y });
   }
 
   /** Emprise gardée libre de maisons (place). */
@@ -292,7 +366,8 @@ export function townCentre(B: Builder, lay: TownLayout, k: number): void {
   const ochre = ['#c98b55', '#b97a4a', '#d29a62'][k % 3]!;
   if (B.add({ kind: 'public', height: t.size === 'hameau' ? 5 : 8, levels: t.size === 'hameau' ? 1 : 2, roof: flat(ochre), colour: ochre, material: 'plaster', pts: hall, name: t.size === 'hameau' ? `Maison de ${t.name}` : `Maison commune de ${t.name}` }, 2)) {
     const cl = P(30 - (t.size === 'hameau' ? 9 : 16), -30);
-    B.add({ kind: 'tower', height: t.size === 'hameau' ? 12 : 22, levels: 5, roof: flat(ochre), colour: ochre, material: 'plaster', pts: orientedRect(cl[0], cl[1], 2.6, 2.6, ang), name: `Tour de ${t.name}` }, 1, true);
+    // Tour de guet basse (le village reste bas : elle dépasse d'un ou deux niveaux les terrasses).
+    B.add({ kind: 'tower', height: t.size === 'hameau' ? 9 : 13, levels: 3, roof: flat(ochre), colour: ochre, material: 'plaster', pts: orientedRect(cl[0], cl[1], 2.6, 2.6, ang), name: `Tour de ${t.name}` }, 1, true);
   }
   if (t.size === 'hameau') return;
   const ecole = P(-0.4 * t.r, -0.22 * t.r);
@@ -303,8 +378,20 @@ export function townCentre(B: Builder, lay: TownLayout, k: number): void {
     const c = ['#dcae7a', '#c4834e', '#e6c79a'][k % 3]!;
     B.add({ kind: 'commercial', height: 6.8, levels: 2, roof: flat(c), colour: c, material: 'plaster', pts: orientedRect(p[0], p[1], 7, 6, ang), name }, 2);
   }
-  // Place du bourg : les maisons des rues s'arrêtent à ses bords (marché, fontaine : décor du client).
+  // Place du village : les maisons des rues s'arrêtent à ses bords (marché, fontaine : décor du client).
   if (t.size === 'bourg') B.reserve(orientedRect(cx, cz, 27, 23, ang));
+  else B.reserve(orientedRect(cx, cz, 19, 16, ang));
+  // Placettes du bourg, aux bouts des rues de derrière (puits, bancs) : le pueblo s'ouvre en petites places.
+  if (t.size === 'bourg' || t.size === 'ville') {
+    const names = ['Placette du Puits', 'Placette des Potiers', 'Placette du Four', 'Placette des Dattiers'];
+    let n = 0;
+    for (const [a, b] of [[-0.55, 0.36], [0.55, -0.36], [0.55, 0.36], [-0.55, -0.36]] as const) {
+      const p = P(a * t.r, b * t.r);
+      const sq = orientedRect(p[0], p[1], 11, 11, ang);
+      B.reserve(sq);
+      B.area('retail', 'landuse', sq, `${names[n++]} (${t.name})`);
+    }
+  }
   // Terrain de jeu et cimetière en lisière.
   const st = P(0.75 * t.r, 0.55 * t.r);
   const stade = orientedRect(st[0], st[1], 52, 34, ang);

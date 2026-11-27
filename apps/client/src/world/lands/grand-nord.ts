@@ -16,13 +16,13 @@ import { grandNordNoFence, grandNordSites } from './grand-nordSites.ts';
 const WOOD_WALLS = ['#a8322d', '#b23b2c', '#9e2f2a', '#a8322d', '#b8402f', '#e2b54a', '#d9a73f', '#f1efe6', '#ece9df', '#7f98a6'] as const;
 const ROOFS = ['#3b3d3f', '#2f3236', '#4a3b33', '#5d6b3a', '#56663a', '#3b3d3f', '#6b2f2a', '#5d6b3a'] as const;
 
-/** Tout en bois peint (jamais de brique ni de crépi) ; toits très pentus, sombres et débordants pour les maisons. */
+/** Tout en bois peint (jamais de brique ni de crépi), façade `timber` ; toits très pentus, sombres et débordants pour les maisons. */
 function grandNordBuilding(b: TileBuilding): TileBuilding {
   if (b.pts.length < 6) return b;
   // Églises et chapelles de bois blanches ou brunes ; tours, hangars, tribunes : bois peint, toit inchangé.
   if (b.kind === 'church' || b.kind === 'chapel') return { ...b, material: 'wood', colour: b.colour === '#5b3a26' ? b.colour : '#f1efe6' };
   if (!['house', 'farm', 'barn', 'apartments', 'commercial', 'public', 'retail', 'detached', 'terrace', 'residential', 'school', 'hotel', 'cabin'].includes(b.kind)) {
-    return { ...b, material: 'wood', colour: b.colour && WOOD_WALLS.includes(b.colour as (typeof WOOD_WALLS)[number]) ? b.colour : '#a8322d' };
+    return { ...b, material: 'wood', facade: 'timber', colour: b.colour && WOOD_WALLS.includes(b.colour as (typeof WOOD_WALLS)[number]) ? b.colour : '#a8322d' };
   }
   let x = 0;
   let z = 0;
@@ -46,6 +46,8 @@ function grandNordBuilding(b: TileBuilding): TileBuilding {
     roofColour,
     roofOverhang: 0.45,
     material: 'wood',
+    // Bois peint nordique (bardage, encadrements blancs, portes franches) : style de façade du shader.
+    facade: 'timber',
     colour: b.colour && WOOD_WALLS.includes(b.colour as (typeof WOOD_WALLS)[number]) ? b.colour : WOOD_WALLS[Math.floor(r() * WOOD_WALLS.length)]!,
   };
 }
@@ -87,7 +89,7 @@ export const GRAND_NORD: PolyLand = {
       { id: 'lac-du-renne', name: { fr: 'Le Lac du Renne', en: 'Reindeer Lake' }, x: 3900, z: -2500, r: 380 },
       { id: 'glacier', name: { fr: 'Le Front du glacier de Robert', en: 'Robert Glacier snout' }, x: -620, z: -6175, r: 450 },
       { id: 'refuge', name: { fr: 'Le Refuge de la Calotte', en: 'Ice cap hut' }, x: -4600, z: -3300, r: 300 },
-      { id: 'galerie', name: { fr: 'La Galerie paravalanche', en: 'Avalanche gallery' }, x: 3475, z: -3924, r: 160 },
+      { id: 'galerie', name: { fr: 'La Galerie paravalanche', en: 'Avalanche gallery' }, x: 3498, z: -3888, r: 160 },
       { id: 'bac', name: { fr: 'Le Bac du fjord', en: 'Fjord ferry' }, x: 13838, z: -2250, r: 450 },
       { id: 'phare', name: { fr: 'Le Phare du Cap Boréal', en: 'Cape Boréal lighthouse' }, x: 13220, z: 1060, r: 250 },
       { id: 'station-meteo', name: { fr: 'La Station météo de Vidda', en: 'Vidda weather station' }, x: 8900, z: 2400, r: 280 },

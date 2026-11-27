@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
-import { A, ANNEAU, HARBOURS, ISLAND, JONQ_FOOT_ROAD, LAKES, MASSIF, SADDLE, TEMPLE_HILL, TOWNS, UV, anneauLoop, karstPitons, chainAt, coastPoint, inHarbour, inLake, inRiver, plainZone, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
+import { A, ANNEAU, HARBOURS, ISLAND, JONQ_FOOT_ROAD, LAKES, MASSIF, SADDLE, TEMPLE_HILL, TOWNS, UV, anneauLoop, karstPitons, plainCoreRadius, plainPitons, chainAt, coastPoint, inHarbour, inLake, inRiver, plainZone, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
 import { chaikin, clipPolygon, clipPolyline, polygonArea, resample, type Vec3 } from './geom.ts';
 import { forestMask, lakes, parcels, shoreAreas, waterways, type LandCtx } from './land.ts';
 import { fbm, rng } from './noise.ts';
@@ -171,6 +171,8 @@ export async function planningGrid(designed: Road[], gates: Array<{ p: Vec2; dir
   for (let x = ANNEAU.cx - ANNEAU.half; x <= ANNEAU.cx + ANNEAU.half; x += 20) reserve(x, ANNEAU.cz, ANNEAU.radius + 30);
   // Pitons à terre : contournés de loin (sinon les routes se faufilent entre leurs pieds en virages trop serrés).
   for (const p of karstPitons()) if (shoreDist(p.x, p.z) > 0) reserve(p.x, p.z, p.r + 90);
+  // Pitons de la plaine : leur cœur (et un peu au-delà) ; les routes passent déjà à 45 m au moins du gabarit.
+  for (const p of plainPitons()) reserve(p.x, p.z, plainCoreRadius(p) + 20);
   for (const f of farms) reserve(f.x, f.z, 42);
   for (const r of designed) for (let k = 0; k < r.pts.length; k += 4) reserve(r.pts[k]![0], r.pts[k]![2], r.width / 2 + 14);
   // Portes libres ; coordonnées exactes ; couloir de sortie dans le prolongement de la rue (≤ 500 m).

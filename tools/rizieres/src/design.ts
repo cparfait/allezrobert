@@ -480,8 +480,127 @@ export function karstPitons(): Piton[] {
   return out;
 }
 
-/** Surcroît d'altitude des pitons en (x, z) : flancs presque verticaux, sommet arrondi. */
-export function karst(x: number, z: number): number {
+/**
+ * Pitons calcaires de la plaine des rizières (27/11/2026) : tours qui sortent des rizières, en deux grands groupes
+ * (plaine des Digues, entre Rive-des-Lotus et le Circuit ; plaine de l'est, au sud de Vat-Robert), quelques-uns
+ * isolés près du Lac des Lotus, des Pilotis et dans le delta. Ils sont dans le relief (carte, sol, roche, jungle du
+ * sommet) et habillés dans le jeu par un gabarit de piton (PLAIN_PITONS de `world/lands/rizieresSites.ts`, mêmes
+ * x, z, rayon, hauteur et forme). Le relief n'en est que le cœur, toujours caché sous le gabarit : pas de doublon.
+ * [x, z, rayon au pied du gabarit (m), hauteur au-dessus du pied (m), forme 0 … 3]. Chaque pied est à plus de 45 m
+ * de toute route, chemin, cours d'eau ou bâtiment, hors des lacs, du fleuve, des villes et des ports.
+ */
+export const PLAIN_PITONS: ReadonlyArray<readonly [number, number, number, number, number]> = [
+  [1200, -160, 99, 185, 2], [-6120, 2760, 59, 122, 2], [-5760, 2680, 49, 97, 2], [1520, -280, 65, 129, 2], [840, -120, 61, 108, 1],
+  [1120, -560, 105, 185, 1], [-6440, 2480, 84, 185, 3], [-6120, 3120, 84, 185, 3], [-5920, 2280, 89, 185, 3], [1240, 200, 93, 162, 1],
+  [-6560, 2960, 59, 131, 3], [-5760, 3080, 50, 117, 3], [720, -520, 51, 115, 3], [1520, -720, 70, 160, 3], [-5360, 2560, 105, 185, 2],
+  [480, 0, 90, 166, 1], [-6800, 2600, 68, 151, 3], [1920, -360, 78, 168, 3], [-5480, 2160, 49, 106, 3], [1800, 80, 79, 160, 2],
+  [1040, 520, 72, 106, 0], [400, -400, 50, 106, 2], [1600, 360, 83, 148, 1], [1880, -800, 79, 173, 3], [-3280, 600, 59, 98, 0],
+  [-6920, 3040, 91, 154, 1], [-6000, 3440, 71, 142, 2], [-3040, 840, 54, 109, 2], [-5600, 3400, 103, 185, 1], [-3560, 360, 72, 107, 0],
+  [-2960, 360, 92, 184, 2], [160, 200, 75, 125, 0], [-15720, 2840, 96, 140, 0], [-13240, 5800, 95, 141, 0], [-5080, 2000, 103, 180, 1],
+  [-5040, 2400, 62, 133, 3], [-10760, 8520, 91, 185, 3], [440, -800, 77, 122, 0], [-13320, 240, 52, 117, 3], [2200, -960, 95, 185, 2],
+  [3840, -2360, 91, 182, 2], [2240, -560, 91, 185, 3], [3440, -2400, 79, 177, 3], [-2720, 1000, 59, 119, 2], [-9120, 5000, 59, 91, 0],
+  [-11000, 8760, 49, 82, 1],
+];
+
+/** Profils (hauteur, rayon) du gabarit unité des pitons de la plaine (copie de PITON_PROFILES, rizieresSites.ts). */
+const PITON_PROFILES: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  [[-0.06, 1.05], [0.03, 1], [0.2, 0.9], [0.42, 0.88], [0.62, 0.92], [0.78, 0.84], [0.9, 0.62], [0.97, 0.34], [1, 0]],
+  [[-0.06, 1.06], [0.03, 1], [0.18, 0.86], [0.38, 0.76], [0.56, 0.7], [0.74, 0.6], [0.88, 0.44], [0.96, 0.22], [1, 0]],
+  [[-0.06, 1.05], [0.03, 1], [0.24, 0.94], [0.44, 0.9], [0.52, 0.66], [0.72, 0.64], [0.88, 0.5], [0.96, 0.26], [1, 0]],
+  [[-0.06, 1.08], [0.03, 1], [0.16, 0.8], [0.36, 0.66], [0.58, 0.6], [0.76, 0.56], [0.9, 0.42], [0.97, 0.2], [1, 0]],
+];
+
+/**
+ * Cœur des pitons de la plaine : hauteur (0 … 1 du gabarit) atteinte à la distance d (en rayons du pied), par pas de
+ * 0,005 rayon. Le rayon sûr à chaque hauteur tient compte du gabarit le plus étroit que le jeu puisse poser : pans
+ * resserrés (0,84), écrasement d'un axe (0,85), arête entre deux pans irréguliers (0,866), penchant (0,12 rayon).
+ * La colonne de terrain occupe toute la hauteur sous elle : on garde le plus petit rayon sûr rencontré en montant.
+ */
+const CORE_STEP = 0.005;
+const CORE: Float32Array[] = PITON_PROFILES.map((prof) => {
+  const safe = (t: number) => {
+    let k = 0;
+    while (k + 2 < prof.length && prof[k + 1]![0] < t) k++;
+    const [t0, r0] = prof[k]!;
+    const [t1, r1] = prof[k + 1]!;
+    const rad = r0 + (r1 - r0) * Math.max(0, Math.min(1, (t - t0) / (t1 - t0)));
+    return 0.618 * rad - 0.12;
+  };
+  const out = new Float32Array(Math.ceil(0.6 / CORE_STEP) + 1);
+  for (let i = 0; i < out.length; i++) {
+    const d = i * CORE_STEP;
+    let lo = Infinity;
+    let top = 0;
+    for (let t = 0; t <= 1; t += 0.0025) {
+      lo = Math.min(lo, safe(t));
+      if (lo < d) break;
+      top = t;
+    }
+    out[i] = top;
+  }
+  return out;
+});
+
+let plain: Piton[] | null = null;
+
+/** Pitons de la plaine (cœurs dans le relief) ; `r` et `h` sont ceux du gabarit qui les habille. */
+export function plainPitons(): Array<Piton & { form: number }> {
+  return (plain ??= PLAIN_PITONS.map(([x, z, r, h, form]) => ({ x, z, r, h, form }))) as Array<Piton & { form: number }>;
+}
+
+/** Rayon (m) du cœur d'un piton de la plaine au ras du sol. */
+export function plainCoreRadius(p: Piton): number {
+  return p.r * 0.5;
+}
+
+const feet = new Map<Piton, number>();
+
+/**
+ * Pied d'un piton de la plaine : point le plus bas du sol (vallées creusées, sans les pitons de la plaine) sur le
+ * pourtour du gabarit, comme le pied que le jeu donne au gabarit.
+ */
+function plainFoot(p: Piton): number {
+  let y = feet.get(p);
+  if (y === undefined) {
+    y = Infinity;
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const px = p.x + Math.cos(a) * p.r;
+      const pz = p.z + Math.sin(a) * p.r;
+      y = Math.min(y, carveBase(natural(px, pz), px, pz));
+    }
+    feet.set(p, y);
+  }
+  return y;
+}
+
+/**
+ * Surcroît d'altitude d'un piton de la plaine au-dessus du sol `g` : cœur caché sous le gabarit, mesuré depuis le
+ * pied (le gabarit est posé 4 m sous le pied et monte jusqu'à pied + hauteur).
+ */
+function plainCore(p: Piton & { form: number }, x: number, z: number, g: number): number {
+  const d = Math.hypot(x - p.x, z - p.z) / p.r / CORE_STEP;
+  const tab = CORE[p.form]!;
+  const i = Math.floor(d);
+  if (i >= tab.length - 1) return 0;
+  const t = tab[i]! + (tab[i + 1]! - tab[i]!) * (d - i);
+  if (t <= 0) return 0;
+  return Math.max(0, plainFoot(p) - 4 + (p.h + 4) * t - g);
+}
+
+/** Surcroît des pitons de la plaine au-dessus du sol `g` (calculé à la demande, près d'un piton seulement). */
+function plainKarst(x: number, z: number, g?: number): number {
+  let best = 0;
+  for (const p of plainPitons()) {
+    const rc = p.r * 0.6;
+    if (Math.abs(x - p.x) > rc || Math.abs(z - p.z) > rc) continue;
+    best = Math.max(best, plainCore(p, x, z, (g ??= carveBase(natural(x, z), x, z))));
+  }
+  return best;
+}
+
+/** Surcroît des pitons de la baie (ajouté au relief naturel). */
+function bayKarst(x: number, z: number): number {
   let best = 0;
   for (const p of karstPitons()) {
     const dx = x - p.x;
@@ -495,9 +614,14 @@ export function karst(x: number, z: number): number {
   return best;
 }
 
-/** Relief naturel sans les rivières, lacs, ports ni plateaux aplanis. */
+/** Surcroît d'altitude des pitons (baie et plaine) en (x, z) : flancs presque verticaux, sommet arrondi. */
+export function karst(x: number, z: number): number {
+  return Math.max(bayKarst(x, z), plainKarst(x, z));
+}
+
+/** Relief naturel sans les rivières, lacs, ports ni plateaux aplanis (pitons de la baie compris). */
 function natural(x: number, z: number): number {
-  return natural0(x, z) + karst(x, z);
+  return natural0(x, z) + bayKarst(x, z);
 }
 
 /** Col de la Jungle : creux de la selle entre les deux sommets (un peu au nord de leur milieu). */
@@ -782,8 +906,14 @@ function getFlats(): Flat[] {
   return flats;
 }
 
-/** Rivières, lacs et ports creusés dans un relief. */
+/** Rivières, lacs et ports creusés dans un relief, puis pitons de la plaine dressés par-dessus. */
 function carve(h0: number, x: number, z: number): number {
+  const h = carveBase(h0, x, z);
+  return h + plainKarst(x, z, h);
+}
+
+/** Rivières, lacs et ports creusés dans un relief. */
+function carveBase(h0: number, x: number, z: number): number {
   let h = h0;
   const v = valleyAt(x, z);
   if (v && v.dist < v.width) {
@@ -923,7 +1053,7 @@ export { clamp, SADDLE };
 
 /** Mise au point : étapes du relief en un point. */
 export function terrainSteps(x: number, z: number) {
-  const n = natural(x, z);
-  const c = carve(n, x, z);
+  const n = natural(x, z) + plainKarst(x, z);
+  const c = carve(natural(x, z), x, z);
   return { natural: n, carved: c, preLake: preLake(x, z), final: terrain(x, z), flats: getFlats().map((f) => ({ x: Math.round(f.x), z: Math.round(f.z), level: f.level, d: Math.round(f.dist(x, z)), r0: f.r0, r1: f.r1 })).filter((f) => f.d < f.r1 + 100) };
 }

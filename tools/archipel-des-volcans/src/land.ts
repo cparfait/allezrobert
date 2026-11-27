@@ -3,7 +3,7 @@
  * et scories au-dessus, coulées de lave noire (rochers), falaises basaltiques, vignes sur la cendre (ouest), champs en
  * terrasses (sud-est), vergers et prés, plages de sable noir, lacs, rivières.
  */
-import { ANNEAU, CINDER, HARBOURS, ISLES, LAKES, TOWNS, VOLCANO, cliffAt, coastPoint, cliffiness, inHarbour, inLake, inRiver, lakeE, lavaAt, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
+import { ANNEAU, CINDER, HARBOURS, ISLES, LAKES, TOWNS, VOLCANO, cliffAt, cliffFoot, coastPoint, cliffiness, inHarbour, inLake, inRiver, lakeE, lavaAt, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
 import { clipPolygon, orientedRect, polygonArea } from './geom.ts';
 import { fbm, rng, smoothstep } from './noise.ts';
 import type { Area } from './types.ts';
@@ -102,7 +102,8 @@ export function rockMask(x: number, z: number): number {
   const d = shoreDist(x, z);
   if (d < 0) return -1;
   const cliff = cliffAt(x, z);
-  let m = cliff > 0.5 ? (75 - d) / 20 : -1;
+  // Paroi et haut des falaises, pas la grève de sable noir du pied.
+  let m = cliff > 0.5 ? Math.min((75 - d) / 20, (d - cliffFoot(x, z) - 1) / 3) : -1;
   const h = terrain(x, z);
   // Scories et cendres du haut du volcan, parois du cratère.
   if (mountain(x, z) > 0.2) m = Math.max(m, (h - 1170 + 50 * fbm(x / 300, z / 300, 2, 52)) / 30);
@@ -316,7 +317,13 @@ export function shoreAreas(skip: (x: number, z: number) => boolean): Area[] {
     for (let k = 0; k < n; k++) {
       const a0 = -Math.PI + (k / n) * 2 * Math.PI;
       const a1 = -Math.PI + ((k + 1) / n) * 2 * Math.PI;
-      if (cliffiness((a0 + a1) / 2, isle) > 0.3) continue;
+      if (cliffiness((a0 + a1) / 2, isle) > 0.3) {
+        // Grève de sable noir au pied des falaises (la paroi commence à 14 m au moins du rivage).
+        const foot = coastPoint((a0 + a1) / 2, 6, isle);
+        if (inHarbour(foot[0], foot[1], 60) || lava(foot[0], foot[1]) > 0.3) continue;
+        out.push({ id: `greve-${isle}-${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -30, isle), coastPoint(a1, -30, isle), coastPoint(a1, 12, isle), coastPoint(a0, 12, isle)] });
+        continue;
+      }
       const mid = coastPoint((a0 + a1) / 2, 50, isle);
       if (skip(mid[0], mid[1]) || inHarbour(mid[0], mid[1], 150) || inRiver(mid[0], mid[1], 30) || lava(mid[0], mid[1]) > 0.3) continue;
       out.push({ id: `plage-${isle}-${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -45, isle), coastPoint(a1, -45, isle), coastPoint(a1, 105, isle), coastPoint(a0, 105, isle)] });

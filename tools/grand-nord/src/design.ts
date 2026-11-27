@@ -728,23 +728,52 @@ function isles(x: number, z: number): number {
   return best;
 }
 
+/**
+ * Parois des fjords creusées (0 … 1) : loin du fond des fjords (villages, ports), des villages des rives et des
+ * vallées qui longent l'eau (routes des rives), où le relief garde sa pente d'origine.
+ */
+function fjordWall(x: number, z: number, fe: number): number {
+  if (fe > 1500) return 0;
+  let w = 1;
+  for (const f of FJORDS) w = Math.min(w, smoothstep(900, 1800, Math.hypot(x - f.pts[0]![0], z - f.pts[0]![1])));
+  if (w <= 0) return 0;
+  for (const t of TOWNS) w = Math.min(w, smoothstep(t.r + 150, t.r + 650, Math.hypot(x - t.x, z - t.z)));
+  if (w <= 0) return 0;
+  for (const v of VALLEYS) {
+    w = Math.min(w, smoothstep(v.w + 100, v.w + 450, polyDist(x, z, v.pts)));
+    if (w <= 0) return 0;
+  }
+  return w;
+}
+
+/** Combe de Nordvik : part de la paroi sous le col (fraction de la longueur de la combe, ≈ 2,5 km). */
+const COMBE_WALL = 0.26;
+
 /** Relief naturel sans les rivières, lacs, ports ni plateaux aplanis. */
 function natural(x: number, z: number): number {
   const ang = Math.atan2(z, x);
   const d = shoreDist(x, z);
   const cliff = cliffAt(x, z);
   const fe = fjordEdge(x, z);
+  const fw = fjordWall(x, z, fe);
   // Mer : fond qui plonge doucement devant les plages, vite au pied des falaises ; îlots au large (hors des fjords).
+  // Fjords creusés : eau profonde jusqu'au pied des parois.
   if (d < 0) {
-    const sea = Math.max(-30, 0.25 + d * lerp(0.012, 0.12, cliff));
     const off = Math.hypot(x, z) - coastRadius(ang);
+    const deep = fw * smoothstep(0, 300, -off);
+    const sea = Math.max(-30 - 30 * deep, 0.25 + d * lerp(0.012, 0.12 + 0.1 * deep, cliff));
     return fe > 300 ? Math.max(sea, skerry(x, z, off), isles(x, z)) : sea;
   }
   const beach = 0.25 + Math.min(d, 160) * 0.012 + 16 * smoothstep(160, 1800, d);
   const wall = 0.25 + 44 * smoothstep(4, 70, d) + 18 * smoothstep(70, 1500, d);
   let h = beach + (wall - beach) * cliff * (1 - smoothstep(1500, 4000, d));
-  // Montagnes partout : crêtes et vallons (bruit en crêtes), qui montent vite derrière le rivage (parois des fjords).
-  const fade = smoothstep(40, 1000 - 550 * (1 - smoothstep(300, 1500, fe)), d);
+  // Parois des fjords : un premier ressaut presque vertical au ras de l'eau (≈ 80 m de plus sur 75 m), d'où
+  // tombent les cascades.
+  if (fw > 0) h += fw * (1 - smoothstep(400, 1200, fe)) * 80 * smoothstep(5, 80, d);
+  // Montagnes partout : crêtes et vallons (bruit en crêtes), qui montent vite derrière le rivage (parois des fjords,
+  // plus raides encore là où elles sont creusées).
+  const fadeEnd = 1000 - 550 * (1 - smoothstep(300, 1500, fe));
+  const fade = smoothstep(40, lerp(fadeEnd, 300, fw * (1 - smoothstep(300, 1500, fe))), d);
   const env = 520 + 230 * fbm(x / 8000, z / 8000, 2, 11);
   // Versants des routes de montagne (col du Renne des deux côtés, montée de la calotte) : réguliers.
   const even = Math.max(gauss(x, z, 3500, -2300, 1500, 1500), gauss(x, z, 4300, -5000, 1100, 900), gauss(x, z, -5600, -3700, 1300, 1300));
@@ -782,7 +811,15 @@ function natural(x: number, z: number): number {
     if (t > 0 && t < 1.1) {
       const dist = Math.hypot(x - ax - dx * Math.min(1, t), z - az - dz * Math.min(1, t));
       if (dist < 950) {
-        const floor = lerp(430, 30, Math.min(1, t)) + dist * 0.1;
+        // Fond de cirque : une paroi de ≈ 300 m sous le col (≈ 50 %, où la route monte en lacets superposés), puis
+        // un fond en pente douce jusqu'au fjord.
+        const tc = Math.min(1, t);
+        const W = COMBE_WALL;
+        const u = Math.min(1, tc / W);
+        // Paroi droite en travers sur 200 m de part et d'autre de l'axe (courbes de niveau perpendiculaires à l'axe :
+        // les lacets s'empilent à l'horizontale), puis versants qui remontent vite (l'arête du col reste en place).
+        const side = lerp(dist * 0.1, Math.min(dist, 200) * 0.015 + Math.max(0, dist - 200) * 0.15, 1 - smoothstep(W * 0.9, W * 1.5, tc));
+        const floor = (tc < W ? 130 + 300 * (1 - (0.6 * u + 0.4 * u * u * (3 - 2 * u))) : lerp(130, 30, (tc - W) / (1 - W))) + side;
         h = lerp(h, lerp(Math.min(h, floor), h, smoothstep(550, 950, dist)), smoothstep(0, 0.08, t));
       }
     }

@@ -1391,7 +1391,11 @@ async function main(): Promise<void> {
     const inside = (x: number, z: number) => Math.hypot(x - t.x, z - t.z) < t.r * (t.seaside ? 2 : 1.15);
     const palette = t.seaside ? 'villa' : t.port ? 'breton' : t.id === 'mesa-haute' ? 'chalet' : ['ksar-rouge', 'le-gue', 'l-oasis'].includes(t.id) ? 'provence' : 'village';
     const core = t.size === 'ville' || t.size === 'bourg';
-    B.street(r, { spacing: core ? 13 : 16, setback: core ? 3 : 4.5, depth: [8, 12], len: [8, 13], levels: core ? [2, 3] : [1, 2], palette, inside, seed: r.id.length * 131 + Math.round(t.x), apartments: core ? 0.15 : 0, ...(r.id.endsWith('boulevard') ? { sides: [1] } : r.id.endsWith('-quai') ? { sides: [-1] } : {}) });
+    const sides = r.id.endsWith('boulevard') ? { sides: [1] } : r.id.endsWith('-quai') ? { sides: [-1] } : {};
+    const seed = r.id.length * 131 + Math.round(t.x);
+    // Port-Corail, ville blanche du bord de mer : maisons de 2 à 3 niveaux. Ailleurs : pueblo bas, en gradins.
+    if (t.seaside) B.street(r, { spacing: 13, setback: 3, depth: [8, 12], len: [8, 13], levels: [2, 3], palette, inside, seed, ...sides });
+    else B.pueblo(r, { spacing: core ? 10 : 11, setback: core ? 2.5 : 3.5, depth: core ? [9, 13] : [8, 12], palette, inside, seed, rows: core ? 2 : r.kind === 'residential' ? 1 : 2, ...sides });
   }
   farmBuildings(B, farms);
   roadsideHouses(B, netRoads.filter((r) => roads.includes(r)));
