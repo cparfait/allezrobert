@@ -1,80 +1,92 @@
 # Le Désert rouge — monde du mode Poly
 
-> Monde imaginaire, comme l'île de Robert et le Pays de Robert, mais désertique : un plateau ocre et rouge bordé de
-> falaises sur presque toute sa côte, un canyon de plus de 300 m creusé par l'Oued Rouge (route au fond, route de
-> corniche au bord), des mesas et des buttes à sommet plat et parois verticales, des arches de pierre, le Grand Erg et
-> ses cordons de dunes rouge orangé, le Chott Blanc (lac salé à sec, sel au sol), des oasis et leurs palmeraies, des
-> villages en terre crue et une citadelle, le col des Vents (≈ 897 m, KOM) et une petite ville blanche au bord de la
-> mer. Il est produit par `tools/desert-rouge`, copie adaptée de `tools/massif` (le générateur du Pays de Robert, qui
-> n'est pas modifié), au même format que les mondes réels : le moteur l'affiche tel quel.
+> Monde imaginaire, comme l'île de Robert et le Pays de Robert, mais désertique et d'une tout autre forme : **un
+> croissant de terre rouge** ouvert au sud sur le golfe de Corail. Le **Grand Canyon de l'Oued Rouge** le parcourt
+> d'une corne à l'autre ; la corne ouest est une **mer de dunes** (le Grand Erg, un tiers du monde), la corne est un
+> **haut plateau en gradins** coiffé du massif du Vautour. Des **oasis éparses** sont reliées en étoile au Puits de
+> l'Étoile ; le **Chott Blanc** (lac salé à sec) porte le Circuit du Chott. Villages en terre crue à toits plats,
+> citadelle, petite ville blanche au fond du golfe. Il est produit par `tools/desert-rouge`, copie adaptée de
+> `tools/massif` (le générateur du Pays de Robert, qui n'est pas modifié), au même format que les mondes réels.
 
 ## Repère et taille
 
-- Même emprise que l'île : x de −19 000 à 19 000 m, z de −13 000 à 13 000 m, tuiles de 1 km (988 tuiles), mer au niveau 0.
-- Repère Lambert-93 fictif en Méditerranée, au sud-est de la Corse (`originL93` 1 330 000 / 5 700 000) : ne recouvre
-  ni une zone réelle ni un autre monde Poly. Les sorties sont virtuelles et prennent la météo de la ville du joueur.
-- Hors limites : la mer, comme pour les autres mondes (le générateur et l'écran de carte la supposent).
+- Même emprise que les autres mondes Poly : x de −19 000 à 19 000 m, z de −13 000 à 13 000 m, tuiles de 1 km
+  (988 tuiles), mer au niveau 0.
+- Repère Lambert-93 fictif en Méditerranée, au sud-est de la Corse (`originL93` 1 330 000 / 5 700 000).
+- Le croissant suit un arc de cercle (`ARC` dans `design.ts`) : centre (0, 11 700), dans le golfe, rayon 17 km ; un
+  lieu se repère par son angle `t` (compté depuis le nord, positif vers l'est) et son rayon (`polar(t, r)`). Les cornes
+  sont à t = −1,05 (ouest) et t = 1,12 (est). Demi-largeur des terres `halfWidth(t)` : 5,8 km au milieu, 2,1 à 2,9 km
+  aux cornes. Rivage : `shoreDist` (distance à l'arc, bruit, caps et anses, calme devant les ports), mis en grille de
+  20 m ; `coastPoint(t, inset, side)` donne un point du rivage nord (`side` = 1) ou du golfe (`side` = −1).
 
 ## Géographie
 
 | Lieu | Où | Caractère |
 | --- | --- | --- |
-| **Rocherouge** | centre-ouest | bourg de départ, place, critérium, départ de la découverte |
-| **La Piste Droite** | de Rocherouge vers Sablons | 7,3 km en ligne droite, à plat (couloir aplani dans le reg), chrono |
-| **Chott Blanc** | au pied des Monts de Braise | lac salé à sec, cuvette plate et blanche ; le **Circuit du Chott** (3,6 km, tribunes) y est posé |
-| **Puits-Salé** | rive sud du chott | village en terre crue, puits ; caravansérail à l'est |
-| **La Grande Mesa** | ouest | mesa de 300 m aux parois verticales ; rampe au sud-est, route en lacets jusqu'à **Mesa-Haute** |
-| **Monts de Braise** | nord | chaîne rocheuse ; massif du Vautour (Pic du Vautour ≈ 1 390 m, observatoire ; la Dent Rouge) |
-| **Col des Vents** | entre les deux sommets | ≈ 897 m, lacets des deux versants, cairns ; descente vers **Port-Vent** |
-| **Les Cairns** | pied sud du col | hameau, départ de la montée et de la route du Canyon |
-| **Canyon de l'Oued Rouge** | est | l'oued garde le niveau du bas pays sous le Plateau des Canyons : fond plat de 100 m, parois presque verticales, 200 à 400 m de profondeur |
-| **Plateau des Canyons** | est | **Ksar-Rouge** et la **Citadelle Rouge** (enceinte, tours, donjon) ; corniche au bord du canyon |
-| **Le Gué** | sortie sud du canyon | hameau au bord de l'oued |
-| **Les Buttes Rouges** | entre Rocherouge et les monts | dix buttes à sommet plat, bike park, arches de pierre |
-| **Le Grand Erg** | ouest et sud-ouest | cordons de dunes (≈ 20 m) ; **Oasis des Dunes**, cyclo-cross des Sables ; **Sablons** au nord |
-| **L'Oasis** | collines Fauves, au sud | source turquoise, palmeraie irriguée, tour |
-| **Port-Corail** | fond du golfe de Corail (sud) | petite ville blanche : boulevard, promenade en bois, hôtels, halle aux poissons, port |
-| **Cap-Brique** | presqu'île des Falaises Rouges (sud-est) | port de pêche entre les falaises |
-| **Lagune des Flamants, Les Salines** | côte ouest | lagune peu profonde, salines |
+| **Grand Canyon de l'Oued Rouge** | tout le long du croissant | de la source (corne est) à la mer (corne ouest), ≈ 36 km ; fond plat de 100 m, parois en quatre gradins, 130 à 170 m de profondeur à l'est, 40 à 60 m dans l'erg |
+| **Les brèches** | quatre passages | Gué des Sables (t = −0,92), Brèche de l'Erg (−0,55), Brèche du Centre (−0,02) : rampes de 5 à 6 % taillées dans les parois ; **Les Lacets du Canyon** (0,55) : rampe de 20 % montée en lacets des deux côtés |
+| **Plateaux en gradins** | centre et corne est | paliers de 45 m, contremarches tantôt raides, tantôt adoucies en rampes ; le plateau monte de ≈ 60 m (erg) à ≈ 400 m (est) |
+| **Le Grand Erg** | corne ouest (un tiers du monde) | cordons de dunes (≈ 22 m) jusqu'à la mer sur la côte des Dunes ; **Sablons**, **Oasis des Dunes**, **Les Salines** |
+| **La Piste Droite** | à travers l'erg, de Puits-Salé à Sablons | 6,1 km en ligne droite, à plat (couloir aplani), chrono |
+| **Chott Blanc** | au bord de l'erg, côté golfe | lac salé à sec ; le **Circuit du Chott** (3,6 km, tribunes) y est posé ; caravansérail au nord |
+| **Rocherouge** | au-dessus de Port-Corail | bourg de départ, place, critérium, départ de la découverte |
+| **Port-Corail** | fond du golfe | petite ville blanche : boulevard, promenade en bois, hôtels, halle aux poissons, port |
+| **Le Puits de l'Étoile** | plateau nord, en face de la Brèche du Centre | hameau, caravansérail, oasis ; sept pistes gravel en étoile vers les oasis et les villages |
+| **Port-Vent** | anse de la côte nord | port de pêche au pied des falaises rouges |
+| **La Grande Mesa** | plateau nord-ouest | mesa de 260 m aux parois verticales ; rampe à l'est, route en lacets jusqu'à **Mesa-Haute** |
+| **Les Cairns** | plateau nord, au bord du canyon | hameau, route de la Corniche, oasis des Cairns |
+| **Massif du Vautour** | corne est | Pic du Vautour (≈ 840 m, observatoire, route en lacets), Tête du Vautour, Guelta du Vautour |
+| **L'Oasis** | côté golfe, à l'est | source turquoise, grande palmeraie |
+| **Ksar-Rouge** | haut plateau, côté golfe | village et **Citadelle Rouge** (enceinte, tours, donjon) |
+| **Cap-Brique** | anse au fond est du golfe | port de pêche sous les falaises du Levant |
+| **Les Buttes Rouges** | entre Rocherouge et L'Oasis | dix buttes à sommet plat, bike park, arches de pierre ; la Dent Rouge et la Mesa du Lion plus loin |
 
-Relief (`design.ts`) : côte surtout en falaises (`cliffinessExact` : falaise par défaut, plages au golfe, à la côte
-des Dunes et à la lagune), Monts de Braise (`CHAIN`), massif du Vautour (deux sommets, selle creusée, socle relevé :
-col ≈ 897 m), vallée de Port-Vent, Plateau des Canyons (`PLATEAU`), mesas et buttes (`MESAS` : sommet plat, paroi,
-éboulis, rampe de la Grande Mesa), Grand Erg (`ERG` : cordons de dunes), Chott Blanc (`CHOTT` : cuvette aplanie),
-couloir de la Piste Droite (`PISTE`). Canyon : `floor` (fond plat) et `drop` (lit abaissé vers le bas pays) des oueds.
-Occupation du sol (`land.ts`) : sol nu ocre partout, palmeraies et jardins irrigués autour des oasis et le long des
-oueds (`orchard`, `farmland`), tamaris et acacias épars, sable (`sand`) de l'erg et des plages, roche rouge sur les
-parois et les sommets, sel du chott (`quarry` : sol clair).
-Bâtiments (`settle.ts`) : toits plats partout, terre crue ocre ou rouge, chaux blanche à Port-Corail et dans les ports,
-quelques tours (pigeonniers, tours de guet), maisons communes à haute tour carrée, Citadelle Rouge, caravansérail.
+Relief (`design.ts`) : rivage (`shoreDist`, `cliffAt` : falaises sur la côte nord sauf l'anse de Port-Vent et la côte
+des Dunes, plages dans le golfe, falaises du Levant au fond est du golfe), plateau incliné (`TILT`) et gradins
+(`base`), massif du Vautour (`MASSIF`), mesas et buttes (`MESAS`), Grand Erg (`ERG`, `ergMask`), Chott Blanc
+(`CHOTT`), couloir de la Piste Droite (`PISTE`), canyon (`RIVERS` : `floor`, `drop`, parois en gradins dans `carve`),
+brèches (`BREACHES`, `breachFrames`). Aucun lac d'eau douce : six petites sources d'oasis et la guelta.
+Occupation du sol (`land.ts`) : sol nu ocre partout ; palmiers et jardins irrigués **seulement autour des sources**
+(`orchard`, `farmland`) ; sable de l'erg et des plages, roche rouge sur les parois et les sommets, sel du chott et des
+Salines (`quarry`).
+Bâtiments (`settle.ts`) : terre crue ocre, toits plats en terrasse ; les maisons sont écrites en nature `hut` (le jeu
+n'y pose ni boîtes aux lettres, ni poubelles, ni poules) ; chaux blanche à Port-Corail ; tours de guet, maisons
+communes à haute tour, Citadelle Rouge, caravansérails du Chott et de l'Étoile.
 
 ## Réseau et parcours
 
-- Routes : tour du désert, grands axes depuis Rocherouge, La Piste Droite (route dessinée), route du Canyon (au fond,
-  le long de l'oued), route de la Corniche (au bord du canyon, côté est), routes communales, maillage de petites routes,
-  pistes cyclables (piste du Chott, voies vertes des Sablons et du Chott, Vélo du Golfe), promenade de Port-Corail.
-- Routes en lacets (`climb.ts`) : col des Vents (deux versants), route de l'Observatoire, route de la Grande Mesa.
-- Pistes gravel et sentiers VTT (`TRAILS`, `SKIN`) ; cyclo-cross des Sables et bike park des Buttes : boucles dessinées
-  (forme sinueuse), raccordées au réseau, parcours tirés de la boucle elle-même.
+- Routes : tour du désert (côte nord, corne est, golfe, retour par le Gué des Sables), route du Corail et route de la
+  Brèche (Port-Corail, Rocherouge, Puits de l'Étoile, Port-Vent), Piste Droite (route dessinée), route du Canyon (au
+  fond, des Lacets à la Brèche de l'Erg), route de la Corniche (bord nord), routes du golfe et du plateau, maillage de
+  petites routes, pistes cyclables (piste du Chott, voies vertes des Sablons et du Chott, Vélo du Golfe), promenade.
+- Routes en lacets (`climb.ts`) : Les Lacets du Canyon (deux versants), route de l'Observatoire, route de la Grande Mesa.
+- Pistes de l'Étoile (`STAR`), pistes gravel et sentiers VTT (`TRAILS`, `SKIN`) ; cyclo-cross des Sables et bike park
+  des Buttes : boucles dessinées, parcours tirés de la boucle elle-même.
 - Un parcours n'est publié que s'il passe les contrôles (`routeFlaw` dans `build.ts`, mêmes règles que `verify.ts`).
 
-Parcours publiés (voir le journal de construction pour les longueurs) :
+Parcours publiés (39, tous au vert ; longueurs de la construction du 27/11/2026) :
 
-- Découverte : `decouverte-du-desert` (≈ 9 km autour de Rocherouge, par le début de la Piste Droite).
-- Classiques : `classique-des-canyons` (route : fond du canyon, Les Cairns, corniche, Ksar-Rouge), `classique-des-dunes`
-  (gravel, piste des Dunes dans l'erg).
-- Chrono : `chrono-de-la-piste-droite` (7,3 km en ligne droite, plat).
+- Découverte : `decouverte-du-desert` (11 km : Rocherouge, le Chott Blanc, le caravansérail).
+- Classiques : `classique-des-canyons` (route, 50 km : Port-Corail, Brèche du Centre, Puits de l'Étoile, Les Cairns,
+  Lacets du Canyon, L'Oasis), `classique-des-dunes` (gravel, 9 km dans l'erg).
+- Chrono : `chrono-de-la-piste-droite` (6,1 km en ligne droite, plat).
 - Nuit : `mesa-de-nuit` (montée de la Grande Mesa, départ forcé à 23 h par le jeu).
-- Circuit fermé : `circuit-du-chott` ; critérium : `criterium-de-rocherouge`.
-- Montées avec KOM : `col-des-vents`, `col-par-port-vent`, `pic-du-vautour`, `montee-de-la-grande-mesa`.
-- Tour du monde : `tour-du-desert`.
-- Route : `route-du-canyon`, `corniche-du-canyon`, `corniche-des-falaises`, `plateau-du-ksar`,
-  `golfe-et-oasis`, `lagune-et-salines`, `tour-du-chott`, `boucle-de-rocherouge`, `route-des-dunes`.
-- Pistes cyclables : `promenade-de-port-corail`, `piste-du-chott`, `voie-verte-des-sablons`, `voie-verte-du-chott`, `velo-du-golfe`.
-- Gravel : `classique-des-dunes`, `gravel-de-la-mesa`, `gravel-du-plateau`, `gravel-de-la-palmeraie`, `gravel-des-buttes`,
-  `chemin-des-falaises`, `chemin-de-la-pointe`, `grande-traversee`, `cyclo-cross-des-sables`.
-- VTT : `vtt-des-monts-de-braise`, `vtt-de-la-dent-rouge`, `descente-du-vautour` (descente), `vtt-du-canyon`,
-  `vtt-des-falaises`, `vtt-des-arches`, `bike-park-des-buttes`.
+- Circuit fermé : `circuit-du-chott` (3,6 km) ; critérium : `criterium-de-rocherouge` (1,7 km).
+- Montées avec KOM : `lacets-du-canyon`, `pic-du-vautour` (≈ 570 m de dénivelé), `grande-montee-du-vautour` (les
+  Lacets puis l'Observatoire), `montee-de-la-grande-mesa`.
+- Tour du monde : `tour-du-desert` (95 km : golfe, corne est, côte nord, erg).
+- Route : `route-du-canyon` (20 km au fond), `corniche-du-canyon`, `corniche-des-falaises`, `plateau-du-ksar`,
+  `golfe-et-oasis`, `salines-et-sablons`, `tour-du-chott`, `boucle-de-rocherouge`, `route-des-dunes`.
+- Pistes cyclables : `promenade-de-port-corail`, `piste-du-chott`, `voie-verte-des-sablons`, `voie-verte-du-chott`,
+  `velo-du-golfe`.
+- Gravel (8) : `classique-des-dunes`, `gravel-de-l-etoile` (pistes en étoile), `gravel-des-oasis`, `gravel-de-la-mesa`,
+  `chemin-des-falaises`, `chemin-de-la-pointe`, `grande-traversee` (par le Gué des Sables), `cyclo-cross-des-sables`.
+- VTT (6) : `vtt-du-vautour`, `vtt-de-la-dent-rouge`, `descente-du-vautour` (descente), `vtt-du-canyon`,
+  `vtt-des-arches`, `bike-park-des-buttes`.
+
+Contrôles propres au Désert rouge dans `build.ts` : après les raccords, les petites routes du maillage restées trop
+raides sont retirées (et le graphe refait) ; les bâtiments qui ne reposent plus sur le sol final sont retirés. Dans
+`settle.ts`, un bâtiment reste à distance du bord des falaises et du bord des gradins.
 
 ## Générer
 
@@ -82,11 +94,12 @@ Depuis `apps/server` (pour tsx) :
 
 ```
 ISLAND_OUT='D:/zzCACHE_ALLEZROBERT/zones-travail/desert-rouge' ISLAND_THREADS=4 pnpm exec tsx ../../tools/desert-rouge/src/build.ts   # essai ailleurs
-ISLAND_PLAN=1 …                                                                   # tracé seul (≈ 1 min)
-ISLAND_DEBUG=1 …                                                                  # détails des défauts (bouts de routes, col)
-pnpm exec tsx ../../tools/desert-rouge/src/verify.ts                              # contrôles du monde installé
-pnpm exec tsx ../../tools/desert-rouge/src/map.ts --px 25 --out ../client/public/worlds/desert-rouge/carte.png
-pnpm exec tsx ../../tools/desert-rouge/src/map.ts --px 40 --style flat --out ../client/public/worlds/desert-rouge/vignette.png
+ISLAND_PLAN=1 …                                                                   # tracé seul (≈ 2 min)
+ISLAND_DEBUG=1 …                                                                  # détails des défauts
+pnpm exec tsx ../../tools/desert-rouge/src/probe.ts --px 25 --graph <dossier>/graph.json --out aperçu.png   # relief et réseau
+pnpm exec tsx ../../tools/desert-rouge/src/verify.ts [<dossier>]                   # contrôles (monde installé par défaut)
+pnpm exec tsx ../../tools/desert-rouge/src/map.ts [--dir <dossier>] --px 25 --out ../client/public/worlds/desert-rouge/carte.png
+pnpm exec tsx ../../tools/desert-rouge/src/map.ts [--dir <dossier>] --px 40 --style flat --out ../client/public/worlds/desert-rouge/vignette.png
 ```
 
 Sans `ISLAND_OUT`, `build.ts` écrit dans `apps/client/public/worlds/desert-rouge` et publie le monde au catalogue
@@ -95,12 +108,17 @@ Sans `ISLAND_OUT`, `build.ts` écrit dans `apps/client/public/worlds/desert-roug
 ## Dans le jeu (mode Poly)
 
 - Module du monde : `apps/client/src/world/lands/desert-rouge.ts` (titre, lieux de la carte, parcours en tête, lieux à
-  découvrir, nom du Tour, thème, circuit, restyle des bâtiments, pas de clôtures sur le chott, l'erg et la promenade).
-- Thème : sol ocre (`meadow` #c47a45), terre rouge (`dirt` #a8562e), palmeraies vert sombre (`field`), sable rouge
-  orangé, roche rouge brique (#9c4a2c), pas de neige ni de givre, feuillage vert olive poussiéreux, eau turquoise.
-- Décor propre (`world/lands/desert-rougeSites.ts`) : palmiers (gabarit low poly) et palmeraies des deux oasis, puits,
-  abreuvoirs, tentes, dromadaires couchés, deux caravanes de dromadaires qui marchent, cinq arches de pierre, cactus,
-  touffes sèches, buissons morts et cailloux semés par carrés de 2 km autour du coureur, croûte de sel du Chott Blanc,
-  tribunes et portique du Circuit, montgolfières au-dessus du canyon au lever du jour (5 h 30 à 10 h 30, heure du monde
-  par `islandClock()`), bike park des Buttes (virages relevés, tremplins, tour de départ), cyclo-cross des Sables
-  (piquets, rubalise, bottes, tentes), dôme de l'observatoire, cairns du col, puits et palmiers des villages, ports.
+  découvrir, nom du Tour, thème, biome, circuit, restyle des bâtiments, clôtures).
+- Biome : palmiers à la place des feuillus, cactus à la place des sapins, presque pas d'herbe (0,08), ni bétail ni
+  mobilier de village européen.
+- Bâtiments : terre crue ocre (les rouges brique ramenés vers l'ocre), murs pleins sans volets (rendu en nature
+  `ruins` : portes de bois), terrasses de la couleur des murs ; maisons blanches du bord de mer inchangées.
+- Clôtures : nulle part, sauf autour des oasis (jardins de la palmeraie).
+- Thème : sol ocre (`meadow` #c47a45), terre battue ocre près des maisons (`urban`), terre rouge (`dirt`), champs en
+  vert palmeraie (seulement autour des sources), sable rouge orangé, roche rouge brique, pas de neige ni de givre,
+  eau turquoise.
+- Décor propre (`world/lands/desert-rougeSites.ts`) : palmeraies des six oasis (puits, tentes, dromadaires couchés),
+  guelta du Vautour, deux caravanes de dromadaires qui marchent, cinq arches de pierre, peu de plantes (touffes sèches,
+  quelques cactus) et surtout des cailloux semés par carrés de 2 km, croûte de sel du Chott Blanc, tribunes du Circuit,
+  montgolfières au-dessus du Grand Canyon au lever du jour (heure du monde par `islandClock()`), bike park des Buttes,
+  cyclo-cross des Sables, dôme de l'observatoire, cairns de la Tête du Vautour, puits et palmiers des villages, ports.

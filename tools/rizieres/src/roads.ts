@@ -672,13 +672,13 @@ export function easeKinks(roads: Road[]): number {
   const shared = sharedKeys(roads);
   let left = 0;
   for (const r of roads) {
-    if (r.designed || r.loop || r.pts.length < 15 || r.kind === 'track') continue;
+    if (r.designed || r.loop || r.pts.length < 15) continue;
     const n = r.pts.length;
     const lim = r.kind === 'secondary' ? 8.5 : r.kind === 'track' ? 4.6 : 3;
     const fixed = r.pts.map((p, i) => i < 2 || i > n - 3 || shared.has(`${Math.round(p[0] * 20)},${Math.round(p[2] * 20)}`));
-    // Déplacement borné (1,5 m) : le virage s'arrondit sans raccourcir la route ni changer sa pente.
+    // Déplacement borné (6 m, 10 m sur les chemins) : le virage s'arrondit sans raccourcir la route ni changer sa pente.
     const home = r.pts.map((p) => [p[0], p[2]] as const);
-    for (let it = 0; it < 80; it++) {
+    for (let it = 0; it < 240; it++) {
       let bad = 0;
       const P = r.pts;
       const next = P.map((p) => [p[0], p[2]] as [number, number]);
@@ -688,7 +688,7 @@ export function easeKinks(roads: Road[]): number {
         for (let k = Math.max(1, i - 2); k <= Math.min(n - 2, i + 8); k++) {
           if (fixed[k]) continue;
           // Rampes raides tenues : raccourcir le tracé y raidirait la pente.
-          if (Math.abs(P[Math.min(n - 1, k + 3)]![1] - P[Math.max(0, k - 3)]![1]) / 12 > 0.11) continue;
+          if (Math.abs(P[Math.min(n - 1, k + 3)]![1] - P[Math.max(0, k - 3)]![1]) / 12 > 0.15) continue;
           // Déplacement en travers seulement (l'espacement des points, donc la pente, ne change pas).
           let nx = 0.5 * P[k]![0] + 0.25 * (P[k - 1]![0] + P[k + 1]![0]);
           let nz = 0.5 * P[k]![2] + 0.25 * (P[k - 1]![2] + P[k + 1]![2]);
@@ -700,7 +700,8 @@ export function easeKinks(roads: Road[]): number {
           nz -= (along * tz) / tl;
           const [hx, hz] = home[k]!;
           const d = Math.hypot(nx - hx, nz - hz);
-          next[k] = d > 1.5 ? [hx + ((nx - hx) * 1.5) / d, hz + ((nz - hz) * 1.5) / d] : [nx, nz];
+          const cap = r.kind === 'track' ? 10 : 6;
+          next[k] = d > cap ? [hx + ((nx - hx) * cap) / d, hz + ((nz - hz) * cap) / d] : [nx, nz];
         }
       }
       if (!bad) break;
@@ -708,7 +709,7 @@ export function easeKinks(roads: Road[]): number {
         r.pts[k]![0] = next[k]![0];
         r.pts[k]![2] = next[k]![1];
       }
-      if (it === 79) left += bad;
+      if (it === 239) left += bad;
     }
   }
   return left;
@@ -719,7 +720,7 @@ export function fillSags(roads: Road[]): number {
   const shared = sharedKeys(roads);
   let filled = 0;
   for (const r of roads) {
-    if (r.designed || r.pts.length < 12) continue;
+    if (r.loop || r.pts.length < 12) continue;
     const n = r.pts.length;
     const fixed = r.pts.map((p, i) => i < 1 || i > n - 2 || shared.has(`${Math.round(p[0] * 20)},${Math.round(p[2] * 20)}`));
     // Remblai borné (25 cm) : un fond de vallon reste un fond de vallon.
@@ -730,7 +731,7 @@ export function fillSags(roads: Road[]): number {
         const want = Math.min(top[i]!, (r.pts[i - 4]![1] + r.pts[i + 4]![1]) / 2 - 0.09);
         if (r.pts[i]![1] >= want - 1e-3 || fixed[i]) continue;
         // Pas dans les rampes raides : la pente sur 10 m ne doit pas grimper.
-        if (Math.abs(r.pts[i + 4]![1] - r.pts[i - 4]![1]) / 16 > 0.1) continue;
+        if (Math.abs(r.pts[i + 4]![1] - r.pts[i - 4]![1]) / 16 > (r.kind === 'track' ? 0.3 : 0.16)) continue;
         any = true;
         filled++;
         // Le fond du creux et ses voisins remontent ensemble (profil arrondi).

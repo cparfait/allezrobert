@@ -1,24 +1,26 @@
 /**
  * Occupation du sol du Grand Nord robertien : forêts de résineux dans les vallées (bouleaux au bord de l'eau), limite
- * des arbres basse (≈ 450 m), toundra rase sur les plateaux et au-dessus des forêts, rochers (sommets, parois des
- * fjords, gorges), prés de fauche des fonds de vallée, grèves de galets, marais de Myrbu, lacs, rivières.
+ * des arbres basse (≈ 450 m), toundra rase sur le haut-plateau et au-dessus des forêts, landes et tourbières du
+ * strandflat, rochers (sommets, parois des fjords, îlots), prés de fauche autour des villages, grèves, lacs, rivières.
  */
-import { ANNEAU, HARBOURS, LAKES, MASSIF, PLATEAU, TOWNS, chainAt, cliffAt, cliffiness, coastPoint, inGlacier, inHarbour, inLake, inRiver, lakeE, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
+import { ANNEAU, HARBOURS, LAKES, MASSIF, TOWNS, cliffAt, cliffiness, coastPoint, inGlacier, inHarbour, inLake, inRiver, lakeE, mountainous, plateauE, riverBeds, shoreDist, strandWeight, terrain, type Vec2 } from './design.ts';
 import { clipPolygon, orientedRect, polygonArea } from './geom.ts';
 import { fbm, rng, smoothstep } from './noise.ts';
 import type { Area } from './types.ts';
-
-const gauss = (x: number, z: number, cx: number, cz: number, sx: number, sz: number) => Math.exp(-(((x - cx) / sx) ** 2 + ((z - cz) / sz) ** 2));
 
 export interface LandCtx {
   farms: Vec2[];
 }
 
-/** Montagne : près de la chaîne du Nord ou du massif de l'Aigle. */
+/** Montagne : presque partout, hors du haut-plateau, du strandflat et des fonds de vallée ; massif du Storfjell. */
 function mountain(x: number, z: number): number {
-  const c = chainAt(x, z);
   const dm = Math.min(Math.hypot(x - MASSIF.phare[0], z - MASSIF.phare[1]), Math.hypot(x - MASSIF.mont[0], z - MASSIF.mont[1]));
-  return Math.max(1 - smoothstep(2500, 6000, c.d), 1 - smoothstep(3000, 6000, dm));
+  return Math.max(mountainous(x, z), 1 - smoothstep(3000, 6000, dm));
+}
+
+/** Strandflat (0 … 1) : plate-forme côtière basse du sud-ouest. */
+function strand(x: number, z: number): number {
+  return strandWeight(Math.atan2(z, x)) * (1 - smoothstep(1500, 3000, shoreDist(x, z)));
 }
 
 /** Pente (fraction) au point. */
@@ -41,9 +43,9 @@ function clearing(x: number, z: number, ctx: LandCtx): number {
   return c;
 }
 
-/** Toundra : haut-plateau de Vidda et plateau des Mille-Lacs (0 … 1). */
+/** Toundra : haut-plateau de Vidda (0 … 1). */
 function tundra(x: number, z: number): number {
-  return Math.max(gauss(x, z, PLATEAU.x, PLATEAU.z, PLATEAU.rx * 0.85, PLATEAU.rz * 0.85), gauss(x, z, 3600, 5700, 3400, 1500));
+  return 1 - smoothstep(0.7, 1.05, plateauE(x, z));
 }
 
 /** Masque des bois : > 0 boisé. */
@@ -60,7 +62,7 @@ export function forestMask(x: number, z: number, ctx: LandCtx): number {
   if (inRiver(x, z, 45) && !inRiver(x, z, 4)) f = Math.max(f, 0.25);
   // Toundra rase des plateaux, plaine du Circuit et delta : pas d'arbres.
   f -= 1.2 * tundra(x, z);
-  f -= 0.45 * gauss(x, z, -9000, 3500, 4500, 2500);
+  f -= 0.9 * strand(x, z);
   if (inGlacier(x, z, 120)) f = -1;
   f = Math.min(f, clearing(x, z, ctx), (d - 200) / 100);
   for (const l of LAKES) if (lakeE(l, x, z) < 1.6) f = Math.min(f, (lakeE(l, x, z) - 1.3) * 2);
@@ -80,7 +82,7 @@ export function heathMask(x: number, z: number): number {
   const cliff = cliffAt(x, z);
   // Landes derrière les grèves.
   let m = d > 100 && d < 300 && cliff < 0.3 ? 0.4 - Math.abs(d - 200) / 250 : -1;
-  if (d > 60) m = Math.max(m, gauss(x, z, 9500, 8300, 2600, 1300) * 0.9 - 0.4 + 0.3 * fbm(x / 500, z / 500, 2, 53));
+  if (d > 60) m = Math.max(m, strand(x, z) * 0.9 - 0.35 + 0.3 * fbm(x / 500, z / 500, 2, 53));
   if (d > 60) m = Math.max(m, tundra(x, z) - 0.3 + 0.25 * fbm(x / 600, z / 600, 2, 54));
   if (mountain(x, z) > 0.1) m = Math.max(m, (terrain(x, z) - 470 + 60 * fbm(x / 500, z / 500, 2, 51)) / 50);
   if (inGlacier(x, z, 20)) m = -1;
@@ -93,9 +95,11 @@ export function rockMask(x: number, z: number): number {
   const d = shoreDist(x, z);
   const cliff = cliffAt(x, z);
   let m = cliff > 0.5 ? (75 - d) / 20 : -1;
-  if (d < 0) return -1;
   const h = terrain(x, z);
-  if (mountain(x, z) > 0.2) m = Math.max(m, (h - 980 + 50 * fbm(x / 300, z / 300, 2, 52)) / 30);
+  // Îlots (skerries) : roche nue.
+  if (d < 0) return h > 0.4 && !inHarbour(x, z, 60) ? (h - 0.4) * 2 : -1;
+  if (mountain(x, z) > 0.2) m = Math.max(m, (h - 800 + 60 * fbm(x / 300, z / 300, 2, 52)) / 30);
+  if (inGlacier(x, z, 10)) m = -1;
   if (h > 30) m = Math.max(m, (slopeAt(x, z, h) - 0.7) * 4);
   if (inGlacier(x, z, 10)) m = -1;
   if (inHarbour(x, z, 80) || TOWNS.some((t) => Math.hypot(t.x - x, t.z - z) < t.r * 1.2)) m = -1;
@@ -258,6 +262,8 @@ export function parcels(ctx: LandCtx, avoid: (x: number, z: number) => boolean):
       if (Math.abs(cx) > 17500 || Math.abs(cz) > 11500) continue;
       if (shoreDist(cx, cz) < 300) continue;
       if (q.some(([x, z]) => shoreDist(x, z) < 220 || inLake(x, z, 1.3) || inRiver(x, z, 20) || avoid(x, z))) continue;
+      // Pas de grande plaine : prés et champs seulement autour des villages et des fermes.
+      if (!TOWNS.some((t) => Math.hypot(t.x - cx, t.z - cz) < t.r * 2.4 + 500) && !ctx.farms.some(([fx, fz]) => Math.hypot(fx - cx, fz - cz) < 450)) continue;
       if (forestMask(cx, cz, ctx) > -0.08) continue;
       if (clearing(cx, cz, ctx) < 0.2) continue;
       // Pente : pas de culture au-delà de 12 %.
@@ -289,7 +295,7 @@ export function parcels(ctx: LandCtx, avoid: (x: number, z: number) => boolean):
   return out;
 }
 
-/** Plages de sable (secteurs sans falaise), zones humides de la lagune, lacs. */
+/** Grèves (secteurs sans falaise), tourbière des Skerries, lacs. */
 export function shoreAreas(skip: (x: number, z: number) => boolean): Area[] {
   const out: Area[] = [];
   const n = 2400;
@@ -302,15 +308,15 @@ export function shoreAreas(skip: (x: number, z: number) => boolean): Area[] {
     if (skip(mid[0], mid[1]) || inHarbour(mid[0], mid[1], 150) || inRiver(mid[0], mid[1], 30)) continue;
     out.push({ id: `plage-${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -45), coastPoint(a1, -45), coastPoint(a1, 105), coastPoint(a0, 105)] });
   }
-  const lag = LAKES.find((l) => l.id === 'lagune')!;
+  const lag = LAKES.find((l) => l.id === 'lac-des-skerries')!;
   const ring: Vec2[] = [];
   for (let k = 0; k < 40; k++) {
     const a = (k / 40) * Math.PI * 2;
-    const ex = Math.cos(a) * lag.rx * 1.45;
-    const ez = Math.sin(a) * lag.rz * 1.7;
+    const ex = Math.cos(a) * lag.rx * 4.2 * (1 + 0.15 * Math.sin(a * 3));
+    const ez = Math.sin(a) * lag.rz * 4.5;
     ring.push([lag.x + ex * Math.cos(lag.rot) - ez * Math.sin(lag.rot), lag.z + ex * Math.sin(lag.rot) + ez * Math.cos(lag.rot)]);
   }
-  out.push({ id: 'marais', kind: 'wetland', layer: 'fields', ring, name: 'Marais de Myrbu' });
+  out.push({ id: 'marais', kind: 'wetland', layer: 'fields', ring, name: 'Tourbière des Skerries' });
   return out;
 }
 

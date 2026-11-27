@@ -20,7 +20,8 @@ const opt = (k: string, d: string) => {
   const i = args.indexOf(`--${k}`);
   return i >= 0 ? args[i + 1]! : d;
 };
-const DIR = resolve(import.meta.dirname, '../../../apps/client/public/worlds/desert-rouge');
+// --dir : monde ailleurs (essai dans ISLAND_OUT).
+const DIR = resolve(opt('dir', resolve(import.meta.dirname, '../../../apps/client/public/worlds/desert-rouge')));
 const PX = Number(opt('px', '20'));
 const OUTF = resolve(opt('out', 'docs/screenshots/desert-rouge-carte.png'));
 const ROUTE = opt('route', '');

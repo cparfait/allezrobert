@@ -10,14 +10,14 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
-import { ANNEAU, HARBOURS, ISLAND, LAKES, MASSIF, RICE_PLAIN, TEMPLE_HILL, TOWNS, anneauLoop, karstPitons, chainAt, coastPoint, inHarbour, inLake, inRiver, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
+import { A, ANNEAU, HARBOURS, ISLAND, JONQ_FOOT_ROAD, LAKES, MASSIF, SADDLE, TEMPLE_HILL, TOWNS, UV, anneauLoop, karstPitons, chainAt, coastPoint, inHarbour, inLake, inRiver, plainZone, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
 import { chaikin, clipPolygon, clipPolyline, polygonArea, resample, type Vec3 } from './geom.ts';
 import { forestMask, lakes, parcels, shoreAreas, waterways, type LandCtx } from './land.ts';
 import { fbm, rng } from './noise.ts';
 import { CELL, CLASSES, CLASS_BY_RANK, Grid, type RoadClass } from './planner.ts';
 import { runPool } from './pool.ts';
 import { ATTRIBUTION, RoadIndex, buildGraph, cleanRoads, easeKinks, fillSags, joinCrossings, nearestOn, smoothProfiles, unifyEnds, makeRoad, nodeHeight, profile, r2, snapEnds, type Road, type RoadSpec } from './roads.ts';
-import { planRoute, timedSegments, type RouteSpec } from './routes.ts';
+import { GRAVELLY, planRoute, timedSegments, type RouteSpec } from './routes.ts';
 import { harbourPoint, portRoads } from './ports.ts';
 import { encodeRoute } from '../../../packages/shared/src/routeCodec.ts';
 import { ANNEAU_GATES, Builder, farmBuildings, farmSites, landmarks, roadsideHouses, seasideBuildings, townCentre, townLayout, type TownLayout } from './settle.ts';
@@ -61,88 +61,47 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
       gates.push({ p: [best![0], best![2]], y: best![1], dir: [best![0] - inner![0], best![2] - inner![2]], town: lay.town.id });
     }
   }
-  // Col de la Jungle : montée en lacets depuis la Bambouseraie, descente en lacets vers Port-des-Jonques, route du Temple des Lanternes.
+  // Col de la Jungle : rampe régulière depuis la Bambouseraie (route directe, ≈ 5 %), descente en lacets vers le
+  // port des Jonques, route du Temple des Lanternes en lacets sur l'arête du Mont des Lanternes. Les trois routes
+  // partent du col chacune dans sa direction (pas de raccord en biseau).
   const wet = (x: number, z: number) => inLake(x, z, 1.5) || inRiver(x, z, 25) || shoreDist(x, z) < 150;
-  const col = saddle();
+  const col: Vec2 = [SADDLE[0], SADDLE[1]];
   const colY = terrain(col[0], col[1]);
   const lc = gates.filter((g) => g.town === 'le-col').sort((a, b) => Math.hypot(a.p[0] - col[0], a.p[1] - col[1]) - Math.hypot(b.p[0] - col[0], b.p[1] - col[1]))[0]!;
   lc.town = 'le-col-montee'; // porte réservée à la montée (le réseau passe par les autres)
-  const axis: Vec2 = [MASSIF.mont[0] - MASSIF.phare[0], MASSIF.mont[1] - MASSIF.phare[1]];
-  const al = Math.hypot(axis[0], axis[1]);
-  const toPhare: Vec2 = [MASSIF.phare[0] - col[0], MASSIF.phare[1] - col[1]];
-  const tl = Math.hypot(toPhare[0], toPhare[1]);
-  const phareEnd: Vec2 = [MASSIF.phare[0] - (toPhare[0] / tl) * 45, MASSIF.phare[1] - (toPhare[1] / tl) * 45];
+  const toward = (from: Vec2, to: Vec2, m: number): Vec2 => {
+    const l = Math.hypot(to[0] - from[0], to[1] - from[1]) || 1;
+    return [from[0] + ((to[0] - from[0]) / l) * m, from[1] + ((to[1] - from[1]) / l) * m];
+  };
   // Départ dans le prolongement d'une rue (pas d'épingle au raccord).
   const ahead = (g: { p: Vec2; dir: Vec2 }, m: number): Vec2 => {
     const l = Math.hypot(g.dir[0], g.dir[1]) || 1;
     return [g.p[0] + (g.dir[0] / l) * m, g.p[1] + (g.dir[1] / l) * m];
   };
-  // Routes du col en lacets (climb.ts) : pente régulière d'environ 6,5 %, épingles arrondies. Au col, carrefour des
-  // trois routes : montée sud depuis la Bambouseraie, descente nord vers la vallée des Jonques, route du Temple des Lanternes.
-  // Pied nord : point de la vallée des Jonques (hors du lit), ≥ 380 m sous le col, le plus proche du col.
-  const aber = riverBeds().find((b) => b.river.id === 'riviere-des-jonques')!;
-  let foot: Vec2 = aber.pts[Math.floor(aber.pts.length / 2)]!;
-  for (let k = 0; k < aber.pts.length; k += 5) {
-    const [x, z] = aber.pts[k]!;
-    const a = aber.pts[Math.max(0, k - 1)]!;
-    const b = aber.pts[Math.min(aber.pts.length - 1, k + 1)]!;
-    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    // Rive côté col.
-    const nx = -(b[1] - a[1]) / l;
-    const nz = (b[0] - a[0]) / l;
-    const s = (col[0] - x) * nx + (col[1] - z) * nz > 0 ? 1 : -1;
-    const q: Vec2 = [x + nx * s * (aber.chan[k]! + 45), z + nz * s * (aber.chan[k]! + 45)];
-    if (terrain(q[0], q[1]) < colY - 380 && shoreDist(q[0], q[1]) > 500) {
-      foot = q;
-      break;
-    }
-  }
   const lacets = (from: Vec2, to: Vec2, grade: number, half: number): Vec2[] => simplifyPath(switchbacks(from, to, { grade, halfWidth: half, turn: 30, blocked: wet }), 3);
-  const southPts = [lc.p, ...lacets(ahead(lc, 60), col, 0.062, 420)];
-  const northPts = lacets(foot, col, 0.062, 240).reverse();
-  /** Dernier point où `a` coupe `b` : la route `a` part de là (carrefour en T), sans recroiser `b` ensuite. */
-  const fromLastCross = (a: Vec2[], b: Vec2[]): Vec2[] => {
-    let cut = -1;
-    let at: Vec2 | null = null;
-    for (let i = 0; i + 1 < a.length; i++)
-      for (let j = 0; j + 1 < b.length; j++) {
-        const [p, q, u, v] = [a[i]!, a[i + 1]!, b[j]!, b[j + 1]!];
-        const d = (q[0] - p[0]) * (v[1] - u[1]) - (q[1] - p[1]) * (v[0] - u[0]);
-        if (Math.abs(d) < 1e-9) continue;
-        const t = ((u[0] - p[0]) * (v[1] - u[1]) - (u[1] - p[1]) * (v[0] - u[0])) / d;
-        const s2 = ((u[0] - p[0]) * (q[1] - p[1]) - (u[1] - p[1]) * (q[0] - p[0])) / d;
-        if (t > 1e-6 && t < 1 && s2 >= 0 && s2 <= 1 && i >= cut) {
-          cut = i;
-          at = [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
-        }
-      }
-    return at && cut > 0 ? [at, ...a.slice(cut + 1)] : a;
-  };
-  const sudPath = fillet(southPts, 16);
-  const nordPath = fromLastCross(fillet([col, ...northPts.slice(1)], 16), sudPath);
+  const foot: Vec2 = JONQ_FOOT_ROAD;
+  const phareEnd = toward(MASSIF.phare, col, 45);
+  const sudPath = fillet([lc.p, ahead(lc, 60), toward(col, lc.p, 120), col], 40);
   const sudRoad = makeRoad({ id: 'col-sud', name: 'Route du Col de la Jungle', kind: 'tertiary', width: 6, pts: sudPath, designed: true, gmax: 0.12, smooth: 0, y0: lc.y, y1: colY });
-  const ySud = (p: Vec2) => nearestOn(sudRoad, p[0], p[1]).y;
-  const colRoads = [sudRoad, makeRoad({ id: 'col-nord', name: 'Route du Col de la Jungle', kind: 'tertiary', width: 6, pts: nordPath, designed: true, gmax: 0.12, smooth: 0, y0: ySud(nordPath[0]!) })];
-  // Route du Temple des Lanternes : bifurque de la montée sud vers 650 m et monte en lacets sur le versant sud du Mont
-  // (depuis le col, elle suivrait l'arête, bien trop raide).
-  const sud = sudRoad;
-  let bi = 0;
-  sud.pts.forEach((p, i) => {
-    const score = (q: Vec3) => Math.abs(q[1] - 650) + Math.hypot(q[0] - MASSIF.phare[0], q[2] - MASSIF.phare[1]) * 0.04;
-    if (i > 20 && i < sud.pts.length - 20 && score(p) < score(sud.pts[bi]!)) bi = i;
-  });
-  const branch = sud.pts[bi]!;
-  const phareUp = lacets([branch[0], branch[2]], phareEnd, 0.068, 300);
-  const obsPath = fromLastCross(fillet([[branch[0], branch[2]], ...phareUp.slice(1)], 14), sudPath);
-  colRoads.push(makeRoad({ id: 'col-observatoire', name: 'Route du Temple des Lanternes', kind: 'unclassified', width: 4.5, pts: obsPath, designed: true, gmax: 0.12, smooth: 0, y0: ySud(obsPath[0]!) }));
-  const top: Vec3 = colRoads[0]!.pts[colRoads[0]!.pts.length - 1]!;
+  const nStart = toward(col, foot, 80);
+  const nordPath = fillet([col, ...lacets(foot, nStart, 0.064, 230).reverse()], 16);
+  const tStart = toward(col, MASSIF.phare, 80);
+  const templePath = fillet([col, ...lacets(tStart, phareEnd, 0.07, 260)], 14);
+  const colRoads = [
+    sudRoad,
+    makeRoad({ id: 'col-nord', name: 'Route du Col de la Jungle', kind: 'tertiary', width: 6, pts: nordPath, designed: true, gmax: 0.12, smooth: 0, y0: colY }),
+    makeRoad({ id: 'col-observatoire', name: 'Route du Temple des Lanternes', kind: 'unclassified', width: 4.5, pts: templePath, designed: true, gmax: 0.12, smooth: 0, y0: colY }),
+  ];
+  const top: Vec3 = sudRoad.pts[sudRoad.pts.length - 1]!;
   const footEnd: Vec3 = colRoads[1]!.pts[colRoads[1]!.pts.length - 1]!;
   const fp = colRoads[1]!.pts[Math.max(0, colRoads[1]!.pts.length - 8)]!;
   roads.push(...colRoads);
   gates.push({ p: [footEnd[0], footEnd[2]], y: footEnd[1], dir: [footEnd[0] - fp[0], footEnd[2] - fp[2]], town: 'col-nord' });
+  const axis: Vec2 = [col[0] - lc.p[0], col[1] - lc.p[1]];
+  const al = Math.hypot(axis[0], axis[1]);
   gates.push({ p: [top[0], top[2]], y: top[1], dir: [axis[0] / al, axis[1] / al], town: 'col' });
-  // Route des Nuages : de son pied (ouest du lac) au Village-des-Nuages, en lacets.
-  const pralongBas: Vec2 = [-9100, -3100];
+  // Route des Nuages : de son pied (collines du Nord, au-dessus du lac des Lotus) au Village-des-Nuages, en lacets.
+  const pralongBas: Vec2 = UV(-2800, -3800);
   const pg = gates.filter((g) => g.town === 'village-des-nuages').sort((a, b) => Math.hypot(a.p[0] - pralongBas[0], a.p[1] - pralongBas[1]) - Math.hypot(b.p[0] - pralongBas[0], b.p[1] - pralongBas[1]))[0]!;
   pg.town = 'pralong-station';
   const climb = simplifyPath(switchbacks(pralongBas, pg.p, { grade: 0.06, halfWidth: 320, turn: 30, blocked: wet }), 3);
@@ -296,8 +255,7 @@ function nearestGate(gates: Array<{ p: Vec2; town?: string }>, town: string, tow
 
 /** Plaine des rizières (0 … 1) : 1 au cœur, où les routes de digue sont droites et plates. */
 export function plainAt(x: number, z: number): number {
-  const g = Math.exp(-(((x - RICE_PLAIN.x) / RICE_PLAIN.sx) ** 2 + ((z - RICE_PLAIN.z) / RICE_PLAIN.sz) ** 2));
-  return Math.max(0, Math.min(1, (g - 0.3) / 0.35));
+  return Math.max(0, Math.min(1, (plainZone(x, z) - 0.3) / 0.35));
 }
 
 /** Point de la vallée du col : le plus bas sur la ligne entre les deux sommets. */
@@ -318,27 +276,46 @@ export function saddle(): Vec2 {
   return best;
 }
 
+/** Fond des gorges du Dragon : deux points au bord du lit (aval puis amont), du côté de Pont-des-Lianes. */
+export function gorgePoints(): Vec2[] {
+  const b = riverBeds().find((q) => q.river.id === 'riviere-du-dragon')!;
+  const pont = TOWNS.find((t) => t.id === 'pont-des-lianes')!;
+  return [0.62, 0.4].map((f) => {
+    const k = Math.floor(b.pts.length * f);
+    const [x, z] = b.pts[k]!;
+    const a = b.pts[k - 1]!;
+    const c = b.pts[k + 1]!;
+    const l = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1;
+    const nx = -(c[1] - a[1]) / l;
+    const nz = (c[0] - a[0]) / l;
+    const s = (pont.x - x) * nx + (pont.z - z) * nz > 0 ? 1 : -1;
+    const off = b.chan[k]! + 40;
+    return [x + nx * s * off, z + nz * s * off] as Vec2;
+  });
+}
+
 type Trail = { name: string; mtb?: boolean; seed?: number } & ({ at: Vec2; r: number; n: number } | { line: Vec2[] });
 const shorePath = (from: number, to: number, n: number, inset: number): Vec2[] => Array.from({ length: n + 1 }, (_, k) => coastPoint(from + ((to - from) * k) / n, inset));
+const uvs = (pts: Vec2[]): Vec2[] => pts.map(([u, v]) => UV(u, v));
 
 /** Pistes gravel et sentiers VTT : boucles (centre, rayon) et traversées (points de passage). */
 const TRAILS: Trail[] = [
-  { name: 'Chemin des Théiers', at: [11000, 600], r: 1700, n: 9 },
-  { name: 'Chemin des Terrasses', at: [3600, 6700], r: 1300, n: 8 },
-  { name: 'Chemin du Delta', at: [-13300, 2600], r: 1200, n: 8 },
-  { name: 'Chemin des Bambous', at: [-900, -4200], r: 1200, n: 8 },
-  { name: 'Chemin des Pitons', line: shorePath(0.52, 0.95, 7, 320) },
-  { name: 'Chemin des Sables blancs', line: shorePath(2.12, 2.5, 6, 280) },
-  { name: 'Chemin de la Traversée', line: [[-10600, 3600], [-8200, 5600], [-5200, 6000], [-2200, 6300], [1200, 7300]] },
-  { name: 'Sentier des Nuages', mtb: true, at: [-7700, -6500], r: 700, n: 8 },
-  { name: 'Sentier du Mont du Tigre', mtb: true, at: [5000, -2500], r: 700, n: 8 },
-  { name: 'Descente de la Jungle', mtb: true, line: [saddle(), [3100, -5300], [2700, -4200], [2200, -3300]] },
-  { name: 'Sentier du Dragon', mtb: true, at: [9200, -2400], r: 800, n: 8 },
-  { name: 'Sentier des Pitons', mtb: true, at: [9300, 7500], r: 850, n: 8 },
-  { name: 'Sentier des Lotus', mtb: true, at: [-3100, -4600], r: 850, n: 8 },
+  { name: 'Chemin des Théiers', at: UV(11050, 4450), r: 300, n: 7 },
+  { name: 'Chemin des Terrasses', at: UV(-4200, 4400), r: 1200, n: 8 },
+  { name: 'Chemin du Delta', at: UV(-14000, 1200), r: 1200, n: 8 },
+  { name: 'Chemin des Bambous', at: UV(2500, -3600), r: 1200, n: 8 },
+  { name: 'Chemin des Pitons', line: shorePath(A(0.55), A(1.12), 8, 340) },
+  { name: 'Chemin des Sables blancs', line: shorePath(A(2.12), A(2.55), 6, 300) },
+  { name: 'Chemin de la Traversée', line: uvs([[-9000, 3300], [-6500, 4500], [-4400, 5600]]) },
+  { name: 'Sentier des Nuages', mtb: true, at: UV(-1800, -6500), r: 600, n: 7 },
+  { name: 'Sentier du Mont du Tigre', mtb: true, at: UV(13000, 2700), r: 550, n: 8 },
+  { name: 'Descente de la Jungle', mtb: true, line: uvs([[13000, -300], [12200, 400], [11300, 700], [10400, 800]]) },
+  { name: 'Sentier du Dragon', mtb: true, at: UV(12700, 2500), r: 450, n: 7 },
+  { name: 'Sentier des Pitons', mtb: true, at: UV(3800, 4600), r: 850, n: 8 },
+  { name: 'Sentier des Lotus', mtb: true, at: UV(-4500, -3300), r: 850, n: 8 },
   // Petites boucles : cyclo-cross sur les digues de la plaine (herbe, terre, sable) et bike park dans la jungle.
-  { name: 'Cyclo-cross des Digues', at: [-8600, 2150], r: 340, n: 6 },
-  { name: 'Bike park de la Jungle', mtb: true, at: [-8400, -4200], r: 380, n: 7, seed: 3 },
+  { name: 'Cyclo-cross des Digues', at: UV(-8400, 3300), r: 340, n: 6 },
+  { name: 'Bike park de la Jungle', mtb: true, at: UV(-600, -4300), r: 380, n: 7, seed: 3 },
 ];
 
 /**
@@ -376,13 +353,13 @@ const MESH_NAMES = new Set(LANE_NAMES.map((n) => `Route ${n}`));
  */
 export function pruneMesh(roads: Road[], profiles: boolean): Road[] {
   let list = roads;
-  const mesh = (r: Road) => MESH_NAMES.has(r.name);
+  const mesh = (r: Road) => MESH_NAMES.has(r.name) || r.name === 'Chemin rural';
   for (let pass = 0; pass < 12; pass++) {
     const graph = buildGraph(list);
     const bad = new Set<Road>();
     const near = (r: Road, x: number, z: number) => r.pts.some((p) => Math.hypot(p[0] - x, p[2] - z) < 2.5);
     const drop = (name: string, x: number, z: number) => {
-      if (!MESH_NAMES.has(name)) return false;
+      if (!MESH_NAMES.has(name) && name !== 'Chemin rural') return false;
       const r = list.find((q) => q.name === name && !bad.has(q) && near(q, x, z));
       if (r) bad.add(r);
       return !!r;
@@ -574,25 +551,26 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
     if (sameTown) continue;
     connect(P, a.p, b.p, [C.secondary, C.tertiary, C.lane, steep], 'Route du Tour des Rizières', 220);
   }
-  // b. Grands axes depuis Vat-Robert, route des Gorges du Dragon (Pont-des-Lianes → la Bambouseraie, au fond des gorges).
-  for (const to of ['plage-de-jade', 'rive-des-lotus', 'les-pilotis', 'les-terrasses']) connect(P, G('vat-robert', to), G(to, 'vat-robert'), [C.secondary, C.tertiary, C.lane], `Route de ${town(to).name}`);
-  connect(P, G('les-terrasses', 'pont-des-lianes'), G('pont-des-lianes', 'les-terrasses'), [C.secondary, C.tertiary, C.lane], 'Route des Terrasses');
-  connect(P, G('pont-des-lianes', 'le-col'), G('le-col', 'pont-des-lianes'), [C.secondary, C.tertiary, C.lane, steep], 'Route des Gorges du Dragon', 240);
-  // c. Routes communales.
+  // b. Grands axes depuis Vat-Robert (la route du Fleuve remonte la rive sud jusqu'à Pont-des-Lianes), route des
+  // Gorges du Dragon (Pont-des-Lianes → fond des gorges → plateau des Théiers).
+  for (const to of ['plage-de-jade', 'rive-des-lotus', 'les-pilotis', 'les-terrasses', 'pont-des-lianes']) connect(P, G('vat-robert', to), G(to, 'vat-robert'), [C.secondary, C.tertiary, C.lane], `Route de ${town(to).name}`);
+  const gorge = gorgePoints();
+  connect(P, G('pont-des-lianes', gorge[0]!), gorge[0]!, [C.tertiary, C.lane, steep], 'Route des Gorges du Dragon', 240);
+  connect(P, gorge[0]!, gorge[1]!, [C.tertiary, C.lane, steep], 'Route des Gorges du Dragon', 240);
+  // c. Routes communales (ponts sur le Grand Fleuve entre la Bambouseraie et Pont-des-Lianes, et aux Pilotis).
   const tert: Array<[string, string]> = [
-    ['le-col', 'vat-robert'], ['le-col', 'rive-des-lotus'], ['rive-des-lotus', 'les-pilotis'], ['les-terrasses', 'plage-de-jade'], ['baie-des-pitons', 'pont-des-lianes'],
-    ['les-theiers', 'pont-des-lianes'], ['les-theiers', 'baie-des-pitons'], ['les-pilotis', 'les-mangroves'], ['vat-robert', 'pont-des-lianes'],
+    ['le-col', 'pont-des-lianes'], ['le-col', 'rive-des-lotus'], ['rive-des-lotus', 'les-pilotis'], ['plage-de-jade', 'baie-des-pitons'], ['baie-des-pitons', 'pont-des-lianes'],
+    ['les-theiers', 'pont-des-lianes'], ['les-pilotis', 'les-mangroves'], ['les-terrasses', 'pont-des-lianes'],
   ];
   for (const [a, b] of tert) connect(P, G(a, b), G(b, a), [C.tertiary, C.lane, steep], `Route de ${town(b).name}`, 200);
-  // Village-des-Nuages : la route des Nuages (lacets dessinés) descend jusqu'au pied, raccordé à Rive-des-Lotus et aux Pilotis.
+  // Village-des-Nuages : la route des Nuages (lacets dessinés) descend jusqu'au pied, raccordé à Rive-des-Lotus et à la Bambouseraie.
   const pb = gates.find((g) => g.town === 'pralong-bas')!.p;
   connect(P, pb, G('rive-des-lotus', pb), [C.tertiary, C.lane, steep], 'Route des Nuages', 200);
-  connect(P, pb, G('les-pilotis', pb), [C.tertiary, C.lane, steep], 'Route des Nuages', 200);
-  // Lac de Robert : pas de tour complet (la rive nord, au pied de la chaîne, est trop raide) ; voie verte et routes au sud.
+  connect(P, pb, G('le-col', pb), [C.tertiary, C.lane, steep], 'Route des Nuages', 200);
   const lake: Vec2[] = [];
   const anneauGate = (k: number) => gates.filter((g) => g.town === 'anneau')[k]!.p;
   connect(P, anneauGate(0), G('vat-robert', anneauGate(0)), [C.tertiary, C.lane, steep], 'Route du Circuit');
-  connect(P, anneauGate(3), G('plage-de-jade', anneauGate(3)), [C.tertiary, C.lane, steep], 'Route du Circuit');
+  connect(P, anneauGate(3), G('les-terrasses', anneauGate(3)), [C.tertiary, C.lane, steep], 'Route du Circuit');
   connect(P, anneauGate(1), G('les-pilotis', anneauGate(1)), [C.tertiary, C.lane, steep], 'Route du Circuit');
   // d. Col de la Jungle (routes dessinées en lacets) : le pied du versant nord rejoint le réseau.
   const col = gates.find((g) => g.town === 'col')!.p;
@@ -606,7 +584,7 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   connect(P, G('vat-robert', anneauGate(2)), anneauGate(2), cyc, 'La Piste des Rizières');
   connect(P, G('les-pilotis', 'les-mangroves'), G('les-mangroves', 'les-pilotis'), cyc, 'Voie verte du Fleuve');
   connect(P, G('rive-des-lotus', 'vat-robert'), G('vat-robert', 'rive-des-lotus'), cyc, 'Voie verte des Lotus');
-  connect(P, G('plage-de-jade', 'les-terrasses'), G('les-terrasses', 'plage-de-jade'), cyc, 'La Vélo du Lagon');
+  connect(P, G('plage-de-jade', UV(-3200, 7000)), G('les-terrasses', 'plage-de-jade'), cyc, 'La Vélo des Terrasses');
   // f. Chemins des fermes, puis maillage de petites routes.
   for (const f of farms) spur(P, f.gate, C.lane, 5, 'Chemin rural');
   meshRoads(P);
@@ -630,8 +608,8 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
     return good;
   };
   // g. Gravel : chemin des Nuages (au-dessus du Village-des-Nuages), chemin des Mangroves (autour de la lagune).
-  const bois = loopConnect(loopPts(-9400, -5900, 650, 9, 0.4), [C.track, { ...C.track, gmax: 0.17 }], 'Chemin des Nuages');
-  loopConnect(loopPts(-11600, 6600, 1000, 7, 0.3), [C.track], 'Chemin des Mangroves');
+  const bois = loopConnect(loopPts(...UV(-5700, -5700), 480, 8, 0.3), [C.track, { ...C.track, gmax: 0.17 }], 'Chemin des Nuages');
+  loopConnect(loopPts(...UV(-14700, 2900), 1000, 7, 0.3), [C.track], 'Chemin des Mangroves');
   // h. VTT : sentiers de chaque région (TRAILS).
   let mtb: Vec2[] = [];
   for (const [k0, t] of TRAILS.entries()) {
@@ -1048,12 +1026,15 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
       // franchit une épaule de montagne la suit au lieu de passer dessous), 16 % au plus.
       let steepest = 0;
       for (let i = 0; i + 15 < xz.length; i += 5) steepest = Math.max(steepest, Math.abs(terrain(xz[i + 15]![0], xz[i + 15]![1]) - terrain(xz[i]![0], xz[i]![1])) / 30);
-      const cap = Math.min(cls.kind === 'track' ? 0.27 : 0.155, Math.max(cls.gmax + 0.005, steepest * 1.05));
-      const y = profile(xz, false, cls.id === 'track' ? 24 : cls.id === 'mtb' ? 40 : 30, cap, endY(xz[0]!), endY(xz[xz.length - 1]!));
       const skins = cls.kind === 'track' ? SKIN[e.label ?? ''] : undefined;
       const nth = counts.get(`·${e.label}`) ?? 0;
       if (skins) counts.set(`·${e.label}`, nth + 1);
       const [surface, width] = skins ? skins[nth % skins.length]! : [cls.surface, cls.width];
+      // Pente plafond sous les limites des contrôles (verify.ts) : chemins roulants 20 %, sentiers 27 %, pistes
+      // cyclables 7 %, routes 16 %.
+      const limit = cls.kind === 'track' ? (GRAVELLY.has(surface) ? 0.19 : 0.26) : cls.kind === 'cycleway' ? 0.066 : 0.155;
+      const cap = Math.min(limit, Math.max(cls.gmax + 0.005, steepest * 1.05));
+      const y = profile(xz, false, cls.id === 'track' ? 24 : cls.id === 'mtb' ? 40 : 30, cap, endY(xz[0]!), endY(xz[xz.length - 1]!));
       const n = (counts.get(cls.id) ?? 0) + 1;
       counts.set(cls.id, n);
       out.push({
@@ -1108,52 +1089,84 @@ function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; f
   const lake = LAKES.find((l) => l.id === 'lac-de-robert')!;
   const lagoon = LAKES.find((l) => l.id === 'lagune')!;
   const temple: Vec2 = [TEMPLE_HILL.x, TEMPLE_HILL.z];
+  const pagode = UV(-900, 4250);
+  const gorge = gorgePoints();
+  const delta = UV(-14000, 1200);
   return [
     // Découverte (premier parcours proposé), classiques, chrono et nuit.
-    { id: 'decouverte-des-rizieres', name: 'Découverte des rizières', nameEn: 'Rice terraces discovery ride', loop: true, mode: 'road', waypoints: [t('vat-robert'), [-5300, 1900], [-4600, -300]], landmarks: [L('Vat-Robert', t('vat-robert')), L('Les rizières', [-5300, 1600]), L('Grand Temple de Vat-Robert', temple)] },
-    { id: 'classique-des-terrasses', name: 'La Classique des Terrasses', nameEn: 'Terraces classic', loop: false, mode: 'road', waypoints: [t('vat-robert'), t('les-terrasses'), t('pont-des-lianes'), t('baie-des-pitons'), t('plage-de-jade')], sprints: [{ name: 'Sprint des Terrasses', x: t('les-terrasses')[0], z: t('les-terrasses')[1] }, { name: 'Sprint des Pitons', x: t('baie-des-pitons')[0], z: t('baie-des-pitons')[1] }], landmarks: [L('Vat-Robert', t('vat-robert')), L('Les Terrasses', t('les-terrasses')), L('Pagode des Terrasses', [4700, 4800]), L('Pont-des-Lianes', t('pont-des-lianes')), L('Les Pitons', t('baie-des-pitons')), L('Plage-de-Jade', t('plage-de-jade'))] },
-    { id: 'chrono-des-digues', name: 'Le chrono des Digues', nameEn: 'Dykes time trial', loop: false, mode: 'road', waypoints: [t('vat-robert'), t('les-pilotis')], landmarks: [L('Vat-Robert', t('vat-robert')), L('Les rizières', [-7800, 1000]), L('Les Pilotis', t('les-pilotis'))] },
+    { id: 'decouverte-des-rizieres', name: 'Découverte des rizières', nameEn: 'Rice terraces discovery ride', loop: true, mode: 'road', waypoints: [t('vat-robert'), UV(-3000, 1000), UV(-3500, 2600)], landmarks: [L('Vat-Robert', t('vat-robert')), L('Les rizières du Grand Fleuve', UV(-3000, 1000)), L('Les digues', UV(-3500, 2600))] },
+    { id: 'classique-des-terrasses', name: 'La Classique des Terrasses', nameEn: 'Terraces classic', loop: false, mode: 'road', waypoints: [t('vat-robert'), t('les-terrasses'), t('plage-de-jade'), t('baie-des-pitons'), t('pont-des-lianes')], sprints: [{ name: 'Sprint des Terrasses', x: t('les-terrasses')[0], z: t('les-terrasses')[1] }, { name: 'Sprint de Plage-de-Jade', x: t('plage-de-jade')[0], z: t('plage-de-jade')[1] }], landmarks: [L('Vat-Robert', t('vat-robert')), L('Les Terrasses', t('les-terrasses')), L('Pagode des Terrasses', pagode), L('Plage-de-Jade', t('plage-de-jade')), L('Les Pitons', t('baie-des-pitons')), L('Pont-des-Lianes', t('pont-des-lianes'))] },
+    { id: 'chrono-des-digues', name: 'Le chrono des Digues', nameEn: 'Dykes time trial', loop: false, mode: 'road', waypoints: [t('vat-robert'), t('les-pilotis')], landmarks: [L('Vat-Robert', t('vat-robert')), L('Les rizières', UV(-6000, 1000)), L('Les Pilotis', t('les-pilotis'))] },
     { id: 'temple-de-nuit', name: 'La montée de nuit au Temple des Lanternes', nameEn: 'Lantern temple night climb', loop: false, mode: 'road', waypoints: [t('le-col'), MASSIF.phare], hairpins: true, climbNames: ['Montée nocturne du Temple'], landmarks: [L('La Bambouseraie', t('le-col')), L('Temple des Lanternes', MASSIF.phare)] },
     // Route.
     { id: 'boucle-de-vat-robert', name: 'La boucle de Vat-Robert', nameEn: 'Vat-Robert loop', loop: true, mode: 'road', waypoints: [t('vat-robert'), ANNEAU_GATES[0]!, ANNEAU_GATES[3]!, t('les-terrasses')], sprints: [{ name: 'Sprint des Terrasses', x: t('les-terrasses')[0], z: t('les-terrasses')[1] }], landmarks: [L('Vat-Robert', t('vat-robert')), L('Circuit des Rizières', [ANNEAU.cx, ANNEAU.cz]), L('Les Terrasses', t('les-terrasses'))] },
     { id: 'criterium-de-vat-robert', name: 'Le critérium de Vat-Robert', nameEn: 'Vat-Robert criterium', loop: true, mode: 'road', waypoints: [V(-0.55, -0.36), V(0.55, -0.36), V(0.55, 0.36), V(-0.55, 0.36)], sprints: [{ name: 'Sprint de la Rue du Marché', x: V(0.3, 0)[0], z: V(0.3, 0)[1] }], landmarks: [L('Place du marché de Vat-Robert', t('vat-robert'))] },
     { id: 'col-de-la-jungle', name: 'La traversée du Col de la Jungle', nameEn: 'Jungle pass traverse', loop: false, mode: 'road', waypoints: [t('le-col'), net.col, net.foot], hairpins: true, climbNames: ['Col de la Jungle, versant sud'], landmarks: [L('La Bambouseraie', t('le-col')), L('Col de la Jungle', net.col), L('Vallée des Jonques', net.foot)] },
     { id: 'mont-des-lanternes', name: 'La montée du Mont des Lanternes', nameEn: 'Lantern mount climb', loop: false, mode: 'road', waypoints: [t('le-col'), MASSIF.phare], hairpins: true, climbNames: ['Mont des Lanternes'], landmarks: [L('Temple des Lanternes', MASSIF.phare)] },
-    { id: 'col-par-les-jonques', name: 'Le Col de la Jungle par les Jonques', nameEn: 'Jungle pass from the north', loop: false, mode: 'road', waypoints: [net.foot, net.col, t('le-col')], hairpins: true, climbNames: ['Col de la Jungle, versant nord'], landmarks: [L('Vallée des Jonques', net.foot), L('Col de la Jungle', net.col), L('La Bambouseraie', t('le-col'))] },
-    { id: 'montee-des-nuages', name: 'La montée du Village-des-Nuages', nameEn: 'Cloud village climb', loop: false, mode: 'road', waypoints: [net.pralongBas, t('village-des-nuages')], hairpins: true, climbNames: ['Montée des Nuages'], landmarks: [L('Village-des-Nuages', t('village-des-nuages')), L('Étang des Nuages', [-8950, -5850])] },
-    { id: 'gorges-du-dragon', name: 'Les gorges du Dragon', nameEn: 'Dragon gorges', loop: false, mode: 'road', waypoints: [t('pont-des-lianes'), [6900, -300], t('le-col')], landmarks: [L('Pont-des-Lianes', t('pont-des-lianes')), L('Gorges du Dragon', [6900, -300]), L('La Bambouseraie', t('le-col'))] },
+    { id: 'col-par-les-jonques', name: 'Le Col de la Jungle par les Jonques', nameEn: 'Jungle pass from the north', loop: false, mode: 'road', waypoints: [net.foot, t('le-col')], hairpins: true, climbNames: ['Col de la Jungle, versant nord'], landmarks: [L('Vallée des Jonques', net.foot), L('Col de la Jungle', net.col), L('La Bambouseraie', t('le-col'))] },
+    { id: 'montee-des-nuages', name: 'La montée du Village-des-Nuages', nameEn: 'Cloud village climb', loop: false, mode: 'road', waypoints: [net.pralongBas, t('village-des-nuages')], hairpins: true, climbNames: ['Montée des Nuages'], landmarks: [L('Village-des-Nuages', t('village-des-nuages')), L('Étang des Nuages', UV(-3500, -6050))] },
+    { id: 'gorges-du-dragon', name: 'Les gorges du Dragon', nameEn: 'Dragon gorges', loop: false, mode: 'road', waypoints: [t('pont-des-lianes'), gorge[0]!, gorge[1]!, t('les-theiers')], landmarks: [L('Pont-des-Lianes', t('pont-des-lianes')), L('Gorges du Dragon', gorge[1]!), L('Les Théiers', t('les-theiers'))] },
     { id: 'tour-des-rizieres', name: 'Le Tour des Rizières', nameEn: 'Round the rice lands', loop: true, mode: 'road', waypoints: net.ring.filter((_, k) => k % 2 === 0), sprints: [{ name: 'Sprint des Jonques', x: t('port-des-jonques')[0], z: t('port-des-jonques')[1] }, { name: 'Sprint de Plage-de-Jade', x: t('plage-de-jade')[0], z: t('plage-de-jade')[1] }], landmarks: TOWNS.filter((x) => shoreDist(x.x, x.z) < 1500).map((x) => L(x.name, [x.x, x.z])) },
     { id: 'corniche-des-pitons', name: 'La corniche des Pitons', nameEn: 'Karst corniche', loop: true, mode: 'road', waypoints: [t('plage-de-jade'), t('baie-des-pitons'), t('les-terrasses')], sprints: [{ name: 'Sprint des Pitons', x: t('baie-des-pitons')[0], z: t('baie-des-pitons')[1] }], landmarks: [L('Plage-de-Jade', t('plage-de-jade')), L('Les Pitons', t('baie-des-pitons')), L('Les Terrasses', t('les-terrasses'))] },
-    { id: 'plateau-des-theiers', name: 'Le plateau des Théiers', nameEn: 'Tea plateau', loop: true, mode: 'road', waypoints: [t('les-theiers'), t('baie-des-pitons'), t('pont-des-lianes')], landmarks: [L('Les Théiers', t('les-theiers')), L('Ruines du Palais des Théiers', [12700, -1700]), L('Pont-des-Lianes', t('pont-des-lianes'))] },
-    { id: 'golfe-et-terrasses', name: 'Le golfe et les Terrasses', nameEn: 'Gulf and terraces', loop: true, mode: 'road', waypoints: [t('plage-de-jade'), t('les-terrasses'), t('vat-robert')], sprints: [{ name: 'Sprint des Flamboyants', x: coastPoint(ang, 800)[0], z: coastPoint(ang, 800)[1] }], landmarks: [L('Plage-de-Jade', t('plage-de-jade')), L('Pagode des Terrasses', [4700, 4800])] },
+    { id: 'plateau-des-theiers', name: 'La montée du plateau des Théiers', nameEn: 'Tea plateau climb', loop: false, mode: 'road', waypoints: [t('pont-des-lianes'), t('les-theiers')], climbNames: ['Montée des Théiers'], landmarks: [L('Les Théiers', t('les-theiers')), L('Ruines du Palais des Théiers', UV(9900, 3200)), L('Pont-des-Lianes', t('pont-des-lianes'))] },
+    { id: 'golfe-et-terrasses', name: "L'anse de Jade et les Terrasses", nameEn: 'Jade cove and terraces', loop: true, mode: 'road', waypoints: [t('plage-de-jade'), t('les-terrasses'), t('vat-robert')], sprints: [{ name: 'Sprint des Flamboyants', x: coastPoint(ang, 800)[0], z: coastPoint(ang, 800)[1] }], landmarks: [L('Plage-de-Jade', t('plage-de-jade')), L('Pagode des Terrasses', pagode)] },
     { id: 'delta-et-mangroves', name: 'Le delta et les Mangroves', nameEn: 'Delta and mangroves', loop: true, mode: 'road', waypoints: [t('les-pilotis'), t('les-mangroves'), ANNEAU_GATES[1]!], landmarks: [L('Les Pilotis', t('les-pilotis')), L('Lagune des Mangroves', [lagoon.x, lagoon.z]), L('Les Mangroves', t('les-mangroves'))] },
     // Pistes cyclables.
     { id: 'promenade-de-plage-de-jade', name: 'La promenade des Cocotiers', nameEn: 'Palm promenade', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], sprints: [{ name: 'Sprint de la Promenade', x: coastPoint(ang + 0.1, 125)[0], z: coastPoint(ang + 0.1, 125)[1], lengthM: 400 }], landmarks: [L('La Promenade des Cocotiers', coastPoint(ang, 125)), L('Marché de nuit', coastPoint(ang + 0.018, 230))] },
     { id: 'piste-des-rizieres', name: 'La piste des Rizières', nameEn: 'Rice fields cycleway', loop: true, mode: 'cycle', waypoints: [t('vat-robert'), ANNEAU_GATES[2]!, ANNEAU_GATES[0]!], landmarks: [L('Circuit des Rizières', [ANNEAU.cx, ANNEAU.cz]), L('Vat-Robert', t('vat-robert'))] },
-    { id: 'voie-verte-du-fleuve', name: 'La voie verte du Fleuve', nameEn: 'River greenway', loop: false, mode: 'cycle', waypoints: [t('les-pilotis'), t('les-mangroves')], landmarks: [L('Les Mangroves', t('les-mangroves'))] },
-    { id: 'voie-verte-des-lotus', name: 'La voie verte des Lotus', nameEn: 'Lotus greenway', loop: false, mode: 'cycle', waypoints: [t('vat-robert'), t('rive-des-lotus')], landmarks: [L('Rive-des-Lotus', t('rive-des-lotus'))] },
-    { id: 'velo-du-lagon', name: 'La Vélo du Lagon', nameEn: 'Lagoon greenway', loop: false, mode: 'cycle', waypoints: [t('plage-de-jade'), t('les-terrasses')], landmarks: [L('Les Terrasses', t('les-terrasses'))] },
+    { id: 'voie-verte-du-fleuve', name: 'La voie verte du Fleuve', nameEn: 'River greenway', loop: false, mode: 'cycle', waypoints: [t('les-pilotis'), t('les-mangroves')], landmarks: [L('Le delta', delta), L('Les Mangroves', t('les-mangroves'))] },
+    { id: 'voie-verte-des-lotus', name: 'La voie verte des Lotus', nameEn: 'Lotus greenway', loop: false, mode: 'cycle', waypoints: [t('vat-robert'), t('rive-des-lotus')], landmarks: [L('Le Grand Fleuve', UV(-3300, 100)), L('Rive-des-Lotus', t('rive-des-lotus'))] },
+    { id: 'velo-du-lagon', name: 'La Vélo des Terrasses', nameEn: 'Terraces greenway', loop: false, mode: 'cycle', waypoints: [t('plage-de-jade'), t('les-terrasses')], landmarks: [L('Les Terrasses', t('les-terrasses'))] },
     // Gravel.
-    { id: 'classique-de-la-jungle', name: 'La Classique de la Jungle', nameEn: 'Jungle gravel classic', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [t('rive-des-lotus'), [-900, -4200], t('le-col'), [6900, -300], t('pont-des-lianes')], sprints: [{ name: 'Sprint de la Bambouseraie', x: t('le-col')[0], z: t('le-col')[1] }], landmarks: [L('Rive-des-Lotus', t('rive-des-lotus')), L('Les Bambous', [-900, -4200]), L('La Bambouseraie', t('le-col')), L('Gorges du Dragon', [6900, -300]), L('Pont-des-Lianes', t('pont-des-lianes'))] },
-    { id: 'gravel-des-nuages', name: 'Gravel des Nuages', nameEn: 'Cloud forest gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: net.bois, along: 'Chemin des Nuages', landmarks: [L('Village-des-Nuages', t('village-des-nuages')), L('Étang des Nuages', [-8950, -5850])] },
-    { id: 'gravel-des-theiers', name: 'Gravel des Théiers', nameEn: 'Tea garden gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Théiers', landmarks: [L('Les Théiers', [11000, 600])] },
-    { id: 'gravel-des-terrasses', name: 'Gravel des Terrasses', nameEn: 'Rice terrace gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Terrasses', landmarks: [L('Pagode des Terrasses', [4700, 4800])] },
-    { id: 'gravel-du-delta', name: 'Gravel du Delta', nameEn: 'Delta gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin du Delta', landmarks: [L('Le Delta', [-13300, 2600])] },
-    { id: 'gravel-des-bambous', name: 'Gravel des Bambous', nameEn: 'Bamboo gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Bambous', landmarks: [L('Les Bambous', [-900, -4200])] },
+    { id: 'classique-de-la-jungle', name: 'La Classique de la Jungle', nameEn: 'Jungle gravel classic', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [t('rive-des-lotus'), UV(2500, -3600), t('le-col'), t('pont-des-lianes'), gorge[0]!, gorge[1]!], sprints: [{ name: 'Sprint de la Bambouseraie', x: t('le-col')[0], z: t('le-col')[1] }], landmarks: [L('Rive-des-Lotus', t('rive-des-lotus')), L('Les Bambous', UV(2500, -3600)), L('La Bambouseraie', t('le-col')), L('Pont-des-Lianes', t('pont-des-lianes')), L('Gorges du Dragon', gorge[1]!)] },
+    { id: 'gravel-des-nuages', name: 'Gravel des Nuages', nameEn: 'Cloud forest gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: net.bois, along: 'Chemin des Nuages', landmarks: [L('Village-des-Nuages', t('village-des-nuages')), L('Étang des Nuages', UV(-3500, -6050))] },
+    { id: 'gravel-des-theiers', name: 'Gravel des Théiers', nameEn: 'Tea garden gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Théiers', landmarks: [L('Les Théiers', t('les-theiers'))] },
+    { id: 'gravel-des-terrasses', name: 'Gravel des Terrasses', nameEn: 'Rice terrace gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Terrasses', landmarks: [L('Les Terrasses', UV(-4200, 4400))] },
+    { id: 'gravel-du-delta', name: 'Gravel du Delta', nameEn: 'Delta gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin du Delta', landmarks: [L('Le Delta', delta)] },
+    { id: 'gravel-des-bambous', name: 'Gravel des Bambous', nameEn: 'Bamboo gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Bambous', landmarks: [L('Les Bambous', UV(2500, -3600))] },
     { id: 'gravel-des-mangroves', name: 'Gravel des Mangroves', nameEn: 'Mangrove gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Mangroves', landmarks: [L('Lagune des Mangroves', [lagoon.x, lagoon.z])] },
-    { id: 'chemin-des-pitons', name: 'Le chemin des Pitons', nameEn: 'Karst coast path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(0.52, 320), coastPoint(0.74, 320), coastPoint(0.95, 320)], landmarks: [L('Les Pitons', t('baie-des-pitons'))] },
-    { id: 'chemin-des-sables-blancs', name: 'Le chemin des Sables blancs', nameEn: 'White sands path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(2.12, 280), coastPoint(2.5, 280)], landmarks: [L('Pointe des Sables blancs', coastPoint(2.32, 300))] },
-    { id: 'grande-traversee', name: 'La Grande Traversée', nameEn: 'Great gravel traverse', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [[-10600, 3600], [-8200, 5600], [-5200, 6000], [-2200, 6300], [1200, 7300]], landmarks: [L('Les Pilotis', t('les-pilotis')), L('Les Terrasses', t('les-terrasses'))] },
-    { id: 'cyclo-cross-des-digues', name: 'Le cyclo-cross des Digues', nameEn: 'Dykes cyclocross', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Cyclo-cross des Digues', landmarks: [L('Cyclo-cross des Digues', [-8600, 2150])] },
+    { id: 'chemin-des-pitons', name: 'Le chemin des Pitons', nameEn: 'Karst coast path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(A(0.6), 340), coastPoint(A(0.8), 340), coastPoint(A(1.05), 340)], landmarks: [L('Les Pitons', t('baie-des-pitons'))] },
+    { id: 'chemin-des-sables-blancs', name: 'Le chemin des Sables blancs', nameEn: 'White sands path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(A(2.15), 300), coastPoint(A(2.5), 300)], landmarks: [L('Pointe des Sables blancs', coastPoint(A(2.42), 320))] },
+    { id: 'grande-traversee', name: 'La Grande Traversée', nameEn: 'Great gravel traverse', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [UV(-9000, 3300), UV(-6500, 4500), UV(-4400, 5600)], landmarks: [L('Les Pilotis', t('les-pilotis')), L('Les Terrasses', t('les-terrasses'))] },
+    { id: 'cyclo-cross-des-digues', name: 'Le cyclo-cross des Digues', nameEn: 'Dykes cyclocross', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Cyclo-cross des Digues', landmarks: [L('Cyclo-cross des Digues', UV(-8400, 3300))] },
     // VTT.
-    { id: 'vtt-des-nuages', name: 'VTT des Nuages', nameEn: 'Cloud forest MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: net.mtb, along: 'Sentier des Nuages', landmarks: [L('Forêt des Nuages', [-7700, -6500])] },
-    { id: 'vtt-du-mont-du-tigre', name: 'VTT du Mont du Tigre', nameEn: 'Tiger mount MTB loop', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Mont du Tigre', landmarks: [L('Ruines de Prasat-Vert', [5500, -3100]), L('Mont du Tigre', MASSIF.mont)] },
-    { id: 'descente-de-la-jungle', name: 'La descente de la Jungle', nameEn: 'Jungle downhill', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[3100, -5300], [2200, -3300]], sprints: [{ name: 'Chrono de la descente', x: 2200, z: -3300, lengthM: 1500 }], landmarks: [L('Balcon de la Jungle', [3100, -5300]), L('La Bambouseraie', t('le-col'))] },
-    { id: 'vtt-du-dragon', name: 'VTT du Dragon', nameEn: 'Dragon MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Dragon', landmarks: [L('Temple englouti du Dragon', [8700, -1900])] },
-    { id: 'vtt-des-pitons', name: 'VTT des Pitons', nameEn: 'Karst MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Pitons', landmarks: [L('Les Pitons', [9300, 7500])] },
+    { id: 'vtt-des-nuages', name: 'VTT des Nuages', nameEn: 'Cloud forest MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: net.mtb, along: 'Sentier des Nuages', landmarks: [L('Forêt des Nuages', UV(-1800, -6500))] },
+    { id: 'vtt-du-mont-du-tigre', name: 'VTT du Mont du Tigre', nameEn: 'Tiger mount MTB loop', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Mont du Tigre', landmarks: [L('Ruines de Prasat-Vert', UV(12900, 800)), L('Mont du Tigre', MASSIF.mont)] },
+    { id: 'descente-de-la-jungle', name: 'La descente de la Jungle', nameEn: 'Jungle downhill', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [UV(13000, -300), UV(10400, 800)], sprints: [{ name: 'Chrono de la descente', x: UV(10400, 800)[0], z: UV(10400, 800)[1], lengthM: 1500 }], landmarks: [L('Balcon de la Jungle', UV(13000, -300)), L('La Bambouseraie', t('le-col'))] },
+    { id: 'vtt-du-dragon', name: 'VTT du Dragon', nameEn: 'Dragon MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Dragon', landmarks: [L('Temple englouti du Dragon', UV(12700, 4300))] },
+    { id: 'vtt-des-pitons', name: 'VTT des Pitons', nameEn: 'Karst MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Pitons', landmarks: [L('Les Pitons', UV(3800, 4600))] },
     { id: 'vtt-des-lotus', name: 'VTT des Lotus', nameEn: 'Lotus MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Lotus', landmarks: [L('Lac des Lotus', [lake.x, lake.z])] },
-    { id: 'bike-park-de-la-jungle', name: 'Le bike park de la Jungle', nameEn: 'Jungle bike park', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Bike park de la Jungle', landmarks: [L('Bike park de la Jungle', [-8400, -4200])] },
+    { id: 'bike-park-de-la-jungle', name: 'Le bike park de la Jungle', nameEn: 'Jungle bike park', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Bike park de la Jungle', landmarks: [L('Bike park de la Jungle', UV(-600, -4300))] },
   ];
+}
+
+/**
+ * Tronçons de montagne : une grande route (secondary) dont un virage reste plus serré que 7,5 m de rayon (épaule de la
+ * chaîne, raccord de village) devient une route de montagne (tertiary, 6 m), comme sur les cols.
+ */
+function mountainSections(roads: Road[]): number {
+  let n = 0;
+  for (const r of roads) {
+    if (r.kind !== 'secondary') continue;
+    const p = r.pts;
+    for (let i = 0; i + 6 < p.length; i++) {
+      const [ax, , az] = p[i]!;
+      const [bx, , bz] = p[i + 3]!;
+      const [cx, , cz] = p[i + 6]!;
+      const a = Math.hypot(bx - ax, bz - az);
+      const b = Math.hypot(cx - bx, cz - bz);
+      const c = Math.hypot(cx - ax, cz - az);
+      const area2 = Math.abs((bx - ax) * (cz - az) - (bz - az) * (cx - ax));
+      const R = area2 < 1e-9 ? Infinity : (a * b * c) / (2 * area2);
+      if (R < 8) {
+        r.kind = 'tertiary';
+        r.width = Math.min(r.width, 6);
+        n++;
+        break;
+      }
+    }
+  }
+  return n;
 }
 
 /** Défaut d'un itinéraire selon les règles de verify.ts (marche, pente sur 10 m, demi-tour) ; null s'il est bon. */
@@ -1226,7 +1239,7 @@ async function main(): Promise<void> {
     const xs = joinCrossings(roads);
     log(`${xs} croisements, ${unifyEnds(roads)} raccords mis au même niveau, ${cleanRoads(roads)} points retirés`);
   }
-  log(`virages adoucis (${easeKinks(roads)} encore serrés), ${fillSags(roads)} creux comblés`);
+  log(`virages adoucis (${easeKinks(roads)} encore serrés), ${fillSags(roads)} creux comblés, ${mountainSections(roads)} tronçons de montagne`);
   log(`${roads.length} routes (${netRoads.length} tracées), ${(roads.reduce((s, r) => s + r.pts.length * 2, 0) / 1000).toFixed(0)} km, ${nx} croisements`);
 
   const idx = new RoadIndex(roads);

@@ -36,6 +36,27 @@ export interface PolyTheme {
   water?: string;
 }
 
+/**
+ * Biome d'un monde : ce qui pousse et ce qui traîne au bord des routes. Sans biome : la campagne de l'île
+ * (feuillus, sapins, herbe, boîtes aux lettres, poules, vaches).
+ */
+export interface PolyBiome {
+  /** Les feuillus deviennent : palmiers, arbres de jungle, bouleaux ou acacias. */
+  tree?: 'palm' | 'jungle' | 'birch' | 'acacia';
+  /** Les conifères deviennent : cactus ou touffes de bambous (absent : sapins). */
+  conifer?: 'cactus' | 'bamboo';
+  /** Quantité d'herbe (0 : sol nu, 1 : comme l'île, plus : plus touffu). */
+  grass?: number;
+  /** Teintes de l'herbe (pied, pointe) par saison : toundra brune, herbe sèche, vert profond… */
+  grassColours?: Record<Season, [string, string]>;
+  /** Quantité d'arbres (0 à 1 : éclaircit les bois et les arbres isolés). */
+  trees?: number;
+  /** Pas de boîtes aux lettres, poubelles ni poules devant les maisons. */
+  noVillageProps?: boolean;
+  /** Pas de vaches, moutons ni chevaux dans les prés. */
+  noHerds?: boolean;
+}
+
 /** Circuit du monde (pas de voitures ni de clôtures dessus), comme l'Anneau de l'île. */
 export interface PolyRing {
   x: number;
@@ -47,6 +68,8 @@ export interface PolyRing {
 export interface PolyLand {
   world: PolyWorld;
   theme: PolyTheme;
+  /** Végétation et mobilier propres au monde (voir PolyBiome). */
+  biome?: PolyBiome;
   ring?: PolyRing;
   /** Décor propre du monde (lieux construits près du coureur), comme outdoorSites() de l'île. */
   sites: () => Site[];

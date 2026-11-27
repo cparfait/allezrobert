@@ -728,7 +728,7 @@ class SegIndex {
 
 // Lancement direct : relit le monde déjà écrit.
 if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
-  const report = verifyWorld(resolve(import.meta.dirname, process.argv[2] ?? '../../../apps/client/public/worlds/rizieres'));
+  const report = verifyWorld(resolve(process.argv[2] ?? resolve(import.meta.dirname, '../../../apps/client/public/worlds/rizieres')));
   for (const l of report.lines) console.log(l);
   if (!report.ok) process.exitCode = 1;
 }

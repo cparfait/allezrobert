@@ -3,7 +3,7 @@
  * promenade en bois, hangars à bateaux colorés, halle aux poissons, hôtels), maisons de bois à toit pentu le long
  * des rues, fermes, édifices remarquables (belvédère des Aurores, phare du cap Boréal, gares du bac…).
  */
-import { ANNEAU, GLACIER, MASSIF, TOWNS, coastPoint, inHarbour, inLake, inRiver, shoreDist, terrain, type Town, type Vec2 } from './design.ts';
+import { ANNEAU, CAP, GLACIER, HARBOURS, MASSIF, SPOTS, TOWNS, coastPoint, inHarbour, inLake, inRiver, shoreDist, terrain, type Town, type Vec2 } from './design.ts';
 import { orientedRect, pointInPolygon } from './geom.ts';
 import { rng } from './noise.ts';
 import { RoadIndex, finalHeight, type Road, type RoadSpec } from './roads.ts';
@@ -183,7 +183,7 @@ export class Builder {
       if (this.idx.edgeDist(x, z) < margin) return false;
       if (inLake(x, z, 1.25) || inRiver(x, z, 6) || inHarbour(x, z, 6) || shoreDist(x, z) < 40) return false;
       const h = terrain(x, z);
-      if (h < 0.8) return false;
+      if (h < 1.5) return false;
       lo = Math.min(lo, h);
       hi = Math.max(hi, h);
     }
@@ -397,9 +397,14 @@ export function landmarks(B: Builder): void {
   B.places.push({ name: 'La Dent du Renne', kind: 'locality', x: MASSIF.mont[0], z: MASSIF.mont[1] });
   const col: Vec2 = [(MASSIF.phare[0] + MASSIF.mont[0]) / 2, (MASSIF.phare[1] + MASSIF.mont[1]) / 2];
   B.places.push({ name: 'Col du Renne', kind: 'locality', x: col[0], z: col[1] });
+  B.places.push({ name: 'Calotte de Robert', kind: 'locality', x: CAP.x, z: CAP.z });
   B.places.push({ name: 'Glacier de Robert', kind: 'locality', x: (GLACIER.from[0] + GLACIER.to[0]) / 2, z: (GLACIER.from[1] + GLACIER.to[1]) / 2 });
   B.places.push({ name: 'Front du glacier', kind: 'locality', x: GLACIER.to[0], z: GLACIER.to[1] });
-  B.places.push({ name: 'Bac du fjord', kind: 'locality', x: 14196, z: -3825 });
+  const caleA = HARBOURS.find((h) => h.id === 'bac-ferjeby')!;
+  const caleB = HARBOURS.find((h) => h.id === 'bac-utnes')!;
+  B.places.push({ name: 'Bac du fjord', kind: 'locality', x: (caleA.x + caleB.x) / 2, z: (caleA.z + caleB.z) / 2 });
+  /** Gare du bac : en retrait de la cale, face au fjord. */
+  const gare = (h: typeof caleA): Vec2 => [h.x - Math.cos(h.dir) * 70, h.z - Math.sin(h.dir) * 70];
   // Tribunes du Circuit, le long de la ligne droite sud.
   for (const k of [-1, 0, 1]) {
     const x = ANNEAU.cx + k * 56;
@@ -409,16 +414,17 @@ export function landmarks(B: Builder): void {
   B.places.push({ name: 'Circuit du Grand Nord', kind: 'locality', x: ANNEAU.cx, z: ANNEAU.cz });
   B.area('park', 'landuse', stadium(ANNEAU.cx, ANNEAU.cz, ANNEAU.half, ANNEAU.radius - 14), 'Pelouse du Circuit');
   const tries: Array<[Vec2, Omit<Building, 'id' | 'y' | 'pts'>, (x: number, z: number) => Vec2[]]> = [
-    [[4700, 4800], { kind: 'house', height: 4, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#a8322d', material: 'wood', name: 'Cabane des Mille-Lacs' }, (x, z) => orientedRect(x, z, 5, 3.5, 0.3)],
-    [[12700, -1700], { kind: 'tower', height: 18, levels: 1, roof: { shape: 'flat', height: 0, material: 'concrete' }, colour: '#f1efe6', name: 'Station météo de Vidda' }, (x, z) => octagon(x, z, 3)],
-    [[-5000, -3700], { kind: 'church', height: 10, levels: 1, roof: { shape: 'gabled', height: 8, material: 'slate' }, colour: '#5b3a26', material: 'wood', name: 'Église en bois du Lac' }, (x, z) => orientedRect(x, z, 12, 6, 0.12)],
+    [SPOTS.cabane, { kind: 'house', height: 4, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#a8322d', material: 'wood', name: 'Cabane des Mille-Lacs' }, (x, z) => orientedRect(x, z, 5, 3.5, 0.3)],
+    [SPOTS.meteo, { kind: 'tower', height: 18, levels: 1, roof: { shape: 'flat', height: 0, material: 'concrete' }, colour: '#f1efe6', name: 'Station météo de Vidda' }, (x, z) => octagon(x, z, 3)],
+    [SPOTS.stavkirke, { kind: 'church', height: 10, levels: 1, roof: { shape: 'gabled', height: 8, material: 'slate' }, colour: '#5b3a26', material: 'wood', name: 'Église en bois de Vatnby' }, (x, z) => orientedRect(x, z, 12, 6, 0.12)],
     [coastPoint(0.08, 120), { kind: 'tower', height: 18, levels: 4, roof: { shape: 'flat', height: 0, material: 'concrete' }, colour: '#f4f2ec', name: 'Phare du Cap Boréal' }, (x, z) => octagon(x, z, 3.2)],
     [[MASSIF.mont[0] - 300, MASSIF.mont[1] + 700], { kind: 'house', height: 4, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#a8322d', material: 'wood', name: 'Abri de la Dent du Renne' }, (x, z) => orientedRect(x, z, 4, 3, 0.3)],
-    [[-7650, -4750], { kind: 'house', height: 6, levels: 1, roof: { shape: 'gabled', height: 4, material: 'metal' }, colour: '#e2b54a', material: 'wood', name: 'Chalet du bike park' }, (x, z) => orientedRect(x, z, 8, 5, 0.6)],
-    [[10600, 1300], { kind: 'tower', height: 30, levels: 1, roof: { shape: 'flat', height: 0, material: 'metal' }, colour: '#cfd3d6', name: 'Antenne de Vidda' }, (x, z) => octagon(x, z, 2)],
-    [[-12800, 4600], { kind: 'industrial', height: 6, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#a8322d', material: 'wood', name: 'Fumoir à saumon' }, (x, z) => orientedRect(x, z, 12, 6, 0.4)],
-    [[14100, -4085], { kind: 'commercial', height: 5, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#f1efe6', material: 'wood', name: 'Gare du bac de Ferjeby' }, (x, z) => orientedRect(x, z, 7, 4, 1.234)],
-    [[14290, -3565], { kind: 'commercial', height: 5, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#e2b54a', material: 'wood', name: "Embarcadère d'Utnes" }, (x, z) => orientedRect(x, z, 7, 4, -1.907)],
+    [SPOTS.bikePark, { kind: 'house', height: 6, levels: 1, roof: { shape: 'gabled', height: 4, material: 'metal' }, colour: '#e2b54a', material: 'wood', name: 'Chalet du bike park' }, (x, z) => orientedRect(x, z, 8, 5, 0.6)],
+    [SPOTS.antenne, { kind: 'tower', height: 30, levels: 1, roof: { shape: 'flat', height: 0, material: 'metal' }, colour: '#cfd3d6', name: 'Antenne de Vidda' }, (x, z) => octagon(x, z, 2)],
+    [SPOTS.fumoir, { kind: 'industrial', height: 6, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#a8322d', material: 'wood', name: 'Fumoir à saumon' }, (x, z) => orientedRect(x, z, 12, 6, 0.4)],
+    [gare(caleA), { kind: 'commercial', height: 5, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#f1efe6', material: 'wood', name: 'Gare du bac de Ferjeby' }, (x, z) => orientedRect(x, z, 7, 4, caleA.dir)],
+    [gare(caleB), { kind: 'commercial', height: 5, levels: 1, roof: { shape: 'gabled', height: 3, material: 'metal' }, colour: '#e2b54a', material: 'wood', name: "Embarcadère d'Utnes" }, (x, z) => orientedRect(x, z, 7, 4, caleB.dir)],
+    [SPOTS.refuge, { kind: 'house', height: 5, levels: 1, roof: { shape: 'gabled', height: 3.5, material: 'metal' }, colour: '#a8322d', material: 'wood', name: 'Refuge de la Calotte' }, (x, z) => orientedRect(x, z, 7, 4.5, 0.8)],
   ];
   for (const [[x0, z0], b, shape] of tries) {
     for (let k = 0; k < 40; k++) {

@@ -3,7 +3,7 @@
  * petite ville blanche du bord de mer (front de mer, promenade, cabanes de plage, hôtels), maisons le long des rues,
  * fermes de palmeraie, citadelle de Ksar-Rouge, édifices remarquables.
  */
-import { ANNEAU, CHOTT, MASSIF, MESAS, OASES, TOWNS, chottE, coastPoint, ergMask, inHarbour, inLake, inRiver, mesaShare, shoreDist, terrain, type Town, type Vec2 } from './design.ts';
+import { ANNEAU, ARC, CHOTT, MASSIF, MESAS, OASES, TOWNS, chottE, cliffAt, coastPoint, coastPoint as coastPointOf, ergMask, inHarbour, inLake, inRiver, mesaShare, oasisDist, polar, shoreDist, terrain, type Town, type Vec2 } from './design.ts';
 import { orientedRect, pointInPolygon } from './geom.ts';
 import { rng } from './noise.ts';
 import { RoadIndex, finalHeight, type Road, type RoadSpec } from './roads.ts';
@@ -65,39 +65,44 @@ export function townLayout(t: Town, k: number): TownLayout {
   return { town: t, specs, gates, centre: [t.x, t.z], frame: { u, v } };
 }
 
-/** Port-Corail, petite ville blanche du golfe : boulevard du Golfe, promenade en bois, rues en damier. */
+/** Port-Corail, petite ville blanche au fond du golfe : boulevard du Golfe, promenade en bois, rues en damier. */
 function seasideLayout(t: Town): TownLayout {
-  const ang = Math.atan2(t.z, t.x);
-  const along = (a0: number, a1: number, inset: number, n = 40): Vec2[] => Array.from({ length: n + 1 }, (_, i) => coastPoint(a0 + ((a1 - a0) * i) / n, inset));
-  // Est (vers le port) : angles plus petits.
-  const east = ang - 0.055;
-  const west = ang + 0.145;
+  const th = t.t ?? 0;
+  const sd = t.side ?? -1;
+  const cp = (a: number, inset: number) => coastPoint(a, inset, sd);
+  const along = (a0: number, a1: number, inset: number, n = 40): Vec2[] => Array.from({ length: n + 1 }, (_, i) => cp(a0 + ((a1 - a0) * i) / n, inset));
+  // Est (vers le port) : angles plus grands.
+  const east = th + 0.055;
+  const west = th - 0.145;
   const specs: RoadSpec[] = [
     { id: `${t.id}-boulevard`, name: 'Boulevard du Corail', kind: 'tertiary', width: 8, pts: along(east, west, 185, 60), designed: true, gmax: 0.06, smooth: 2 },
-    { id: `${t.id}-planches`, name: 'La Promenade', kind: 'cycleway', width: 4, surface: 'wood', pts: along(east + 0.006, west - 0.006, 125, 50), designed: true, gmax: 0.04, smooth: 2 },
+    { id: `${t.id}-planches`, name: 'La Promenade', kind: 'cycleway', width: 4, surface: 'wood', pts: along(east - 0.006, west + 0.006, 125, 50), designed: true, gmax: 0.04, smooth: 2 },
     // Accès aux planches : perpendiculaires au front de mer (virages francs dans les deux sens).
-    { id: `${t.id}-planches-est`, name: 'La Promenade', kind: 'cycleway', width: 4, surface: 'wood', pts: [coastPoint(east + 0.006, 125), coastPoint(east + 0.006, 185)], designed: true, gmax: 0.06, smooth: 0 },
-    { id: `${t.id}-planches-ouest`, name: 'La Promenade', kind: 'cycleway', width: 4, surface: 'wood', pts: [coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185)], designed: true, gmax: 0.06, smooth: 0 },
-    { id: `${t.id}-rue-mer`, name: 'Rue de la Mer', kind: 'residential', width: 6, pts: along(east + 0.012, west - 0.012, 480, 40), designed: true, gmax: 0.08, smooth: 2 },
-    { id: `${t.id}-rue-casino`, name: 'Rue du Marché', kind: 'residential', width: 6, pts: along(east + 0.012, west - 0.012, 800, 40), designed: true, gmax: 0.09, smooth: 2 },
-    { id: `${t.id}-avenue`, name: 'Avenue des Palmiers', kind: 'tertiary', width: 7, pts: [coastPoint(ang, 185), coastPoint(ang, 480), coastPoint(ang, 800), coastPoint(ang, 1350)], designed: true, gmax: 0.08, smooth: 0 },
+    { id: `${t.id}-planches-est`, name: 'La Promenade', kind: 'cycleway', width: 4, surface: 'wood', pts: [cp(east - 0.006, 125), cp(east - 0.006, 185)], designed: true, gmax: 0.06, smooth: 0 },
+    { id: `${t.id}-planches-ouest`, name: 'La Promenade', kind: 'cycleway', width: 4, surface: 'wood', pts: [cp(west + 0.006, 125), cp(west + 0.006, 185)], designed: true, gmax: 0.06, smooth: 0 },
+    { id: `${t.id}-rue-mer`, name: 'Rue de la Mer', kind: 'residential', width: 6, pts: along(east - 0.012, west + 0.012, 480, 40), designed: true, gmax: 0.08, smooth: 2 },
+    { id: `${t.id}-rue-casino`, name: 'Rue du Marché', kind: 'residential', width: 6, pts: along(east - 0.012, west + 0.012, 800, 40), designed: true, gmax: 0.09, smooth: 2 },
+    { id: `${t.id}-avenue`, name: 'Avenue des Palmiers', kind: 'tertiary', width: 7, pts: [cp(th, 185), cp(th, 480), cp(th, 800), cp(th, 1350)], designed: true, gmax: 0.08, smooth: 0 },
   ];
   // Rues perpendiculaires au front de mer.
-  const side = [-0.035, -0.012, 0.025, 0.05, 0.075, 0.1, 0.125].map((da, i) => ({
+  const side = [0.035, 0.012, -0.025, -0.05, -0.075, -0.1, -0.125].map((da, i) => ({
     id: `${t.id}-rue-${i}`,
     name: ['Rue des Bains', 'Rue des Tamaris', 'Rue des Cigales', 'Rue des Terrasses', 'Rue des Mouettes', 'Rue des Lauriers', 'Rue des Dattiers'][i]!,
     kind: 'residential',
     width: 5.5,
-    pts: [coastPoint(ang + da, 185), coastPoint(ang + da, 480), coastPoint(ang + da, 800)],
+    pts: [cp(th + da, 185), cp(th + da, 480), cp(th + da, 800)],
     designed: true,
     gmax: 0.1,
     smooth: 0,
   }));
   specs.push(...side);
-  const gates: Vec2[] = [coastPoint(east, 185), coastPoint(west, 185), coastPoint(ang, 1350), coastPoint(east + 0.012, 800), coastPoint(west - 0.012, 800)];
-  const u: Vec2 = [-Math.sin(ang), Math.cos(ang)];
-  const v: Vec2 = [Math.cos(ang), Math.sin(ang)];
-  return { town: t, specs, gates, centre: coastPoint(ang, 640), frame: { u, v } };
+  const gates: Vec2[] = [cp(east, 185), cp(west, 185), cp(th, 1350), cp(east - 0.012, 800), cp(west + 0.012, 800)];
+  const a = cp(th - 0.01, 640);
+  const b = cp(th + 0.01, 640);
+  const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+  const u: Vec2 = [(b[0] - a[0]) / l, (b[1] - a[1]) / l];
+  const v: Vec2 = [-u[1], u[0]];
+  return { town: t, specs, gates, centre: cp(th, 640), frame: { u, v } };
 }
 
 /** Circuit du Chott : boucle dessinée ; les raccords se font sur des points choisis de la boucle. */
@@ -115,8 +120,8 @@ const PALETTES = {
   village: { walls: ['#c98b55', '#d29a62', '#b97a4a', '#dcae7a', '#c4834e', '#e0b88a', '#cf9466', '#b56f45', '#d8a46e', '#c29060'], roofs: ['flat'] },
   breton: { walls: ['#f4efe6', '#efe7d8', '#e9dfcc', '#f2ece0'], roofs: ['flat'] },
   villa: { walls: ['#f4efe6', '#efe7d8', '#f7f3ea', '#e9dfcc', '#e8d2b0'], roofs: ['flat'] },
-  farm: { walls: ['#c48e5c', '#b98352', '#d19c68', '#a8744a'], roofs: ['flat'] },
-  provence: { walls: ['#b0653d', '#a45a36', '#bf7447', '#9c5534', '#c4804f', '#b86e44', '#a9603b', '#cc8a56'], roofs: ['flat'] },
+  farm: { walls: ['#c48e5c', '#b98352', '#d19c68', '#c08a58'], roofs: ['flat'] },
+  provence: { walls: ['#c98450', '#bf7c4b', '#d19460', '#b9784a', '#cf9a68', '#c88a58', '#c07f50', '#d6a06c'], roofs: ['flat'] },
   chalet: { walls: ['#d6a877', '#cfa070', '#e2b986', '#c99563', '#dcb282', '#c18c5c'], roofs: ['flat'] },
 };
 
@@ -156,6 +161,16 @@ function edgesCross(a: Vec2[], b: Vec2[]): boolean {
   return false;
 }
 
+/**
+ * Maisons de terre crue : nature « hut » (le jeu n'y pose ni boîtes aux lettres, ni poubelles, ni poules, et le
+ * restyle du client les dessine sans volets). Les maisons blanches du bord de mer gardent leur nature.
+ */
+function earthKind(kind: string, colour?: string): string {
+  if (!['house', 'apartments', 'farm', 'public'].includes(kind)) return kind;
+  const white = !!colour && Number.parseInt(colour.slice(1, 3), 16) > 225;
+  return white ? kind : 'hut';
+}
+
 export class Builder {
   readonly out: Building[] = [];
   readonly areas: Area[] = [];
@@ -178,9 +193,17 @@ export class Builder {
     pts.push([cx, cz]);
     let lo = Infinity;
     let hi = -Infinity;
+    // Relief aussi 6 m autour (bord d'un gradin : le sol du jeu, interpolé, y descend déjà).
+    for (const [x, z] of poly) {
+      const d = Math.hypot(x - cx, z - cz) || 1;
+      const h = terrain(x + ((x - cx) / d) * 6, z + ((z - cz) / d) * 6);
+      lo = Math.min(lo, h);
+      hi = Math.max(hi, h);
+    }
     for (const [x, z] of pts) {
       if (this.idx.edgeDist(x, z) < margin) return false;
-      if (inLake(x, z, 1.25) || inRiver(x, z, 6) || inHarbour(x, z, 40) || shoreDist(x, z) < 40) return false;
+      // Loin du bord des falaises (le sol du jeu, en grille de 8 m sur les tuiles de mer, y tombe vite).
+      if (inLake(x, z, 1.25) || inRiver(x, z, 6) || inHarbour(x, z, 40) || shoreDist(x, z) < 40 + 110 * cliffAt(x, z)) return false;
       const h = terrain(x, z);
       if (h < 1.3) return false;
       lo = Math.min(lo, h);
@@ -190,11 +213,14 @@ export class Builder {
     return !this.occ.hits(poly);
   }
 
-  add(b: Omit<Building, 'id' | 'y'> & { id?: string }, margin = 2.5, force = false): boolean {
+  add(b0: Omit<Building, 'id' | 'y'> & { id?: string }, margin = 2.5, force = false): boolean {
+    const b = { ...b0, kind: earthKind(b0.kind, b0.colour) };
     if (!force && !this.fits(b.pts, margin)) return false;
-    this.occ.add(b.pts);
     // Un peu enfoncé : le sol du jeu (grille de 2 m) passe parfois quelques centimètres sous les coins.
     const y = Math.min(...b.pts.map(([x, z]) => finalHeight(this.idx, x, z))) - 0.15;
+    // Jamais en l'air au-dessus d'un remblai ni enterré dans une tranchée.
+    if (!force && b.pts.some(([x, z]) => Math.abs(finalHeight(this.idx, x, z) - terrain(x, z)) > 2.5)) return false;
+    this.occ.add(b.pts);
     this.out.push({ ...b, id: b.id ?? `b${this.n++}`, y });
     return true;
   }
@@ -291,7 +317,11 @@ export function townCentre(B: Builder, lay: TownLayout, k: number): void {
 /** Port-Corail : hôtels blancs, halle aux poissons, maisons à terrasse face à la mer, cabanes de plage. */
 export function seasideBuildings(B: Builder, lay: TownLayout): void {
   const t = lay.town;
-  const ang = Math.atan2(t.z, t.x);
+  // Repère d'origine (angles croissants vers l'ouest) : a ↦ th − (a − ang) sur le rivage du golfe.
+  const th = t.t ?? 0;
+  const sd = t.side ?? -1;
+  const ang = 0;
+  const coastPoint = (a: number, inset: number) => coastPointOf(th - a, inset, sd);
   const tangent = (a: number) => {
     const p = coastPoint(a - 0.001, 0);
     const q = coastPoint(a + 0.001, 0);
@@ -356,7 +386,8 @@ export function farmSites(count: number, forest: (x: number, z: number) => numbe
   for (let tries = 0; tries < count * 40 && out.length < count; tries++) {
     const x = -16000 + r() * 32000;
     const z = -10500 + r() * 21000;
-    if (shoreDist(x, z) < 500) continue;
+    // Fermes de palmeraie : près des sources seulement.
+    if (shoreDist(x, z) < 500 || oasisDist(x, z) > 2600) continue;
     if (TOWNS.some((t) => Math.hypot(t.x - x, t.z - z) < t.r * 1.6 + 200)) continue;
     if (chottE(x, z) < 1.6) continue;
     if (Math.hypot(x - MASSIF.phare[0], z - MASSIF.phare[1]) < 2500 || Math.hypot(x - MASSIF.mont[0], z - MASSIF.mont[1]) < 2200) continue;
@@ -437,9 +468,7 @@ export function landmarks(B: Builder): void {
   B.add({ kind: 'tower', height: 14, levels: 3, roof: { shape: 'pyramidal', height: 5, material: 'metal' }, colour: '#f5f3ec', pts: octagon(px, pz, 6), name: 'Observatoire du Pic du Vautour' }, 1, true);
   B.add({ kind: 'house', height: 4.5, levels: 1, roof: { shape: 'flat', height: 0, material: 'earth', colour: '#9c5534' }, colour: '#a45a36', material: 'stone', pts: orientedRect(px + 18, pz + 6, 7, 4.5, 0.4), name: 'Refuge du Vautour' }, 1);
   B.places.push({ name: 'Pic du Vautour', kind: 'locality', x: px, z: pz });
-  B.places.push({ name: 'La Dent Rouge', kind: 'locality', x: MASSIF.mont[0], z: MASSIF.mont[1] });
-  const col: Vec2 = [(MASSIF.phare[0] + MASSIF.mont[0]) / 2, (MASSIF.phare[1] + MASSIF.mont[1]) / 2];
-  B.places.push({ name: 'Col des Vents', kind: 'locality', x: col[0], z: col[1] });
+  B.places.push({ name: 'La Tête du Vautour', kind: 'locality', x: MASSIF.mont[0], z: MASSIF.mont[1] });
   // Tribunes du Circuit, le long de la ligne droite sud (remplacées par de vrais gradins dans le jeu).
   for (const k of [-1, 0, 1]) {
     const x = ANNEAU.cx + k * 56;
@@ -449,19 +478,23 @@ export function landmarks(B: Builder): void {
   B.places.push({ name: 'Circuit du Chott', kind: 'locality', x: ANNEAU.cx, z: ANNEAU.cz });
   B.places.push({ name: CHOTT.name, kind: 'locality', x: CHOTT.x - 1300, z: CHOTT.z + 200 });
   for (const m of MESAS) if (m.name) B.places.push({ name: m.name, kind: 'locality', x: m.x, z: m.z });
-  // Citadelle Rouge sur le plateau, à l'est de Ksar-Rouge.
-  for (let k = 0; k < 40; k++) if (citadel(B, 12300 + Math.cos(k * 2.4) * k * 25, -1300 + Math.sin(k * 2.4) * k * 25, 0.5)) {
-    B.places.push({ name: 'La Citadelle Rouge', kind: 'locality', x: 12300 + Math.cos(k * 2.4) * k * 25, z: -1300 + Math.sin(k * 2.4) * k * 25 });
+  // Citadelle Rouge sur le haut plateau, au-dessus de Ksar-Rouge.
+  const cit = polar(0.79, ARC.R - 1150);
+  for (let k = 0; k < 40; k++) if (citadel(B, cit[0] + Math.cos(k * 2.4) * k * 25, cit[1] + Math.sin(k * 2.4) * k * 25, 0.79)) {
+    B.places.push({ name: 'La Citadelle Rouge', kind: 'locality', x: cit[0] + Math.cos(k * 2.4) * k * 25, z: cit[1] + Math.sin(k * 2.4) * k * 25 });
     break;
   }
+  const sal = TOWNS.find((t) => t.id === 'les-salines')!;
+  const hub = TOWNS.find((t) => t.id === 'l-etoile')!;
   const flat = (colour: string) => ({ shape: 'flat', height: 0, material: 'earth', colour });
   const tries: Array<[Vec2, Omit<Building, 'id' | 'y' | 'pts'>, (x: number, z: number) => Vec2[]]> = [
     [[OASES[0]!.x - 260, OASES[0]!.z - 120], { kind: 'tower', height: 15, levels: 4, roof: flat('#c4834e'), colour: '#c4834e', material: 'plaster', name: "Tour de l'Oasis" }, (x, z) => orientedRect(x, z, 3.5, 3.5, 0.25)],
-    [[-3300, -1500], { kind: 'commercial', height: 8, levels: 2, roof: flat('#c98b55'), colour: '#c98b55', material: 'stone', name: 'Caravansérail du Chott' }, (x, z) => orientedRect(x, z, 24, 24, 0.12)],
-    [coastPoint(0.16, 700), { kind: 'castle', height: 12, levels: 2, roof: { shape: 'flat', height: 0 }, colour: '#a45a36', material: 'stone', name: 'Tour de guet du Levant' }, (x, z) => octagon(x, z, 9)],
-    [[MASSIF.mont[0] - 120, MASSIF.mont[1] + 80], { kind: 'tower', height: 4, levels: 1, roof: { shape: 'pyramidal', height: 1.5, material: 'stone' }, colour: '#8a4a30', material: 'stone', name: 'Cairn de la Dent Rouge' }, (x, z) => octagon(x, z, 2.2)],
-    [[10600, 1300], { kind: 'tower', height: 22, levels: 1, roof: { shape: 'flat', height: 0, material: 'concrete' }, colour: '#d8cbb4', name: "Château d'eau" }, (x, z) => octagon(x, z, 5)],
-    [[-12800, 4600], { kind: 'industrial', height: 5, levels: 1, roof: flat('#efe7d8'), colour: '#f4f1e8', name: 'La Saline' }, (x, z) => orientedRect(x, z, 14, 7, 0.4)],
+    [polar(-0.25, ARC.R - 1900), { kind: 'commercial', height: 8, levels: 2, roof: flat('#c98b55'), colour: '#c98b55', material: 'stone', name: 'Caravansérail du Chott' }, (x, z) => orientedRect(x, z, 24, 24, -0.25)],
+    [[hub.x + 140, hub.z + 120], { kind: 'commercial', height: 8, levels: 2, roof: flat('#c4834e'), colour: '#c4834e', material: 'stone', name: "Caravansérail de l'Étoile" }, (x, z) => orientedRect(x, z, 26, 26, 0)],
+    [coastPoint(0.36, 600, 1), { kind: 'castle', height: 12, levels: 2, roof: { shape: 'flat', height: 0 }, colour: '#a8643a', material: 'stone', name: 'Tour de guet du Cap des Vents' }, (x, z) => octagon(x, z, 9)],
+    [[MASSIF.mont[0] - 120, MASSIF.mont[1] + 80], { kind: 'tower', height: 4, levels: 1, roof: { shape: 'pyramidal', height: 1.5, material: 'stone' }, colour: '#8a4a30', material: 'stone', name: 'Cairn de la Tête du Vautour' }, (x, z) => octagon(x, z, 2.2)],
+    [polar(0.7, ARC.R - 2300), { kind: 'tower', height: 22, levels: 1, roof: { shape: 'flat', height: 0, material: 'concrete' }, colour: '#d8cbb4', name: "Château d'eau" }, (x, z) => octagon(x, z, 5)],
+    [coastPoint((sal.t ?? 0) + 0.02, 560, -1), { kind: 'industrial', height: 5, levels: 1, roof: flat('#efe7d8'), colour: '#f4f1e8', name: 'La Saline' }, (x, z) => orientedRect(x, z, 14, 7, 0.4)],
     [[OASES[1]!.x + 200, OASES[1]!.z - 160], { kind: 'house', height: 4, levels: 1, roof: flat('#c98b55'), colour: '#c98b55', material: 'plaster', name: 'Maison du Puits des Dunes' }, (x, z) => orientedRect(x, z, 6, 4.5, 0.8)],
   ];
   for (const [[x0, z0], b, shape] of tries) {
@@ -509,7 +542,7 @@ export function roadsideHouses(B: Builder, roads: Road[]): void {
         const cx = road.pts[j]![0] - Math.sin(ang) * off * side;
         const cz = road.pts[j]![2] + Math.cos(ang) * off * side;
         const lv = r() < 0.6 ? 1 : 2;
-        const c = (cz > 2500 || cx > 6000 ? PALETTES.provence.walls[Math.floor(r() * 8)] : PALETTES.village.walls[Math.floor(r() * 10)])!;
+        const c = (cx > 6000 ? PALETTES.provence.walls[Math.floor(r() * 8)] : PALETTES.village.walls[Math.floor(r() * 10)])!;
         B.add({ kind: 'house', height: 3 * lv + 0.9, levels: lv, roof: { shape: 'flat', height: 0, material: 'earth', colour: c }, colour: c, material: 'plaster', pts: orientedRect(cx, cz, 5 + r() * 3, depth / 2, ang) }, 3);
       }
     }

@@ -712,7 +712,9 @@ function circuit(k: () => Kit): Site {
       if (Number.isFinite(ay)) c.mesh.put(K.arch, RING.x + 120, ay, zS, Math.PI / 2, 1, 1, 1, WHITE);
       for (let i = 0; i < 24; i++) {
         const x = RING.x - RING.half + (i * 2 * RING.half) / 23;
-        for (const z of [zS + 9, RING.z - RING.radius - 9]) {
+        for (const z of [zS + 12, RING.z - RING.radius - 12]) {
+          // Jamais sur une chaussée : la route d'accès longe le circuit, et le tracé réel s'écarte un peu de l'ovale.
+          if ([-3, 0, 3].some((dz) => !c.probe.read(x, z + dz) || c.probe.road > 0.02)) continue;
           const y = c.probe.heightAt(x, z);
           if (Number.isFinite(y)) c.mesh.put(K.flag, x, y, z, 0, 1, 1, 1, flags[i % flags.length]!);
         }

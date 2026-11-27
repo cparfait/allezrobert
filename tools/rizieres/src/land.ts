@@ -4,12 +4,11 @@
  * de la plaine entre leurs digues, théiers du plateau, vergers, rochers calcaires (falaises, flancs des pitons),
  * plages de sable blanc, mangroves, lacs, rivières.
  */
-import { ANNEAU, HARBOURS, LAKES, MASSIF, PLATEAU, RICE_PLAIN, TOWNS, chainAt, cliffiness, coastPoint, inHarbour, inLake, inRiver, karst, lakeE, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
+import { ANNEAU, HARBOURS, LAKES, MASSIF, TOWNS, chainAt, cliffiness, coastPoint, deltaZone, gaussUV, inHarbour, inLake, inRiver, karst, lakeE, plainZone, plateauE, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
 import { clipPolygon, orientedRect, polygonArea } from './geom.ts';
 import { fbm, rng, smoothstep } from './noise.ts';
 import type { Area } from './types.ts';
 
-const gauss = (x: number, z: number, cx: number, cz: number, sx: number, sz: number) => Math.exp(-(((x - cx) / sx) ** 2 + ((z - cz) / sz) ** 2));
 
 export interface LandCtx {
   farms: Vec2[];
@@ -42,9 +41,12 @@ function clearing(x: number, z: number, ctx: LandCtx): number {
   return c;
 }
 
-/** Zone des rizières en terrasses (0 … 1) : collines du sud, piémont des monts, coteaux de la Bambouseraie. */
+/**
+ * Zone des rizières en terrasses (0 … 1) : collines de part et d'autre de la plaine du Grand Fleuve (Terrasses au
+ * sud-est, collines du Nord au pied de la chaîne), collines de l'est et coteaux de Rive-des-Lotus.
+ */
 export function terraceZone(x: number, z: number): number {
-  return Math.max(gauss(x, z, 3600, 5800, 4300, 1900), gauss(x, z, -1000, -4100, 2600, 1300) * 0.9, gauss(x, z, 4600, -1600, 2000, 1300) * 0.8, gauss(x, z, -9200, -2600, 1700, 1300) * 0.8);
+  return Math.max(gaussUV(x, z, -2200, 4500, 4600, 1700), gaussUV(x, z, 1800, -3700, 5200, 1500) * 0.95, gaussUV(x, z, 5400, 3300, 2400, 1400) * 0.85, gaussUV(x, z, -6600, -3500, 2200, 1000) * 0.75);
 }
 
 /** Pas des terrasses (m de dénivelé d'une banquette à la suivante). */
@@ -76,15 +78,18 @@ export function forestMask(x: number, z: number, ctx: LandCtx): number {
     const h = terrain(x, z);
     f = Math.max(f, m * (0.72 + 0.3 * fbm(x / 600, z / 600, 2, 44)) * smoothstep(60, 160, h) * (1 - smoothstep(1350, 1500, h + 60 * fbm(x / 400, z / 400, 2, 45))));
   }
-  // Jungle de la presqu'île des Pitons.
-  f = Math.max(f, gauss(x, z, 9000, 7600, 3200, 1800) * 1.1 - 0.3 + 0.3 * fbm(x / 700, z / 700, 2, 46));
+  // Jungle des rives de la baie des Pitons et du cap du Dragon.
+  f = Math.max(f, gaussUV(x, z, 6500, 6200, 3600, 2000) * 1.1 - 0.3 + 0.3 * fbm(x / 700, z / 700, 2, 46));
   // Galeries de jungle le long des rivières, très larges au bord du Grand Fleuve.
   if (inRiver(x, z, 160) && !inRiver(x, z, 6)) f = Math.max(f, inRiver(x, z, 60) ? 0.5 : 0.25);
   // Terrasses des collines, théiers du plateau, plaine des rizières et delta : cultures.
   f -= 1.4 * terraceZone(x, z);
-  f -= 0.55 * gauss(x, z, PLATEAU.x, PLATEAU.z, PLATEAU.rx * 0.8, PLATEAU.rz * 0.8);
-  f -= 1.3 * gauss(x, z, RICE_PLAIN.x, RICE_PLAIN.z, RICE_PLAIN.sx * 0.95, RICE_PLAIN.sz);
-  f -= 0.45 * gauss(x, z, -9000, 3500, 4500, 2500);
+  f -= 0.55 * (1 - smoothstep(0.5, 0.95, plateauE(x, z)));
+  f -= 1.3 * plainZone(x, z);
+  const delta = deltaZone(x, z);
+  f -= 0.45 * delta;
+  // Mangroves le long des rivages du delta.
+  if (delta > 0.5 && d > 140 && d < 650) f = Math.max(f, 0.3 + 0.2 * fbm(x / 300, z / 300, 2, 47));
   f = Math.min(f, clearing(x, z, ctx), (d - 200) / 100);
   for (const l of LAKES) if (lakeE(l, x, z) < 1.6) f = Math.min(f, (lakeE(l, x, z) - 1.3) * 2);
   if (inHarbour(x, z, 120)) f = -1;
@@ -103,7 +108,7 @@ export function heathMask(x: number, z: number): number {
   const cliff = cliffiness(Math.atan2(z, x));
   // Herbes derrière les plages de sable.
   let m = d > 100 && d < 300 && cliff < 0.3 ? 0.4 - Math.abs(d - 200) / 250 : -1;
-  if (d > 60) m = Math.max(m, gauss(x, z, 9500, 8300, 2600, 1300) * 0.6 - 0.4 + 0.3 * fbm(x / 500, z / 500, 2, 53));
+  if (d > 60) m = Math.max(m, gaussUV(x, z, 6500, 7000, 2600, 1300) * 0.6 - 0.4 + 0.3 * fbm(x / 500, z / 500, 2, 53));
   if (mountain(x, z) > 0.1) m = Math.max(m, (terrain(x, z) - 1420 + 60 * fbm(x / 500, z / 500, 2, 51)) / 50);
   if (TOWNS.some((t) => Math.hypot(t.x - x, t.z - z) < t.r * 1.5)) m = -1;
   return m;
@@ -291,8 +296,8 @@ export function parcels(ctx: LandCtx, avoid: (x: number, z: number) => boolean):
       const hc = terrain(cx, cz);
       // Rizières (farmland) partout en plaine, presque seules dans la plaine des rizières et au fond des vallées ;
       // théiers en rangs (vineyard) sur le plateau et les hauts versants ; vergers de bananiers (orchard) ; prés à buffles.
-      const plain = gauss(cx, cz, RICE_PLAIN.x, RICE_PLAIN.z, RICE_PLAIN.sx, RICE_PLAIN.sz) > 0.3;
-      const plateau = gauss(cx, cz, PLATEAU.x, PLATEAU.z, PLATEAU.rx, PLATEAU.rz) > 0.4;
+      const plain = plainZone(cx, cz) > 0.3 || deltaZone(cx, cz) > 0.5;
+      const plateau = plateauE(cx, cz) < 0.95;
       const alp = mountain(cx, cz) > 0.3 && hc > 350;
       const valleyFloor = inRiver(cx, cz, 260);
       const kind = plain ? (roll < 0.9 ? 'farmland' : 'meadow') : plateau ? (roll < 0.75 ? 'vineyard' : roll < 0.9 ? 'meadow' : 'orchard') : alp ? (roll < 0.6 ? 'vineyard' : 'meadow') : valleyFloor ? (roll < 0.82 ? 'farmland' : 'meadow') : roll < 0.62 ? 'farmland' : roll < 0.8 ? 'meadow' : roll < 0.95 ? 'orchard' : null;
@@ -325,7 +330,8 @@ export function shoreAreas(skip: (x: number, z: number) => boolean): Area[] {
     const a1 = -Math.PI + ((k + 1) / n) * 2 * Math.PI;
     if (cliffiness((a0 + a1) / 2) > 0.3) continue;
     const mid = coastPoint((a0 + a1) / 2, 50);
-    if (skip(mid[0], mid[1]) || inHarbour(mid[0], mid[1], 150) || inRiver(mid[0], mid[1], 30)) continue;
+    // Delta : rivages de vase et de mangroves, pas de sable.
+    if (skip(mid[0], mid[1]) || inHarbour(mid[0], mid[1], 150) || inRiver(mid[0], mid[1], 30) || deltaZone(mid[0], mid[1]) > 0.4) continue;
     out.push({ id: `plage-${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -45), coastPoint(a1, -45), coastPoint(a1, 105), coastPoint(a0, 105)] });
   }
   const lag = LAKES.find((l) => l.id === 'lagune')!;

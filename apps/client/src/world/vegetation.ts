@@ -482,6 +482,107 @@ function coniferGeometry(lod: number): THREE.BufferGeometry {
   return mergeGeometries(parts, false) as THREE.BufferGeometry;
 }
 
+/*
+ * Biomes des mondes Poly (world/lands/, PolyBiome) : essences qui remplacent les feuillus et les sapins. Mêmes
+ * conventions que les arbres ci-dessus (feuille = 1, bois = 0, fruit = 2) et à peu près les mêmes hauteurs, pour que
+ * le semis et l'échelle des instances restent valables. Peu de triangles : ce sont les arbres de tout un monde.
+ */
+function leafBlob(rx: number, ry: number, rz: number, detail: number): THREE.BufferGeometry {
+  const g = new THREE.IcosahedronGeometry(1, detail);
+  const p = g.getAttribute('position');
+  for (let k = 0; k < p.count; k++) {
+    const f = 0.9 + 0.1 * Math.sin(p.getX(k) * 2.3 + p.getZ(k) * 1.7);
+    p.setXYZ(k, p.getX(k) * rx * f, p.getY(k) * ry * f, p.getZ(k) * rz * f);
+  }
+  return g;
+}
+
+/** Palmier : stipe courbé en tronçons, palmes retombantes, noix de coco. */
+function palmGeometry(lod: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const seg = lod === 2 ? 2 : 4;
+  let x = 0;
+  for (let i = 0; i < seg; i++) {
+    const h = 10 / seg;
+    const dx = 0.35 * (i + 1) * (4 / seg);
+    const c = new THREE.CylinderGeometry(0.2, 0.26, h, lod === 0 ? 6 : 4, 1, true);
+    c.rotateZ(-Math.atan2(dx - x, h)).translate((x + dx) / 2, i * h + h / 2, 0);
+    parts.push(tag(c, 0, 1));
+    x = dx;
+  }
+  const fronds = lod === 0 ? 8 : lod === 1 ? 6 : 4;
+  for (let i = 0; i < fronds; i++) {
+    const frond = new THREE.ConeGeometry(0.75, 4.6, 3, 1, true);
+    frond.scale(1, 1, 0.22).rotateZ(-Math.PI / 2 - 0.35).translate(2.1, 0, 0).rotateY((i / fronds) * Math.PI * 2).translate(x, 10.1, 0);
+    parts.push(tag(frond, 1, 0.92));
+  }
+  if (lod === 0) for (let i = 0; i < 4; i++) parts.push(tag(new THREE.OctahedronGeometry(0.22, 0).translate(x + Math.cos(i * 1.6) * 0.45, 9.55, Math.sin(i * 1.6) * 0.45), 2, 1));
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
+/** Arbre de jungle : haut fût nu, large couronne plate en deux étages, contreforts au pied. */
+function jungleGeometry(lod: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  parts.push(tag(new THREE.CylinderGeometry(0.3, 0.55, 9, lod === 2 ? 4 : 6, 1, true).translate(0, 4.5, 0), 0, 1));
+  parts.push(tag(leafBlob(5.2, 1.7, 4.6, lod === 2 ? 0 : 1).translate(0, 10, 0), 1, 0.95));
+  if (lod < 2) parts.push(tag(leafBlob(3.2, 1.2, 3.4, 0).translate(1.6, 7.6, -1.2), 1, 0.85));
+  if (lod === 0) for (let i = 0; i < 3; i++) parts.push(tag(new THREE.BoxGeometry(0.12, 1.6, 1.1).translate(0, 0.8, 0.55).rotateY(i * 2.1), 0, 0.9));
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
+/** Bouleau : fût mince, houppier étroit et haut. */
+function birchGeometry(lod: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  parts.push(tag(new THREE.CylinderGeometry(0.12, 0.2, 9, lod === 2 ? 4 : 5, 1, true).translate(0, 4.5, 0), 0, 1.25));
+  parts.push(tag(leafBlob(2.1, 3.6, 2.1, lod === 2 ? 0 : 1).translate(0, 8.4, 0), 1, 1));
+  if (lod === 0) parts.push(tag(leafBlob(1.3, 1.8, 1.3, 0).translate(0.8, 6, 0.4), 1, 0.9));
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
+/** Acacia : tronc penché fourchu, couronne en parasol. */
+function acaciaGeometry(lod: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  parts.push(tag(new THREE.CylinderGeometry(0.16, 0.3, 4.4, lod === 2 ? 4 : 5, 1, true).rotateZ(0.12).translate(-0.25, 2.2, 0), 0, 1));
+  if (lod < 2) for (const k of [-1, 1]) parts.push(tag(new THREE.CylinderGeometry(0.08, 0.14, 3.4, 4, 1, true).rotateZ(k * 0.55).translate(k * 0.9, 5.4, 0), 0, 1));
+  parts.push(tag(leafBlob(4.8, 0.85, 4.2, lod === 2 ? 0 : 1).translate(0, 7.3, 0), 1, 0.95));
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
+/** Cactus candélabre : colonne et deux bras, à la teinte du feuillage. */
+function cactusGeometry(lod: number): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = [];
+  const sides = lod === 2 ? 5 : 7;
+  parts.push(tag(new THREE.CylinderGeometry(0.42, 0.48, 6.5, sides).translate(0, 3.25, 0), 1, 0.9));
+  if (lod < 2) {
+    for (const [k, y, h] of [[1, 2.6, 2.4], [-1, 3.4, 1.8]] as const) {
+      parts.push(tag(new THREE.CylinderGeometry(0.28, 0.3, 1.2, sides).rotateZ(Math.PI / 2).translate(k * 0.9, y, 0), 1, 0.85));
+      parts.push(tag(new THREE.CylinderGeometry(0.26, 0.3, h, sides).translate(k * 1.45, y + h / 2 - 0.1, 0), 1, 0.9));
+    }
+  }
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
+/** Touffe de bambous : tiges hautes et fines, feuilles en petits amas au sommet. */
+function bambooGeometry(lod: number): THREE.BufferGeometry {
+  const r = rng(31);
+  const parts: THREE.BufferGeometry[] = [];
+  const stems = lod === 0 ? 9 : lod === 1 ? 5 : 3;
+  for (let i = 0; i < stems; i++) {
+    const a = r() * Math.PI * 2;
+    const d = r() * 1.1;
+    const h = 8 + r() * 4;
+    const tilt = 0.06 + r() * 0.12;
+    const stem = new THREE.CylinderGeometry(0.07, 0.1, h, 4, 1, true).translate(0, h / 2, 0).rotateZ(tilt).rotateY(a);
+    parts.push(tag(stem.translate(Math.cos(a) * d, 0, Math.sin(a) * d), 1, 1.1));
+    const off = d + h * tilt * 0.8;
+    if (lod < 2) parts.push(tag(leafBlob(1.3, 2.2, 1.3, 0).translate(Math.cos(a) * off, h - 1.2, Math.sin(a) * off), 1, 0.9));
+  }
+  return mergeGeometries(parts, false) as THREE.BufferGeometry;
+}
+
+const BIOME_TREE = { palm: palmGeometry, jungle: jungleGeometry, birch: birchGeometry, acacia: acaciaGeometry } as const;
+const BIOME_CONIFER = { cactus: cactusGeometry, bamboo: bambooGeometry } as const;
+
 /**
  * Mode arbres : conifère existant recalé pour les arbres LiDAR — même sommet (CONIF_TOP) à tous les niveaux de
  * détail (le LOD2 montait à 14 m, le LOD1 à 11,6 m : saut de hauteur à la bascule) et houppier descendu à
@@ -533,7 +634,7 @@ export class Vegetation {
   private readonly larchB = colorUniform();
   /** 1 = feuillage complet, 0 = arbres nus (hiver). */
   private readonly leafAmount = uniform(1);
-  private readonly geos: Record<Kind, Array<THREE.BufferGeometry | null>>;
+  private geos: Record<Kind, Array<THREE.BufferGeometry | null>>;
   private readonly mats: Record<'decid' | 'conif' | 'larch', THREE.MeshStandardNodeMaterial>;
   /** Haies et buissons réels (cartes de feuillage). */
   private readonly shrubMat: THREE.MeshStandardNodeMaterial;
@@ -561,6 +662,9 @@ export class Vegetation {
   /** Monde : penchant régional pour les conifères et limite des arbres (voir alpine.ts). */
   private regional: (x: number, z: number) => number = () => 0;
   private treelineM = alpineProfile('').treelineM;
+  /** Biome du monde Poly : part d'arbres gardés (0–1) ; cactus ou bambous semés aussi hors des forêts. */
+  private treeAmount = 1;
+  private biomeConifer = false;
   /** Mode arbres (P2.3b-1) : étapes actives, null = coupé (rendu d'origine). */
   readonly trees: { a: boolean; b: boolean; c: boolean; d: boolean } | null = null;
   /** Mode arbres : matériau des feuillus LiDAR (paramètres par instance) et conifères recalés. */
@@ -573,6 +677,15 @@ export class Vegetation {
   setWorld(id: string): void {
     this.regional = REGIONAL_CONIFERS[id] ?? (() => 0);
     this.treelineM = alpineProfile(id).treelineM;
+    // Biome d'un monde Poly : autres essences (géométries des feuillus et des sapins), moins d'arbres.
+    const biome = LOW_POLY ? polyLand(id)?.biome : undefined;
+    this.treeAmount = biome?.trees ?? 1;
+    this.biomeConifer = !!biome?.conifer;
+    if (LOW_POLY) {
+      const decid = biome?.tree ? [0, 1, 2].map(BIOME_TREE[biome.tree]) : [0, 1, 2].map(lowPolyDeciduousGeometry);
+      const conif = biome?.conifer ? [0, 1, 2].map(BIOME_CONIFER[biome.conifer]) : [0, 1, 2].map(coniferGeometry);
+      this.geos = { ...this.geos, decid, conif, larch: conif };
+    }
     const trees = TREES_PARAMS && !LOW_POLY ? TREES_PARAMS : null;
     (this as { trees: typeof trees }).trees = trees;
     if (trees && !this.treesMat) {
@@ -931,6 +1044,7 @@ export class Vegetation {
     const sc = new THREE.Vector3();
     const p = new THREE.Vector3();
     const push = (kind: Kind, x: number, z: number) => {
+      if (this.treeAmount < 1 && seedAt(x + 0.37, z - 0.91) > this.treeAmount) return;
       const key = `${Math.floor(x / chunkM)}_${Math.floor(z / chunkM)}`;
       let b = per.get(key);
       if (!b) per.set(key, (b = new Map()));
@@ -1252,7 +1366,8 @@ export class Vegetation {
       // Conifères : bruit régional, forêts de résineux OSM, règle propre au monde et étage
       // montagnard (épicéas au-dessus de 1 200 m, arbres isolés des alpages compris).
       const coniferBias = fbm(x / 1500 + 40, z / 1500, 3) + this.regional(x, z) + splatAt(tile, 8, x, z) * 0.9 + coniferBiasAt(y);
-      const isConifer = (forest > 0.5 || y > 1200) && r() < 0.15 + Math.max(0, coniferBias) * 0.8;
+      const isConifer = this.biomeConifer ? seedAt(z + 1.7, x - 2.3) < 0.45 : (forest > 0.5 || y > 1200) && r() < 0.15 + Math.max(0, coniferBias) * 0.8;
+      if (this.treeAmount < 1 && seedAt(x + 0.37, z - 0.91) > this.treeAmount) continue;
       const isLarch = isConifer && seedAt(z, x) < larchShareAt(y, this.treelineM);
       const s = (0.85 + r() * 0.65) * treeScaleAt(y, this.treelineM);
       p.set(x, y - 0.2, z);

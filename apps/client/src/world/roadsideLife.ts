@@ -820,7 +820,7 @@ export class RoadsideLife {
 
     // ── Troupeaux dans les prés, derrière les clôtures ; abreuvoir ; manège de chevaux ──
     let herd: Herd | null = null;
-    if (r() < 0.8 && !promenade) {
+    if (r() < 0.8 && !promenade && !polyLand(activePolyWorld())?.biome?.noHerds) {
       const side = r() < 0.5 ? -1 : 1;
       const kind: HerdKind = r() < 0.45 ? 'cow' : r() < 0.7 ? 'sheep' : 'horse';
       const dh = d0 + r() * (d1 - d0);
@@ -975,6 +975,8 @@ export class RoadsideLife {
 
     // ── Village : boîtes aux lettres et poubelles devant les maisons, enfants, habitants ──
     if (urbanMax > 0.15) {
+      // Biome d'un monde Poly sans mobilier de village européen (boîtes aux lettres, poubelles, poules).
+      const village = !polyLand(activePolyWorld())?.biome?.noVillageProps;
       const found: Array<{ tile: LoadedTile; i: number }> = [];
       probe.buildingsIn(minX - 35, minZ - 35, maxX + 35, maxZ + 35, found);
       const used: Record<number, number[]> = { [-1]: [], [1]: [] };
@@ -1022,12 +1024,12 @@ export class RoadsideLife {
         if (!Number.isFinite(y) || probe.buildingNear(s.x, s.z, 0.6) || onAnyRoad(s.x, s.z, 0.6)) continue;
         // face avant (+z) vers la route
         const yaw = Math.atan2(s.dirZ * side, -s.dirX * side);
-        if (hr() < 0.5 * props && free(side, dm, 4)) {
+        if (village && hr() < 0.5 * props && free(side, dm, 4)) {
           sb.put(tpl.mailbox, s.x, y, s.z, yaw, 1, 1, 1, MAILBOX[Math.floor(hr() * MAILBOX.length)] as THREE.Color);
           (used[side] as number[]).push(dm);
         }
         // Poubelles : de une à trois (couvercles gris, vert, jaune), au bord de la rue (≈ une maison sur quatre).
-        if (hr() < 0.28 * Math.min(1, props + 0.2)) {
+        if (village && hr() < 0.28 * Math.min(1, props + 0.2)) {
           const db = dm + (hr() < 0.5 ? -1 : 1) * (2 + hr() * 1.5);
           if (free(side, db, 1.6) && !inSpan(db, 3)) {
             const pair = hr() < 0.3 ? 3 : hr() < 0.6 ? 2 : 1;
@@ -1059,7 +1061,7 @@ export class RoadsideLife {
           track.positionAt(dm + 2.4, side * (half + 1.5 + cr() * Math.min(3, off * 0.3)), s);
           critter(cr() < 0.6 ? 'cat' : 'catLying', CRITTER_COLOURS.cat, s.x, s.z, 1.2);
         }
-        if (urbanMax < 0.75 && cr() < 0.16 * props) {
+        if (village && urbanMax < 0.75 && cr() < 0.16 * props) {
           track.positionAt(dm - 4, side * (half + 2.5 + cr() * 2), s);
           const hx = s.x;
           const hz = s.z;

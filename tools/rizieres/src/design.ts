@@ -1,7 +1,13 @@
 /**
- * Les Rizières et la jungle — conception (voir docs/RIZIERES.md) : côte, relief (collines des terrasses, monts de la
- * jungle, pitons karstiques en pains de sucre), Grand Fleuve et delta, lacs, ports, plateaux des villes et du Circuit. Repère : x vers l'est, z vers le sud, mètres, origine au centre de l'île.
- * Tout est déterministe : deux générations donnent le même monde.
+ * Les Rizières et la jungle — conception (voir docs/RIZIERES.md). Repère : x vers l'est, z vers le sud, mètres,
+ * origine au centre du pays. Tout est déterministe : deux générations donnent le même monde.
+ *
+ * Le pays est une longue terre couchée en biais, du sud-ouest au nord-est (axe `u`, l'axe `v` va de la côte nord-ouest
+ * à la côte sud-est). Le Grand Fleuve la traverse d'un bout à l'autre : il naît au pied du Mont du Tigre, au nord-est,
+ * descend la plaine des rizières entre deux rangées de collines en terrasses, puis se divise en quatre bras dans un
+ * delta qui avance dans la mer au sud-ouest. La chaîne de la Jungle longe la côte nord-ouest et se relève au nord-est
+ * en massif (Mont des Lanternes, Mont du Tigre, col de la Jungle). Sur la côte sud-est, la baie des Pitons est semée
+ * de pains de sucre calcaires ; à côté, le plateau des Théiers, entaillé par les gorges du Dragon.
  */
 import { chaikin, resample } from './geom.ts';
 import { clamp, fbm, lerp, noise2, ridged, smoothstep } from './noise.ts';
@@ -11,23 +17,43 @@ export type Vec2 = [number, number];
 export const ISLAND = {
   id: 'rizieres',
   name: 'Les Rizières et la jungle',
-  /** Emprise des tuiles (m) : le pays (≈ 35 × 23 km) et une marge de mer. */
+  /** Emprise des tuiles (m). */
   minX: -19000,
   maxX: 19000,
   minZ: -13000,
   maxZ: 13000,
   tileSizeM: 1000,
-  /** Demi-axes de la côte (m) et exposant de la super-ellipse. */
-  A: 17200,
-  B: 11300,
-  pow: 2.0,
+  /** Demi-axes de la côte (m, le long de u et de v) et exposant de la super-ellipse. */
+  A: 16900,
+  B: 8700,
+  pow: 2.3,
 };
 
-// ── Côte : grand golfe au sud, calanques au sud-est, cap à l'est, côte de montagne au nord-est, aber au nord, delta à l'ouest ──
+// ── Repère du pays : u le long du Grand Fleuve (vers le nord-est), v en travers (vers le sud-est) ──
+
+/** Direction de l'axe u (rad, atan2(z, x)). */
+export const FRAME = { rot: -0.4 };
+const CU = Math.cos(FRAME.rot);
+const SU = Math.sin(FRAME.rot);
+
+/** Point (x, z) à partir de (u, v). */
+export function UV(u: number, v: number): Vec2 {
+  return [u * CU - v * SU, u * SU + v * CU];
+}
+
+/** Coordonnées (u, v) d'un point (x, z). */
+export function toUV(x: number, z: number): Vec2 {
+  return [x * CU + z * SU, -x * SU + z * CU];
+}
+
+/** Direction absolue (rad) d'un angle compté dans le repère du pays (0 : pointe nord-est, π/2 : côte sud-est). */
+export const A = (phi: number) => FRAME.rot + phi;
+
+// ── Côte ──
 
 interface CoastFeature {
-  /** Direction (rad, atan2(z, x)) et demi-largeur angulaire. */
-  ang: number;
+  /** Direction (rad, dans le repère du pays) et demi-largeur angulaire. */
+  phi: number;
   width: number;
   /** > 0 : cap (le rivage avance), < 0 : baie. */
   amount: number;
@@ -35,19 +61,30 @@ interface CoastFeature {
   cliff: number;
 }
 
+/** Embouchures des bras du delta (angles dans le repère du pays, autour de la pointe sud-ouest). */
+const MOUTHS = { fleuve: Math.PI + 0.06, lagune: Math.PI - 0.15, sables: Math.PI - 0.28, singes: Math.PI + 0.21 };
+
 const FEATURES: CoastFeature[] = [
-  { ang: 1.6, width: 0.22, amount: -0.2, cliff: 0 }, // golfe de Jade (sud), grande plage de sable blanc
-  { ang: 1.12, width: 0.1, amount: 0.07, cliff: 0.5 }, // pointe des Cocotiers
-  { ang: 0.84, width: 0.12, amount: 0.12, cliff: 1 }, // presqu'île des Pitons (sud-est), falaises calcaires
-  { ang: 0.62, width: 0.06, amount: 0.02, cliff: 0.9 }, // falaises à l'ouest du port des Pitons
-  { ang: 0.42, width: 0.12, amount: -0.07, cliff: 0.3 }, // anse des Tortues
-  { ang: 0.06, width: 0.1, amount: 0.15, cliff: 0.8 }, // cap du Dragon (est)
-  { ang: -0.62, width: 0.3, amount: 0.02, cliff: 0.95 }, // les monts de la jungle plongent dans la mer (nord-est)
-  { ang: -1.62, width: 0.11, amount: -0.09, cliff: 0.1 }, // baie des Jonques (nord), port
-  { ang: -2.3, width: 0.2, amount: 0.09, cliff: 0.7 }, // cap des Singes (nord-ouest)
-  { ang: -2.75, width: 0.12, amount: -0.05, cliff: 0.3 }, // baie des Dauphins
-  { ang: 2.95, width: 0.18, amount: -0.08, cliff: 0 }, // delta du Grand Fleuve (ouest)
-  { ang: 2.35, width: 0.12, amount: 0.1, cliff: 0.2 }, // pointe des Sables blancs (sud-ouest)
+  { phi: 0, width: 0.32, amount: -0.03, cliff: 0.9 }, // pointe du Tigre (nord-est), falaises de la jungle
+  { phi: -0.39, width: 0.06, amount: -0.07, cliff: 0.1 }, // anse des Jonques (port)
+  { phi: -0.75, width: 0.5, amount: 0.01, cliff: 0.45 }, // la chaîne de la Jungle plonge dans la mer
+  { phi: -1.5, width: 0.35, amount: 0.0, cliff: 0.35 }, // côte des Nuages
+  { phi: -2.25, width: 0.12, amount: -0.06, cliff: 0.15 }, // baie des Dauphins
+  { phi: -2.65, width: 0.1, amount: 0.05, cliff: 0.55 }, // cap des Singes
+  // Delta : lobe qui avance dans la mer, un doigt de terre le long de chaque bras, des anses entre eux.
+  { phi: Math.PI, width: 0.34, amount: 0.07, cliff: 0 },
+  { phi: MOUTHS.singes, width: 0.035, amount: 0.045, cliff: 0 },
+  { phi: MOUTHS.fleuve, width: 0.04, amount: 0.05, cliff: 0 },
+  { phi: MOUTHS.lagune, width: 0.035, amount: 0.04, cliff: 0 },
+  { phi: MOUTHS.sables, width: 0.03, amount: 0.035, cliff: 0 },
+  { phi: (MOUTHS.singes + MOUTHS.fleuve) / 2, width: 0.03, amount: -0.03, cliff: 0 },
+  { phi: (MOUTHS.fleuve + MOUTHS.lagune) / 2, width: 0.03, amount: -0.035, cliff: 0 },
+  { phi: (MOUTHS.lagune + MOUTHS.sables) / 2, width: 0.025, amount: -0.025, cliff: 0 },
+  { phi: 2.42, width: 0.1, amount: 0.05, cliff: 0.2 }, // pointe des Sables blancs
+  { phi: 1.845, width: 0.3, amount: -0.035, cliff: 0 }, // anse de Jade, grande plage de sable blanc
+  { phi: 1.22, width: 0.07, amount: 0.05, cliff: 0.6 }, // pointe des Cocotiers (ouest de la baie)
+  { phi: 0.8, width: 0.2, amount: -0.3, cliff: 0.45 }, // baie des Pitons : large et profonde, semée de pitons
+  { phi: 0.38, width: 0.09, amount: 0.07, cliff: 0.9 }, // cap du Dragon (est de la baie)
 ];
 
 const angDiff = (a: number, b: number) => {
@@ -90,32 +127,36 @@ export function cliffiness(ang: number): number {
 }
 
 function coastRadiusExact(ang: number): number {
-  const c = Math.cos(ang);
-  const s = Math.sin(ang);
+  const phi = ang - FRAME.rot;
+  const c = Math.cos(phi);
+  const s = Math.sin(phi);
   const I = ISLAND;
   const base = 1 / ((Math.abs(c) / I.A) ** I.pow + (Math.abs(s) / I.B) ** I.pow) ** (1 / I.pow);
-  let w = 1 + 0.06 * fbm(c * 1.6 + 5, s * 1.6 + 5, 3, 1) + 0.028 * fbm(c * 7 + 1, s * 7 - 3, 3, 2) + 0.008 * noise2(c * 30, s * 30, 3);
-  for (const f of FEATURES) w += f.amount * Math.exp(-((angDiff(ang, f.ang) / f.width) ** 2));
+  let w = 1 + 0.045 * fbm(c * 1.6 + 5, s * 1.6 + 5, 3, 1) + 0.024 * fbm(c * 7 + 1, s * 7 - 3, 3, 2) + 0.008 * noise2(c * 30, s * 30, 3);
+  for (const f of FEATURES) w += f.amount * Math.exp(-((angDiff(phi, f.phi) / f.width) ** 2));
   return base * w;
 }
 
 function cliffinessExact(ang: number): number {
+  const phi = ang - FRAME.rot;
   let c = 0;
-  for (const f of FEATURES) c = Math.max(c, f.cliff * Math.exp(-((angDiff(ang, f.ang) / (f.width * 0.8)) ** 2)));
+  for (const f of FEATURES) if (f.cliff > c) c = Math.max(c, f.cliff * Math.exp(-((angDiff(phi, f.phi) / (f.width * 0.8)) ** 2)));
+  // Delta : jamais de falaise.
+  c *= smoothstep(0.3, 0.5, Math.abs(angDiff(phi, Math.PI)));
   return smoothstep(0.25, 0.75, c);
 }
 
-/** Distance au rivage (m, comptée le long du rayon) : > 0 sur l'île, < 0 en mer. */
+/** Distance au rivage (m, comptée le long du rayon) : > 0 sur la terre, < 0 en mer. */
 export function shoreDist(x: number, z: number): number {
   return coastRadius(Math.atan2(z, x)) - Math.hypot(x, z);
 }
 
-/** Compatibilité : distance normalisée à la côte (> 0 sur l'île). */
+/** Compatibilité : distance normalisée à la côte (> 0 sur la terre). */
 export function coast(x: number, z: number): number {
-  return shoreDist(x, z) / 11000;
+  return shoreDist(x, z) / 9000;
 }
 
-/** Point à `inset` m à l'intérieur des terres dans la direction `ang`. */
+/** Point à `inset` m à l'intérieur des terres dans la direction `ang` (absolue). */
 export function coastPoint(ang: number, inset: number): Vec2 {
   const r = coastRadius(ang) - inset;
   return [Math.cos(ang) * r, Math.sin(ang) * r];
@@ -124,25 +165,33 @@ export function coastPoint(ang: number, inset: number): Vec2 {
 // ── Lieux ──
 
 /**
- * Monts de la Jungle (au nord) : arête d'ouest en est, hauteur (m, au-dessus du relief de campagne) le long de l'arête,
- * largeur des versants (m). Le massif des Lanternes la coiffe (Mont des Lanternes et Mont du Tigre, col de la Jungle entre les deux).
+ * Chaîne de la Jungle : arête le long de la côte nord-ouest, qui se relève au nord-est ; hauteur (m, au-dessus du
+ * relief de campagne) le long de l'arête, largeur des versants (m).
  */
 export const CHAIN = {
-  pts: [[-14500, -4600], [-10500, -6700], [-6500, -7200], [-2500, -7000], [1800, -6900], [5500, -5900], [9500, -4400], [13500, -3200]] as Vec2[],
-  h: [450, 950, 1050, 820, 760, 820, 640, 420],
-  width: 3300,
+  pts: ([[-9800, -5200], [-6200, -5700], [-2400, -5800], [1500, -5500], [5200, -4900], [8400, -4400], [11000, -4000], [13600, -3100], [15600, -1300], [16700, 300]] as Vec2[]).map(([u, v]) => UV(u, v)),
+  h: [200, 340, 410, 370, 310, 400, 600, 680, 560, 320],
+  width: 2300,
 };
 
 /** Massif des Lanternes : Mont des Lanternes (temple au sommet) et Mont du Tigre (stupa), col de la Jungle entre les deux. */
-const P1: Vec2 = [1600, -6900];
-const P2: Vec2 = [4700, -6000];
-export const MASSIF = { phare: P1, mont: P2, h1: 700, h2: 790, spread: 2500 };
+const P1 = UV(13700, 0);
+const P2 = UV(10900, -2300);
+export const MASSIF = { phare: P1, mont: P2, h1: 560, h2: 480, spread: 2600 };
 
-/** Circuit des Rizières (boucle plate, départ devant les tribunes). */
-export const ANNEAU = { cx: -6900, cz: 3700, half: 560, radius: 215, level: 0, widthM: 8 };
+/** Circuit des Rizières (boucle plate au sud du fleuve, départ devant les tribunes). */
+const ANC = UV(-6600, 2300);
+export const ANNEAU = { cx: Math.round(ANC[0]), cz: Math.round(ANC[1]), half: 560, radius: 215, level: 0, widthM: 8 };
 
-/** Plateau des Théiers (est) : dessus presque plat, rebord en escarpement, entaillé par les gorges du Dragon. */
-export const PLATEAU = { x: 11200, z: 300, rx: 4300, rz: 3300, h: 330 };
+/** Plateau des Théiers (au sud du massif) : dessus presque plat, rebord en escarpement, entaillé par les gorges du Dragon. */
+const PLC = UV(11000, 4300);
+export const PLATEAU = { x: PLC[0], z: PLC[1], rx: 2500, rz: 1500, rot: FRAME.rot, h: 240 };
+
+/** Distance normalisée au centre du plateau (1 = rebord). */
+export function plateauE(x: number, z: number): number {
+  const [u, v] = toUV(x - PLATEAU.x, z - PLATEAU.z);
+  return Math.hypot(u / PLATEAU.rx, v / PLATEAU.rz);
+}
 
 export interface Town {
   id: string;
@@ -159,21 +208,21 @@ export interface Town {
   level: number;
 }
 
-const town = (id: string, name: string, p: Vec2, r: number, angle: number, size: Town['size'], extra: Partial<Town> = {}): Town => ({ id, name, x: p[0], z: p[1], r, angle, size, level: 0, ...extra });
+const town = (id: string, name: string, p: Vec2, r: number, angle: number, size: Town['size'], extra: Partial<Town> = {}): Town => ({ id, name, x: Math.round(p[0]), z: Math.round(p[1]), r, angle, size, level: 0, ...extra });
 
 export const TOWNS: Town[] = [
-  town('vat-robert', 'Vat-Robert', [-2600, 1200], 620, 0.15, 'bourg'),
-  town('plage-de-jade', 'Plage-de-Jade', coastPoint(1.62, 520), 950, 0, 'ville', { seaside: true }),
-  town('baie-des-pitons', 'Les Pitons', coastPoint(0.74, 420), 400, 0.5, 'village', { port: true }),
-  town('port-des-jonques', 'Port-des-Jonques', coastPoint(-1.62, 420), 420, 0.1, 'village', { port: true }),
-  town('les-pilotis', 'Les Pilotis', [-12300, 900], 480, 1.3, 'village'),
-  town('les-mangroves', 'Les Mangroves', coastPoint(2.8, 950), 320, 0.4, 'hameau'),
-  town('rive-des-lotus', 'Rive-des-Lotus', [-5600, -1000], 380, 0.12, 'village'),
-  town('village-des-nuages', 'Village-des-Nuages', [-8300, -5300], 330, 0.6, 'village'),
-  town('le-col', 'La Bambouseraie', [2700, -2700], 280, 0.9, 'hameau'),
-  town('les-terrasses', 'Les Terrasses', [3800, 5600], 360, 0.25, 'village'),
-  town('les-theiers', 'Les Théiers', [11800, -600], 400, 1.2, 'village'),
-  town('pont-des-lianes', 'Pont-des-Lianes', [7600, 3700], 300, 1.4, 'hameau'),
+  town('vat-robert', 'Vat-Robert', UV(-1200, 1750), 620, FRAME.rot, 'bourg'),
+  town('plage-de-jade', 'Plage-de-Jade', coastPoint(A(1.8), 520), 950, 0, 'ville', { seaside: true }),
+  town('baie-des-pitons', 'Les Pitons', coastPoint(A(0.95), 600), 360, A(0.95) + 0.3, 'village', { port: true }),
+  town('port-des-jonques', 'Port-des-Jonques', coastPoint(A(-0.39), 560), 380, A(-0.39) + 0.6, 'village', { port: true }),
+  town('les-pilotis', 'Les Pilotis', UV(-9600, 1350), 480, FRAME.rot, 'village'),
+  town('les-mangroves', 'Les Mangroves', coastPoint(A((MOUTHS.fleuve + MOUTHS.lagune) / 2), 1350), 320, FRAME.rot + 0.3, 'hameau'),
+  town('rive-des-lotus', 'Rive-des-Lotus', UV(-5300, -2950), 380, FRAME.rot, 'village'),
+  town('village-des-nuages', 'Village-des-Nuages', UV(-2500, -5300), 330, FRAME.rot + Math.PI / 2, 'village'),
+  town('le-col', 'La Bambouseraie', UV(9400, -700), 280, FRAME.rot + 0.5, 'hameau'),
+  town('les-terrasses', 'Les Terrasses', UV(-1900, 4700), 360, FRAME.rot, 'village'),
+  town('les-theiers', 'Les Théiers', UV(11300, 3500), 400, FRAME.rot, 'village'),
+  town('pont-des-lianes', 'Pont-des-Lianes', UV(8300, 4300), 300, FRAME.rot + 1.0, 'hameau'),
 ];
 
 // ── Rivières (tracés dessinés, lit creusé dans le relief) ──
@@ -189,50 +238,85 @@ export interface River {
   /** Demi-largeur de la vallée (m) à la source et à l'embouchure. */
   v0: number;
   v1: number;
+  /** Bras du delta : part de cette rivière (premier point recalé sur son lit, au niveau de son lit). */
+  from?: string;
 }
 
-const portAzur = TOWNS.find((t) => t.id === 'plage-de-jade')!;
+const uv = (pts: Vec2[]) => pts.map(([u, v]) => UV(u, v));
 const COAST_TOWNS = TOWNS.filter((t) => t.seaside || t.port);
-const pont = TOWNS.find((t) => t.id === 'pont-des-lianes')!;
+
+/** Fourche du delta (u, v) : le Grand Fleuve se divise en aval. */
+export const DELTA_FORK = UV(-11300, 300);
+
 export const RIVERS: River[] = [
   {
-    // Le Grand Fleuve : large, lent, bordé de jungle ; il finit en delta à l'ouest.
+    // Le Grand Fleuve : naît au pied du Mont du Tigre, traverse tout le pays, se divise en quatre bras dans le delta.
     id: 'grand-fleuve',
     name: 'Le Grand Fleuve',
-    pts: [[-10600, -6900], [-11100, -4600], [-12300, -2300], [-13400, -400], [-14800, 2000], coastPoint(2.92, -150)],
+    pts: [...uv([[15400, 400], [13600, 1300], [11200, 1500], [8600, 1250], [5600, 700], [2400, 150], [-800, -100], [-4200, 250], [-7600, -150], [-11300, 300], [-13300, 100], [-15300, -500]]), coastPoint(A(MOUTHS.fleuve), -160)],
     w0: 5,
-    w1: 26,
-    v0: 240,
-    v1: 820,
+    w1: 46,
+    v0: 260,
+    v1: 1100,
   },
   {
-    // Gorges du Dragon : la rivière garde le niveau de la plaine en traversant le rebord du plateau.
+    id: 'bras-de-la-lagune',
+    name: 'Le Bras de la Lagune',
+    from: 'grand-fleuve',
+    pts: [...uv([[-12200, 250], [-13700, 1300], [-15200, 2300]]), coastPoint(A(MOUTHS.lagune), -160)],
+    w0: 30,
+    w1: 34,
+    v0: 300,
+    v1: 350,
+  },
+  {
+    id: 'bras-des-sables',
+    name: 'Le Bras des Sables',
+    from: 'bras-de-la-lagune',
+    pts: [...uv([[-14300, 1650], [-15400, 3300]]), coastPoint(A(MOUTHS.sables), -160)],
+    w0: 20,
+    w1: 24,
+    v0: 240,
+    v1: 280,
+  },
+  {
+    id: 'bras-des-singes',
+    name: 'Le Bras des Singes',
+    from: 'grand-fleuve',
+    pts: [...uv([[-13400, 100], [-14900, -1600], [-16000, -2900]]), coastPoint(A(MOUTHS.singes), -160)],
+    w0: 26,
+    w1: 30,
+    v0: 280,
+    v1: 330,
+  },
+  {
+    // Gorges du Dragon : la rivière garde le niveau de la côte en entaillant le plateau des Théiers.
     id: 'riviere-du-dragon',
     name: 'La Rivière du Dragon',
-    pts: [[5500, -4500], [6300, -2500], [6900, -300], [7500, 1700], [pont.x - 250, pont.z + 300], [7900, 5800], coastPoint(0.98, -150)],
+    pts: [...uv([[15000, 3000], [13500, 4000], [12100, 4800], [10700, 5300], [9500, 5500], [8700, 5900]]), coastPoint(A(0.66), -160)],
     w0: 3,
-    w1: 11,
-    v0: 150,
-    v1: 260,
+    w1: 13,
+    v0: 160,
+    v1: 280,
   },
   {
     // Vallée des Jonques : descente nord du col de la Jungle jusqu'au port.
     id: 'riviere-des-jonques',
     name: 'La Rivière des Jonques',
-    pts: [[2800, -7200], [2400, -8000], [1900, -8900], [1450, -9650], coastPoint(-1.56, -150)],
+    pts: [0, 0.3, 0.6, 0.85].map((t) => { const [mx, mz] = coastPoint(A(-0.29), 0); const s0 = UV(13000, -1700); return [s0[0] + (mx - s0[0]) * t, s0[1] + (mz - s0[1]) * t] as Vec2; }).concat([coastPoint(A(-0.29), -160)]),
     w0: 2,
     w1: 9,
     v0: 260,
-    v1: 460,
+    v1: 420,
   },
   {
     id: 'ruisseau-de-jade',
     name: 'Le Ruisseau de Jade',
-    pts: [[-1700, -2700], [-1400, 300], [-900, 4300], [portAzur.x + 1150, portAzur.z - 1000], coastPoint(1.5, -150)],
+    pts: [...uv([[-4400, 3600], [-4000, 5200], [-3800, 6600]]), coastPoint(A(2.02), -160)],
     w0: 2,
     w1: 7,
     v0: 100,
-    v1: 280,
+    v1: 260,
   },
 ];
 
@@ -252,14 +336,15 @@ export interface Lake {
   depth: number;
 }
 
-const lagoonC = coastPoint(2.62, 720);
+const lake = (id: string, name: string | undefined, kind: Lake['kind'], p: Vec2, rx: number, rz: number, rot: number, level: number, depth: number): Lake => ({ id, ...(name ? { name } : {}), kind, x: Math.round(p[0]), z: Math.round(p[1]), rx, rz, rot, level, depth });
 export const LAKES: Lake[] = [
-  { id: 'lagune', name: 'Lagune des Mangroves', kind: 'lake', x: lagoonC[0], z: lagoonC[1], rx: 1300, rz: 480, rot: 2.62 + Math.PI / 2, level: 0.35, depth: 1.4 },
-  { id: 'lac-de-robert', name: 'Lac des Lotus', kind: 'lake', x: -5600, z: -2500, rx: 2100, rz: 800, rot: 0.12, level: NaN, depth: 16 },
-  { id: 'lac-de-l-aigle', name: 'Lac du Col', kind: 'lake', x: (P1[0] + P2[0]) / 2 + 600, z: (P1[1] + P2[1]) / 2 + 1000, rx: 280, rz: 180, rot: 0.5, level: NaN, depth: 7 },
-  { id: 'lac-de-pralong', name: 'Étang des Nuages', kind: 'lake', x: -8950, z: -5850, rx: 170, rz: 110, rot: 0.4, level: NaN, depth: 4 },
-  { id: 'mare-des-terrasses', kind: 'pond', x: 5200, z: 6500, rx: 90, rz: 60, rot: 0.8, level: NaN, depth: 2 },
-  { id: 'mare-des-pilotis', kind: 'pond', x: -11000, z: 2700, rx: 70, rz: 50, rot: 0.3, level: NaN, depth: 2 },
+  // Lagune entre le bras de la Lagune et celui des Sables, presque au niveau de la mer.
+  lake('lagune', 'Lagune des Mangroves', 'lake', UV(-15500, 3500), 900, 380, FRAME.rot + 1.0, 0.35, 1.4),
+  // Lac des Lotus : ancien méandre du fleuve (bras mort), allongé au pied des collines du nord.
+  lake('lac-de-robert', 'Lac des Lotus', 'lake', UV(-5300, -1850), 1150, 330, FRAME.rot - 0.08, NaN, 6),
+  lake('lac-de-pralong', 'Étang des Nuages', 'lake', UV(-3500, -6050), 170, 110, 0.4, NaN, 4),
+  lake('mare-des-terrasses', undefined, 'pond', UV(-700, 5400), 90, 60, 0.8, NaN, 2),
+  lake('mare-des-pilotis', undefined, 'pond', UV(-8800, 2600), 70, 50, 0.3, NaN, 2),
 ];
 
 // ── Ports : bassins creusés sous le niveau de la mer, quais autour ──
@@ -280,16 +365,21 @@ function harbourAt(id: string, name: string, ang: number, halfLen: number, halfW
   return { id, name, x, z, dir: ang, halfLen, halfWid };
 }
 
-export const HARBOURS: Harbour[] = [harbourAt('port-azur', 'Port de Plage-de-Jade', 1.53, 230, 95), harbourAt('port-calanque', 'Port des Pitons', 0.74, 140, 60), harbourAt('port-aber', 'Port des Jonques', -1.62, 150, 70)];
+export const HARBOURS: Harbour[] = [harbourAt('port-azur', 'Port de Plage-de-Jade', A(1.71), 230, 95), harbourAt('port-calanque', 'Port des Pitons', A(0.95), 140, 60), harbourAt('port-aber', 'Port des Jonques', A(-0.39), 150, 70)];
 
 // ── Relief ──
 
 const gauss = (x: number, z: number, cx: number, cz: number, sx: number, sz: number) => Math.exp(-(((x - cx) / sx) ** 2 + ((z - cz) / sz) ** 2));
+/** Gaussienne dans le repère du pays : centre (u, v), écarts le long de u et de v. */
+export function gaussUV(x: number, z: number, cu: number, cv: number, su: number, sv: number): number {
+  const [u, v] = toUV(x, z);
+  return Math.exp(-(((u - cu) / su) ** 2 + ((v - cv) / sv) ** 2));
+}
 
 /** Vallonnement (mètres d'amplitude), réglable pour un essai : ISLAND_RELIEF='{"hills":30,…}'. */
-const RELIEF = { wave: 30, hills: 46, knolls: 70, chain: 1, ...(JSON.parse(process.env.ISLAND_RELIEF ?? '{}') as Record<string, number>) };
+const RELIEF = { wave: 26, hills: 42, knolls: 60, chain: 1, ...(JSON.parse(process.env.ISLAND_RELIEF ?? '{}') as Record<string, number>) };
 
-/** Distance (m) à l'arête de la chaîne du Nord et hauteur de l'arête au point le plus proche. */
+/** Distance (m) à l'arête de la chaîne de la Jungle et hauteur de l'arête au point le plus proche. */
 export function chainAt(x: number, z: number): { d: number; h: number } {
   const P = CHAIN.pts;
   let best = Infinity;
@@ -310,7 +400,7 @@ export function chainAt(x: number, z: number): { d: number; h: number } {
   return { d: best, h };
 }
 
-// ── Pitons karstiques : pains de sucre calcaires, en mer (baie des Pitons) et sur la presqu'île ──
+// ── Pitons karstiques : pains de sucre calcaires, dans la baie des Pitons et sur ses rives ──
 
 export interface Piton {
   x: number;
@@ -320,31 +410,69 @@ export interface Piton {
   h: number;
 }
 
-/** Plaine des rizières (ouest) : sol presque plat, routes de digue droites. */
-export const RICE_PLAIN = { x: -7800, z: 900, sx: 4800, sz: 1500 };
+/** Axe du Grand Fleuve dessiné (sans méandres), pour les zones qui le suivent (plaine des rizières). */
+const RIVER_AXIS: Vec2[] = RIVERS[0]!.pts;
+
+/** Distance (m) à l'axe du Grand Fleuve et abscisse u du point le plus proche. */
+export function fleuveAxis(x: number, z: number): { d: number; u: number } {
+  let best = Infinity;
+  let bu = 0;
+  for (let k = 0; k + 1 < RIVER_AXIS.length; k++) {
+    const [ax, az] = RIVER_AXIS[k]!;
+    const [bx, bz] = RIVER_AXIS[k + 1]!;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
+    const px = ax + dx * t;
+    const pz = az + dz * t;
+    const d = Math.hypot(x - px, z - pz);
+    if (d < best) {
+      best = d;
+      bu = toUV(px, pz)[0];
+    }
+  }
+  return { d: best, u: bu };
+}
+
+/** Plaine des rizières (0 … 1) : bande plate de part et d'autre du Grand Fleuve, de la Bambouseraie au delta. */
+export function plainZone(x: number, z: number): number {
+  const a = fleuveAxis(x, z);
+  const along = smoothstep(-13500, -11500, a.u) * (1 - smoothstep(4000, 7500, a.u));
+  return along * Math.exp(-((a.d / 2300) ** 2));
+}
+
+/** Delta (0 … 1) : plaine basse au-delà de la fourche, au ras de l'eau. */
+export function deltaZone(x: number, z: number): number {
+  const [u, v] = toUV(x, z);
+  return (1 - smoothstep(-12400, -10800, u)) * (1 - smoothstep(5200, 7000, Math.abs(v - 300)));
+}
+
+/** Compatibilité : centre et écarts de la plaine des rizières (lieux du décor, parcours). */
+const RPC = UV(-5000, 300);
+export const RICE_PLAIN = { x: RPC[0], z: RPC[1], sx: 4800, sz: 1500 };
 /** Colline du temple de Vat-Robert. */
-export const TEMPLE_HILL = { x: -3500, z: -250, r: 300, h: 48 };
+const THC = UV(-2700, 3050);
+export const TEMPLE_HILL = { x: Math.round(THC[0]), z: Math.round(THC[1]), r: 300, h: 48 };
 
 let pitons: Piton[] | null = null;
 
-/** Pitons du sud-est : îlots de la baie, quelques-uns à terre, loin des villages, du port et des sentiers côtiers. */
+/** Pitons de la baie : îlots dans la baie, quelques-uns sur ses rives, loin des villages, du port et des sentiers. */
 export function karstPitons(): Piton[] {
   if (pitons) return pitons;
   const out: Piton[] = [];
   let seed = 4242;
   const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const avoid: Array<[number, number, number]> = [[9300, 7500, 1500]];
-  for (let tries = 0; tries < 4000 && out.length < 46; tries++) {
-    const ang = 0.25 + r() * 1.05;
-    const sea = r() < 0.72;
-    const inset = sea ? -(250 + r() * 2600) : 900 + r() * 1700;
-    const [x, z] = coastPoint(ang, inset);
+  for (let tries = 0; tries < 6000 && out.length < 58; tries++) {
+    const phi = 0.5 + r() * 0.65;
+    const sea = r() < 0.7;
+    const inset = sea ? -(250 + r() * 2900) : 900 + r() * 2200;
+    const [x, z] = coastPoint(A(phi), inset);
     const R = sea ? 70 + r() * 150 : 90 + r() * 120;
     const H = sea ? 60 + r() * 130 : 70 + r() * 110;
-    if (TOWNS.some((t) => Math.hypot(t.x - x, t.z - z) < t.r + 700)) continue;
+    if (Math.abs(x) > 17800 || Math.abs(z) > 12200) continue;
+    if (TOWNS.some((t) => Math.hypot(t.x - x, t.z - z) < t.r + (sea ? 700 : 1300))) continue;
     if (HARBOURS.some((h) => Math.hypot(h.x - x, h.z - z) < 900)) continue;
-    if (avoid.some(([ax, az, ar]) => Math.hypot(ax - x, az - z) < ar)) continue;
-    if (!sea && (Math.abs(x) > 16000 || inset < 700)) continue;
+    if (!sea && (inset < 1300 || plateauE(x, z) < 1.25)) continue;
     if (out.some((p) => Math.hypot(p.x - x, p.z - z) < p.r + R + (sea ? 60 : 380))) continue;
     out.push({ x, z, r: R, h: H });
   }
@@ -372,41 +500,68 @@ function natural(x: number, z: number): number {
   return natural0(x, z) + karst(x, z);
 }
 
+/** Col de la Jungle : creux de la selle entre les deux sommets (un peu au nord de leur milieu). */
+const SADDLE = UV(12350, -1250);
+/** Pied sud du col (la Bambouseraie) et port des Jonques (pied nord). */
+const BAMB = UV(9400, -700);
+const JONQ_FOOT = coastPoint(A(-0.33), 250);
+/** Pied de la descente nord du col (lacets), près du port des Jonques. */
+export const JONQ_FOOT_ROAD = coastPoint(A(-0.33), 430);
+
+/** Rampe : le relief tend vers un plan incliné de `a` (hauteur ha) à `b` (hb), sur `half` m de part et d'autre de l'axe. */
+function ramp(h: number, x: number, z: number, a: Vec2, b: Vec2, ha: number, hb: number, half: number, blend: number): number {
+  const dx = b[0] - a[0];
+  const dz = b[1] - a[1];
+  const L2 = dx * dx + dz * dz;
+  const t = ((x - a[0]) * dx + (z - a[1]) * dz) / L2;
+  if (t < -0.3 || t > 1.3) return h;
+  const tc = Math.max(0, Math.min(1, t));
+  const dist = Math.hypot(x - a[0] - dx * tc, z - a[1] - dz * tc);
+  if (dist > half + blend) return h;
+  const w = (1 - smoothstep(half, half + blend, dist)) * 0.97;
+  return lerp(h, lerp(ha, hb, tc), w);
+}
+
 function natural0(x: number, z: number): number {
   const ang = Math.atan2(z, x);
   const d = coastRadius(ang) - Math.hypot(x, z);
   const cliff = cliffiness(ang);
-  // Mer : fond qui plonge doucement devant les plages, vite au pied des falaises.
+  // Mer : fond qui plonge doucement devant les plages et le delta, vite au pied des falaises.
   if (d < 0) return Math.max(-30, 0.25 + d * lerp(0.012, 0.12, cliff));
-  const beach = 0.25 + Math.min(d, 160) * 0.012 + 16 * smoothstep(160, 1800, d);
+  const beach = 0.25 + Math.min(d, 160) * 0.012 + 14 * smoothstep(160, 1800, d);
   const wall = 0.25 + 44 * smoothstep(4, 70, d) + 18 * smoothstep(70, 1500, d);
   let h = beach + (wall - beach) * cliff * (1 - smoothstep(1500, 4000, d));
   const cl = cliff * (1 - smoothstep(1500, 4000, d));
   const inland = smoothstep(150, 2400, d) * (1 - cl) + smoothstep(60, 900, d) * cl;
-  // Lieux qui doivent rester faciles : plaine de Vat-Robert et du Circuit, delta, lagune, dessus du plateau, rives du lac.
-  const lake = LAKES[1]!;
-  const calm = 1 - 0.8 * Math.max(gauss(x, z, ANNEAU.cx, ANNEAU.cz, 2600, 1700), gauss(x, z, -2600, 1500, 3200, 2000), gauss(x, z, lagoonC[0], lagoonC[1], 3200, 2400), gauss(x, z, -13000, 1200, 2600, 2400), gauss(x, z, PLATEAU.x, PLATEAU.z, 3000, 2200), gauss(x, z, lake.x, lake.z, 3200, 1900));
-  // Plaine des rizières : presque plate (digues droites), à quelques mètres au-dessus du fleuve.
-  const flatPlain = 1 - 0.88 * gauss(x, z, RICE_PLAIN.x, RICE_PLAIN.z, RICE_PLAIN.sx, RICE_PLAIN.sz);
+  // Lieux qui doivent rester faciles : Circuit, Vat-Robert, delta, dessus du plateau, rives du lac.
+  const lk = LAKES[1]!;
+  const calm = 1 - 0.8 * Math.max(gauss(x, z, ANNEAU.cx, ANNEAU.cz, 2400, 1700), gaussUV(x, z, -1200, 1750, 3000, 1700), deltaZone(x, z), gauss(x, z, PLATEAU.x, PLATEAU.z, 2600, 2000), gauss(x, z, lk.x, lk.z, 2600, 1600));
+  // Plaine des rizières le long du fleuve : presque plate (digues droites).
+  const pz = plainZone(x, z);
+  const flatPlain = 1 - 0.85 * pz;
   h += flatPlain * inland * (RELIEF.wave * (fbm(x / 7000, z / 7000, 3, 11) + 0.35) + (9 + (RELIEF.hills - 9) * calm) * fbm(x / 1500, z / 1500, 2, 12) + 2.5 * fbm(x / 350, z / 350, 2, 13));
   h += flatPlain * inland * calm * RELIEF.knolls * Math.max(0, fbm(x / 2300 + 7, z / 2300 - 3, 2, 14) + 0.08) * 1.6;
   // Colline du temple de Vat-Robert : dôme régulier.
   h += TEMPLE_HILL.h * Math.exp(-((Math.hypot(x - TEMPLE_HILL.x, z - TEMPLE_HILL.z) / TEMPLE_HILL.r) ** 2));
   const fade = smoothstep(120, 1200, d);
-  // Monts de la Jungle : versants raides, crêtes et vallons (bruit en crêtes), plus douce vers la plaine.
+  // Versants des routes de montagne (col des deux côtés, route des Nuages) : réguliers, sans bosses à franchir.
+  const even = 1 - 0.9 * Math.max(gaussUV(x, z, 11000, -1200, 2800, 2300), gaussUV(x, z, 12700, -3200, 1700, 2400), gaussUV(x, z, -2700, -4600, 1400, 1300));
+  // Chaîne de la Jungle : versants raides, crêtes et vallons (bruit en crêtes), plus douce vers la plaine.
   const c = chainAt(x, z);
-  // Versants des routes de montagne (col de la Jungle des deux côtés, Village-des-Nuages) : réguliers, sans bosses à franchir.
-  const even = 1 - 0.85 * Math.max(gauss(x, z, 2800, -4600, 1700, 2400), gauss(x, z, 2400, -8300, 1800, 2200), gauss(x, z, -8700, -4300, 1300, 1500));
   if (c.d < CHAIN.width * 3) {
     const prof = Math.exp(-((c.d / CHAIN.width) ** 1.6)) * (1 - smoothstep(CHAIN.width * 2, CHAIN.width * 3, c.d));
     const rough = 0.74 + even * (0.4 * (ridged(x / 2100, z / 2100, 4, 81) - 0.45) + 0.1 * fbm(x / 600, z / 600, 2, 82));
-    h += fade * RELIEF.chain * c.h * prof * rough;
+    // Côte nord-ouest : un replat côtier au pied de la chaîne (la route du Tour longe la mer).
+    const shelf = toUV(x, z)[1] < -3000 ? smoothstep(700, 2100, d) : 1;
+    h += fade * shelf * RELIEF.chain * c.h * prof * rough;
   }
-  // Collines des Terrasses (sud) : croupes rondes couvertes de rizières en terrasses.
-  h += fade * 165 * gauss(x, z, 3600, 5700, 3600, 1500) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 22));
+  // Collines des Terrasses, de part et d'autre de la plaine : croupes rondes couvertes de rizières en terrasses.
+  h += fade * 170 * gaussUV(x, z, -2200, 4500, 4200, 1500) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 22));
+  h += fade * 150 * gaussUV(x, z, 1800, -3700, 4800, 1300) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 24));
+  h += fade * 120 * gaussUV(x, z, 5400, 3300, 2200, 1300) * (0.85 + 0.3 * fbm(x / 1500, z / 1500, 2, 25));
   // Plateau des Théiers : dessus presque plat, rebord en escarpement.
-  const pe = Math.hypot((x - PLATEAU.x) / PLATEAU.rx, (z - PLATEAU.z) / PLATEAU.rz);
-  h += fade * PLATEAU.h * (1 - smoothstep(0.62, 1.02, pe)) * (1 + 0.04 * fbm(x / 900, z / 900, 2, 23));
+  const pe = plateauE(x, z);
+  h += fade * PLATEAU.h * (1 - smoothstep(0.42, 1.12, pe)) * (1 + 0.04 * fbm(x / 900, z / 900, 2, 23));
   // Massif des Lanternes : deux sommets, col de la Jungle entre les deux, arêtes.
   const M = MASSIF;
   const cone = (px: number, pz: number, H: number) => H * Math.exp(-((Math.hypot(x - px, z - pz) / M.spread) ** 1.7));
@@ -415,36 +570,26 @@ function natural0(x: number, z: number): number {
   const massif = (c1 ** 8 + c2 ** 8) ** (1 / 8);
   if (massif > 0.05) h += smoothstep(30, 1600, d) * (massif + even * massif * 0.1 * (ridged(x / 1600, z / 1600, 3, 31) - 0.45));
   // Selle du col de la Jungle, large et creusée : la route y arrive en pente régulière.
-  h -= fade * 170 * gauss(x, z, 2950, -6450, 800, 1700);
-  h -= fade * 190 * gauss(x, z, 2820, -7150, 750, 800);
-  // Vallée des Jonques : du col jusqu'au port, fond en pente régulière, versants raides de part et d'autre.
-  {
-    const [ax, az] = [2750, -7250];
-    const [bx, bz] = [1450, -9650];
-    const dx = bx - ax;
-    const dz = bz - az;
-    const t = ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz);
-    if (t > 0 && t < 1.1) {
-      const dist = Math.hypot(x - ax - dx * Math.min(1, t), z - az - dz * Math.min(1, t));
-      if (dist < 950) {
-        const floor = lerp(760, 230, Math.min(1, t)) + dist * 0.1;
-        // Tête de la combe estompée : le versant du Mont des Lanternes reste entier.
-        h = lerp(h, lerp(Math.min(h, floor), h, smoothstep(550, 950, dist)), smoothstep(0, 0.18, t));
-      }
-    }
-  }
+  h -= fade * 200 * gaussUV(x, z, 12350, -1250, 900, 1300);
+  // Versants du col de la Jungle : deux larges rampes régulières (≈ 8 %) de la Bambouseraie au col et du col au port
+  // des Jonques ; les lacets y montent sans bosse ni tranchée.
+  // Montée des Théiers : rampe régulière de Pont-des-Lianes au plateau (≈ 7 %).
+  h = ramp(h, x, z, UV(8650, 4200), UV(10850, 3600), 50, 300, 180, 380);
+  // Arête du Mont des Lanternes : du col au temple du sommet, en pente régulière (route du temple en lacets) ;
+  // les rampes du col passent par-dessus.
+  h = ramp(h, x, z, SADDLE, P1, 350, 640, 420, 700);
+  h = ramp(h, x, z, BAMB, SADDLE, 190, 350, 420, 800);
+  h = ramp(h, x, z, SADDLE, JONQ_FOOT, 350, 15, 380, 700);
   // Villes du bord de mer (ports, station) : arrière-pays en pente douce sur 1,4 km (pas de falaise sous les quais).
   for (const t of COAST_TOWNS) {
     const dt = Math.hypot(x - t.x, z - t.z);
     if (dt < 1800) h = lerp(Math.min(h, 6 + dt * 0.045), h, smoothstep(900, 1800, dt));
   }
-  // Cuvette du lac de Robert, plaine basse de la lagune et du delta.
-  h -= fade * 55 * gauss(x, z, lake.x, lake.z, lake.rx * 1.5, lake.rz * 2.2);
-  h -= fade * 14 * gauss(x, z, lagoonC[0], lagoonC[1], 2600, 1800);
-  h -= fade * 10 * gauss(x, z, -14000, 2200, 2400, 2000);
-  // Basse vallée du Grand Fleuve et delta : plaine basse qui descend doucement vers la mer (≈ 4 m par km).
-  const delta = 0.9 * gauss(x, z, -13400, 600, 2600, 3200);
-  if (delta > 0.01) h = lerp(h, Math.min(h, 3 + 0.004 * d), delta);
+  // Cuvette du lac des Lotus.
+  h -= fade * 22 * gauss(x, z, lk.x, lk.z, lk.rx * 1.4, lk.rx * 0.9);
+  // Delta : plaine basse qui descend doucement vers la mer (≈ 2 m par km).
+  const dz0 = deltaZone(x, z);
+  if (dz0 > 0.01) h = lerp(h, Math.min(h, 2.2 + 0.002 * d), dz0 * 0.95);
   return h;
 }
 
@@ -472,11 +617,29 @@ export interface RiverBed {
 }
 let beds: RiverBed[] | null = null;
 
+/** Profil imposé au Grand Fleuve : pente douce et régulière jusqu'à la fourche du delta (≈ 2,4 m par km). */
+function fleuveCap(px: number, pz: number): number {
+  const [u] = toUV(px, pz);
+  const [uf] = toUV(DELTA_FORK[0], DELTA_FORK[1]);
+  return u <= uf ? 1.6 + 0.0004 * (u - uf) : 1.6 + 0.0024 * (u - uf);
+}
+
 export function riverBeds(): RiverBed[] {
   if (beds) return beds;
-  beds = RIVERS.map((river) => {
+  const out: RiverBed[] = [];
+  for (const river of RIVERS) {
+    const parent = river.from ? out.find((b) => b.river.id === river.from)! : null;
+    // Bras du delta : départ recalé sur le lit de la rivière mère, au point le plus proche du premier point dessiné.
+    let start = 0;
+    const drawn = river.pts.slice();
+    if (parent) {
+      const [fx, fz] = drawn[0]!;
+      for (let k = 1; k < parent.pts.length; k++) if (Math.hypot(parent.pts[k]![0] - fx, parent.pts[k]![1] - fz) < Math.hypot(parent.pts[start]![0] - fx, parent.pts[start]![1] - fz)) start = k;
+      drawn[0] = parent.pts[start]!;
+    }
     // Méandres : le tracé dessiné ondule (bruit le long du cours, amplitude croissante vers l'aval).
-    const base = resample(chaikin(river.pts, 4), 10);
+    const base = resample(chaikin(drawn, 4), 10);
+    const amp = parent ? 0.6 : 1;
     const pts: Vec2[] = base.map(([x, z], i) => {
       const a = base[Math.max(0, i - 1)]!;
       const b2 = base[Math.min(base.length - 1, i + 1)]!;
@@ -484,25 +647,24 @@ export function riverBeds(): RiverBed[] {
       const dz = b2[1] - a[1];
       const l = Math.hypot(dx, dz) || 1;
       const t = i / (base.length - 1);
-      const off = (40 + 140 * t) * noise2(i / 45, 0.5, 71) * Math.min(1, i / 30, (base.length - 1 - i) / 30);
+      const off = amp * (40 + 140 * t) * noise2(i / 45, 0.5, 71 + river.pts.length) * Math.min(1, i / 30, (base.length - 1 - i) / 30);
       return [x - (dz / l) * off, z + (dx / l) * off];
     });
     const n = pts.length;
     const raw = pts.map(([x, z]) => natural(x, z) - 2.5);
-    // Toujours en descente (≥ 0,15 %), jusqu'à 0,1 m à l'embouchure.
     const bed = raw.slice();
-    // Grand Fleuve : cours inférieur lent, presque au niveau de la mer sur ses derniers kilomètres (plaine du delta,
-    // marché flottant, pilotis), au lieu de dévaler les collines de l'ouest.
-    if (river.id === 'grand-fleuve')
-      for (let i = 0; i < n; i++) {
-        const t = i / (n - 1);
-        if (t > 0.62) bed[i] = Math.min(bed[i]!, 2 + 30 * ((1 - t) / 0.38) ** 1.3);
-      }
-    for (let i = 1; i < n; i++) bed[i] = Math.min(bed[i]!, bed[i - 1]! - 0.015);
+    if (river.id === 'grand-fleuve') for (let i = 0; i < n; i++) bed[i] = Math.min(bed[i]!, fleuveCap(pts[i]![0], pts[i]![1]));
+    // Delta : lit à 0,8 m au moins jusqu'à la bouche (la plaine du delta ne s'abaisse jamais sous la mer).
+    const inDelta = pts.map(([x, z]) => deltaZone(x, z) > 0.3 && shoreDist(x, z) > 0);
+    for (let i = 0; i < n; i++) if (inDelta[i]) bed[i] = Math.max(bed[i]!, 0.8);
+    if (parent) bed[0] = Math.min(bed[0]!, parent.bed[start]!);
+    // Pente minimale : 1,5 m par km (0,3 m pour le long Grand Fleuve), 0,1 m par km dans le delta.
+    const drop = pts.map((_, i) => (inDelta[i] ? 0.001 : river.id === 'grand-fleuve' ? 0.003 : 0.015));
+    for (let i = 1; i < n; i++) bed[i] = Math.min(bed[i]!, bed[i - 1]! - drop[i]!);
     const mouth = pts.findIndex(([x, z]) => shoreDist(x, z) < 0);
     const end = mouth < 0 ? n - 1 : mouth;
     for (let i = 0; i < n; i++) {
-      const t = smoothstep(Math.max(0, end - 150), end, i);
+      const t = smoothstep(Math.max(0, end - (parent || river.id === 'grand-fleuve' ? 60 : 150)), end, i);
       bed[i] = Math.max(-1.5, lerp(bed[i]!, Math.min(bed[i]!, -0.6), t));
     }
     // Pente lissée (moyenne glissante sur ± 200 m), toujours descendante.
@@ -515,11 +677,13 @@ export function riverBeds(): RiverBed[] {
       }
       return s / c;
     });
-    for (let i = 1; i < n; i++) sm[i] = Math.min(sm[i]!, sm[i - 1]! - 0.01);
+    if (parent) sm[0] = Math.min(sm[0]!, parent.bed[start]!);
+    for (let i = 1; i < n; i++) sm[i] = Math.min(sm[i]!, sm[i - 1]! - drop[i]! * 0.66);
     const chan = pts.map((_, i) => lerp(river.w0, river.w1, i / (n - 1)) / 2);
     const width = pts.map((_, i) => lerp(river.v0, river.v1, i / (n - 1)));
-    return { river, pts, bed: sm, chan, width };
-  });
+    out.push({ river, pts, bed: sm, chan, width });
+  }
+  beds = out;
   return beds;
 }
 
@@ -546,7 +710,8 @@ function getValley(): Valley {
         for (let i = i0; i <= i1; i++) {
           const dd = Math.hypot(x0 + i * cell - px, z0 + j * cell - pz);
           const o = j * n + i;
-          if (dd < dist[o]!) {
+          // Deux lits voisins (fourche du delta) : le plus bas l'emporte à distance égale.
+          if (dd < dist[o]! - 0.5 || (dd < dist[o]! + 0.5 && b.bed[k]! < bed[o]!)) {
             dist[o] = dd;
             bed[o] = b.bed[k]!;
             chan[o] = b.chan[k]!;
@@ -611,7 +776,7 @@ function getFlats(): Flat[] {
       s += carved(t.x + Math.cos(a) * t.r * 0.5, t.z + Math.sin(a) * t.r * 0.5);
       c++;
     }
-    t.level = Math.max(t.seaside || t.port ? 3.5 : 2, (s / c + carved(t.x, t.z)) / 2);
+    t.level = Math.max(t.seaside || t.port ? 3.5 : 2.5, (s / c + carved(t.x, t.z)) / 2);
     flats.push({ x: t.x, z: t.z, dist: (x, z) => Math.hypot(x - t.x, z - t.z), r0: t.r * (t.seaside ? 1.0 : 0.55), r1: t.r * (t.seaside ? 1.6 : 1.4) + (t.seaside ? 0 : 260), level: t.level });
   }
   return flats;
@@ -754,7 +919,7 @@ export function inHarbour(x: number, z: number, margin = 0): boolean {
   });
 }
 
-export { clamp };
+export { clamp, SADDLE };
 
 /** Mise au point : étapes du relief en un point. */
 export function terrainSteps(x: number, z: number) {

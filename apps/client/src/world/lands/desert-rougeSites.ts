@@ -8,8 +8,8 @@ import { meshOf, strollPath, type Site, type SiteContext } from '../polySites.ts
 /**
  * Décor propre du Désert rouge (mode Poly, tools/desert-rouge) : palmiers et palmeraies des oasis, puits, tentes,
  * caravanes de dromadaires qui marchent, arches de pierre, cactus et touffes sèches, croûte de sel du Chott Blanc,
- * tribunes du Circuit du Chott, montgolfières au-dessus du canyon au lever du jour, bike park des Buttes, cyclo-cross
- * des Sables, dôme de l'observatoire et cairns du col, ports. Même mécanique que les lieux de l'île (polySites.ts) :
+ * tribunes du Circuit du Chott, montgolfières au-dessus du Grand Canyon au lever du jour, bike park des Buttes,
+ * cyclo-cross des Sables, dôme de l'observatoire et cairns de la Tête du Vautour, guelta, ports. Même mécanique que les lieux de l'île (polySites.ts) :
  * chaque lieu est construit par pas quand le coureur approche, puis oublié. Cotes : celles du générateur
  * (tools/desert-rouge/src/design.ts, places.json).
  */
@@ -19,57 +19,80 @@ type P2 = readonly [number, number];
 
 // ── Cotes du générateur ──
 
+/** Croissant (ARC et halfWidth de design.ts) : centre de l'arc, rayon, cornes. */
+const ARC = { cx: 0, cz: 11700, R: 17000, t0: -1.05, t1: 1.12 } as const;
+function halfWidth(t: number): number {
+  const u = Math.min(1, Math.max(0, (t - ARC.t0) / (ARC.t1 - ARC.t0)));
+  const tip = 2900 + (2100 - 2900) * u;
+  return tip + (5800 - tip) * Math.sin(Math.PI * u) ** 0.8;
+}
+/** Sur la terre du croissant, à peu près (sans le rivage dentelé), avec une marge (m) vers l'intérieur. */
+function onLand(x: number, z: number, margin = 0): boolean {
+  const t = Math.atan2(x - ARC.cx, ARC.cz - z);
+  const r = Math.hypot(x - ARC.cx, z - ARC.cz);
+  const tc = Math.min(ARC.t1, Math.max(ARC.t0, t));
+  const d = t === tc ? Math.abs(r - ARC.R) : Math.hypot(x - ARC.cx - ARC.R * Math.sin(tc), z - ARC.cz + ARC.R * Math.cos(tc));
+  return d < halfWidth(tc) - margin;
+}
+
 /** Circuit du Chott (ANNEAU) et Chott Blanc (CHOTT). */
-export const DESERT_RING = { x: -5600, z: -2500, half: 560, radius: 215 } as const;
-const CHOTT = { x: -5600, z: -2500, rx: 2100, rz: 820, rot: 0.12 };
-/** Sources d'oasis (LAKES) : L'Oasis et l'Oasis des Dunes. */
-const OASIS = { x: 4220, z: 6030, rx: 150, rz: 95, rot: 0.4 };
-const DUNES_OASIS = { x: -9900, z: 4700, rx: 120, rz: 80, rot: 0.8 };
-/** Grand Erg (ERG) : centre et demi-axes du masque des dunes. */
-const ERG = { x: -10000, z: 4300, sx: 4300, sz: 2700 };
+export const DESERT_RING = { x: -3625, z: -1926, half: 560, radius: 215 } as const;
+const CHOTT = { x: -3625, z: -1926, rx: 1500, rz: 650, rot: 0 };
+/** Sources d'oasis (LAKES) : palmeraies, puits et tentes autour. */
+const OASIS = { x: 5277, z: -1322, rx: 150, rz: 95, rot: 0.4 };
+const OASES: ReadonlyArray<{ id: string; o: typeof OASIS; grove: number }> = [
+  { id: 'oasis', o: OASIS, grove: 950 },
+  { id: 'oasis-des-dunes', o: { x: -12594, z: -2659, rx: 120, rz: 80, rot: 0.8 }, grove: 420 },
+  { id: 'oasis-de-sablons', o: { x: -12866, z: 2105, rx: 110, rz: 75, rot: 0.2 }, grove: 520 },
+  { id: 'oasis-de-l-etoile', o: { x: 589, z: -7941, rx: 100, rz: 70, rot: 0.5 }, grove: 380 },
+  { id: 'oasis-des-cairns', o: { x: 5949, z: -6871, rx: 110, rz: 70, rot: 1.1 }, grove: 380 },
+  { id: 'source-de-port-vent', o: { x: -2272, z: -8875, rx: 90, rz: 60, rot: 0.3 }, grove: 320 },
+];
+/** Guelta du Vautour (petit lac de montagne) : quelques palmiers au bord. */
+const GUELTA = { x: 12354, z: -4218, rx: 220, rz: 150, rot: 0.5 };
 /** Petites boucles dessinées (CROSS, BIKEPARK et la forme de build.ts). */
-const CROSS: P2 = [-6300, 2900];
-const BIKEPARK: P2 = [-1100, -2950];
-/** Pic du Vautour (observatoire) et col des Vents. */
-const PEAK: P2 = [1600, -6900];
-const COL: P2 = [2933, -6513];
-/** Canyon de l'Oued Rouge : points du fond, du nord au sud (riverBeds, oued-rouge). */
-const CANYON: readonly P2[] = [[6316, -2245], [6494, -1673], [6699, -1108], [6832, -522], [7004, 53], [7162, 632], [7318, 1210], [7355, 1807]];
+const CROSS: P2 = [-7960, 550];
+const BIKEPARK: P2 = [2143, -2154];
+/** Pic du Vautour (observatoire) et Tête du Vautour (cairns). */
+const PEAK: P2 = [13156, -2422];
+const COL: P2 = [14293, -358];
+/** Grand Canyon de l'Oued Rouge : points du fond, d'est en ouest, au-dessus des Cairns (riverBeds, oued-rouge). */
+const CANYON: readonly P2[] = [[7616, -4079], [6682, -4578], [5730, -5028], [4702, -5299], [3680, -5482], [2620, -5593], [1575, -5682]];
 /** Villages : place (centre du plan) et direction de la rue principale. */
 const VILLAGES: ReadonlyArray<{ x: number; z: number; angle: number; r: number; palms: number }> = [
-  { x: -2600, z: 1200, angle: 0.15, r: 620, palms: 10 },
-  { x: -5600, z: -800, angle: 0.12, r: 380, palms: 6 },
-  { x: -12300, z: 900, angle: 1.3, r: 480, palms: 8 },
-  { x: -10320, z: -3380, angle: 0.6, r: 300, palms: 4 },
-  { x: 3800, z: 5600, angle: 0.25, r: 360, palms: 12 },
-  { x: 11800, z: -600, angle: 1.2, r: 400, palms: 6 },
-  { x: 7600, z: 3700, angle: 1.4, r: 300, palms: 8 },
-  { x: 2700, z: -2700, angle: 0.9, r: 280, palms: 3 },
+  { x: -572, z: -2589, angle: 0, r: 620, palms: 8 },
+  { x: -5994, z: -1722, angle: -0.42, r: 380, palms: 5 },
+  { x: -12142, z: 2065, angle: -0.9, r: 480, palms: 8 },
+  { x: -7060, z: -6817, angle: -0.36, r: 300, palms: 3 },
+  { x: 5073, z: -1777, angle: 0.36, r: 360, palms: 12 },
+  { x: 10384, z: 328, angle: 0.74 + Math.PI / 2, r: 400, palms: 5 },
+  { x: 4469, z: -6561, angle: 0.24, r: 280, palms: 4 },
+  { x: 0, z: -7600, angle: 0, r: 300, palms: 6 },
 ];
 /** Arches de pierre : position souhaitée, portée (m), cap. */
 const ARCHES: ReadonlyArray<readonly [number, number, number, number]> = [
-  [-3350, -4300, 26, 0.4],
-  [-2700, -3700, 17, 1.6],
-  [8350, -1150, 34, 0.9],
-  [1900, 3250, 22, 2.3],
-  [-8700, 5300, 20, 0.2],
+  [2773, -1308, 26, 0.4],
+  [986, -2365, 17, 1.6],
+  [5800, -5234, 34, 0.9],
+  [-11621, -4578, 22, 2.3],
+  [8074, -102, 20, 0.2],
 ];
 /** Caravanes : boucle suivie (centre, demi-axes, cap) et nombre de bêtes. */
 const CARAVANS: ReadonlyArray<{ id: string; x: number; z: number; rx: number; rz: number; rot: number; n: number; speed: number }> = [
-  { id: 'caravane-des-dunes', x: -9450, z: 4350, rx: 520, rz: 300, rot: 0.45, n: 8, speed: 1.15 },
-  { id: 'caravane-du-lion', x: 2300, z: 3900, rx: 420, rz: 260, rot: -0.3, n: 6, speed: 1.05 },
+  { id: 'caravane-des-dunes', x: -12627, z: -3291, rx: 520, rz: 300, rot: -0.7, n: 8, speed: 1.15 },
+  { id: 'caravane-de-l-etoile', x: 1987, z: -8101, rx: 420, rz: 260, rot: 0.1, n: 6, speed: 1.05 },
 ];
 
 const PORT_CORAIL: HarbourSite = {
-  x: 375.8, z: 9206.3, dir: 1.53, halfLen: 230, halfWid: 95, side: -1, lines: [-160, -100, -40, 20, 80], officeW: 30, officeU: -110, sail: 0.55, fishing: false,
+  x: 1358, z: 437.3, dir: 1.691, halfLen: 230, halfWid: 95, side: -1, lines: [-160, -100, -40, 20, 80], officeW: 30, officeU: -110, sail: 0.55, fishing: false,
   hulls: ['#2f8fb5', '#f4efe6', '#e2593f', '#f2c230', '#3aa39b'],
 };
 const CAP_BRIQUE: HarbourSite = {
-  x: 10424.3, z: 9518.3, dir: 0.74, halfLen: 140, halfWid: 60, side: 1, lines: [-90, -40, 10], officeW: 26, officeU: -95, sail: 0.3, fishing: true,
+  x: 11377, z: 3564.1, dir: 2.521, halfLen: 140, halfWid: 60, side: 1, lines: [-90, -40, 10], officeW: 26, officeU: -95, sail: 0.3, fishing: true,
   hulls: ['#2f6fa6', '#e2593f', '#f2f0e8', '#3aa39b', '#e7b23c'],
 };
 const PORT_VENT: HarbourSite = {
-  x: -499.2, z: -10138, dir: -1.62, halfLen: 150, halfWid: 70, side: 1, lines: [-100, -45, 10], officeW: 28, officeU: -110, sail: 0.25, fishing: true,
+  x: -3316.7, z: -10245.2, dir: -1.721, halfLen: 150, halfWid: 70, side: 1, lines: [-100, -45, 10], officeW: 28, officeU: -110, sail: 0.25, fishing: true,
   hulls: ['#2d5d8f', '#b8432f', '#3c7f58', '#f2f0e8', '#d79a33'],
 };
 
@@ -321,7 +344,7 @@ function circuit(k: () => Kit): Site {
       const flags = [C('#e2593f'), C('#f2c230'), C('#2f8fb5'), C('#f4efe6')];
       for (let i = 0; i < 24; i++) {
         const x = R.x - R.half + (i * 2 * R.half) / 23;
-        for (const z of [zS + 9, R.z - R.radius - 9]) {
+        for (const z of [zS + 12, R.z - R.radius - 12]) {
           const y = c.probe.heightAt(x, z);
           if (Number.isFinite(y)) c.mesh.put(K.flag, x, y, z, 0, 1, 1, 1, flags[i % flags.length]!);
         }
@@ -396,6 +419,31 @@ function oasis(k: () => Kit, id: string, o: typeof OASIS, grove: number, seed: n
         }
       }
       strollPath(c, [ell(o, 1.6, 0), ell(o, 1.7, 1.6), ell(o, 1.6, 3.1), ell(o, 1.7, 4.7), ell(o, 1.6, 6.2)], seed + 7);
+    },
+  };
+}
+
+/** Guelta du Vautour : vasque d'eau dans la roche, quelques palmiers et des rochers autour. */
+function guelta(k: () => Kit): Site {
+  const o = GUELTA;
+  return {
+    id: 'guelta-du-vautour',
+    x: o.x,
+    z: o.z,
+    reach: 900,
+    needs: [[o.x, o.z], ell(o, 1.5, 0), ell(o, 1.5, Math.PI)],
+    *build(c) {
+      const K = k();
+      const r = rng(5150);
+      for (let i = 0; i < 14; i++) {
+        const [x, z] = ell(o, 1.2 + r() * 0.5, (i / 14) * Math.PI * 2 + r() * 0.2);
+        c.probe.read(x, z);
+        if (c.probe.road < 0.02 && c.probe.water < 0.2) palm(c, K, x, z, r, 0.9);
+      }
+      for (let i = 0; i < 18; i++) {
+        const [x, z] = ell(o, 1.15 + r() * 0.9, r() * Math.PI * 2);
+        putOn(c, K.rock, x, z, r() * 6, C('#9c4a2c'), 0.8 + r() * 1.8, -0.3);
+      }
     },
   };
 }
@@ -519,7 +567,8 @@ function scrub(k: () => Kit, cx: number, cz: number): Site {
     *build(c) {
       const K = k();
       const r = rng(Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663));
-      const n = Math.round(260 * Math.max(0.35, c.density));
+      // Désert nu : peu de plantes (touffes sèches, quelques cactus), surtout des cailloux.
+      const n = Math.round(150 * Math.max(0.35, c.density));
       const dry = [C('#c2a25e'), C('#b08f52'), C('#d1b06a'), C('#a3884e')];
       const green = [C('#5d7a3a'), C('#6b8742'), C('#567036')];
       const stone = [C('#9c4a2c'), C('#b56b44'), C('#8a5038')];
@@ -532,10 +581,10 @@ function scrub(k: () => Kit, cx: number, cz: number): Site {
         const roll = r();
         if (sandy && roll > 0.25) continue;
         const yaw = r() * 6.28;
-        if (roll < 0.45) putOn(c, K.tuft, x, z, yaw, dry[Math.floor(r() * dry.length)]!, 0.8 + r() * 0.7);
-        else if (roll < 0.6) putOn(c, K.deadBush, x, z, yaw, WHITE, 0.8 + r() * 0.6);
-        else if (roll < 0.75) putOn(c, K.cactus, x, z, yaw, green[Math.floor(r() * green.length)]!, 0.7 + r() * 0.7);
-        else if (roll < 0.85) putOn(c, K.barrel, x, z, yaw, green[Math.floor(r() * green.length)]!, 0.8 + r() * 0.6);
+        if (roll < 0.3) putOn(c, K.tuft, x, z, yaw, dry[Math.floor(r() * dry.length)]!, 0.8 + r() * 0.7);
+        else if (roll < 0.42) putOn(c, K.deadBush, x, z, yaw, WHITE, 0.8 + r() * 0.6);
+        else if (roll < 0.48) putOn(c, K.cactus, x, z, yaw, green[Math.floor(r() * green.length)]!, 0.7 + r() * 0.7);
+        else if (roll < 0.52) putOn(c, K.barrel, x, z, yaw, green[Math.floor(r() * green.length)]!, 0.8 + r() * 0.6);
         else putOn(c, K.rock, x, z, yaw, stone[Math.floor(r() * stone.length)]!, 0.4 + r() * 1.1, -0.2);
         if (i % 90 === 89) yield;
       }
@@ -694,7 +743,7 @@ function cycloCross(k: () => Kit): Site {
   };
 }
 
-// ── Sommets : dôme de l'observatoire, cairns du col des Vents ──
+// ── Sommets : dôme de l'observatoire, cairns de la Tête du Vautour ──
 
 function summits(k: () => Kit): Site {
   return {
@@ -728,10 +777,10 @@ export function desertRougeSites(): Site[] {
   const k = () => (templates ??= kit());
   const h = () => (harbours ??= harbourTemplates());
   const grid: Site[] = [];
-  for (let x = -17000; x <= 17000; x += 2000)
-    for (let z = -11000; z <= 11000; z += 2000) {
-      // Ni en mer (ellipse de la côte, à peu près), ni sur le Chott Blanc.
-      if ((x / 17200) ** 2 + (z / 11300) ** 2 > 1.02) continue;
+  for (let x = -18000; x <= 18000; x += 2000)
+    for (let z = -12000; z <= 8000; z += 2000) {
+      // Ni en mer (croissant, à peu près), ni sur le Chott Blanc.
+      if (!onLand(x, z, -600)) continue;
       if (((x - CHOTT.x) / CHOTT.rx) ** 2 + ((z - CHOTT.z) / CHOTT.rz) ** 2 < 0.6) continue;
       grid.push(scrub(k, x, z));
     }
@@ -741,8 +790,8 @@ export function desertRougeSites(): Site[] {
     harbourSite('port-vent', PORT_VENT, 700, h),
     saltCrust(),
     circuit(k),
-    oasis(k, 'oasis', OASIS, 950, 8080),
-    oasis(k, 'oasis-des-dunes', DUNES_OASIS, 420, 8181),
+    ...OASES.map((o, i) => oasis(k, o.id, o.o, o.grove, 8080 + 101 * i)),
+    guelta(k),
     ...VILLAGES.map((v, i) => village(k, v, i)),
     ...CARAVANS.map((cv, i) => caravan(k, cv, 600 + i)),
     ...ARCHES.map((_, i) => stoneArch(k, i)),
@@ -754,9 +803,8 @@ export function desertRougeSites(): Site[] {
   ];
 }
 
-/** Ni clôtures ni poteaux : promenade de Port-Corail, Chott Blanc, Grand Erg. */
+/** Ni clôtures ni poteaux nulle part, sauf autour des oasis (jardins clos de la palmeraie). */
 export function desertRougeNoFence(x: number, z: number): boolean {
-  if (Math.hypot(x + 450, z - 8900) < 1600) return true;
-  if (((x - CHOTT.x) / (CHOTT.rx * 1.2)) ** 2 + ((z - CHOTT.z) / (CHOTT.rz * 1.3)) ** 2 < 1) return true;
-  return Math.exp(-(((x - ERG.x) / ERG.sx) ** 2 + ((z - ERG.z) / ERG.sz) ** 2)) > 0.3;
+  for (const { o, grove } of OASES) if (Math.hypot(x - o.x, z - o.z) < grove + 250) return false;
+  return true;
 }

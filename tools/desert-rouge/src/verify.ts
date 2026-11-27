@@ -728,7 +728,8 @@ class SegIndex {
 
 // Lancement direct : relit le monde déjà écrit.
 if (process.argv[1] && resolve(process.argv[1]) === resolve(import.meta.filename)) {
-  const report = verifyWorld(resolve(import.meta.dirname, '../../../apps/client/public/worlds/desert-rouge'));
+  // Dossier en argument : monde d'essai (ISLAND_OUT).
+  const report = verifyWorld(resolve(process.argv[2] ?? resolve(import.meta.dirname, '../../../apps/client/public/worlds/desert-rouge')));
   for (const l of report.lines) console.log(l);
   if (!report.ok) process.exitCode = 1;
 }

@@ -8,6 +8,7 @@ import type { LoadedTile } from './types.ts';
 import type { Season } from './environment.ts';
 import { cloudShade } from './clouds.ts';
 import { cullAfterWarmup } from './cullWarmup.ts';
+import { polyLand } from './lands/index.ts';
 import { GRASS_BLOCK, GRASS_RADIUS, appendGrassBlock, generateGrassBlock, grassBlocksAround, grassTriesPerBlock, type GrassBlock, grassFieldsFor, type GrassEnv } from './grassPlacement.ts';
 
 /** Essais de placement par image pendant une regénération (≈ 12 ms ; une vingtaine d'images pour la densité la plus forte). */
@@ -127,6 +128,10 @@ export class GrassField {
   private readonly tries: number;
   private season: Season = 'summer';
   private grassFields = false;
+  /** Quantité d'herbe du monde (biome Poly). */
+  private amount = 1;
+  /** Teintes de l'herbe du monde (biome Poly) ; absentes : celles de l'île. */
+  private colours: Record<Season, [string, string]> | undefined;
   /**
    * Touffes déjà placées, par bloc du monde : un bloc ne dépend ni du coureur ni du rayon (graine fixe), donc une
    * regénération ne refait que les blocs qui entrent dans le disque (une bande de 12 m, au lieu des ~80 blocs
@@ -154,6 +159,9 @@ export class GrassField {
       },
       get grassFields() {
         return field.grassFields;
+      },
+      get amount() {
+        return field.amount;
       },
     };
     this.max = Math.floor(60000 * q.grassDensity);
@@ -202,6 +210,10 @@ export class GrassField {
   /** Monde chargé : active l'herbe des champs là où elle est validée (voir grassFieldsFor). */
   setWorld(id: string): void {
     this.grassFields = grassFieldsFor(id);
+    const biome = LOW_POLY ? polyLand(id)?.biome : undefined;
+    this.amount = biome?.grass ?? 1;
+    this.colours = biome?.grassColours;
+    this.setSeason(this.season);
   }
 
   setSeason(season: Season): void {
@@ -210,7 +222,7 @@ export class GrassField {
     this.center.set(1e9, 0, 1e9);
     this.job = null;
     this.blocks.clear();
-    const [b, t] = SEASON_GRASS[season];
+    const [b, t] = (this.colours ?? SEASON_GRASS)[season];
     this.base.set(b);
     this.tipCol.set(t);
   }

@@ -3,7 +3,7 @@
  * Plage-de-Jade (front de mer, promenade, paillotes, bungalows, hôtels), maisons le long des rues, fermes à buffles,
  * temples, pagodes, stupas et ruines envahies par la jungle.
  */
-import { ANNEAU, MASSIF, TEMPLE_HILL, TOWNS, coastPoint, inHarbour, inLake, inRiver, shoreDist, terrain, type Town, type Vec2 } from './design.ts';
+import { A, ANNEAU, MASSIF, SADDLE, TEMPLE_HILL, TOWNS, UV, coastPoint, inHarbour, inLake, inRiver, shoreDist, terrain, type Town, type Vec2 } from './design.ts';
 import { orientedRect, pointInPolygon } from './geom.ts';
 import { rng } from './noise.ts';
 import { RoadIndex, finalHeight, type Road, type RoadSpec } from './roads.ts';
@@ -26,7 +26,7 @@ const STREET_NAMES = [
   ['Rue Principale', 'Rue des Lanternes', 'Rue des Palmiers', 'Rue des Rizières'],
   ['Rue Haute', 'Rue Basse', 'Rue des Manguiers', 'Rue des Bananiers'],
   ['Quai des Jonques', 'Rue des Pêcheurs', 'Rue des Filets', 'Rue de la Cale'],
-  ['Route des Nuages', 'Rue des Théiers', 'Chemin des Fougères', 'Rue de la Cascade'],
+  ['Grand-Rue', 'Rue des Théiers', 'Chemin des Fougères', 'Rue de la Cascade'],
 ];
 
 export function townLayout(t: Town, k: number): TownLayout {
@@ -395,8 +395,7 @@ export function landmarks(B: Builder): void {
   B.add({ kind: 'house', height: 6, levels: 1, roof: { shape: 'hipped', height: 2.5, material: 'tiles' }, colour: '#9c6a40', material: 'wood', pts: orientedRect(px + 20, pz + 6, 7, 4.5, 0.4), name: 'Maison des Moines' }, 1);
   B.places.push({ name: 'Mont des Lanternes', kind: 'locality', x: px, z: pz });
   B.places.push({ name: 'Mont du Tigre', kind: 'locality', x: MASSIF.mont[0], z: MASSIF.mont[1] });
-  const col: Vec2 = [(MASSIF.phare[0] + MASSIF.mont[0]) / 2, (MASSIF.phare[1] + MASSIF.mont[1]) / 2];
-  B.places.push({ name: 'Col de la Jungle', kind: 'locality', x: col[0], z: col[1] });
+  B.places.push({ name: 'Col de la Jungle', kind: 'locality', x: SADDLE[0], z: SADDLE[1] });
   // Grand Temple de Vat-Robert, au sommet de sa colline, et son stupa.
   for (let k = 0; k < 30; k++) {
     const x = TEMPLE_HILL.x + Math.cos(k * 2.4) * k * 6;
@@ -416,19 +415,20 @@ export function landmarks(B: Builder): void {
   B.places.push({ name: 'Circuit des Rizières', kind: 'locality', x: ANNEAU.cx, z: ANNEAU.cz });
   B.area('park', 'landuse', stadium(ANNEAU.cx, ANNEAU.cz, ANNEAU.half, ANNEAU.radius - 14), 'Pelouse du Circuit');
   const tries: Array<[Vec2, Omit<Building, 'id' | 'y' | 'pts'>, (x: number, z: number) => Vec2[]]> = [
-    [[4700, 4800], { kind: 'tower', height: 14, levels: 3, roof: { shape: 'pyramidal', height: 5, material: 'tiles' }, colour: '#c0392b', material: 'wood', name: 'Pagode des Terrasses' }, (x, z) => octagon(x, z, 4.5)],
-    [[12700, -1700], { kind: 'ruins', height: 9, levels: 1, roof: { shape: 'flat', height: 0 }, colour: '#9a9a82', material: 'stone', name: 'Ruines du Palais des Théiers' }, (x, z) => orientedRect(x, z, 18, 12, 0.5)],
-    [[-5000, -3700], { kind: 'temple', height: 11, levels: 1, roof: { shape: 'hipped', height: 7, material: 'tiles' }, colour: '#f2e4c4', material: 'plaster', name: 'Monastère des Lotus' }, (x, z) => orientedRect(x, z, 18, 8, 0.12)],
-    [coastPoint(0.08, 260), { kind: 'ruins', height: 7, levels: 1, roof: { shape: 'flat', height: 0 }, colour: '#a8a690', material: 'stone', name: 'Ruines du Fort du Dragon' }, (x, z) => octagon(x, z, 16)],
+    [UV(-900, 4250), { kind: 'tower', height: 14, levels: 3, roof: { shape: 'pyramidal', height: 5, material: 'tiles' }, colour: '#c0392b', material: 'wood', name: 'Pagode des Terrasses' }, (x, z) => octagon(x, z, 4.5)],
+    [UV(9900, 3200), { kind: 'ruins', height: 9, levels: 1, roof: { shape: 'flat', height: 0 }, colour: '#9a9a82', material: 'stone', name: 'Ruines du Palais des Théiers' }, (x, z) => orientedRect(x, z, 18, 12, 0.5)],
+    [UV(-4500, -2550), { kind: 'temple', height: 11, levels: 1, roof: { shape: 'hipped', height: 7, material: 'tiles' }, colour: '#f2e4c4', material: 'plaster', name: 'Monastère des Lotus' }, (x, z) => orientedRect(x, z, 18, 8, -0.4)],
+    [coastPoint(A(0.38), 260), { kind: 'ruins', height: 7, levels: 1, roof: { shape: 'flat', height: 0 }, colour: '#a8a690', material: 'stone', name: 'Ruines du Fort du Dragon' }, (x, z) => octagon(x, z, 16)],
     [[MASSIF.mont[0] - 120, MASSIF.mont[1] + 80], { kind: 'tower', height: 9, levels: 1, roof: { shape: 'pyramidal', height: 6, material: 'metal' }, colour: '#f2f0e8', material: 'plaster', name: 'Stupa du Mont du Tigre' }, (x, z) => octagon(x, z, 4)],
-    [[-9300, -6300], { kind: 'house', height: 6, levels: 1, roof: { shape: 'hipped', height: 3, material: 'tiles' }, colour: '#8a5a36', material: 'wood', name: 'Maison de thé des Nuages' }, (x, z) => orientedRect(x, z, 9, 6, 0.6)],
-    [[10600, 1300], { kind: 'barn', height: 7, levels: 1, roof: { shape: 'hipped', height: 3, material: 'slate' }, colour: '#9c6a40', material: 'wood', name: 'Séchoir à thé' }, (x, z) => orientedRect(x, z, 14, 7, 0.2)],
-    [[-12800, 4600], { kind: 'shed', height: 5, levels: 1, roof: { shape: 'hipped', height: 2, material: 'slate' }, colour: '#8a5a36', material: 'wood', name: 'Pêcherie des Mangroves' }, (x, z) => orientedRect(x, z, 12, 6, 0.4)],
+    [UV(-3300, -6000), { kind: 'house', height: 6, levels: 1, roof: { shape: 'hipped', height: 3, material: 'tiles' }, colour: '#8a5a36', material: 'wood', name: 'Maison de thé des Nuages' }, (x, z) => orientedRect(x, z, 9, 6, 0.6)],
+    [UV(11900, 4100), { kind: 'barn', height: 7, levels: 1, roof: { shape: 'hipped', height: 3, material: 'slate' }, colour: '#9c6a40', material: 'wood', name: 'Séchoir à thé' }, (x, z) => orientedRect(x, z, 14, 7, 0.2)],
+    [UV(-15300, 2900), { kind: 'shed', height: 5, levels: 1, roof: { shape: 'hipped', height: 2, material: 'slate' }, colour: '#8a5a36', material: 'wood', name: 'Pêcherie des Mangroves' }, (x, z) => orientedRect(x, z, 12, 6, 0.4)],
     // Ruines de temples envahies par la jungle (décor : lands/rizieresSites.ts).
-    [[5500, -3100], { kind: 'ruins', height: 11, levels: 1, roof: { shape: 'pyramidal', height: 6 }, colour: '#8f8f78', material: 'stone', name: 'Ruines de Prasat-Vert' }, (x, z) => orientedRect(x, z, 14, 14, 0.3)],
-    [[8700, -1900], { kind: 'ruins', height: 8, levels: 1, roof: { shape: 'flat', height: 0 }, colour: '#8a8c76', material: 'stone', name: 'Temple englouti du Dragon' }, (x, z) => orientedRect(x, z, 12, 9, 1.1)],
-    [[-10200, -4200], { kind: 'ruins', height: 9, levels: 1, roof: { shape: 'pyramidal', height: 5 }, colour: '#949480', material: 'stone', name: 'Ruines du Fleuve' }, (x, z) => orientedRect(x, z, 12, 12, 0.6)],
+    [UV(12900, 800), { kind: 'ruins', height: 11, levels: 1, roof: { shape: 'pyramidal', height: 6 }, colour: '#8f8f78', material: 'stone', name: 'Ruines de Prasat-Vert' }, (x, z) => orientedRect(x, z, 14, 14, 0.3)],
+    [UV(12700, 4300), { kind: 'ruins', height: 8, levels: 1, roof: { shape: 'flat', height: 0 }, colour: '#8a8c76', material: 'stone', name: 'Temple englouti du Dragon' }, (x, z) => orientedRect(x, z, 12, 9, 1.1)],
+    [UV(6400, 2500), { kind: 'ruins', height: 9, levels: 1, roof: { shape: 'pyramidal', height: 5 }, colour: '#949480', material: 'stone', name: 'Ruines du Fleuve' }, (x, z) => orientedRect(x, z, 12, 12, 0.6)],
   ];
+
   for (const [[x0, z0], b, shape] of tries) {
     for (let k = 0; k < 40; k++) {
       const x = x0 + Math.cos(k * 2.4) * k * 25;

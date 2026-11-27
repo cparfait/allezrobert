@@ -130,6 +130,8 @@ export const ARCHIPEL: PolyLand = {
     treelineM: 950,
     water: '#22b3b0',
   },
+  // Îles volcaniques tropicales : palmiers, peu de mobilier européen, pas de vaches dans les prés.
+  biome: { tree: 'palm', trees: 0.75, noVillageProps: true, noHerds: true },
   ring: ARCHIPEL_RING,
   sites: archipelSites,
   building: archipelBuilding,

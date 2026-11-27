@@ -1,56 +1,41 @@
 /**
- * Le Grand Nord robertien — conception (voir docs/GRAND_NORD.md) : côte découpée de fjords, massif enneigé et son
- * glacier, haut-plateau de toundra semé de lacs, rivières, ports et embarcadères du bac, plateaux des villes et du
- * Circuit. Repère : x vers l'est, z vers le sud, mètres, origine au centre du pays.
- * Tout est déterministe : deux générations donnent le même monde.
+ * Le Grand Nord robertien — conception (voir docs/GRAND_NORD.md). Pays de montagnes entaillé de toutes parts par des
+ * fjords profonds et étroits qui rayonnent depuis la calotte de Robert, au centre ; haut-plateau de toundra de Vidda
+ * (sud-est) semé de dizaines de petits lacs ; « strandflat » bas et tourbeux au sud-ouest, semé d'îlots (skerries) ;
+ * villages au fond des fjords, reliés par des vallées. Repère : x vers l'est, z vers le sud, mètres, origine au
+ * centre du pays. Tout est déterministe : deux générations donnent le même monde.
  */
 import { chaikin, resample } from './geom.ts';
-import { clamp, fbm, lerp, noise2, ridged, smoothstep } from './noise.ts';
+import { clamp, fbm, lerp, noise2, ridged, rng, smoothstep } from './noise.ts';
 
 export type Vec2 = [number, number];
 
 export const ISLAND = {
   id: 'grand-nord',
   name: 'Le Grand Nord robertien',
-  /** Emprise des tuiles (m) : le pays (≈ 35 × 23 km) et une marge de mer. */
+  /** Emprise des tuiles (m) : le pays (≈ 33 × 22 km) et une marge de mer. */
   minX: -19000,
   maxX: 19000,
   minZ: -13000,
   maxZ: 13000,
   tileSizeM: 1000,
-  /** Demi-axes de la côte (m) et exposant de la super-ellipse. */
-  A: 17200,
-  B: 11300,
-  pow: 2.0,
 };
 
-// ── Côte : baie de Port-Boréal au sud, presqu'île de Skarvik au sud-est, fjord du Bac à l'est, fjord du Glacier et
-// vik de Nordvik au nord, Grand Fjord au nord-ouest, delta de la Saumonée à l'ouest ──
+// ── Côte : contour dessiné en coordonnées polaires (18 rayons, un tous les 20°) ──
+// Grande presqu'île du sud-ouest (le strandflat), épaule du nord-est, côte nord rentrée, côte est massive.
 
-interface CoastFeature {
-  /** Direction (rad, atan2(z, x)) et demi-largeur angulaire. */
-  ang: number;
-  width: number;
-  /** > 0 : cap (le rivage avance), < 0 : baie. */
-  amount: number;
-  /** Falaises (0 plage … 1 falaise franche). */
-  cliff: number;
+/** Rayon du rivage (km) dans les directions −π + k·π/9 (k = 0 : ouest ; 9 : est ; 13 : sud ; 4 : nord). */
+const COAST_R = [14.6, 15.8, 10.0, 11.4, 10.4, 8.0, 12.4, 16.4, 16.0, 13.2, 15.8, 12.2, 7.8, 9.6, 10.8, 12.6, 16.8, 12.4];
+
+/** Strandflat : plate-forme côtière basse du sud-ouest (directions, rad), tourbières, landes, îlots. */
+const STRAND = { a0: 1.86, a1: 3.08, soft: 0.1 };
+/** Anse de Port-Boréal : rivage régulier (sans pointes) autour de cette direction. */
+const PB_ANG = 2.2;
+
+export function strandWeight(ang: number): number {
+  const a = ang < 0 ? ang + 2 * Math.PI : ang;
+  return smoothstep(STRAND.a0 - STRAND.soft, STRAND.a0 + STRAND.soft, a) * (1 - smoothstep(STRAND.a1 - STRAND.soft, STRAND.a1 + STRAND.soft, a));
 }
-
-const FEATURES: CoastFeature[] = [
-  { ang: 1.6, width: 0.22, amount: -0.2, cliff: 0 }, // baie de Port-Boréal (sud), grève
-  { ang: 1.12, width: 0.1, amount: 0.07, cliff: 0.7 }, // pointe de l'Est de la baie
-  { ang: 0.84, width: 0.12, amount: 0.12, cliff: 1 }, // presqu'île de Skarvik (sud-est)
-  { ang: 0.62, width: 0.06, amount: 0.02, cliff: 0.9 }, // falaises à l'ouest du port de Skarvik
-  { ang: 0.42, width: 0.12, amount: -0.07, cliff: 0.6 }, // anse du Levant
-  { ang: 0.06, width: 0.1, amount: 0.07, cliff: 0.9 }, // cap Boréal (est), phare
-  { ang: -0.62, width: 0.3, amount: 0.02, cliff: 0.95 }, // la montagne plonge dans la mer (nord-est)
-  { ang: -1.62, width: 0.11, amount: -0.09, cliff: 0.3 }, // la vik de Nordvik (nord), port
-  { ang: -2.3, width: 0.2, amount: 0.09, cliff: 0.95 }, // presqu'île du Nord-Ouest
-  { ang: -2.75, width: 0.12, amount: -0.05, cliff: 0.6 }, // baie des Phoques
-  { ang: 2.95, width: 0.18, amount: -0.08, cliff: 0 }, // delta de la Saumonée (ouest)
-  { ang: 2.35, width: 0.12, amount: 0.1, cliff: 0.5 }, // pointe des Galets (sud-ouest)
-];
 
 /**
  * Fjords : bras de mer étroits et profonds qui entaillent la côte entre de hautes parois. Chaque fjord suit une ligne
@@ -63,10 +48,23 @@ export interface Fjord {
   w0: number;
   w1: number;
 }
+
+/** Petite vik (anse étroite) qui entaille la côte dans la direction `ang`, sur `depth` m. */
+function vik(id: string, name: string, ang: number, depth: number, bend: number): Fjord {
+  const head = coastPoint(ang, depth);
+  const mid = coastPoint(ang + bend, depth * 0.45);
+  const mouth = coastPoint(ang + bend * 1.4, -1600);
+  return { id, name, pts: [head, mid, mouth], w0: 70, w1: 300 };
+}
+
 export const FJORDS: Fjord[] = [
-  { id: 'grand-fjord', name: 'Le Grand Fjord', pts: [[-5500, -6250], [-6500, -6700], [-7000, -7500], [-7700, -8400], [-8700, -9300], [-9600, -10300], [-10600, -11900]], w0: 170, w1: 650 },
-  { id: 'fjord-du-glacier', name: 'Le Fjord du Glacier', pts: [[5450, -7950], [6050, -8650], [6200, -9500], [6900, -10400], [7400, -12200]], w0: 150, w1: 520 },
-  { id: 'fjord-du-bac', name: 'Le Fjord du Bac', pts: [[12000, -3200], [13000, -3650], [14000, -3700], [15200, -4300], [16300, -4500], [18200, -5200]], w0: 160, w1: 600 },
+  { id: 'fjord-du-glacier', name: 'Le Fjord du Glacier', pts: [[-600, -6300], [-900, -7600], [-1500, -9000], [-1300, -10500], [-1600, -13400]], w0: 190, w1: 700 },
+  { id: 'storfjord', name: 'Le Storfjord', pts: [[6000, -5900], [7600, -6800], [9800, -8300], [12000, -9800], [14800, -13200]], w0: 220, w1: 900 },
+  { id: 'fjord-du-bac', name: 'Le Fjord du Bac', pts: [[11400, -1300], [12800, -2300], [14200, -2200], [15800, -3000], [19200, -3500]], w0: 210, w1: 800 },
+  { id: 'fjord-de-skarvik', name: 'Le Fjord de Skarvik', pts: [[10600, 6000], [11800, 7400], [12400, 8800], [13900, 10300], [15800, 13200]], w0: 190, w1: 700 },
+  { id: 'sorfjord', name: 'Le Sørfjord', pts: [[2600, 7600], [3000, 8700], [2500, 9800], [2900, 11200], [2600, 13400]], w0: 180, w1: 620 },
+  { id: 'grand-fjord', name: 'Le Grand Fjord', pts: [[-7200, -600], [-8800, -1300], [-10600, -800], [-12600, -1600], [-14600, -1200], [-19200, -1600]], w0: 220, w1: 900 },
+  { id: 'fjord-de-fjellheim', name: 'Le Fjord de Fjellheim', pts: [[-5600, -5200], [-7000, -6200], [-8200, -7800], [-10200, -8800], [-12000, -11000], [-13600, -13400]], w0: 200, w1: 760 },
 ];
 
 interface FjordLine {
@@ -81,12 +79,12 @@ let fjordLines: FjordLine[] | null = null;
 function lines(): FjordLine[] {
   if (fjordLines) return fjordLines;
   fjordLines = FJORDS.map((f) => {
-    const pts = resample(chaikin(f.pts, 3), 40);
+    const pts = resample(chaikin(f.pts, 3), 90);
     const s = [0];
     for (let i = 1; i < pts.length; i++) s.push(s[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
     const xs = pts.map((p) => p[0]);
     const zs = pts.map((p) => p[1]);
-    const m = f.w1 + 2800;
+    const m = f.w1 + 1700;
     return { f, pts, s, len: s[s.length - 1]!, box: [Math.min(...xs) - m, Math.min(...zs) - m, Math.max(...xs) + m, Math.max(...zs) + m] as [number, number, number, number] };
   });
   return fjordLines;
@@ -95,57 +93,62 @@ function lines(): FjordLine[] {
 /** Demi-largeur d'un fjord à l'abscisse `s` (bords un peu irréguliers). */
 function fjordHalf(L: FjordLine, s: number): number {
   const t = Math.min(1, Math.max(0, s) / L.len);
-  return lerp(L.f.w0, L.f.w1, t * t) * (1 + 0.16 * noise2(s / 380, L.f.w0, 17));
+  return lerp(L.f.w0, L.f.w1, t ** 1.3) * (1 + 0.16 * noise2(s / 380, L.f.w0, 17));
 }
 
-/** Distance (m) au bord de l'eau du fjord le plus proche, calculée exactement. */
-function fjordEdgeExact(x: number, z: number): number {
-  let best = Infinity;
+// Distance aux fjords tamponnée une fois sur une grille de 20 m (le relief la lit des millions de fois), interpolée.
+const FS = 20;
+let fgrid: { n: number; m: number; d: Float32Array } | null = null;
+function fjordGrid() {
+  if (fgrid) return fgrid;
+  const n = Math.ceil((ISLAND.maxX - ISLAND.minX) / FS) + 1;
+  const m = Math.ceil((ISLAND.maxZ - ISLAND.minZ) / FS) + 1;
+  const best = new Float32Array(n * m).fill(1e5);
   for (const L of lines()) {
-    if (x < L.box[0] || z < L.box[1] || x > L.box[2] || z > L.box[3]) continue;
     const P = L.pts;
-    for (let i = 0; i + 1 < P.length; i++) {
-      const [ax, az] = P[i]!;
-      const [bx, bz] = P[i + 1]!;
+    const R = L.f.w1 * 1.3 + 1700;
+    for (let s = 0; s + 1 < P.length; s++) {
+      const [ax, az] = P[s]!;
+      const [bx, bz] = P[s + 1]!;
       const dx = bx - ax;
       const dz = bz - az;
-      const l2 = dx * dx + dz * dz;
-      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
-      const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
-      if (d - L.f.w1 * 1.3 > best) continue;
-      const s = L.s[i]! + (L.s[i + 1]! - L.s[i]!) * t;
-      best = Math.min(best, d - fjordHalf(L, s));
+      const l2 = dx * dx + dz * dz || 1;
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - R - ISLAND.minX) / FS));
+      const i1 = Math.min(n - 1, Math.ceil((Math.max(ax, bx) + R - ISLAND.minX) / FS));
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - R - ISLAND.minZ) / FS));
+      const j1 = Math.min(m - 1, Math.ceil((Math.max(az, bz) + R - ISLAND.minZ) / FS));
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const x = ISLAND.minX + i * FS;
+          const z = ISLAND.minZ + j * FS;
+          const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+          const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
+          const o = j * n + i;
+          if (d - L.f.w1 * 1.3 > best[o]!) continue;
+          const v = d - fjordHalf(L, L.s[s]! + (L.s[s + 1]! - L.s[s]!) * t);
+          if (v < best[o]!) best[o] = v;
+        }
     }
   }
-  // Au-delà de 1 500 m, le fjord ne compte plus (distance gonflée, continue jusqu'au bord de son emprise).
-  return best < 1500 ? best : Math.min(1e5, 1500 + (best - 1500) * 8);
+  // Au-delà de 1 500 m, le fjord ne compte plus (distance gonflée).
+  for (let k = 0; k < best.length; k++) if (best[k]! > 1500) best[k] = Math.min(1e5, 1500 + (best[k]! - 1500) * 8);
+  fgrid = { n, m, d: best };
+  return fgrid;
 }
-
-// Champ de distance mis en cache par blocs de 200 m (nœuds tous les 20 m), interpolé : le relief le lit des millions de fois.
-const FB = 200;
-const FS = 20;
-const FN = FB / FS + 1;
-const fjordCache = new Map<number, Float32Array>();
 
 /** Distance (m) au bord de l'eau du fjord le plus proche : < 0 dans le fjord ; très grande loin de tout fjord. */
 export function fjordEdge(x: number, z: number): number {
-  const bx = Math.floor(x / FB);
-  const bz = Math.floor(z / FB);
-  const key = (bx + 2000) * 5000 + bz + 2000;
-  let a = fjordCache.get(key);
-  if (!a) {
-    a = new Float32Array(FN * FN);
-    for (let j = 0; j < FN; j++) for (let i = 0; i < FN; i++) a[j * FN + i] = fjordEdgeExact(bx * FB + i * FS, bz * FB + j * FS);
-    fjordCache.set(key, a);
-  }
-  const fx = (x - bx * FB) / FS;
-  const fz = (z - bz * FB) / FS;
-  const i = Math.min(FN - 2, Math.floor(fx));
-  const j = Math.min(FN - 2, Math.floor(fz));
+  const g = fjordGrid();
+  const fx = (x - ISLAND.minX) / FS;
+  const fz = (z - ISLAND.minZ) / FS;
+  if (fx < 0 || fz < 0 || fx >= g.n - 1 || fz >= g.m - 1) return 1e5;
+  const i = Math.floor(fx);
+  const j = Math.floor(fz);
   const u = fx - i;
   const w = fz - j;
-  const o = j * FN + i;
-  return (a[o]! * (1 - u) + a[o + 1]! * u) * (1 - w) + (a[o + FN]! * (1 - u) + a[o + FN + 1]! * u) * w;
+  const o = j * g.n + i;
+  const a = g.d;
+  return (a[o]! * (1 - u) + a[o + 1]! * u) * (1 - w) + (a[o + g.n]! * (1 - u) + a[o + g.n + 1]! * u) * w;
 }
 
 function onLine(id: string, fromHead: number): { L: FjordLine; p: Vec2; dir: Vec2 } {
@@ -173,6 +176,13 @@ export function fjordBank(id: string, fromHead: number, side: 1 | -1, inset: num
 export function fjordAxis(id: string, fromHead: number): { p: Vec2; dir: Vec2 } {
   const { p, dir } = onLine(id, fromHead);
   return { p, dir };
+}
+
+/** Fond d'un fjord : point à `inset` m dans les terres, dans le prolongement de l'axe. */
+export function fjordHead(id: string, inset: number): Vec2 {
+  const { L, p, dir } = onLine(id, 0);
+  const off = fjordHalf(L, 0) + inset;
+  return [p[0] - dir[0] * off, p[1] - dir[1] * off];
 }
 
 /** Falaises (0 … 1) au point : celles du rivage dans cette direction, et les parois des fjords. */
@@ -219,21 +229,35 @@ export function cliffiness(ang: number): number {
   return tab(cliffTab!, ang);
 }
 
+/** Contour dessiné : spline de Catmull-Rom périodique sur les 18 rayons. */
+function baseRadius(ang: number): number {
+  const n = COAST_R.length;
+  const f = ((ang + Math.PI) / (2 * Math.PI)) * n;
+  const k = Math.floor(f);
+  const t = f - k;
+  const P = (i: number) => COAST_R[((i % n) + n) % n]! * 1000;
+  const p0 = P(k - 1);
+  const p1 = P(k);
+  const p2 = P(k + 1);
+  const p3 = P(k + 2);
+  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+}
+
 function coastRadiusExact(ang: number): number {
   const c = Math.cos(ang);
   const s = Math.sin(ang);
-  const I = ISLAND;
-  const base = 1 / ((Math.abs(c) / I.A) ** I.pow + (Math.abs(s) / I.B) ** I.pow) ** (1 / I.pow);
-  // Côte découpée : petites anses et pointes rocheuses (sauf au fond de la baie de Port-Boréal).
-  const calm = Math.exp(-((angDiff(ang, 1.6) / 0.16) ** 2));
-  let w = 1 + 0.06 * fbm(c * 1.6 + 5, s * 1.6 + 5, 3, 1) + 0.028 * fbm(c * 7 + 1, s * 7 - 3, 3, 2) + (0.008 + 0.01 * (1 - calm)) * noise2(c * 30, s * 30, 3) + 0.009 * (1 - calm) * noise2(c * 75 + 2, s * 75 - 1, 4);
-  for (const f of FEATURES) w += f.amount * Math.exp(-((angDiff(ang, f.ang) / f.width) ** 2));
-  return base * w;
+  // Côte très découpée : caps et anses à toutes les échelles, sauf dans l'anse de Port-Boréal.
+  const calm = Math.exp(-((angDiff(ang, PB_ANG) / 0.17) ** 2));
+  // Anneau de côte régulier autour de Port-Boréal : rivage en arc de cercle (rues du front de mer perpendiculaires).
+  const arc = Math.exp(-((angDiff(ang, PB_ANG + 0.045) / 0.2) ** 4));
+  const w = 1 + 0.05 * fbm(c * 1.7 + 5, s * 1.7 + 5, 3, 1) + (0.035 * fbm(c * 7 + 1, s * 7 - 3, 3, 2) + 0.02 * noise2(c * 30, s * 30, 3) + 0.01 * noise2(c * 75 + 2, s * 75 - 1, 4)) * (1 - calm);
+  return lerp(baseRadius(ang), baseRadius(PB_ANG + 0.045), arc) * w;
 }
 
 function cliffinessExact(ang: number): number {
-  let c = 0;
-  for (const f of FEATURES) c = Math.max(c, f.cliff * Math.exp(-((angDiff(ang, f.ang) / (f.width * 0.8)) ** 2)));
+  // Partout des parois rocheuses, quelques criques ; le strandflat et l'anse de Port-Boréal sont bas.
+  const cove = Math.max(0, noise2(Math.cos(ang) * 9, Math.sin(ang) * 9, 6));
+  const c = (0.95 - 0.5 * cove) * (1 - strandWeight(ang));
   return smoothstep(0.25, 0.75, c);
 }
 
@@ -253,32 +277,62 @@ export function coastPoint(ang: number, inset: number): Vec2 {
   return [Math.cos(ang) * r, Math.sin(ang) * r];
 }
 
-// ── Lieux ──
+// Viks : petites anses profondes entre les grands fjords (côte très découpée).
+FJORDS.push(
+  vik('vik-des-phoques', 'La Vik des Phoques', -2.78, 2600, 0.05),
+  vik('vik-du-nord-ouest', 'La Vik du Nord-Ouest', -2.05, 2300, -0.04),
+  vik('vik-des-eiders', 'La Vik des Eiders', -1.32, 1200, 0.04),
+  vik('vik-du-corbeau', 'La Vik du Corbeau', -1.0, 2200, -0.03),
+  vik('vik-des-baleines', 'La Vik des Baleines', -0.45, 2600, 0.03),
+  vik('vik-du-cap', 'La Vik du Cap', 0.22, 2300, -0.03),
+  vik('vik-des-sternes', 'La Vik des Sternes', 0.43, 2000, 0.03),
+  vik('vik-du-levant', 'La Vik du Levant', 0.95, 2200, -0.04),
+  vik('vik-des-galets', 'La Vik des Galets', 1.62, 1800, 0.03),
+);
+
+// ── Grands traits du relief ──
+
+/** Calotte de Robert : dôme de glace au centre du pays (centre, demi-axes, altitude du sommet et du pourtour). */
+export const CAP = { x: -1200, z: -2600, rx: 2800, rz: 2200, top: 1080, rim: 560 };
+
+/** Distance normalisée au centre de la calotte (1 ≈ bord de la glace, un peu irrégulier). */
+export function capE(x: number, z: number): number {
+  const e = Math.hypot((x - CAP.x) / CAP.rx, (z - CAP.z) / CAP.rz);
+  return e * (1 + 0.07 * fbm(x / 1400, z / 1400, 2, 33));
+}
+
+/** Glacier de Robert : langue de glace qui descend de la calotte jusqu'au fond du fjord du Glacier. */
+export const GLACIER = { from: [-760, -4500] as Vec2, to: [-640, -6050] as Vec2, head: [-600, -6300] as Vec2, half: 230, top: 560 };
 
 /**
- * Monts du Nord : arête d'ouest en est, hauteur (m, au-dessus du relief de campagne) le long de l'arête,
- * largeur des versants (m). Le massif du Storfjell la coiffe (deux sommets, col du Renne entre les deux) ; le Grand
- * Fjord la tranche à l'ouest.
+ * Massif du Storfjell, à l'est de la calotte : le Storfjell (belvédère des Aurores au sommet) et la Dent du Renne,
+ * col du Renne entre les deux.
  */
-export const CHAIN = {
-  pts: [[-14500, -4600], [-10500, -6700], [-6500, -7200], [-2500, -7000], [1800, -6900], [5500, -5900], [9500, -4400], [13500, -3200]] as Vec2[],
-  h: [420, 820, 900, 720, 700, 760, 600, 420],
-  width: 3300,
-};
+const P1: Vec2 = [2000, -4300];
+const P2: Vec2 = [5100, -3300];
+export const MASSIF = { phare: P1, mont: P2, h1: 430, h2: 600, spread: 2400 };
 
-/** Massif du Storfjell : le Storfjell (belvédère des Aurores au sommet) et la Dent du Renne, col du Renne entre les deux. */
-const P1: Vec2 = [1600, -6900];
-const P2: Vec2 = [4700, -6000];
-export const MASSIF = { phare: P1, mont: P2, h1: 610, h2: 600, spread: 2500 };
+/** Haut-plateau de Vidda (sud-est) : toundra presque plate semée de lacs, rebord en escarpement. */
+export const PLATEAU = { x: 5200, z: 1500, rx: 3800, rz: 2500, h: 230 };
 
-/** Glacier de Robert : langue de glace du versant nord de la Dent du Renne jusqu'au fond du fjord du Glacier. */
-export const GLACIER = { from: [4650, -6400] as Vec2, to: [5130, -7330] as Vec2, head: [5450, -7950] as Vec2, half: 230, top: 900 };
+/** Distance normalisée au centre du haut-plateau (rebord un peu irrégulier). */
+export function plateauE(x: number, z: number): number {
+  return Math.hypot((x - PLATEAU.x) / PLATEAU.rx, (z - PLATEAU.z) / PLATEAU.rz) * (1 + 0.06 * fbm(x / 1800, z / 1800, 2, 34));
+}
 
-/** Circuit du Grand Nord (boucle plate, départ devant les tribunes). */
-export const ANNEAU = { cx: -6900, cz: 3700, half: 560, radius: 215, level: 0, widthM: 8 };
+/** Circuit du Grand Nord (boucle plate sur la toundra, départ devant les tribunes). */
+export const ANNEAU = { cx: 3000, cz: 2500, half: 560, radius: 215, level: 0, widthM: 8 };
 
-/** Haut-plateau de Vidda (est) : toundra presque plate semée de lacs, rebord en escarpement, entaillé par les gorges de la Renne. */
-export const PLATEAU = { x: 11200, z: 300, rx: 4300, rz: 3300, h: 330 };
+/**
+ * Vallées dessinées : fond régulier (altitudes aux points de passage), demi-largeur du fond. Elles relient les
+ * fonds de fjords au haut-plateau et entre eux ; les routes et les rivières les suivent.
+ */
+export interface Valley {
+  id: string;
+  pts: Vec2[];
+  h: number[];
+  w: number;
+}
 
 export interface Town {
   id: string;
@@ -301,25 +355,77 @@ function fjordNormal(id: string, fromHead: number): number {
   return Math.atan2(-dir[0], dir[1]);
 }
 
+/** Direction d'un fjord (rad) : rue principale des villages des rives, le long de l'eau. */
+function fjordAlong(id: string, fromHead: number): number {
+  const { dir } = fjordAxis(id, fromHead);
+  return Math.atan2(dir[1], dir[0]);
+}
+
 const town = (id: string, name: string, p: Vec2, r: number, angle: number, size: Town['size'], extra: Partial<Town> = {}): Town => ({ id, name, x: p[0], z: p[1], r, angle, size, level: 0, ...extra });
+/** Village au fond d'un fjord : à `inset` m de l'eau, rue principale en travers de la vallée. */
+const headTown = (id: string, name: string, fjord: string, inset: number, r: number, size: Town['size'], extra: Partial<Town> = {}): Town => town(id, name, fjordHead(fjord, inset), r, fjordNormal(fjord, 0), size, extra);
 
 export const TOWNS: Town[] = [
-  town('nordrobert', 'Nordrobert', [-2600, 1200], 620, 0.15, 'bourg'),
-  town('port-boreal', 'Port-Boréal', coastPoint(1.62, 520), 950, 0, 'ville', { seaside: true, port: true }),
-  town('skarvik', 'Skarvik', coastPoint(0.74, 420), 400, 0.5, 'village', { port: true }),
-  town('nordvik', 'Nordvik', coastPoint(-1.62, 420), 420, 0.1, 'village', { port: true }),
-  town('granlia', 'Granlia', [-12300, 900], 480, 1.3, 'village'),
-  town('myrbu', 'Myrbu', coastPoint(2.8, 950), 320, 0.4, 'hameau'),
-  town('vatnby', 'Vatnby', [-5600, -1000], 380, 0.12, 'village'),
-  town('fjellheim', 'Fjellheim', [-8300, -5300], 330, 0.6, 'village'),
-  town('rennesby', 'Rennesby', [2700, -2700], 280, 0.9, 'hameau'),
-  town('mille-lacs', 'Les Mille-Lacs', [3800, 5600], 360, 0.25, 'village'),
-  town('vidda', 'Vidda', [11800, -600], 400, 1.2, 'village'),
-  town('fossbru', 'Fossbru', [7600, 3700], 300, 1.4, 'hameau'),
-  // Embarcadères du bac, face à face sur les rives du fjord du Bac ; Isbrevik au fond du fjord du Glacier.
-  town('ferjeby', 'Ferjeby', fjordBank('fjord-du-bac', 2300, -1, 330), 200, fjordNormal('fjord-du-bac', 2300), 'hameau', { port: true }),
-  town('utnes', 'Utnes', fjordBank('fjord-du-bac', 2300, 1, 330), 200, fjordNormal('fjord-du-bac', 2300), 'hameau', { port: true }),
-  town('isbrevik', 'Isbrevik', fjordBank('fjord-du-glacier', 1100, -1, 280), 220, fjordNormal('fjord-du-glacier', 1100), 'hameau', { port: true }),
+  town('nordrobert', 'Nordrobert', [5000, 1000], 600, 0.2, 'bourg'),
+  town('port-boreal', 'Port-Boréal', coastPoint(PB_ANG, 520), 950, 0, 'ville', { seaside: true, port: true }),
+  headTown('skarvik', 'Skarvik', 'fjord-de-skarvik', 300, 400, 'village', { port: true }),
+  headTown('nordvik', 'Nordvik', 'storfjord', 300, 420, 'village', { port: true }),
+  headTown('sorvik', 'Sørvik', 'sorfjord', 280, 360, 'village', { port: true }),
+  town('granlia', 'Granlia', coastPoint(2.93, 900), 420, 1.3, 'village'),
+  town('myrbu', 'Myrbu', coastPoint(2.6, 820), 320, 0.4, 'hameau'),
+  headTown('vatnby', 'Vatnby', 'grand-fjord', 320, 380, 'village', { port: true }),
+  headTown('fjellheim', 'Fjellheim', 'fjord-de-fjellheim', 300, 340, 'village', { port: true }),
+  town('rennesby', 'Rennesby', [4000, -150], 280, 0.9, 'hameau'),
+  town('mille-lacs', 'Les Mille-Lacs', [5900, 3300], 340, 0.25, 'village'),
+  town('vidda', 'Vidda', [8100, 1300], 380, 1.2, 'village'),
+  headTown('fossbru', 'Fossbru', 'fjord-du-bac', 280, 300, 'hameau', { port: true }),
+  // Embarcadères du bac, face à face sur les rives du fjord du Bac ; Isbrevik sur la rive est du fjord du Glacier.
+  town('ferjeby', 'Ferjeby', fjordBank('fjord-du-bac', 2700, -1, 330), 200, fjordAlong('fjord-du-bac', 2700), 'hameau', { port: true }),
+  town('utnes', 'Utnes', fjordBank('fjord-du-bac', 2700, 1, 330), 200, fjordAlong('fjord-du-bac', 2700), 'hameau', { port: true }),
+  town('isbrevik', 'Isbrevik', fjordBank('fjord-du-glacier', 1300, 1, 280), 220, fjordAlong('fjord-du-glacier', 1300), 'hameau', { port: true }),
+];
+
+/** Lieux remarquables hors des villages (générateur et décor du client). */
+export const SPOTS = {
+  bikePark: [-5900, -4300] as Vec2,
+  cycloCross: [6900, 4300] as Vec2,
+  meteo: [8900, 2400] as Vec2,
+  antenne: [9300, 600] as Vec2,
+  cabane: [6700, 3900] as Vec2,
+  stavkirke: [-5900, 450] as Vec2,
+  fumoir: [-6700, 750] as Vec2,
+  refuge: [-4600, -3300] as Vec2,
+};
+
+const T = (id: string): Vec2 => {
+  const t = TOWNS.find((q) => q.id === id)!;
+  return [t.x, t.z];
+};
+
+/** Le long d'une rive de fjord, du fond vers le large : plate-forme pour une route (≈ 250 m de l'eau). */
+function bankLine(id: string, side: 1 | -1, s0: number, s1: number, inset: number, n: number): Vec2[] {
+  return Array.from({ length: n + 1 }, (_, k) => fjordBank(id, s0 + ((s1 - s0) * k) / n, side, inset));
+}
+
+export const VALLEYS: Valley[] = [
+  // Du haut-plateau aux fonds de fjords.
+  { id: 'vallee-de-sorvik', pts: [[4500, 3700], [3900, 5000], [3200, 6200], T('sorvik')], h: [222, 150, 70, 6], w: 260 },
+  { id: 'vallee-de-skarvik', pts: [[8000, 3400], [9000, 4500], [9900, 5400], T('skarvik')], h: [222, 140, 60, 6], w: 260 },
+  { id: 'gorges-de-la-renne', pts: [[8900, 700], [9900, 100], [10700, -500], T('fossbru')], h: [222, 140, 60, 6], w: 200 },
+  { id: 'vallee-du-grand-fjord', pts: [[1700, 1700], [-600, 1500], [-3200, 1000], [-5600, 300], T('vatnby')], h: [222, 175, 120, 45, 6], w: 320 },
+  // Vallée de la Myra : de la vallée du Grand Fjord au strandflat de Port-Boréal.
+  { id: 'vallee-de-la-myra', pts: [[-2900, 1050], [-3900, 3500], [-5200, 6000], [-6600, 8300], [-7300, 9600]], h: [128, 100, 62, 26, 8], w: 300 },
+  // Col de Vatnby : du fond du Grand Fjord au fond du fjord de Fjellheim.
+  { id: 'col-de-vatnby', pts: [T('vatnby'), [-7000, -1700], [-6700, -2900], [-6300, -4000], T('fjellheim')], h: [6, 70, 118, 70, 6], w: 240 },
+  // Vallée des Lemmings : du fond du fjord du Glacier à la combe de Nordvik, au nord du Storfjell.
+  { id: 'vallee-des-lemmings', pts: [T('isbrevik'), [800, -6800], [2200, -6900], [3600, -6500], [4500, -6050], [5150, -5850], T('nordvik')], h: [6, 70, 130, 85, 40, 14, 6], w: 300 },
+  // Vallon du Renne : du rebord nord du plateau (Rennesby) jusqu'à la selle du col ; vallon de la Calotte (Fjellheim → refuge).
+  { id: 'vallon-du-renne', pts: [[4000, -400], [3800, -1500], [3550, -2600], [3620, -3500]], h: [236, 300, 375, 432], w: 380 },
+  { id: 'vallon-de-la-calotte', pts: [[-5150, -4750], [-4950, -4250], [-4750, -3750], [-4600, -3350]], h: [20, 120, 230, 320], w: 340 },
+  // Routes des rives : fjord du Bac (les deux rives jusqu'aux embarcadères), Grand Fjord (rive sud jusqu'au large).
+  { id: 'rive-sud-du-bac', pts: [T('fossbru'), ...bankLine('fjord-du-bac', -1, 400, 2700, 260, 5), T('ferjeby')], h: [6, 14, 22, 26, 22, 14, 8, 6], w: 150 },
+  { id: 'rive-nord-du-bac', pts: [T('fossbru'), ...bankLine('fjord-du-bac', 1, 400, 2700, 260, 5), T('utnes')], h: [6, 14, 22, 26, 22, 14, 8, 6], w: 150 },
+  { id: 'rive-du-grand-fjord', pts: [T('vatnby'), ...bankLine('grand-fjord', -1, 500, 6800, 280, 9), [-14200, 1200], T('granlia')], h: [6, 12, 20, 28, 32, 30, 28, 24, 18, 14, 12, 10, 8], w: 170 },
 ];
 
 // ── Rivières (tracés dessinés, lit creusé dans le relief) ──
@@ -337,48 +443,24 @@ export interface River {
   v1: number;
 }
 
-const portAzur = TOWNS.find((t) => t.id === 'port-boreal')!;
-const COAST_TOWNS = TOWNS.filter((t) => t.seaside || t.port);
-const pont = TOWNS.find((t) => t.id === 'fossbru')!;
+/** Point en mer, au-delà du fond d'un fjord (embouchure d'une rivière). */
+const intoFjord = (id: string, m: number): Vec2 => fjordAxis(id, m).p;
+const sorvik = TOWNS.find((t) => t.id === 'sorvik')!;
+const skarvik = TOWNS.find((t) => t.id === 'skarvik')!;
+
 export const RIVERS: River[] = [
-  {
-    id: 'la-saumonee',
-    name: 'La Saumonée',
-    pts: [[-10600, -6900], [-11100, -4600], [-12300, -2300], [-13400, -400], [-14800, 2000], coastPoint(2.92, -150)],
-    w0: 3,
-    w1: 14,
-    v0: 200,
-    v1: 620,
-  },
-  {
-    // Gorges : la rivière garde le niveau de la plaine en traversant le rebord du plateau.
-    id: 'la-renne',
-    name: 'La Renne',
-    pts: [[5500, -4500], [6300, -2500], [6900, -300], [7500, 1700], [pont.x - 250, pont.z + 300], [7900, 5800], coastPoint(0.98, -150)],
-    w0: 3,
-    w1: 11,
-    v0: 150,
-    v1: 260,
-  },
-  {
-    // Vallée de la Vik : descente nord du col du Renne jusqu'au port de Nordvik.
-    id: 'la-vik',
-    name: 'La Vik',
-    pts: [[2800, -7200], [2400, -8000], [1900, -8900], [1450, -9650], coastPoint(-1.56, -150)],
-    w0: 2,
-    w1: 9,
-    v0: 260,
-    v1: 460,
-  },
-  {
-    id: 'le-ru',
-    name: 'Le Ru Boréal',
-    pts: [[-1700, -2700], [-1400, 300], [-900, 4300], [portAzur.x + 1150, portAzur.z - 1000], coastPoint(1.5, -150)],
-    w0: 2,
-    w1: 7,
-    v0: 100,
-    v1: 280,
-  },
+  // La Renne : sort des lacs du plateau et descend en gorges jusqu'au fond du fjord du Bac.
+  { id: 'la-renne', name: 'La Renne', pts: [[8300, 1000], [8900, 700], [9900, 150], [10700, -450], intoFjord('fjord-du-bac', 150)], w0: 3, w1: 10, v0: 120, v1: 200 },
+  // La Vik : du pied de la combe de Nordvik au fond du Storfjord.
+  { id: 'la-vik', name: 'La Vik', pts: [[4350, -5250], [4700, -5550], [5100, -5800], intoFjord('storfjord', 150)], w0: 2, w1: 8, v0: 160, v1: 280 },
+  // Le Ru Boréal : du plateau au fond du Sørfjord.
+  { id: 'le-ru', name: 'Le Ru Boréal', pts: [[4700, 3300], [4100, 4700], [3500, 5900], [sorvik.x + 150, sorvik.z - 200], intoFjord('sorfjord', 120)], w0: 2, w1: 7, v0: 100, v1: 240 },
+  // La Skarva : du plateau au fond du fjord de Skarvik.
+  { id: 'la-skarva', name: 'La Skarva', pts: [[7700, 3100], [8700, 4200], [9700, 5200], [skarvik.x - 150, skarvik.z - 150], intoFjord('fjord-de-skarvik', 120)], w0: 2, w1: 7, v0: 100, v1: 240 },
+  // La Saumonée : du rebord ouest du plateau au fond du Grand Fjord.
+  { id: 'la-saumonee', name: 'La Saumonée', pts: [[1300, 1900], [-600, 1700], [-3200, 1200], [-5600, 500], intoFjord('grand-fjord', 150)], w0: 3, w1: 13, v0: 200, v1: 460 },
+  // La Myra : par la vallée de la Myra jusqu'au strandflat, à l'ouest de Port-Boréal.
+  { id: 'la-myra', name: 'La Myra', pts: [[-3300, 1900], [-4100, 3700], [-5300, 6100], [-6700, 8400], coastPoint(2.27, -150)], w0: 2, w1: 9, v0: 160, v1: 380 },
 ];
 
 // ── Lacs et étangs ──
@@ -397,25 +479,55 @@ export interface Lake {
   depth: number;
 }
 
-const lagoonC = coastPoint(2.62, 720);
+const LAKE_NAMES = ['Lac de Vidda', 'Lac des Rennes', 'Lac Noir', 'Lac Long', 'Lac des Plongeons', 'Lac du Lemming', 'Lac des Mousses', 'Lac Rond', 'Lac des Linaigrettes', 'Lac du Harfang', 'Lac des Lagopèdes', 'Lac Gris', 'Lac des Airelles', 'Lac des Bécasseaux', 'Lac du Cairn', 'Lac des Sternes'];
+
+/** Distance (m) à une polyligne. */
+function polyDist(x: number, z: number, P: Vec2[]): number {
+  let best = Infinity;
+  for (let i = 0; i + 1 < P.length; i++) {
+    const [ax, az] = P[i]!;
+    const [bx, bz] = P[i + 1]!;
+    const dx = bx - ax;
+    const dz = bz - az;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+    best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t));
+  }
+  return best;
+}
+
+/** Lacs du haut-plateau : semis de dizaines de petits lacs (hors des villages, du Circuit, des vallées et des rivières). */
+function tundraLakes(): Lake[] {
+  const r = rng(6011);
+  const out: Lake[] = [];
+  let named = 0;
+  for (let tries = 0; tries < 4000 && out.length < 34; tries++) {
+    const a = r() * Math.PI * 2;
+    const q = Math.sqrt(r()) * 0.86;
+    const x = PLATEAU.x + Math.cos(a) * q * PLATEAU.rx;
+    const z = PLATEAU.z + Math.sin(a) * q * PLATEAU.rz;
+    const big = r() < 0.3;
+    const rx = big ? 200 + r() * 170 : 70 + r() * 110;
+    const rz = rx * (0.4 + r() * 0.35);
+    const R = rx;
+    if (plateauE(x, z) > 0.84) continue;
+    if (TOWNS.some((t) => Math.hypot(t.x - x, t.z - z) < t.r * 1.5 + R + 220)) continue;
+    if (Math.hypot(Math.max(0, Math.abs(x - ANNEAU.cx) - ANNEAU.half), z - ANNEAU.cz) < ANNEAU.radius + R + 500) continue;
+    if (VALLEYS.some((v) => polyDist(x, z, v.pts) < v.w + R + 250)) continue;
+    if (RIVERS.some((v) => polyDist(x, z, v.pts) < v.v0 + R + 120)) continue;
+    if (out.some((l) => Math.hypot(l.x - x, l.z - z) < l.rx + R + 260)) continue;
+    const name = big && named < LAKE_NAMES.length ? LAKE_NAMES[named++] : undefined;
+    out.push({ id: `lac-${out.length + 1}`, ...(name ? { name } : {}), kind: rx > 120 ? 'lake' : 'pond', x: Math.round(x), z: Math.round(z), rx: Math.round(rx), rz: Math.round(rz), rot: Math.round(r() * 314) / 100, level: NaN, depth: rx > 120 ? 3 : 2 });
+  }
+  return out;
+}
+
 export const LAKES: Lake[] = [
-  { id: 'lagune', name: 'Lagune des Cygnes', kind: 'lake', x: lagoonC[0], z: lagoonC[1], rx: 1300, rz: 480, rot: 2.62 + Math.PI / 2, level: 0.35, depth: 1.4 },
-  { id: 'lac-de-robert', name: 'Le Grand Lac', kind: 'lake', x: -5600, z: -2500, rx: 2100, rz: 800, rot: 0.12, level: NaN, depth: 16 },
-  { id: 'lac-de-l-aigle', name: 'Lac du Renne', kind: 'lake', x: (P1[0] + P2[0]) / 2 + 600, z: (P1[1] + P2[1]) / 2 + 1000, rx: 280, rz: 180, rot: 0.5, level: NaN, depth: 7 },
-  { id: 'lac-de-pralong', name: 'Lac de Fjellheim', kind: 'lake', x: -8950, z: -5850, rx: 170, rz: 110, rot: 0.4, level: NaN, depth: 4 },
-  { id: 'etang-des-olivettes', kind: 'pond', x: 5200, z: 6500, rx: 90, rz: 60, rot: 0.8, level: NaN, depth: 2 },
-  { id: 'mare-sainte-marthe', kind: 'pond', x: -11000, z: 2700, rx: 70, rz: 50, rot: 0.3, level: NaN, depth: 2 },
-  // Toundra : lacs du haut-plateau de Vidda et des Mille-Lacs.
-  { id: 'lac-de-vidda', name: 'Lac de Vidda', kind: 'lake', x: 9500, z: 0, rx: 260, rz: 150, rot: 0.4, level: NaN, depth: 3 },
-  { id: 'lac-des-rennes', name: 'Lac des Rennes', kind: 'lake', x: 10000, z: 2000, rx: 210, rz: 130, rot: -0.3, level: NaN, depth: 3 },
-  { id: 'lac-noir', name: 'Lac Noir', kind: 'lake', x: 12000, z: -1700, rx: 170, rz: 110, rot: 0.9, level: NaN, depth: 3 },
-  { id: 'lac-rond', name: 'Lac Rond', kind: 'pond', x: 13200, z: 1000, rx: 120, rz: 110, rot: 0, level: NaN, depth: 2 },
-  { id: 'lac-long', name: 'Lac Long', kind: 'lake', x: 11000, z: 1900, rx: 300, rz: 90, rot: 0.15, level: NaN, depth: 3 },
-  { id: 'mare-de-vidda', kind: 'pond', x: 12900, z: -900, rx: 80, rz: 60, rot: 0.5, level: NaN, depth: 2 },
-  { id: 'lac-des-plongeons', name: 'Lac des Plongeons', kind: 'lake', x: 1800, z: 5300, rx: 220, rz: 120, rot: 0.6, level: NaN, depth: 3 },
-  { id: 'lac-du-lemming', name: 'Lac du Lemming', kind: 'pond', x: 5800, z: 5100, rx: 110, rz: 80, rot: 1.1, level: NaN, depth: 2 },
-  { id: 'lac-des-mousses', name: 'Lac des Mousses', kind: 'lake', x: 2600, z: 6700, rx: 180, rz: 100, rot: -0.4, level: NaN, depth: 3 },
-  { id: 'mare-des-mille-lacs', kind: 'pond', x: 6600, z: 6200, rx: 70, rz: 55, rot: 0.2, level: NaN, depth: 2 },
+  // Lacs de montagne : lac du Renne sous le col, lac de la Calotte au pied de la glace, lac du Storfjell.
+  { id: 'lac-du-renne', name: 'Lac du Renne', kind: 'lake', x: 3900, z: -2500, rx: 240, rz: 150, rot: 0.5, level: NaN, depth: 6 },
+  { id: 'lac-de-la-calotte', name: 'Lac de la Calotte', kind: 'lake', x: -4200, z: -2900, rx: 200, rz: 120, rot: 1.2, level: NaN, depth: 6 },
+  { id: 'lac-de-fjellheim', name: 'Lac de Fjellheim', kind: 'pond', x: -7700, z: -4300, rx: 150, rz: 95, rot: 0.4, level: NaN, depth: 4 },
+  { id: 'lac-des-skerries', name: 'Lac des Skerries', kind: 'pond', x: Math.round(coastPoint(2.45, 1500)[0]), z: Math.round(coastPoint(2.45, 1500)[1]), rx: 160, rz: 100, rot: 0.8, level: NaN, depth: 2 },
+  ...tundraLakes(),
 ];
 
 // ── Ports : bassins creusés sous le niveau de la mer, quais autour ──
@@ -435,9 +547,16 @@ export interface Harbour {
 
 /** Cale du bac sur une rive du fjord du Bac : petit bassin ouvert en travers du fjord. */
 function ferryHarbour(id: string, name: string, side: 1 | -1): Harbour {
-  const [x, z] = fjordBank('fjord-du-bac', 2300, side, 8);
-  const { p } = fjordAxis('fjord-du-bac', 2300);
+  const [x, z] = fjordBank('fjord-du-bac', 2700, side, 8);
+  const { p } = fjordAxis('fjord-du-bac', 2700);
   return { id, name, x, z, dir: Math.atan2(p[1] - z, p[0] - x), halfLen: 34, halfWid: 16, reach: 40 };
+}
+
+/** Port au fond d'un fjord : bassin qui s'ouvre dans l'axe du fjord. */
+function headHarbour(id: string, name: string, fjord: string, halfLen: number, halfWid: number): Harbour {
+  const { L, p, dir } = onLine(fjord, 0);
+  const back = fjordHalf(L, 0) - halfLen * 0.45;
+  return { id, name, x: p[0] - dir[0] * back, z: p[1] - dir[1] * back, dir: Math.atan2(dir[1], dir[0]), halfLen, halfWid, reach: 120 };
 }
 
 function harbourAt(id: string, name: string, ang: number, halfLen: number, halfWid: number): Harbour {
@@ -446,9 +565,9 @@ function harbourAt(id: string, name: string, ang: number, halfLen: number, halfW
 }
 
 export const HARBOURS: Harbour[] = [
-  harbourAt('port-boreal', 'Port de Port-Boréal', 1.53, 230, 95),
-  harbourAt('port-skarvik', 'Port de Skarvik', 0.74, 140, 60),
-  harbourAt('port-nordvik', 'Port de Nordvik', -1.62, 150, 70),
+  harbourAt('port-boreal', 'Port de Port-Boréal', PB_ANG - 0.07, 230, 95),
+  headHarbour('port-skarvik', 'Port de Skarvik', 'fjord-de-skarvik', 140, 60),
+  headHarbour('port-nordvik', 'Port de Nordvik', 'storfjord', 150, 70),
   ferryHarbour('bac-ferjeby', 'Cale du bac de Ferjeby', -1),
   ferryHarbour('bac-utnes', "Cale du bac d'Utnes", 1),
 ];
@@ -457,36 +576,156 @@ export const HARBOURS: Harbour[] = [
 
 const gauss = (x: number, z: number, cx: number, cz: number, sx: number, sz: number) => Math.exp(-(((x - cx) / sx) ** 2 + ((z - cz) / sz) ** 2));
 
-/** Vallonnement (mètres d'amplitude), réglable pour un essai : ISLAND_RELIEF='{"hills":30,…}'. */
-const RELIEF = { wave: 30, hills: 46, knolls: 70, chain: 1, ...(JSON.parse(process.env.ISLAND_RELIEF ?? '{}') as Record<string, number>) };
+/** Amplitude des montagnes (facteur), réglable pour un essai : ISLAND_RELIEF='{"mountains":0.8}'. */
+const RELIEF = { mountains: 1, ...(JSON.parse(process.env.ISLAND_RELIEF ?? '{}') as Record<string, number>) };
 
-/** Distance (m) à l'arête de la chaîne du Nord et hauteur de l'arête au point le plus proche. */
-export function chainAt(x: number, z: number): { d: number; h: number } {
-  const P = CHAIN.pts;
-  let best = Infinity;
-  const ds: number[] = [];
-  const hs: number[] = [];
-  for (let k = 0; k + 1 < P.length; k++) {
-    const [ax, az] = P[k]!;
-    const [bx, bz] = P[k + 1]!;
-    const dx = bx - ax;
-    const dz = bz - az;
-    const L2 = dx * dx + dz * dz;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
-    const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
-    ds.push(d);
-    hs.push(lerp(CHAIN.h[k]!, CHAIN.h[k + 1]!, t));
-    best = Math.min(best, d);
+interface ValleyLine {
+  v: Valley;
+  pts: Vec2[];
+  h: number[];
+  box: [number, number, number, number];
+}
+let valleyLines: ValleyLine[] | null = null;
+function vlines(): ValleyLine[] {
+  if (valleyLines) return valleyLines;
+  valleyLines = VALLEYS.map((v) => {
+    // Altitude du fond le long du tracé, proportionnelle à la distance entre points de passage.
+    const s = [0];
+    for (let i = 1; i < v.pts.length; i++) s.push(s[i - 1]! + Math.hypot(v.pts[i]![0] - v.pts[i - 1]![0], v.pts[i]![1] - v.pts[i - 1]![1]));
+    const pts = resample(chaikin(v.pts, 3), 25);
+    const h: number[] = [];
+    const total = accTotal(pts) || 1;
+    let acc = 0;
+    pts.forEach((p, i) => {
+      if (i) acc += Math.hypot(p[0] - pts[i - 1]![0], p[1] - pts[i - 1]![1]);
+      const f = (acc / total) * s[s.length - 1]!;
+      let k = 0;
+      while (k + 2 < s.length && s[k + 1]! < f) k++;
+      const t = clamp((f - s[k]!) / (s[k + 1]! - s[k]! || 1), 0, 1);
+      h.push(lerp(v.h[k]!, v.h[k + 1]!, t));
+    });
+    const xs = pts.map((p) => p[0]);
+    const zs = pts.map((p) => p[1]);
+    const m = v.w * 2.6;
+    return { v, pts, h, box: [Math.min(...xs) - m, Math.min(...zs) - m, Math.max(...xs) + m, Math.max(...zs) + m] as [number, number, number, number] };
+  });
+  return valleyLines;
+}
+function accTotal(pts: Vec2[]): number {
+  let a = 0;
+  for (let i = 1; i < pts.length; i++) a += Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]);
+  return a;
+}
+
+/** Fond de vallée le plus proche : distance (m), altitude du fond, demi-largeur. */
+export function valleyAt(x: number, z: number): { d: number; h: number; w: number } | null {
+  let best: { d: number; h: number; w: number } | null = null;
+  for (const L of vlines()) {
+    if (x < L.box[0] || z < L.box[1] || x > L.box[2] || z > L.box[3]) continue;
+    const P = L.pts;
+    for (let i = 0; i + 1 < P.length; i++) {
+      const [ax, az] = P[i]!;
+      const [bx, bz] = P[i + 1]!;
+      const dx = bx - ax;
+      const dz = bz - az;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1)));
+      const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
+      if (!best || d / L.v.w < best.d / best.w) best = { d, h: lerp(L.h[i]!, L.h[i + 1]!, t), w: L.v.w };
+    }
   }
-  // Hauteur de l'arête : moyenne pondérée des tronçons proches (pas de pli là où le plus proche change).
-  let sw = 0;
-  let sh = 0;
-  for (let k = 0; k < ds.length; k++) {
-    const w = Math.exp(-(ds[k]! - best) / 400);
-    sw += w;
-    sh += w * hs[k]!;
+  return best;
+}
+
+// Vallées tamponnées une fois sur une grille de 20 m : distance relative au fond (d / w, ≤ 9) et altitude du fond.
+const VC = 20;
+let vgrid: { n: number; m: number; k: Float32Array; h: Float32Array } | null = null;
+function valleyGrid() {
+  if (vgrid) return vgrid;
+  const n = Math.ceil((ISLAND.maxX - ISLAND.minX) / VC) + 1;
+  const m = Math.ceil((ISLAND.maxZ - ISLAND.minZ) / VC) + 1;
+  const k = new Float32Array(n * m).fill(9);
+  const h = new Float32Array(n * m);
+  for (const L of vlines()) {
+    const P = L.pts;
+    const R = L.v.w * 2.6;
+    for (let s = 0; s + 1 < P.length; s++) {
+      const [ax, az] = P[s]!;
+      const [bx, bz] = P[s + 1]!;
+      const dx = bx - ax;
+      const dz = bz - az;
+      const l2 = dx * dx + dz * dz || 1;
+      const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - R - ISLAND.minX) / VC));
+      const i1 = Math.min(n - 1, Math.ceil((Math.max(ax, bx) + R - ISLAND.minX) / VC));
+      const j0 = Math.max(0, Math.floor((Math.min(az, bz) - R - ISLAND.minZ) / VC));
+      const j1 = Math.min(m - 1, Math.ceil((Math.max(az, bz) + R - ISLAND.minZ) / VC));
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++) {
+          const x = ISLAND.minX + i * VC;
+          const z = ISLAND.minZ + j * VC;
+          const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+          const q = Math.hypot(x - ax - dx * t, z - az - dz * t) / L.v.w;
+          const o = j * n + i;
+          if (q < k[o]!) {
+            k[o] = q;
+            h[o] = lerp(L.h[s]!, L.h[s + 1]!, t);
+          }
+        }
+    }
   }
-  return { d: best, h: sh / sw };
+  vgrid = { n, m, k, h };
+  return vgrid;
+}
+function valleyCached(x: number, z: number): { k: number; h: number } {
+  const g = valleyGrid();
+  const fx = (x - ISLAND.minX) / VC;
+  const fz = (z - ISLAND.minZ) / VC;
+  if (fx < 0 || fz < 0 || fx >= g.n - 1 || fz >= g.m - 1) return { k: 9, h: 0 };
+  const i = Math.floor(fx);
+  const j = Math.floor(fz);
+  const u = fx - i;
+  const w = fz - j;
+  const o = j * g.n + i;
+  const L = (a: Float32Array) => (a[o]! * (1 - u) + a[o + 1]! * u) * (1 - w) + (a[o + g.n]! * (1 - u) + a[o + g.n + 1]! * u) * w;
+  return { k: L(g.k), h: L(g.h) };
+}
+
+/** Montagne (0 … 1) : hors du plateau, du strandflat, des vallées et de la côte. */
+export function mountainous(x: number, z: number): number {
+  const d = shoreDist(x, z);
+  const sw = strandWeight(Math.atan2(z, x)) * (1 - smoothstep(1700, 3400, d));
+  const pw = 1 - smoothstep(0.82, 1.08, plateauE(x, z));
+  const v = valleyCached(x, z);
+  return smoothstep(150, 1200, d) * (1 - sw) * (1 - pw) * smoothstep(1, 2.2, v.k);
+}
+
+/** Îlots (skerries) au large : petites bosses de roche qui affleurent, plus nombreuses devant le strandflat. */
+function skerry(x: number, z: number, off: number): number {
+  const ang = Math.atan2(z, x);
+  const env = (0.45 + 0.55 * strandWeight(ang)) * smoothstep(250, 700, off) * (1 - smoothstep(2600, 4600, off));
+  if (env <= 0) return -99;
+  if (Math.abs(x) > 18300 || Math.abs(z) > 12300) return -99;
+  for (const h of HARBOURS) if (Math.hypot(x - h.x, z - h.z) < 1300) return -99;
+  const k = fbm(x / 380, z / 380, 3, 91) + 0.35 * fbm(x / 1500, z / 1500, 2, 92);
+  return Math.min((k - 0.5) * 120 * env, 6 + 9 * Math.max(0, fbm(x / 120, z / 120, 2, 93))) - 3;
+}
+
+/** Îles rocheuses au large (centre, rayon, sommet) : Hvalø, Ytterøy, Kvitøy, Fyrøy. */
+export const ISLES: Array<{ name: string; x: number; z: number; r: number; h: number }> = [
+  { name: 'Hvalø', x: -16600, z: 8900, r: 1400, h: 150 },
+  { name: 'Ytterøy', x: 8600, z: 11600, r: 950, h: 95 },
+  { name: 'Kvitøy', x: -4200, z: -11700, r: 1050, h: 170 },
+  { name: 'Fyrøy', x: 17200, z: 6800, r: 950, h: 115 },
+];
+
+function isles(x: number, z: number): number {
+  let best = -99;
+  for (const I of ISLES) {
+    const d = Math.hypot(x - I.x, z - I.z) * (1 + 0.18 * fbm(x / 700, z / 700, 2, 95));
+    if (d > I.r * 1.3) continue;
+    const t = Math.max(0, 1 - d / I.r);
+    best = Math.max(best, I.h * t ** 1.3 * (0.75 + 0.5 * ridged(x / 600, z / 600, 3, 96)) - 6 + 6 * t);
+  }
+  return best;
 }
 
 /** Relief naturel sans les rivières, lacs, ports ni plateaux aplanis. */
@@ -494,62 +733,61 @@ function natural(x: number, z: number): number {
   const ang = Math.atan2(z, x);
   const d = shoreDist(x, z);
   const cliff = cliffAt(x, z);
-  // Mer : fond qui plonge doucement devant les plages, vite au pied des falaises.
-  if (d < 0) return Math.max(-30, 0.25 + d * lerp(0.012, 0.12, cliff));
+  const fe = fjordEdge(x, z);
+  // Mer : fond qui plonge doucement devant les plages, vite au pied des falaises ; îlots au large (hors des fjords).
+  if (d < 0) {
+    const sea = Math.max(-30, 0.25 + d * lerp(0.012, 0.12, cliff));
+    const off = Math.hypot(x, z) - coastRadius(ang);
+    return fe > 300 ? Math.max(sea, skerry(x, z, off), isles(x, z)) : sea;
+  }
   const beach = 0.25 + Math.min(d, 160) * 0.012 + 16 * smoothstep(160, 1800, d);
   const wall = 0.25 + 44 * smoothstep(4, 70, d) + 18 * smoothstep(70, 1500, d);
   let h = beach + (wall - beach) * cliff * (1 - smoothstep(1500, 4000, d));
-  const cl = cliff * (1 - smoothstep(1500, 4000, d));
-  const inland = smoothstep(150, 2400, d) * (1 - cl) + smoothstep(60, 900, d) * cl;
-  // Lieux qui doivent rester faciles : plaine de Valrobert et du Circuit, delta, lagune, dessus du plateau, rives du lac.
-  const lake = LAKES[1]!;
-  const calm = 1 - 0.8 * Math.max(gauss(x, z, ANNEAU.cx, ANNEAU.cz, 2600, 1700), gauss(x, z, -2600, 1500, 3200, 2000), gauss(x, z, lagoonC[0], lagoonC[1], 3200, 2400), gauss(x, z, -13000, 1200, 2600, 2400), gauss(x, z, PLATEAU.x, PLATEAU.z, 3000, 2200), gauss(x, z, lake.x, lake.z, 3200, 1900));
-  h += inland * (RELIEF.wave * (fbm(x / 7000, z / 7000, 3, 11) + 0.35) + (9 + (RELIEF.hills - 9) * calm) * fbm(x / 1500, z / 1500, 2, 12) + 2.5 * fbm(x / 350, z / 350, 2, 13));
-  h += inland * calm * RELIEF.knolls * Math.max(0, fbm(x / 2300 + 7, z / 2300 - 3, 2, 14) + 0.08) * 1.6;
-  // Parois des fjords : la montagne tombe presque d'aplomb dans l'eau.
-  const fe = fjordEdge(x, z);
-  const fade = smoothstep(120, 1200 - 750 * (1 - smoothstep(400, 1800, fe)), d);
-  // Chaîne du Nord : versants raides, crêtes et vallons (bruit en crêtes), plus douce vers la plaine.
-  const c = chainAt(x, z);
-  // Versants des routes de montagne (col de l'Aigle des deux côtés, Pralong) : réguliers, sans bosses à franchir.
-  const even = 1 - 0.85 * Math.max(gauss(x, z, 2800, -4600, 1700, 2400), gauss(x, z, 2400, -8300, 1800, 2200), gauss(x, z, -8700, -4300, 1300, 1500));
-  if (c.d < CHAIN.width * 3) {
-    const prof = Math.exp(-((c.d / CHAIN.width) ** 1.6)) * (1 - smoothstep(CHAIN.width * 2, CHAIN.width * 3, c.d));
-    const rough = 0.74 + even * (0.4 * (ridged(x / 2100, z / 2100, 4, 81) - 0.45) + 0.1 * fbm(x / 600, z / 600, 2, 82));
-    h += fade * RELIEF.chain * c.h * prof * rough;
-  }
-  // Plateau des Mille-Lacs (sud) : croupes de toundra, lacs dans les creux.
-  h += fade * 210 * gauss(x, z, 3600, 5700, 3600, 1500) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 22));
-  // Plateau des Lavandes : dessus presque plat, rebord en escarpement.
-  const pe = Math.hypot((x - PLATEAU.x) / PLATEAU.rx, (z - PLATEAU.z) / PLATEAU.rz);
-  h += fade * PLATEAU.h * (1 - smoothstep(0.62, 1.02, pe)) * (1 + 0.04 * fbm(x / 900, z / 900, 2, 23));
-  // Massif de l'Aigle : deux sommets, col entre les deux, arêtes.
+  // Montagnes partout : crêtes et vallons (bruit en crêtes), qui montent vite derrière le rivage (parois des fjords).
+  const fade = smoothstep(40, 1000 - 550 * (1 - smoothstep(300, 1500, fe)), d);
+  const env = 520 + 230 * fbm(x / 8000, z / 8000, 2, 11);
+  // Versants des routes de montagne (col du Renne des deux côtés, montée de la calotte) : réguliers.
+  const even = Math.max(gauss(x, z, 3500, -2300, 1500, 1500), gauss(x, z, 4300, -5000, 1100, 900), gauss(x, z, -5600, -3700, 1300, 1300));
+  const rough = lerp(0.6 + 0.62 * (ridged(x / 2300, z / 2300, 4, 81) - 0.45) + 0.12 * fbm(x / 650, z / 650, 2, 82), 0.62, 0.8 * even);
+  h += fade * RELIEF.mountains * env * rough;
+  // Strandflat : plate-forme côtière basse et bosselée (rochers moutonnés, tourbières) jusqu'à ≈ 2 km du rivage.
+  const sw = strandWeight(ang) * (1 - smoothstep(1700, 3400, d));
+  if (sw > 0) h = lerp(h, 3 + d * 0.006 + 7 * Math.max(0, fbm(x / 420, z / 420, 2, 24) + 0.2), sw);
+  // Haut-plateau de Vidda : toundra presque plate, ondulée de bosses et de creux (où dorment les lacs).
+  const pe = plateauE(x, z);
+  const pw = 1 - smoothstep(0.82, 1.08, pe);
+  if (pw > 0) h = lerp(h, PLATEAU.h + 9 * fbm(x / 900, z / 900, 2, 22) + 4 * fbm(x / 260, z / 260, 2, 23), pw);
+  // Massif du Storfjell : deux sommets, col entre les deux, arêtes.
   const M = MASSIF;
   const cone = (px: number, pz: number, H: number) => H * Math.exp(-((Math.hypot(x - px, z - pz) / M.spread) ** 1.7));
   const c1 = cone(M.phare[0], M.phare[1], M.h1);
   const c2 = cone(M.mont[0], M.mont[1], M.h2);
   const massif = (c1 ** 8 + c2 ** 8) ** (1 / 8);
-  if (massif > 0.05) h += smoothstep(30, 1600, d) * (massif + even * massif * 0.1 * (ridged(x / 1600, z / 1600, 3, 31) - 0.45));
-  // Selle du col de l'Aigle, large et creusée : la route y arrive en pente régulière.
-  h -= fade * 170 * gauss(x, z, 2950, -6450, 800, 1700);
-  h -= fade * 190 * gauss(x, z, 2820, -7150, 750, 800);
-  // Combe de l'Aber : du col jusqu'au port, fond en pente régulière, versants raides de part et d'autre.
+  if (massif > 0.05) h += fade * (1 - pw) * (massif + (1 - even) * massif * 0.1 * (ridged(x / 1600, z / 1600, 3, 31) - 0.45));
+  // Selle du col du Renne, large et creusée : la route y arrive en pente régulière.
+  h -= fade * 300 * gauss(x, z, 3450, -3750, 900, 1700);
+  // Calotte de Robert : dôme de glace.
+  const ce = capE(x, z);
+  if (ce < 1.4) {
+    const dome = CAP.rim + (CAP.top - CAP.rim) * Math.sqrt(Math.max(0, 1 - Math.min(1, ce) ** 2));
+    h = lerp(h, Math.max(h, dome), 1 - smoothstep(0.95, 1.4, ce));
+  }
+  // Combe de Nordvik : du col jusqu'au fond du Storfjord, fond en pente régulière, versants raides de part et d'autre.
   {
-    const [ax, az] = [2750, -7250];
-    const [bx, bz] = [1450, -9650];
+    const [ax, az] = [3650, -3900];
+    const [bx, bz] = [5350, -5650];
     const dx = bx - ax;
     const dz = bz - az;
     const t = ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz);
     if (t > 0 && t < 1.1) {
       const dist = Math.hypot(x - ax - dx * Math.min(1, t), z - az - dz * Math.min(1, t));
       if (dist < 950) {
-        const floor = lerp(720, 220, Math.min(1, t)) + dist * 0.1;
-        // Tête de la combe estompée : le versant du Pic de l'Aigle reste entier.
-        h = lerp(h, lerp(Math.min(h, floor), h, smoothstep(550, 950, dist)), smoothstep(0, 0.18, t));
+        const floor = lerp(430, 30, Math.min(1, t)) + dist * 0.1;
+        h = lerp(h, lerp(Math.min(h, floor), h, smoothstep(550, 950, dist)), smoothstep(0, 0.08, t));
       }
     }
   }
-  // Glacier de Robert : auge en U du cirque de la Dent du Renne jusqu'au fond du fjord du Glacier.
+  // Glacier de Robert : auge en U du bord de la calotte jusqu'au fond du fjord du Glacier.
   {
     const G = GLACIER;
     const [ax, az] = G.from;
@@ -561,26 +799,29 @@ function natural(x: number, z: number): number {
       const tc = Math.max(0, Math.min(1, t));
       const dist = Math.hypot(x - ax - dx * tc, z - az - dz * tc);
       if (dist < G.half * 2.8) {
-        const floor = 10 + (G.top - 10) * (1 - tc) ** 1.8 + (dist / G.half) ** 2 * 45;
+        const floor = 10 + (G.top - 10) * (1 - tc) ** 1.4 + (dist / G.half) ** 2 * 45;
         const edge = smoothstep(G.half * 1.3, G.half * 2.8, dist) + (1 - smoothstep(-0.15, 0.05, t));
         h = lerp(Math.min(h, floor), h, Math.min(1, edge));
       }
     }
   }
-  // Villes du bord de mer (ports, station) : arrière-pays en pente douce sur 1,4 km (pas de falaise sous les quais).
+  // Vallées : fond régulier, versants qui remontent jusqu'au relief (jamais au-dessus de lui).
+  const v = valleyCached(x, z);
+  if (v.k < 2.4) {
+    const floor = v.h + Math.max(0, v.k - 0.35) * 30 + 3 * fbm(x / 300, z / 300, 2, 25);
+    h = lerp(Math.min(h, floor), h, smoothstep(1, 2.4, v.k));
+  }
+  // Villages du bord de l'eau (ports, fonds de fjords) : arrière-pays en pente douce sur 1,4 km (pas de falaise sous les quais).
   for (const t of COAST_TOWNS) {
     const dt = Math.hypot(x - t.x, z - t.z);
-    if (dt < 1800) h = lerp(Math.min(h, 6 + dt * 0.045), h, smoothstep(900, 1800, dt));
+    if (dt < 1800) h = lerp(Math.min(h, 6 + dt * 0.05), h, smoothstep(700, 1800, dt));
   }
-  // Cuvette du lac de Robert, plaine basse de la lagune et du delta.
-  h -= fade * 55 * gauss(x, z, lake.x, lake.z, lake.rx * 1.5, lake.rz * 2.2);
-  h -= fade * 14 * gauss(x, z, lagoonC[0], lagoonC[1], 2600, 1800);
-  h -= fade * 10 * gauss(x, z, -14000, 2200, 2400, 2000);
   return h;
 }
+const COAST_TOWNS = TOWNS.filter((t) => t.seaside || t.port);
 
 // Vallées des rivières : distance au lit, altitude du lit et largeurs, sur une grille de 20 m.
-interface Valley {
+interface RiverGrid {
   n: number;
   m: number;
   cell: number;
@@ -591,7 +832,7 @@ interface Valley {
   chan: Float32Array;
   width: Float32Array;
 }
-let valley: Valley | null = null;
+let valley: RiverGrid | null = null;
 
 /** Lit des rivières : points tous les 10 m, altitude du lit (toujours descendante), largeurs. */
 export interface RiverBed {
@@ -615,7 +856,7 @@ export function riverBeds(): RiverBed[] {
       const dz = b2[1] - a[1];
       const l = Math.hypot(dx, dz) || 1;
       const t = i / (base.length - 1);
-      const off = (40 + 140 * t) * noise2(i / 45, 0.5, 71) * Math.min(1, i / 30, (base.length - 1 - i) / 30);
+      const off = (25 + 70 * t) * noise2(i / 45, 0.5, 71) * Math.min(1, i / 30, (base.length - 1 - i) / 30);
       return [x - (dz / l) * off, z + (dx / l) * off];
     });
     const n = pts.length;
@@ -647,7 +888,7 @@ export function riverBeds(): RiverBed[] {
   return beds;
 }
 
-function getValley(): Valley {
+function getValley(): RiverGrid {
   if (valley) return valley;
   const cell = 20;
   const x0 = ISLAND.minX;
@@ -683,7 +924,7 @@ function getValley(): Valley {
   return valley;
 }
 
-function valleyAt(x: number, z: number): { dist: number; bed: number; chan: number; width: number } | null {
+function riverAt(x: number, z: number): { dist: number; bed: number; chan: number; width: number } | null {
   const v = getValley();
   const fx = (x - v.x0) / v.cell;
   const fz = (z - v.z0) / v.cell;
@@ -741,10 +982,10 @@ function getFlats(): Flat[] {
   return flats;
 }
 
-/** Rivières, lacs et ports creusés dans un relief. */
+/** Rivières creusées dans un relief. */
 function carve(h0: number, x: number, z: number): number {
   let h = h0;
-  const v = valleyAt(x, z);
+  const v = riverAt(x, z);
   if (v && v.dist < v.width) {
     // Vallée : le relief au-dessus du lit est abaissé vers lui (jamais remonté : continu au bord de la vallée).
     const t = smoothstep(v.chan + 2, v.width, v.dist);
@@ -860,7 +1101,7 @@ export function anneauLoop(step = 4): Vec2[] {
 
 /** Point dans le lit d'une rivière (élargi de `margin` m). */
 export function inRiver(x: number, z: number, margin = 0): boolean {
-  const v = valleyAt(x, z);
+  const v = riverAt(x, z);
   return !!v && v.dist < v.chan + margin;
 }
 
@@ -868,8 +1109,9 @@ export function inLake(x: number, z: number, margin = 1): boolean {
   return LAKES.some((l) => lakeE(l, x, z) < margin);
 }
 
-/** Point sur la glace du glacier de Robert (élargi de `margin` m). */
+/** Point sur la glace (calotte de Robert ou langue du glacier), élargi de `margin` m. */
 export function inGlacier(x: number, z: number, margin = 0): boolean {
+  if (capE(x, z) < 1 + margin / 2500) return true;
   const [ax, az] = GLACIER.from;
   const [bx, bz] = GLACIER.to;
   const dx = bx - ax;

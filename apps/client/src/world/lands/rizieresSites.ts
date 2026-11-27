@@ -18,78 +18,63 @@ const WHITE = new THREE.Color(0xffffff);
 const yawOf = (dx: number, dz: number) => Math.atan2(dx, dz);
 const C = (c: string) => new THREE.Color(c);
 
-// ───────────────────────────── Cotes du générateur (tools/rizieres/src/design.ts, places.json)
+// ───────────────────────────── Cotes du générateur (tools/rizieres/src/sites-data.ts : design.ts, graph.json, places.json)
 
 const PORT_JADE: HarbourSite = {
-  x: 375.8, z: 9206.3, dir: 1.53, halfLen: 230, halfWid: 95, side: -1, lines: [-160, -100, -40, 20, 80], officeW: 30, officeU: -110, sail: 0.5, fishing: false,
+  x: 2202.1, z: 8251.5, dir: 1.31, halfLen: 230, halfWid: 95, side: -1, lines: [-160, -100, -40, 20, 80], officeW: 30, officeU: -110, sail: 0.5, fishing: false,
   hulls: ['#e2604f', '#f4d35e', '#2fb7a8', '#3d6fb0', '#ffffff'],
 };
 const PORT_PITONS: HarbourSite = {
-  x: 10424.3, z: 9518.3, dir: 0.74, halfLen: 140, halfWid: 60, side: 1, lines: [-90, -40, 10], officeW: 26, officeU: -95, sail: 0.2, fishing: true,
+  x: 7129.5, z: 4371.1, dir: 0.55, halfLen: 140, halfWid: 60, side: 1, lines: [-90, -40, 10], officeW: 26, officeU: -95, sail: 0.2, fishing: true,
   hulls: ['#2f8fb5', '#c0392b', '#f2f0e8', '#2e7d32', '#e7b23c'],
 };
 const PORT_JONQUES: HarbourSite = {
-  x: -499.2, z: -10138, dir: -1.62, halfLen: 150, halfWid: 70, side: 1, lines: [-100, -45, 10], officeW: 28, officeU: -110, sail: 0.35, fishing: true,
+  x: 9698.1, z: -9787.8, dir: -0.79, halfLen: 150, halfWid: 70, side: 1, lines: [-100, -45, 10], officeW: 28, officeU: -110, sail: 0.35, fishing: true,
   hulls: ['#8a3b24', '#c0392b', '#3c7f58', '#253f66', '#d79a33'],
 };
-/** Circuit des Rizières (ANNEAU). */
-export const RIZIERES_RING = { x: -6900, z: 3700, half: 560, radius: 215 };
-const VAT_ROBERT = { x: -2600, z: 1200, angle: 0.15 };
-const TEMPLE_HILL: readonly [number, number] = [-3500, -250];
-const LANTERN_PEAK: readonly [number, number] = [1600, -6900];
-const TIGER_PEAK: readonly [number, number] = [4700, -6000];
-const BAMBOUSERAIE: readonly [number, number] = [2700, -2700];
-/** Lac des Lotus et Lagune des Mangroves (LAKES) : centre, demi-axes, rotation, niveau de l'eau. */
-const LOTUS_LAKE = { x: -5600, z: -2500, rx: 2100, rz: 800, rot: 0.12, level: 57.4 };
-const LAGOON = { x: -12560, z: 7218, rx: 1300, rz: 480, rot: 4.191, level: 0.35 };
-
-/** Grand Fleuve, du Village des Pilotis au delta (lit du générateur, un point tous les 60 m). */
-const FLEUVE: ReadonlyArray<readonly [number, number]> = [
-  [-12800, -1495], [-12826, -1441], [-12843, -1382], [-12858, -1321], [-12879, -1263], [-12910, -1212], [-12951, -1167], [-12999, -1125], [-13049, -1085], [-13103, -1047], [-13151, -1005], [-13183, -955], [-13198, -894], [-13201, -826], [-13206, -760], [-13216, -696], [-13229, -634], [-13252, -578], [-13289, -530], [-13337, -489], [-13389, -450], [-13433, -406], [-13467, -356], [-13496, -304], [-13518, -247], [-13535, -187], [-13549, -126], [-13565, -66], [-13588, -10], [-13618, 42], [-13651, 92], [-13689, 139], [-13732, 184], [-13774, 229], [-13809, 278], [-13834, 333], [-13851, 392], [-13866, 453], [-13882, 513], [-13902, 571], [-13929, 624], [-13966, 673], [-14008, 717], [-14050, 763], [-14084, 812], [-14114, 864], [-14136, 920], [-14149, 982], [-14161, 1044], [-14179, 1102], [-14208, 1154], [-14248, 1200], [-14292, 1244], [-14336, 1289], [-14370, 1338], [-14392, 1394], [-14406, 1454], [-14419, 1514], [-14439, 1571], [-14471, 1621], [-14510, 1669], [-14550, 1716], [-14588, 1765], [-14616, 1818], [-14628, 1877], [-14631, 1942], [-14630, 2006], [-14635, 2069], [-14643, 2127], [-14668, 2182], [-14712, 2228], [-14770, 2271], [-14827, 2314], [-14871, 2364],
-];
-/** Rivière du Dragon, des gorges à Pont-des-Lianes et au-delà. */
-const DRAGON: ReadonlyArray<readonly [number, number]> = [
-  [7105, 524], [7134, 578], [7162, 632], [7190, 686], [7216, 741], [7236, 798], [7249, 857], [7255, 917], [7260, 978], [7268, 1037], [7278, 1096], [7295, 1154], [7318, 1210], [7344, 1266], [7363, 1324], [7373, 1383], [7372, 1444], [7364, 1506], [7353, 1567], [7339, 1630], [7329, 1690], [7334, 1750], [7355, 1807], [7385, 1864], [7413, 1922], [7436, 1981], [7456, 2040], [7466, 2100], [7462, 2160], [7447, 2221], [7428, 2281], [7415, 2341], [7412, 2401], [7413, 2461], [7419, 2520], [7431, 2581], [7444, 2641], [7454, 2702], [7458, 2762], [7455, 2823], [7448, 2882], [7437, 2941], [7423, 3001], [7409, 3060], [7403, 3120], [7406, 3180], [7417, 3240], [7430, 3300], [7444, 3360], [7454, 3420], [7458, 3479], [7454, 3539], [7444, 3599], [7437, 3659], [7436, 3719], [7441, 3779], [7452, 3838], [7472, 3896], [7494, 3954], [7510, 4011], [7517, 4071], [7514, 4130], [7508, 4192], [7503, 4253], [7507, 4313], [7522, 4371], [7545, 4427], [7569, 4483], [7587, 4540], [7595, 4599], [7598, 4659], [7599, 4720], [7604, 4781], [7618, 4839], [7644, 4894], [7680, 4947], [7713, 5002], [7742, 5057], [7764, 5118], [7772, 5177], [7761, 5243], [7737, 5307], [7713, 5370], [7697, 5432], [7699, 5492], [7710, 5551], [7721, 5610], [7732, 5670], [7740, 5729], [7744, 5789], [7746, 5849], [7745, 5909], [7745, 5969], [7745, 6029],
-];
-/** Plage de Jade (sable blanc, à 75 m du rivage) et plage des Pitons. */
-const JADE_BEACH: ReadonlyArray<readonly [number, number]> = [
-  [7, 9210], [-48, 9212], [-103, 9221], [-159, 9233], [-215, 9243], [-270, 9255], [-327, 9278], [-384, 9305], [-441, 9329], [-498, 9344], [-554, 9352], [-611, 9355], [-667, 9353], [-724, 9357], [-782, 9379], [-842, 9418], [-903, 9460], [-964, 9494], [-1024, 9511], [-1081, 9507], [-1138, 9502], [-1198, 9521], [-1263, 9574], [-1332, 9645], [-1401, 9717], [-1470, 9776], [-1536, 9818], [-1603, 9855], [-1671, 9901], [-1741, 9953], [-1813, 10006], [-1882, 10047],
-];
-const PITONS_BEACH: ReadonlyArray<readonly [number, number]> = [
-  [11771, 8403], [11636, 8520], [11429, 8581], [11270, 8675], [11155, 8802], [10989, 8887], [10819, 8965], [10679, 9068], [10579, 9204], [10506, 9364], [10426, 9520], [10361, 9691], [10365, 9931], [10332, 10140], [10223, 10277], [10088, 10387], [9983, 10529], [9840, 10631], [9662, 10692], [9466, 10732],
-];
-/** Ponts suspendus : routes qui franchissent une rivière (milieu, cap de la route, portée). */
+/** Circuit des Rizières (ANNEAU), Vat-Robert, colline du temple, sommets, Bambouseraie, col de la Jungle. */
+export const RIZIERES_RING = { x: -5183, z: 4689, half: 560, radius: 215 };
+const VAT_ROBERT = { x: -424, z: 2079, angle: -0.4 };
+const TEMPLE_HILL: readonly [number, number] = [-1299, 3861];
+const LANTERN_PEAK: readonly [number, number] = [12619, -5335];
+const TIGER_PEAK: readonly [number, number] = [9144, -6363];
+const BAMBOUSERAIE: readonly [number, number] = [8385, -4305];
+const LOTUS_LAKE = { x: -5602, z: 360, rx: 1150, rz: 330, rot: -0.48, level: 20.2 };
+const LAGOON = { x: -12913, z: 9260, rx: 900, rz: 380, rot: 0.6, level: 0.35 };
+const FLEUVE: ReadonlyArray<readonly [number, number]> = [[-6682, 2780], [-6738, 2800], [-6798, 2812], [-6860, 2819], [-6922, 2828], [-6980, 2846], [-7033, 2874], [-7083, 2911], [-7131, 2949], [-7180, 2989], [-7229, 3025], [-7281, 3055], [-7337, 3077], [-7395, 3096], [-7452, 3115], [-7507, 3139], [-7560, 3166], [-7612, 3198], [-7662, 3231], [-7715, 3259], [-7771, 3280], [-7831, 3295], [-7892, 3307], [-7953, 3319], [-8014, 3334], [-8069, 3358], [-8117, 3395], [-8160, 3444], [-8199, 3498], [-8241, 3547], [-8288, 3585], [-8339, 3618], [-8394, 3641], [-8454, 3655], [-8515, 3670], [-8572, 3691], [-8621, 3726], [-8664, 3771], [-8705, 3820], [-8750, 3863], [-8803, 3893], [-8860, 3913], [-8919, 3930], [-8975, 3953], [-9025, 3988], [-9068, 4034], [-9111, 4080], [-9160, 4116], [-9218, 4136], [-9282, 4143], [-9350, 4144], [-9414, 4152], [-9470, 4174], [-9521, 4205], [-9575, 4232], [-9632, 4253], [-9690, 4271], [-9746, 4292], [-9799, 4320], [-9849, 4355], [-9896, 4395], [-9943, 4435], [-9990, 4475], [-10039, 4512], [-10092, 4541], [-10148, 4564], [-10205, 4584], [-10261, 4605], [-10316, 4628], [-10374, 4646], [-10436, 4656], [-10498, 4664], [-10557, 4677], [-10613, 4699], [-10664, 4731], [-10714, 4767], [-10763, 4805], [-10812, 4847], [-10861, 4887], [-10912, 4922], [-10967, 4948], [-11024, 4966], [-11084, 4983], [-11142, 4999], [-11200, 5016], [-11258, 5033], [-11317, 5048], [-11376, 5060], [-11437, 5068], [-11497, 5074], [-11558, 5080], [-11618, 5086], [-11679, 5094], [-11738, 5103], [-11797, 5114], [-11856, 5126], [-11915, 5136], [-11975, 5143], [-12035, 5149], [-12096, 5149], [-12158, 5146], [-12219, 5143], [-12280, 5147], [-12338, 5159], [-12395, 5176], [-12452, 5195], [-12510, 5212], [-12567, 5226], [-12626, 5238], [-12684, 5251], [-12742, 5268], [-12800, 5290], [-12856, 5314], [-12913, 5339], [-12971, 5360], [-13030, 5374], [-13090, 5380], [-13150, 5382], [-13210, 5386], [-13269, 5394], [-13328, 5410], [-13386, 5428], [-13445, 5441], [-13505, 5443], [-13567, 5430], [-13631, 5406], [-13695, 5382], [-13759, 5365], [-13821, 5358], [-13881, 5361], [-13939, 5383], [-13994, 5422], [-14047, 5467], [-14102, 5504], [-14159, 5524], [-14220, 5527], [-14281, 5526], [-14342, 5527], [-14402, 5533], [-14460, 5545], [-14519, 5560], [-14577, 5575], [-14636, 5586], [-14696, 5594], [-14756, 5599], [-14817, 5599], [-14879, 5596], [-14940, 5594], [-15002, 5597], [-15061, 5604], [-15120, 5615], [-15178, 5633], [-15231, 5674], [-15279, 5735], [-15328, 5797], [-15379, 5843], [-15436, 5864], [-15498, 5861], [-15561, 5849], [-15626, 5837], [-15688, 5830], [-15749, 5835], [-15807, 5852], [-15863, 5876], [-15919, 5898], [-15977, 5913], [-16035, 5928], [-16091, 5953], [-16145, 5985], [-16200, 6017], [-16256, 6039], [-16315, 6051], [-16376, 6052], [-16438, 6050], [-16502, 6040], [-16567, 6027], [-16629, 6024], [-16687, 6040], [-16740, 6074], [-16792, 6117], [-16844, 6159], [-16897, 6196], [-16953, 6218], [-17015, 6218], [-17082, 6196], [-17150, 6165], [-17217, 6143], [-17279, 6142], [-17338, 6154], [-17399, 6158], [-17462, 6149], [-17527, 6137], [-17589, 6134], [-17648, 6146], [-17699, 6192]];
+/** Indice du marché flottant (au droit des Pilotis) dans FLEUVE. */
+const FLEUVE_MARKET = 40;
+const BRAS: ReadonlyArray<readonly [number, number]> = [[-11132, 4996], [-11162, 5048], [-11192, 5100], [-11223, 5152], [-11255, 5202], [-11288, 5252], [-11322, 5302], [-11356, 5352], [-11389, 5402], [-11422, 5452], [-11454, 5502], [-11486, 5553], [-11518, 5604], [-11549, 5655], [-11580, 5707], [-11612, 5757], [-11644, 5808], [-11674, 5860], [-11704, 5913], [-11734, 5965], [-11765, 6015], [-11799, 6065], [-11834, 6114], [-11869, 6163], [-11905, 6211], [-11940, 6260], [-11974, 6309], [-12007, 6359], [-12039, 6410], [-12071, 6461], [-12103, 6512], [-12136, 6562], [-12168, 6612], [-12201, 6663], [-12234, 6713], [-12266, 6763], [-12299, 6814], [-12332, 6864], [-12365, 6914], [-12400, 6963], [-12439, 7009], [-12481, 7053], [-12522, 7098], [-12559, 7145], [-12593, 7195], [-12624, 7246], [-12654, 7299], [-12682, 7350], [-12713, 7402], [-12747, 7450], [-12787, 7496], [-12830, 7537], [-12874, 7578], [-12919, 7617], [-12959, 7661], [-12992, 7712], [-13019, 7769], [-13045, 7828], [-13077, 7881], [-13117, 7926], [-13166, 7963], [-13216, 7997], [-13268, 8030], [-13319, 8063], [-13369, 8096], [-13418, 8131], [-13467, 8166], [-13515, 8201], [-13565, 8235], [-13614, 8270], [-13661, 8307], [-13708, 8344], [-13755, 8381], [-13804, 8415], [-13856, 8445], [-13909, 8474], [-13962, 8502], [-14013, 8534], [-14061, 8571], [-14105, 8611], [-14150, 8653], [-14196, 8692], [-14245, 8726], [-14297, 8756], [-14349, 8787], [-14399, 8820], [-14448, 8854], [-14496, 8890], [-14544, 8927], [-14593, 8961], [-14644, 8994], [-14694, 9027], [-14741, 9065], [-14788, 9103], [-14838, 9137], [-14892, 9163], [-14950, 9183], [-15011, 9199], [-15071, 9215], [-15131, 9233], [-15186, 9257], [-15236, 9291], [-15279, 9336], [-15319, 9386], [-15361, 9432], [-15408, 9470], [-15457, 9504], [-15512, 9529], [-15571, 9547], [-15631, 9564], [-15685, 9591]];
+const DRAGON: ReadonlyArray<readonly [number, number]> = [[14984, -3078], [14949, -3030], [14915, -2980], [14880, -2931], [14845, -2882], [14807, -2835], [14771, -2787], [14737, -2738], [14705, -2687], [14671, -2638], [14635, -2590], [14597, -2542], [14561, -2495], [14527, -2445], [14496, -2394], [14466, -2342], [14436, -2290], [14404, -2239], [14371, -2189], [14339, -2138], [14309, -2086], [14282, -2032], [14258, -1976], [14233, -1920], [14207, -1865], [14176, -1814], [14136, -1768], [14090, -1727], [14041, -1688], [13997, -1646], [13959, -1599], [13925, -1550], [13898, -1495], [13879, -1435], [13861, -1374], [13838, -1317], [13806, -1265], [13765, -1221], [13720, -1180], [13678, -1136], [13642, -1088], [13611, -1036], [13585, -981], [13556, -927], [13522, -877], [13481, -833], [13437, -791], [13386, -754], [13333, -720], [13281, -685], [13235, -645], [13197, -599], [13163, -550], [13130, -499], [13100, -446], [13070, -392], [13035, -343], [12992, -301], [12941, -267], [12886, -236], [12832, -204], [12779, -173], [12727, -140], [12680, -103], [12639, -61], [12602, -13], [12566, 35], [12526, 80], [12482, 121], [12445, 167], [12415, 224], [12391, 287], [12365, 348], [12331, 400], [12287, 441], [12235, 474], [12183, 506], [12133, 540], [12085, 576], [12036, 611], [11984, 642], [11927, 667], [11868, 689], [11808, 709], [11755, 737], [11714, 782], [11686, 844], [11662, 915], [11634, 981], [11593, 1029], [11540, 1060], [11483, 1084], [11422, 1100], [11361, 1115], [11304, 1136], [11253, 1168], [11209, 1209], [11168, 1255], [11129, 1301], [11085, 1342], [11034, 1371], [10975, 1393], [10915, 1415], [10861, 1443], [10816, 1483], [10781, 1534], [10752, 1589], [10733, 1652], [10717, 1716], [10692, 1771], [10651, 1815], [10595, 1846], [10534, 1873], [10473, 1900], [10405, 1920], [10333, 1936], [10269, 1959], [10223, 1998], [10195, 2053], [10176, 2117], [10155, 2179], [10137, 2244], [10126, 2317], [10117, 2391], [10099, 2456]];
+/** Indice de Pont-des-Lianes dans DRAGON. */
+const DRAGON_PONT = 116;
+const JADE_BEACH: ReadonlyArray<readonly [number, number]> = [[229, 8853], [284, 8808], [340, 8764], [395, 8729], [450, 8707], [505, 8688], [560, 8669], [615, 8648], [669, 8620], [722, 8591], [777, 8573], [832, 8569], [889, 8578], [947, 8595], [1003, 8598], [1057, 8579], [1110, 8551], [1162, 8525], [1216, 8509], [1272, 8508], [1329, 8510], [1383, 8502], [1437, 8482], [1489, 8462], [1543, 8446], [1597, 8436], [1653, 8431], [1710, 8433], [1768, 8438], [1825, 8441], [1880, 8431], [1932, 8410]];
+const PITONS_BEACH: ReadonlyArray<readonly [number, number]> = [[8564, 2649], [8071, 2709], [7630, 2765], [7416, 2889], [7127, 2973], [6980, 3109], [6869, 3258], [6799, 3425], [6914, 3692], [7089, 4005], [7173, 4758], [7155, 4996], [7170, 5264], [7099, 5477], [7095, 5748], [6998, 5952], [6895, 6152], [6816, 6380], [6793, 6669], [6676, 6874]];
 const SUSPENSION: ReadonlyArray<{ id: string; x: number; z: number; cap: number; span: number }> = [
-  { id: 'pont-du-delta', x: -14893, z: 2414, cap: 0.78, span: 46 },
-  { id: 'pont-des-lianes', x: 7401, z: 3117, cap: -2.516, span: 30 },
-  { id: 'pont-des-singes', x: -13731, z: 174, cap: 0.644, span: 44 },
+  { id: 'pont-du-delta', x: -14545, z: 4221, cap: -1.109, span: 44 },
+  { id: 'pont-des-lianes', x: 11890, z: 680, cap: -0.459, span: 25 },
+  { id: 'pont-des-singes', x: 4764, z: -1380, cap: -2.037, span: 34 },
 ];
-/** Passerelles suspendues des promeneurs (milieu, cap du tablier, portée). */
 const FOOTBRIDGES: ReadonlyArray<{ id: string; x: number; z: number; cap: number; span: number }> = [
-  { id: 'passerelle-des-lianes', x: 7437, z: 3659, cap: 0.06, span: 36 },
-  { id: 'passerelle-des-gorges', x: 6752, z: -873, cap: 0.0, span: 40 },
-  { id: 'passerelle-du-marche', x: -13866, z: 453, cap: 0.25, span: 58 },
+  { id: 'passerelle-des-lianes', x: 10251, z: 1970, cap: 4.083, span: 24 },
+  { id: 'passerelle-des-gorges', x: 13191, z: -591, cap: 3.764, span: 19 },
+  { id: 'passerelle-du-marche', x: -9575, z: 4232, cap: 4.314, span: 48 },
 ];
-/** Ruines envahies par la jungle (bâtiments « ruins » du générateur). */
 const RUINS: ReadonlyArray<{ id: string; x: number; z: number; size: number }> = [
-  { id: 'prasat-vert', x: 5500, z: -3100, size: 1.3 },
-  { id: 'temple-englouti', x: 8700, z: -1900, size: 1 },
-  { id: 'ruines-du-fleuve', x: -10200, z: -4200, size: 1.1 },
-  { id: 'palais-des-theiers', x: 12700, z: -1700, size: 1.2 },
+  { id: 'prasat-vert', x: 12613, z: -4938, size: 1.3 },
+  { id: 'temple-englouti', x: 13274, z: -1002, size: 1 },
+  { id: 'ruines-du-fleuve', x: 6868, z: -190, size: 1.1 },
+  { id: 'palais-des-theiers', x: 10045, z: -1292, size: 1.2 },
 ];
-/** Buffles d'eau : troupeaux dans les rizières de la plaine et des vallées. */
-const HERDS: ReadonlyArray<readonly [number, number]> = [
-  [-6200, 900], [-7600, 1300], [-8900, 700], [-10200, 1500], [-5000, 1800], [-9600, 2600], [-11400, 300], [-4300, 3400], [-12600, 3300], [-1700, 3000], [6400, 2600], [-6600, 2500],
-];
-/** Bosquets de bambous (Bambouseraie, berges, villages). */
-const BAMBOO: ReadonlyArray<readonly [number, number]> = [
-  [2500, -2500], [2950, -2850], [2400, -2950], [3100, -2450], [-5200, -900], [-12000, 700], [7800, 3500], [-8100, -5100], [4000, 5400],
-];
-/** Cascades : falaise et chute d'eau au bord des routes de la jungle. */
+const HERDS: ReadonlyArray<readonly [number, number]> = [[3837, 504], [-4633, 3790], [-7195, 3697], [-1288, 317], [-9758, 3603], [-3851, 223], [1440, 1355], [-10873, 4502], [3503, -2165], [-4966, 1121], [941, -2259], [-7529, 1028]];
+const BAMBOO: ReadonlyArray<readonly [number, number]> = [[8185, -4105], [8635, -4455], [8085, -4555], [8765, -4045], [-5855, -239], [-8209, 5751], [9790, 1072], [-4420, -3777], [-246, 4555]];
 const FALLS: ReadonlyArray<{ id: string; x: number; z: number; h: number }> = [
-  { id: 'cascade-des-nuages', x: -8050, z: -5550, h: 26 },
-  { id: 'cascade-du-dragon', x: 6600, z: -1300, h: 32 },
+  { id: 'cascade-des-nuages', x: -4740, z: -4583, h: 26 },
+  { id: 'cascade-du-dragon', x: 12671, z: -199, h: 32 },
 ];
+const BIKE_PARK: readonly [number, number] = [-2227, -3727];
+const CYCLO_CROSS: readonly [number, number] = [-6452, 6311];
+const COL_JUNGLE: readonly [number, number] = [10888, -5961];
 
 // ───────────────────────────── Gabarits
 
@@ -364,7 +349,7 @@ function circuit(k: () => Kit): Site {
       if (Number.isFinite(ay)) c.mesh.put(K.arch, R.x + 120, ay, zS, Math.PI / 2, 1, 1, 1, WHITE);
       for (let i = 0; i < 24; i++) {
         const x = R.x - R.half + (i * 2 * R.half) / 23;
-        for (const z of [zS + 9, R.z - R.radius - 9]) {
+        for (const z of [zS + 12, R.z - R.radius - 12]) {
           const y = c.probe.heightAt(x, z);
           if (Number.isFinite(y)) c.mesh.put(K.flag, x, y, z, 0, 1, 1, 1, flags[i % flags.length]!);
         }
@@ -662,8 +647,8 @@ function lakeShore(L: { x: number; z: number; rx: number; rz: number; rot: numbe
 
 /** Marché flottant sur le Grand Fleuve : barques chargées amarrées en grappe, marchandes, lanternes la nuit. */
 function floatingMarket(k: () => Kit): Site {
-  const i0 = 34;
-  const i1 = 44;
+  const i0 = FLEUVE_MARKET - 5;
+  const i1 = FLEUVE_MARKET + 5;
   const [x0, z0] = FLEUVE[(i0 + i1) >> 1]!;
   return {
     id: 'marche-flottant',
@@ -1018,7 +1003,7 @@ function waterfall(k: () => Kit, F: (typeof FALLS)[number]): Site {
 
 /** Bike park de la jungle : portique de départ, bosses de terre rouge le long des pistes, banderoles. */
 function bikePark(k: () => Kit): Site {
-  const [x0, z0] = [-8400, -4200];
+  const [x0, z0] = BIKE_PARK;
   return {
     id: 'bike-park',
     x: x0,
@@ -1060,7 +1045,7 @@ function bikePark(k: () => Kit): Site {
 
 /** Cyclo-cross des Digues : piquets et rubalise le long du circuit, banderoles, spectateurs. */
 function cycloCross(k: () => Kit): Site {
-  const [x0, z0] = [-8600, 2150];
+  const [x0, z0] = CYCLO_CROSS;
   return {
     id: 'cyclo-cross',
     x: x0,
@@ -1138,12 +1123,13 @@ export function rizieresSites(): Site[] {
   let harbours: HarbourTemplates | undefined;
   const k = () => (templates ??= kit());
   const h = () => (harbours ??= harbourTemplates());
-  // Montée de nuit : tronçons tous les ≈ 800 m de la Bambouseraie au Temple des Lanternes.
+  // Montée de nuit : tronçons tous les ≈ 800 m, de la Bambouseraie au col de la Jungle puis au Temple des Lanternes.
   const lanterns: Site[] = [];
-  const [ax, az] = BAMBOUSERAIE;
-  const [bx, bz] = LANTERN_PEAK;
-  const n = Math.round(Math.hypot(bx - ax, bz - az) / 800);
-  for (let i = 0; i <= n; i++) lanterns.push(lanternRoad(k, i, ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n));
+  let li = 0;
+  for (const [[ax, az], [bx, bz]] of [[BAMBOUSERAIE, COL_JUNGLE], [COL_JUNGLE, LANTERN_PEAK]] as const) {
+    const n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 800));
+    for (let i = li ? 1 : 0; i <= n; i++) lanterns.push(lanternRoad(k, li++, ax + ((bx - ax) * i) / n, az + ((bz - az) * i) / n));
+  }
   return [
     harbourSite('port-jade', PORT_JADE, 750, h),
     harbourSite('port-pitons', PORT_PITONS, 700, h),
@@ -1155,14 +1141,15 @@ export function rizieresSites(): Site[] {
     ...lanterns,
     ...RUINS.map((r) => ruin(k, r)),
     floatingMarket(k),
-    stiltVillage(k, 'pilotis-du-fleuve-est', riverShore(FLEUVE, 26, 46, 16, 1), null),
-    stiltVillage(k, 'pilotis-du-fleuve-ouest', riverShore(FLEUVE, 30, 44, 16, -1), null),
+    stiltVillage(k, 'pilotis-du-fleuve-est', riverShore(FLEUVE, FLEUVE_MARKET - 14, FLEUVE_MARKET + 6, 22, 1), null),
+    stiltVillage(k, 'pilotis-du-fleuve-ouest', riverShore(FLEUVE, FLEUVE_MARKET - 10, FLEUVE_MARKET + 4, 22, -1), null),
     stiltVillage(k, 'pilotis-des-lotus', lakeShore(LOTUS_LAKE, 1.1, 2.1, 26, 1.01), LOTUS_LAKE.level),
     stiltVillage(k, 'pilotis-des-mangroves', lakeShore(LAGOON, 2.4, 3.4, 22, 1.01), LAGOON.level),
-    stiltVillage(k, 'pilotis-du-dragon', riverShore(DRAGON, 44, 56, 7, 1), null),
-    riverBoats(k, 'barques-du-fleuve', FLEUVE.slice(8, 70), 6, 2.2),
-    riverBoats(k, 'barques-du-delta', FLEUVE.slice(40), 4, 2.6),
-    riverBoats(k, 'barques-du-dragon', DRAGON.slice(20, 80), 3, 1.8),
+    stiltVillage(k, 'pilotis-du-dragon', riverShore(DRAGON, DRAGON_PONT - 6, DRAGON_PONT + 6, 8, 1), null),
+    riverBoats(k, 'barques-du-fleuve', FLEUVE.slice(0, FLEUVE_MARKET + 30), 6, 2.2),
+    riverBoats(k, 'barques-du-delta', FLEUVE.slice(FLEUVE_MARKET + 20), 4, 2.6),
+    riverBoats(k, 'barques-de-la-lagune', BRAS, 3, 2.4),
+    riverBoats(k, 'barques-du-dragon', DRAGON.slice(Math.max(0, DRAGON_PONT - 30), DRAGON.length - 1), 3, 1.8),
     ...SUSPENSION.map((b) => suspension(k, b, false)),
     ...FOOTBRIDGES.map((b) => suspension(k, b, true)),
     ...HERDS.map((_, i) => herd(k, i)),

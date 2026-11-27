@@ -8,7 +8,8 @@ import { meshOf, strollPath, type Site, type SiteContext } from '../polySites.ts
 
 /**
  * Décor propre du Grand Nord robertien (mode Poly, tools/grand-nord) : ports de Port-Boréal, Skarvik et Nordvik,
- * bac animé qui traverse le fjord du Bac, cabanes de pêcheurs sur pilotis et séchoirs à poisson des villages,
+ * bac animé qui traverse le fjord du Bac, cabanes de pêcheurs sur pilotis et séchoirs à poisson des villages du fond
+ * des fjords,
  * cabanes de pêche au bord des lacs de la toundra, troupeaux de rennes, langue de glace du glacier de Robert, phare
  * du cap Boréal (feu tournant la nuit), cairns des cols et du belvédère, galerie paravalanche du col du Renne,
  * tribunes du Circuit, bike park de Fjellheim, cyclo-cross de la Toundra, et aurores boréales la nuit. Chaque lieu
@@ -20,53 +21,57 @@ type XZ = readonly [number, number];
 // ───────────────────────────── Cotes du générateur (tools/grand-nord/src/design.ts, places.json)
 
 const PORT_BOREAL: HarbourSite = {
-  x: 375.7, z: 9204, dir: 1.53, halfLen: 230, halfWid: 95, side: -1, lines: [-160, -100, -40, 20, 80], officeW: 30, officeU: -110, sail: 0.3, fishing: true,
+  x: -7610, z: 12159.7, dir: 2.13, halfLen: 230, halfWid: 95, side: -1, lines: [-160, -100, -40, 20, 80], officeW: 30, officeU: -110, sail: 0.3, fishing: true,
   hulls: ['#a8322d', '#f1efe6', '#2f5f8a', '#e2b54a', '#3a4a5a'],
 };
 const SKARVIK: HarbourSite = {
-  x: 10394.5, z: 9491.1, dir: 0.74, halfLen: 140, halfWid: 60, side: 1, lines: [-90, -40, 10], officeW: 26, officeU: -95, sail: 0.15, fishing: true,
+  x: 10517.3, z: 5903.6, dir: 0.862, halfLen: 140, halfWid: 60, side: 1, lines: [-90, -40, 10], officeW: 26, officeU: -95, sail: 0.15, fishing: true,
   hulls: ['#a8322d', '#2d5d8f', '#f1efe6', '#3c7f58', '#e2b54a'],
 };
 const NORDVIK: HarbourSite = {
-  x: -494.8, z: -10047.5, dir: -1.62, halfLen: 150, halfWid: 70, side: 1, lines: [-100, -45, 10], officeW: 28, officeU: -110, sail: 0.1, fishing: true,
+  x: 5867.1, z: -5825.2, dir: -0.512, halfLen: 150, halfWid: 70, side: 1, lines: [-100, -45, 10], officeW: 28, officeU: -110, sail: 0.1, fishing: true,
   hulls: ['#2d5d8f', '#b8432f', '#f1efe6', '#253f66', '#d79a33'],
 };
 /** Cales du bac, face à face sur les rives du fjord du Bac (centre du bassin, cap du large, demi-longueur). */
-const CALE_A = { x: 14122.3, z: -4035.6, dir: 1.234, halfLen: 34 };
-const CALE_B = { x: 14269.8, z: -3614.1, dir: -1.907, halfLen: 34 };
-const RING = { x: -6900, z: 3700, half: 560, radius: 215 };
-const BELVEDERE: XZ = [1600, -6900];
-const DENT: XZ = [4700, -6000];
-const COL: XZ = [2964, -6504];
-const PHARE: XZ = [18019, 1445];
-const GLACIER = { from: [4650, -6400] as XZ, to: [5130, -7330] as XZ, half: 230 };
-/** Villages de pêcheurs : centre, rayon, cap du large (cabanes sur pilotis le long du rivage, hors du port). */
+const CALE_A = { x: 13807.3, z: -2603.9, dir: 1.485, halfLen: 34 };
+const CALE_B = { x: 13868.1, z: -1899.2, dir: -1.657, halfLen: 34 };
+const RING = { x: 3000, z: 2500, half: 560, radius: 215 };
+const BELVEDERE: XZ = [2000, -4300];
+const DENT: XZ = [5100, -3300];
+const COL: XZ = [3426, -3840];
+const PHARE: XZ = [13220, 1060];
+const GLACIER = { from: [-760, -4500] as XZ, to: [-640, -6050] as XZ, half: 230 };
+/** Villages de pêcheurs au fond des fjords : centre, rayon, cap vers l'eau (cabanes sur pilotis le long du rivage, hors du port). */
 const FISHING: ReadonlyArray<{ id: string; x: number; z: number; r: number; sea: number; harbour?: number }> = [
-  { id: 'skarvik', x: 10141.2, z: 9259.8, r: 400, sea: 0.74, harbour: 0.74 },
-  { id: 'nordvik', x: -478.2, z: -9710.4, r: 420, sea: -1.62, harbour: -1.62 },
-  { id: 'isbrevik', x: 5636.6, z: -8989, r: 220, sea: -2.43 },
-  { id: 'port-boreal', x: -900, z: 9100, r: 500, sea: 1.6, harbour: 1.53 },
+  { id: 'skarvik', x: 10281.1, z: 5628, r: 400, sea: 0.86, harbour: 0.86 },
+  { id: 'nordvik', x: 5546.8, z: -5645.1, r: 420, sea: -0.51, harbour: -0.51 },
+  { id: 'isbrevik', x: -437.4, z: -7720.3, r: 220, sea: -2.78 },
+  { id: 'sorvik', x: 2442.8, z: 7167.7, r: 360, sea: 1.22 },
+  { id: 'vatnby', x: -6705.3, z: -383.6, r: 380, sea: -2.73 },
+  { id: 'fjellheim', x: -5193.1, z: -4909.4, r: 340, sea: -2.52 },
+  { id: 'port-boreal', x: -8360.3, z: 11485.5, r: 500, sea: 2.2, harbour: 2.13 },
 ];
-/** Lacs de la toundra (centre, demi-axes) : cabanes de pêche sur la rive. */
+/** Lacs de la toundra et de la montagne (centre, demi-axes) : cabanes de pêche sur la rive. */
 const LAKES: ReadonlyArray<{ x: number; z: number; rx: number; rz: number; rot: number }> = [
-  { x: 9500, z: 0, rx: 260, rz: 150, rot: 0.4 },
-  { x: 11000, z: 1900, rx: 300, rz: 90, rot: 0.15 },
-  { x: 1800, z: 5300, rx: 220, rz: 120, rot: 0.6 },
-  { x: 2600, z: 6700, rx: 180, rz: 100, rot: -0.4 },
-  { x: -5600, z: -2500, rx: 2100, rz: 800, rot: 0.12 },
+  { x: 6419, z: 2218, rx: 344, rz: 233, rot: 1.74 },
+  { x: 6190, z: 31, rx: 280, rz: 139, rot: 0.19 },
+  { x: 7136, z: 3098, rx: 262, rz: 146, rot: 0.52 },
+  { x: 3900, z: -2500, rx: 240, rz: 150, rot: 0.5 },
+  { x: -4200, z: -2900, rx: 200, rz: 120, rot: 1.2 },
 ];
 /** Troupeaux de rennes : centre et rayon de pâture. */
 const HERDS: ReadonlyArray<readonly [number, number, number]> = [
-  [10600, 800, 260],
-  [12600, -400, 220],
-  [4300, 6400, 240],
-  [-9800, -6100, 200],
-  [6400, -3400, 200],
+  [7400, 1300, 260],
+  [4200, 3300, 240],
+  [8400, 3200, 220],
+  [4800, -1500, 200],
+  [-11000, 6200, 250],
+  [-2200, 2400, 200],
 ];
-const BIKE_PARK: XZ = [-7650, -4750];
-const CYCLO_CROSS: XZ = [5000, 4300];
+const BIKE_PARK: XZ = [-5900, -4300];
+const CYCLO_CROSS: XZ = [6900, 4300];
 /** Galerie paravalanche sur la descente nord du col du Renne (axe de la route, du haut vers le bas). */
-const GALLERY: ReadonlyArray<XZ> = [[2815.3, -6934.9], [2810, -6954.2], [2804.6, -6973.5], [2799.2, -6992.7], [2793.8, -7012], [2788.4, -7031.2], [2783, -7050.5]];
+const GALLERY: ReadonlyArray<XZ> = [[3452.7, -3869.8], [3465.6, -3885], [3470.7, -3904.3], [3475.3, -3923.8], [3479.9, -3943.2], [3484.5, -3962.7], [3489.3, -3982.1]];
 
 // ───────────────────────────── Gabarits
 
@@ -602,7 +607,7 @@ function circuit(k: () => Kit): Site {
       if (Number.isFinite(ay)) c.mesh.put(K.arch, RING.x + 120, ay, zS, Math.PI / 2, 1, 1, 1, WHITE);
       for (let i = 0; i < 24; i++) {
         const x = RING.x - RING.half + (i * 2 * RING.half) / 23;
-        for (const z of [zS + 9, RING.z - RING.radius - 9]) {
+        for (const z of [zS + 12, RING.z - RING.radius - 12]) {
           const y = c.probe.heightAt(x, z);
           if (Number.isFinite(y)) c.mesh.put(K.flag, x, y, z, 0, 1, 1, 1, flags[i % flags.length]!);
         }
@@ -823,7 +828,7 @@ export function grandNordSites(): Site[] {
 
 /** Quais, promenade de Port-Boréal et cales du bac : ni clôtures ni poteaux de campagne. */
 export function grandNordNoFence(x: number, z: number): boolean {
-  if (Math.hypot(x + 450, z - 8900) < 1600) return true;
+  if (Math.hypot(x - PORT_BOREAL.x + 600, z - PORT_BOREAL.z + 400) < 1700) return true;
   for (const q of [SKARVIK, NORDVIK]) if (Math.hypot(x - q.x, z - q.z) < q.halfLen + 120) return true;
   return Math.hypot(x - CALE_A.x, z - CALE_A.z) < 140 || Math.hypot(x - CALE_B.x, z - CALE_B.z) < 140;
 }

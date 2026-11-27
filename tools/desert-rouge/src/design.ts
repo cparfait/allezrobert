@@ -1,7 +1,13 @@
 /**
- * Le Désert rouge — conception (voir docs/DESERT_ROUGE.md) : côte, relief, oueds, canyon, mesas et buttes, erg,
- * chott (lac salé à sec), oasis, ports, plateaux des villes et du Circuit du Chott. Repère : x vers l'est, z vers le
- * sud, mètres, origine au centre du monde. Tout est déterministe : deux générations donnent le même monde.
+ * Le Désert rouge — conception (voir docs/DESERT_ROUGE.md). Un croissant de terre rouge ouvert au sud sur le golfe
+ * de Corail : la corne ouest est une mer de dunes (le Grand Erg, un tiers du monde), la corne est un haut plateau en
+ * gradins coiffé du massif du Vautour. Le Grand Canyon de l'Oued Rouge suit le croissant d'un bout à l'autre ; on le
+ * franchit à quatre brèches (le Gué des Sables, la Brèche de l'Erg, la Brèche du Centre et les Lacets du Canyon).
+ * Oasis éparses reliées en étoile au Puits de l'Étoile, Chott Blanc (lac salé à sec) au bord de l'erg.
+ *
+ * Repère : x vers l'est, z vers le sud, mètres, origine au centre du monde. Le croissant suit un arc de cercle de
+ * centre (ARC.cx, ARC.cz) et de rayon ARC.R ; t est l'angle compté depuis le nord (positif vers l'est).
+ * Tout est déterministe : deux générations donnent le même monde.
  */
 import { chaikin, resample } from './geom.ts';
 import { clamp, fbm, lerp, noise2, ridged, smoothstep } from './noise.ts';
@@ -11,105 +17,113 @@ export type Vec2 = [number, number];
 export const ISLAND = {
   id: 'desert-rouge',
   name: 'Le Désert rouge',
-  /** Emprise des tuiles (m) : le plateau (≈ 35 × 23 km) et une marge de mer. */
+  /** Emprise des tuiles (m) : celle des autres mondes Poly (l'écran de carte la suppose). */
   minX: -19000,
   maxX: 19000,
   minZ: -13000,
   maxZ: 13000,
   tileSizeM: 1000,
-  /** Demi-axes de la côte (m) et exposant de la super-ellipse. */
-  A: 17200,
-  B: 11300,
-  pow: 2.0,
 };
 
-// ── Côte : golfe de Corail au sud (plage), falaises rouges presque partout ailleurs (le plateau finit dans la mer),
-// côte des Dunes à l'ouest (l'erg descend jusqu'à l'eau), anse de Port-Vent au nord ──
+// ── Le croissant ──
+
+/** Arc du croissant : centre (au sud, dans le golfe), rayon, angles des deux cornes (ouest, est). */
+export const ARC = { cx: 0, cz: 11700, R: 17000, t0: -1.05, t1: 1.12 };
+
+/** Point d'angle t et de rayon r autour du centre de l'arc. */
+export function polar(t: number, r: number): Vec2 {
+  return [ARC.cx + r * Math.sin(t), ARC.cz - r * Math.cos(t)];
+}
+export const arcT = (x: number, z: number) => Math.atan2(x - ARC.cx, ARC.cz - z);
+export const arcR = (x: number, z: number) => Math.hypot(x - ARC.cx, z - ARC.cz);
+
+/** Demi-largeur des terres de part et d'autre de l'arc (m) : large au milieu, cornes effilées (l'ouest plus épaisse). */
+export function halfWidth(t: number): number {
+  const u = clamp((t - ARC.t0) / (ARC.t1 - ARC.t0), 0, 1);
+  const tip = lerp(2900, 2100, u);
+  return tip + (5800 - tip) * Math.sin(Math.PI * u) ** 0.8;
+}
+
+/** Côtés du croissant : 1 = côte extérieure (nord, mer ouverte), −1 = côte intérieure (golfe de Corail). */
+export type Side = 1 | -1;
+
+/** Rayon du tracé dessiné du canyon (avant méandres) : il ondule autour de l'arc. */
+export const canyonR = (t: number) => ARC.R + 300 + 350 * Math.sin(t * 5.3);
 
 interface CoastFeature {
-  /** Direction (rad, atan2(z, x)) et demi-largeur angulaire. */
-  ang: number;
-  width: number;
-  /** > 0 : cap (le rivage avance), < 0 : baie. */
+  t: number;
+  side: Side;
+  /** > 0 : cap (le rivage avance), < 0 : anse (m). */
   amount: number;
-  /** Falaises (0 plage … 1 falaise franche). */
-  cliff: number;
+  width: number;
 }
 
 const FEATURES: CoastFeature[] = [
-  { ang: 1.6, width: 0.22, amount: -0.2, cliff: 0 }, // golfe de Corail (sud), grande plage
-  { ang: 1.12, width: 0.1, amount: 0.07, cliff: 0.7 }, // pointe Fauve
-  { ang: 0.84, width: 0.12, amount: 0.12, cliff: 1 }, // presqu'île des Falaises Rouges (sud-est)
-  { ang: 0.62, width: 0.06, amount: 0.02, cliff: 0.9 }, // falaises à l'ouest de Cap-Brique
-  { ang: 0.42, width: 0.12, amount: -0.07, cliff: 0.7 }, // anse du Levant
-  { ang: 0.06, width: 0.1, amount: 0.15, cliff: 1 }, // cap du Levant (est), tour de guet
-  { ang: -0.62, width: 0.3, amount: 0.02, cliff: 1 }, // les Monts de Braise plongent dans la mer (nord-est)
-  { ang: -1.62, width: 0.11, amount: -0.09, cliff: 0.1 }, // anse de Port-Vent (nord), port
-  { ang: -2.3, width: 0.2, amount: 0.09, cliff: 0.9 }, // cap du Nord-Ouest
-  { ang: -2.75, width: 0.12, amount: -0.05, cliff: 0.6 }, // baie des Phoques moines
-  { ang: 2.95, width: 0.18, amount: -0.08, cliff: 0 }, // côte des Dunes (ouest)
-  { ang: 2.35, width: 0.12, amount: 0.1, cliff: 0.2 }, // pointe des Sables (sud-ouest)
-  { ang: 2.62, width: 0.16, amount: 0, cliff: 0 }, // plage de la Lagune des Flamants
+  { t: -0.15, side: 1, amount: -650, width: 800 }, // anse de Port-Vent
+  { t: 0.36, side: 1, amount: 900, width: 1100 }, // cap des Vents
+  { t: 0.62, side: 1, amount: -450, width: 900 }, // anse du Vautour
+  { t: -0.45, side: 1, amount: 500, width: 1200 }, // pointe de la Mesa
+  { t: 0.52, side: -1, amount: 600, width: 1000 }, // pointe Fauve (golfe)
+  { t: -0.55, side: -1, amount: -500, width: 900 }, // anse des Sablons (golfe)
+  { t: 0.95, side: -1, amount: -350, width: 600 }, // anse de Cap-Brique
 ];
+const FEATURE_AT = FEATURES.map((f) => ({ f, p: polar(f.t, ARC.R + f.side * halfWidth(f.t)) }));
 
-const angDiff = (a: number, b: number) => {
-  let d = a - b;
-  while (d > Math.PI) d -= 2 * Math.PI;
-  while (d < -Math.PI) d += 2 * Math.PI;
-  return d;
-};
+/** Rivage calme (sans bruit) devant les villes du bord de mer : (t, côté). */
+const CALM: Array<[number, Side]> = [
+  [0.03, -1],
+  [0.12, -1],
+  [-0.15, 1],
+  [0.95, -1],
+  [-0.96, -1],
+];
+const CALM_AT = CALM.map(([t, s]) => polar(t, ARC.R + s * halfWidth(t)));
 
-// Le rivage ne dépend que de la direction : tables de 16 384 directions, interpolées.
-const NA = 16384;
-let radiusTab: Float64Array | null = null;
-let cliffTab: Float64Array | null = null;
-function tables(): void {
-  radiusTab = new Float64Array(NA + 1);
-  cliffTab = new Float64Array(NA + 1);
-  for (let k = 0; k <= NA; k++) {
-    const a = -Math.PI + (k / NA) * 2 * Math.PI;
-    radiusTab[k] = coastRadiusExact(a);
-    cliffTab[k] = cliffinessExact(a);
+/** Distance au rivage (m), calcul exact : > 0 sur la terre, < 0 en mer. */
+function shoreDistExact(x: number, z: number): number {
+  const t = arcT(x, z);
+  const r = arcR(x, z);
+  const tc = clamp(t, ARC.t0, ARC.t1);
+  let d: number;
+  if (t === tc) d = Math.abs(r - ARC.R);
+  else {
+    const [px, pz] = polar(tc, ARC.R);
+    d = Math.hypot(x - px, z - pz);
   }
-}
-function tab(t: Float64Array, ang: number): number {
-  const f = ((ang + Math.PI) / (2 * Math.PI)) * NA;
-  const k = Math.max(0, Math.min(NA - 1, Math.floor(f)));
-  const u = f - k;
-  return t[k]! * (1 - u) + t[k + 1]! * u;
-}
-
-/** Rayon du rivage (m) dans la direction `ang`. */
-export function coastRadius(ang: number): number {
-  if (!radiusTab) tables();
-  return tab(radiusTab!, ang);
+  let calm = 1;
+  for (const [cx, cz] of CALM_AT) calm = Math.min(calm, 1 - 0.9 * Math.exp(-((Math.hypot(x - cx, z - cz) / 1300) ** 2)));
+  let n = (380 * fbm(x / 3400, z / 3400, 3, 1) + 140 * fbm(x / 950, z / 950, 2, 2) + 40 * noise2(x / 260, z / 260, 3)) * calm;
+  for (const { f, p } of FEATURE_AT) {
+    const dd = (x - p[0]) ** 2 + (z - p[1]) ** 2;
+    if (dd < (f.width * 3) ** 2) n += f.amount * Math.exp(-dd / (f.width * f.width));
+  }
+  return halfWidth(tc) - d + n;
 }
 
-/** Falaises (0 … 1) dans la direction `ang`. */
-export function cliffiness(ang: number): number {
-  if (!cliffTab) tables();
-  return tab(cliffTab!, ang);
+// Rivage en grille de 20 m (le relief l'interroge des millions de fois).
+const SD_CELL = 20;
+const SD_N = Math.round((ISLAND.maxX - ISLAND.minX) / SD_CELL) + 1;
+const SD_M = Math.round((ISLAND.maxZ - ISLAND.minZ) / SD_CELL) + 1;
+let sdGrid: Float32Array | null = null;
+function sdTable(): Float32Array {
+  if (sdGrid) return sdGrid;
+  sdGrid = new Float32Array(SD_N * SD_M);
+  for (let j = 0; j < SD_M; j++) for (let i = 0; i < SD_N; i++) sdGrid[j * SD_N + i] = shoreDistExact(ISLAND.minX + i * SD_CELL, ISLAND.minZ + j * SD_CELL);
+  return sdGrid;
 }
 
-function coastRadiusExact(ang: number): number {
-  const c = Math.cos(ang);
-  const s = Math.sin(ang);
-  const I = ISLAND;
-  const base = 1 / ((Math.abs(c) / I.A) ** I.pow + (Math.abs(s) / I.B) ** I.pow) ** (1 / I.pow);
-  let w = 1 + 0.06 * fbm(c * 1.6 + 5, s * 1.6 + 5, 3, 1) + 0.028 * fbm(c * 7 + 1, s * 7 - 3, 3, 2) + 0.008 * noise2(c * 30, s * 30, 3);
-  for (const f of FEATURES) w += f.amount * Math.exp(-((angDiff(ang, f.ang) / f.width) ** 2));
-  return base * w;
-}
-
-function cliffinessExact(ang: number): number {
-  let c = 0;
-  for (const f of FEATURES) c = Math.max(c, f.cliff * Math.exp(-((angDiff(ang, f.ang) / (f.width * 0.8)) ** 2)));
-  return smoothstep(0.25, 0.75, c);
-}
-
-/** Distance au rivage (m, comptée le long du rayon) : > 0 sur la terre, < 0 en mer. */
+/** Distance au rivage (m) : > 0 sur la terre, < 0 en mer. */
 export function shoreDist(x: number, z: number): number {
-  return coastRadius(Math.atan2(z, x)) - Math.hypot(x, z);
+  const fx = (x - ISLAND.minX) / SD_CELL;
+  const fz = (z - ISLAND.minZ) / SD_CELL;
+  const i = Math.floor(fx);
+  const j = Math.floor(fz);
+  if (i < 0 || j < 0 || i >= SD_N - 1 || j >= SD_M - 1) return shoreDistExact(x, z);
+  const g = sdTable();
+  const u = fx - i;
+  const w = fz - j;
+  const o = j * SD_N + i;
+  return (g[o]! * (1 - u) + g[o + 1]! * u) * (1 - w) + (g[o + SD_N]! * (1 - u) + g[o + SD_N + 1]! * u) * w;
 }
 
 /** Compatibilité : distance normalisée à la côte (> 0 sur la terre). */
@@ -117,37 +131,56 @@ export function coast(x: number, z: number): number {
   return shoreDist(x, z) / 11000;
 }
 
-/** Point à `inset` m à l'intérieur des terres dans la direction `ang`. */
-export function coastPoint(ang: number, inset: number): Vec2 {
-  const r = coastRadius(ang) - inset;
-  return [Math.cos(ang) * r, Math.sin(ang) * r];
+/** Côté du croissant où se trouve un point (1 : extérieur, nord ; −1 : golfe). */
+export const sideAt = (x: number, z: number): Side => (arcR(x, z) >= ARC.R ? 1 : -1);
+
+/**
+ * Point du rivage à l'angle t, du côté `side`, rentré de `inset` m dans les terres (le long du rayon de l'arc).
+ * Rivage dentelé : recherche par dichotomie.
+ */
+export function coastPoint(t: number, inset: number, side: Side): Vec2 {
+  const W = halfWidth(t);
+  let lo = 0; // dans les terres
+  let hi = W + 2600; // en mer
+  for (let k = 0; k < 40; k++) {
+    const m = (lo + hi) / 2;
+    const [x, z] = polar(t, ARC.R + side * m);
+    if (shoreDistExact(x, z) > inset) lo = m;
+    else hi = m;
+  }
+  return polar(t, ARC.R + side * (lo + hi) / 2);
+}
+
+/** Direction (rad, atan2(z, x)) du large à l'angle t, côté `side`. */
+export const seaward = (t: number, side: Side) => (side > 0 ? Math.atan2(-Math.cos(t), Math.sin(t)) : Math.atan2(Math.cos(t), -Math.sin(t)));
+
+/**
+ * Falaises (0 plage … 1 falaise franche) : falaises rouges sur presque toute la côte nord (sauf l'anse de Port-Vent
+ * et la côte des Dunes, à l'ouest), plages dans le golfe, falaises du Levant au fond est du golfe.
+ */
+export function cliffAt(x: number, z: number): number {
+  const t = clamp(arcT(x, z), ARC.t0 - 0.2, ARC.t1 + 0.2);
+  if (arcR(x, z) >= ARC.R) return smoothstep(-0.68, -0.52, t) * (1 - Math.exp(-(((t + 0.15) / 0.05) ** 2)));
+  return 0.08 + 0.85 * smoothstep(0.38, 0.5, t) * (1 - smoothstep(0.7, 0.82, t));
 }
 
 // ── Lieux ──
 
-/**
- * Monts de Braise (nord) : arête d'ouest en est, hauteur (m, au-dessus du relief) le long de l'arête, largeur des
- * versants (m). Le massif du Vautour la coiffe (deux sommets, col des Vents entre les deux, ≈ 900 m).
- */
-export const CHAIN = {
-  pts: [[-14500, -5200], [-10500, -7400], [-6500, -7300], [-2500, -7000], [1800, -6900], [5500, -5900], [9500, -4400], [13500, -3200]] as Vec2[],
-  h: [330, 640, 900, 840, 760, 820, 660, 420],
-  width: 3300,
-};
+/** Massif du Vautour (corne est) : Pic du Vautour (observatoire au sommet) et Dent Rouge. */
+const P1 = polar(0.75, ARC.R + 2300);
+const P2 = polar(0.87, ARC.R + 1700);
+export const MASSIF = { phare: P1, mont: P2, h1: 420, h2: 320, spread: 1700 };
 
-/** Massif du Vautour : Pic du Vautour (observatoire au sommet) et Dent Rouge, col des Vents entre les deux. */
-const P1: Vec2 = [1600, -6900];
-const P2: Vec2 = [4700, -6000];
-export const MASSIF = { phare: P1, mont: P2, h1: 700, h2: 790, spread: 2500 };
-
-/** Chott Blanc : lac salé à sec, cuvette plate et blanche au pied des Monts de Braise ; le Circuit du Chott y est posé. */
-export const CHOTT = { id: 'chott-blanc', name: 'Le Chott Blanc', x: -5600, z: -2500, rx: 2100, rz: 820, rot: 0.12, level: NaN };
+/** Chott Blanc : lac salé à sec au bord de l'erg, côté golfe ; le Circuit du Chott y est posé. */
+const chottC = polar(-0.26, ARC.R - 2900);
+export const CHOTT = { id: 'chott-blanc', name: 'Le Chott Blanc', x: Math.round(chottC[0]), z: Math.round(chottC[1]), rx: 1500, rz: 650, rot: 0, level: NaN };
 
 /** Circuit du Chott (boucle plate sur le sel, départ devant les tribunes). */
 export const ANNEAU = { cx: CHOTT.x, cz: CHOTT.z, half: 560, radius: 215, level: 0, widthM: 8 };
 
-/** Plateau des Canyons (est) : dessus presque plat, rebord en escarpement, entaillé par le canyon de l'Oued Rouge. */
-export const PLATEAU = { x: 9800, z: 0, rx: 4600, rz: 3600, h: 340 };
+/** Grand Erg (le tiers ouest) : dunes en cordons (amplitude, longueur d'onde, direction des crêtes). */
+const ergC = polar(-0.72, ARC.R);
+export const ERG = { x: Math.round(ergC[0]), z: Math.round(ergC[1]), amp: 22, wave: 430, ang: 0.45 };
 
 /**
  * Mesas et buttes : sommet plat (niveau du relief au centre + `h`), parois verticales (`wall` m), éboulis au pied
@@ -169,33 +202,34 @@ export interface Mesa {
   top: number;
 }
 
-const mesa = (id: string, name: string | undefined, x: number, z: number, rx: number, rz: number, rot: number, h: number, extra: Partial<Mesa> = {}): Mesa => ({ id, ...(name ? { name } : {}), x, z, rx, rz, rot, h, wall: Math.max(18, Math.min(60, Math.min(rx, rz) * 0.08)), apron: Math.min(260, h * 1.4), top: NaN, ...extra });
+const mesa = (id: string, name: string | undefined, p: Vec2, rx: number, rz: number, rot: number, h: number, extra: Partial<Mesa> = {}): Mesa => ({ id, ...(name ? { name } : {}), x: Math.round(p[0]), z: Math.round(p[1]), rx, rz, rot, h, wall: Math.max(18, Math.min(60, Math.min(rx, rz) * 0.08)), apron: Math.min(260, h * 1.4), top: NaN, ...extra });
 
+/** Buttes Rouges (bike park, sentier des Arches) : petites tours à sommet plat entre Rocherouge et L'Oasis. */
+const BUTTES_C = polar(0.15, ARC.R - 4000);
 export const MESAS: Mesa[] = [
-  mesa('grande-mesa', 'La Grande Mesa', -10200, -3300, 1500, 1100, 0.3, 300, { ramp: { ang: 0.85, len: 2200, half: 0.5 } }),
-  mesa('mesa-du-lion', 'La Mesa du Lion', 1300, 2700, 650, 470, -0.4, 120),
-  mesa('mesa-du-levant', 'La Mesa du Levant', 14000, 3600, 720, 500, 0.7, 140),
-  mesa('table-des-vents', 'La Table des Vents', 7400, 6200, 420, 300, 0.2, 95),
-  // Buttes Rouges (bike park et sentier des Arches) : petites tours à sommet plat entre Rocherouge et les monts.
-  ...([[-1700, -3300, 110, 60], [-1200, -3550, 80, 45], [-600, -3200, 150, 75], [-80, -3450, 90, 50], [-1500, -2600, 130, 65], [-850, -2250, 70, 40], [-200, -2700, 120, 55], [320, -2250, 95, 50], [-1950, -2050, 85, 45], [250, -3100, 75, 40]] as const).map(([x, z, r, h], i) =>
-    mesa(`butte-${i}`, i === 2 ? 'Les Buttes Rouges' : undefined, x, z, r, r * 0.8, i * 0.7, h, { wall: 14, apron: 70 })),
-  // Témoins isolés le long de la Piste Droite (vus de loin).
-  mesa('temoin-1', undefined, -7400, -300, 170, 130, 0.5, 70, { wall: 14, apron: 90 }),
-  mesa('temoin-2', undefined, -9200, 2300, 210, 150, 1.1, 80, { wall: 16, apron: 100 }),
-  mesa('temoin-3', undefined, -5800, 2350, 140, 120, 0.2, 60, { wall: 14, apron: 80 }),
+  mesa('grande-mesa', 'La Grande Mesa', polar(-0.36, ARC.R + 2700), 1500, 1100, -0.36, 260, { ramp: { ang: -0.36, len: 2200, half: 0.5 } }),
+  mesa('mesa-du-lion', 'La Mesa du Lion', polar(0.3, ARC.R - 4700), 600, 430, 0.3, 110),
+  mesa('table-des-vents', 'La Table des Vents', polar(0.14, ARC.R + 3900), 480, 320, 0.14, 90),
+  mesa('dent-rouge', 'La Dent Rouge', polar(0.6, ARC.R - 2300), 220, 180, 0.6, 140, { wall: 20, apron: 120 }),
+  ...([[-600, -350, 110, 60], [-200, -550, 80, 45], [300, -250, 150, 75], [800, -450, 90, 50], [-500, 350, 130, 65], [100, 650, 70, 40], [600, 250, 120, 55], [1100, 650, 95, 50], [-900, 750, 85, 45], [1000, -50, 75, 40]] as const).map(([dx, dz, r, h], i) =>
+    mesa(`butte-${i}`, i === 2 ? 'Les Buttes Rouges' : undefined, [BUTTES_C[0] + dx * 0.8, BUTTES_C[1] + dz * 0.8], r, r * 0.8, i * 0.7, h, { wall: 14, apron: 70 })),
+  // Témoins isolés dans l'erg et sur le reg (vus de loin).
+  mesa('temoin-1', undefined, polar(-0.62, ARC.R - 900), 170, 130, 0.5, 70, { wall: 14, apron: 90 }),
+  mesa('temoin-2', undefined, polar(-0.5, ARC.R + 3800), 210, 150, 1.1, 80, { wall: 16, apron: 100 }),
+  mesa('temoin-3', undefined, polar(0.45, ARC.R + 2600), 160, 120, 0.2, 60, { wall: 14, apron: 80 }),
 ];
 
-/** Grand Erg (ouest) : dunes en cordons (amplitude, longueur d'onde, direction des crêtes). */
-export const ERG = { x: -10000, z: 4300, sx: 4300, sz: 2700, amp: 20, wave: 430, ang: 0.45 };
-
-/** La Piste Droite : 7 km en ligne droite et à plat, de Rocherouge vers Sablons (couloir aplani). */
-/** Cyclo-cross des Sables : au bord de l'erg (dunes adoucies autour). */
-export const CROSS: Vec2 = [-6300, 2900];
-
 /** Bike park des Buttes : entre les Buttes Rouges (voir MESAS). */
-export const BIKEPARK: Vec2 = [-1100, -2950];
+export const BIKEPARK: Vec2 = [Math.round(BUTTES_C[0] + 200), Math.round(BUTTES_C[1] - 1000)];
 
-export const PISTE = { a: [-4000, 1150] as Vec2, b: [-11300, 950] as Vec2, half: 260, blend: 700 };
+/** Cyclo-cross des Sables : au bord de l'erg, côté golfe (dunes adoucies autour). */
+const crossP = polar(-0.62, ARC.R - 3300);
+export const CROSS: Vec2 = [Math.round(crossP[0]), Math.round(crossP[1])];
+
+/** La Piste Droite : 6 km en ligne droite et à plat à travers l'erg, de Puits-Salé vers Sablons (couloir aplani). */
+const pa = polar(-0.45, ARC.R - 2000);
+const pb = polar(-0.86, ARC.R - 1800);
+export const PISTE = { a: [Math.round(pa[0]), Math.round(pa[1])] as Vec2, b: [Math.round(pb[0]), Math.round(pb[1])] as Vec2, half: 260, blend: 700 };
 
 export interface Town {
   id: string;
@@ -209,28 +243,36 @@ export interface Town {
   /** Petite ville du bord de mer (front de mer, promenade, villas). */
   seaside?: boolean;
   port?: boolean;
+  /** Côté du croissant et angle t (villes du bord de mer). */
+  side?: Side;
+  t?: number;
   level: number;
 }
 
-const town = (id: string, name: string, p: Vec2, r: number, angle: number, size: Town['size'], extra: Partial<Town> = {}): Town => ({ id, name, x: p[0], z: p[1], r, angle, size, level: 0, ...extra });
+const town = (id: string, name: string, p: Vec2, r: number, angle: number, size: Town['size'], extra: Partial<Town> = {}): Town => ({ id, name, x: Math.round(p[0]), z: Math.round(p[1]), r, angle, size, level: 0, ...extra });
+const coastal = (t: number, inset: number, side: Side) => ({ p: coastPoint(t, inset, side), extra: { side, t } });
 
 const grande = MESAS[0]!;
+const pc = coastal(0.03, 520, -1);
+const cb = coastal(0.95, 420, -1);
+const pv = coastal(-0.15, 420, 1);
+const ls = coastal(-0.96, 900, -1);
 export const TOWNS: Town[] = [
-  town('rocherouge', 'Rocherouge', [-2600, 1200], 620, 0.15, 'bourg'),
-  town('port-corail', 'Port-Corail', coastPoint(1.62, 520), 950, 0, 'ville', { seaside: true }),
-  town('cap-brique', 'Cap-Brique', coastPoint(0.74, 420), 400, 0.5, 'village', { port: true }),
-  town('port-vent', 'Port-Vent', coastPoint(-1.62, 420), 420, 0.1, 'village', { port: true }),
-  town('sablons', 'Sablons', [-12300, 900], 480, 1.3, 'village'),
-  town('les-salines', 'Les Salines', coastPoint(2.8, 950), 320, 0.4, 'hameau'),
-  town('puits-sale', 'Puits-Salé', [-5600, -800], 380, 0.12, 'village'),
-  town('mesa-haute', 'Mesa-Haute', [grande.x - 120, grande.z - 80], 300, 0.6, 'village'),
-  town('les-cairns', 'Les Cairns', [2700, -2700], 280, 0.9, 'hameau'),
-  town('l-oasis', "L'Oasis", [3800, 5600], 360, 0.25, 'village'),
-  town('ksar-rouge', 'Ksar-Rouge', [11800, -600], 400, 1.2, 'village'),
-  town('le-gue', 'Le Gué', [7600, 3700], 300, 1.4, 'hameau'),
+  town('rocherouge', 'Rocherouge', polar(-0.04, ARC.R - 2700), 620, 0.0, 'bourg'),
+  town('port-corail', 'Port-Corail', pc.p, 950, 0, 'ville', { seaside: true, ...pc.extra }),
+  town('cap-brique', 'Cap-Brique', cb.p, 400, 0.95, 'village', { port: true, ...cb.extra }),
+  town('port-vent', 'Port-Vent', pv.p, 420, -0.15, 'village', { port: true, ...pv.extra }),
+  town('sablons', 'Sablons', polar(-0.9, ARC.R - 1500), 480, -0.9, 'village'),
+  town('les-salines', 'Les Salines', ls.p, 320, -0.96, 'hameau', { ...ls.extra }),
+  town('puits-sale', 'Puits-Salé', polar(-0.42, ARC.R - 2300), 380, -0.42, 'village'),
+  town('mesa-haute', 'Mesa-Haute', [grande.x - 120, grande.z - 80], 300, -0.36, 'village'),
+  town('les-cairns', 'Les Cairns', polar(0.24, ARC.R + 1800), 280, 0.24, 'hameau'),
+  town('l-oasis', "L'Oasis", polar(0.36, ARC.R - 2600), 360, 0.36, 'village'),
+  town('ksar-rouge', 'Ksar-Rouge', polar(0.74, ARC.R - 1600), 400, 0.74 + Math.PI / 2, 'village'),
+  town('l-etoile', "Le Puits de l'Étoile", polar(0.0, ARC.R + 2300), 300, 0.0, 'hameau'),
 ];
 
-// ── Oueds (tracés dessinés, lit creusé dans le relief) ──
+// ── Oued Rouge : le Grand Canyon (tracé dessiné, lit creusé dans le relief) ──
 
 export interface River {
   id: string;
@@ -243,59 +285,51 @@ export interface River {
   /** Demi-largeur de la vallée (m) à la source et à l'embouchure. */
   v0: number;
   v1: number;
-  /** Canyon : fond plat sur `floor` m de part et d'autre du lit, puis parois presque verticales. */
+  /** Canyon : fond plat sur `floor` m de part et d'autre du lit, puis parois en gradins. */
   floor?: number;
-  /** Lit abaissé (fraction du cours, altitude plafond) : le canyon garde le niveau du bas pays sous le plateau. */
+  /** Lit abaissé (fraction du cours, altitude plafond) : le canyon se creuse sous le plateau. */
   drop?: Array<[number, number]>;
 }
 
-const portCorail = TOWNS.find((t) => t.id === 'port-corail')!;
-const COAST_TOWNS = TOWNS.filter((t) => t.seaside || t.port);
-const gue = TOWNS.find((t) => t.id === 'le-gue')!;
+const CANYON_T0 = 0.98;
+const canyonPts: Vec2[] = [];
+for (let t = CANYON_T0; t > ARC.t0 - 0.001; t -= 0.05) canyonPts.push(polar(t, canyonR(t)));
+canyonPts.push(polar(-1.17, ARC.R + 500), polar(-1.3, ARC.R + 300));
+
 export const RIVERS: River[] = [
   {
-    id: 'oued-des-sables',
-    name: 'Oued des Sables',
-    pts: [[-11800, -7300], [-12700, -4900], [-13500, -2500], [-14300, -400], [-15100, 2000], coastPoint(2.92, -150)],
-    w0: 2,
-    w1: 8,
-    v0: 180,
-    v1: 420,
-  },
-  {
-    // Canyon : l'oued garde le niveau de la plaine en traversant le Plateau des Canyons (parois de plus de 300 m).
     id: 'oued-rouge',
     name: 'Oued Rouge',
-    pts: [[5500, -4500], [6300, -2500], [6900, -300], [7500, 1700], [gue.x - 250, gue.z + 300], [7900, 5800], coastPoint(0.98, -150)],
-    w0: 3,
+    pts: canyonPts,
+    w0: 2,
     w1: 10,
-    v0: 210,
-    v1: 260,
-    floor: 48,
-    drop: [[0, 1200], [0.14, 250], [0.56, 14], [1, 0]],
-  },
-  {
-    // Vallée de Port-Vent : descente nord du col des Vents jusqu'au port.
-    id: 'oued-du-vent',
-    name: 'Oued du Vent',
-    pts: [[2800, -7200], [2400, -8000], [1900, -8900], [1450, -9650], coastPoint(-1.56, -150)],
-    w0: 2,
-    w1: 7,
     v0: 260,
-    v1: 460,
-  },
-  {
-    id: 'oued-corail',
-    name: 'Oued Corail',
-    pts: [[-200, -1500], [-800, 300], [-900, 4300], [portCorail.x + 1150, portCorail.z - 1000], coastPoint(1.5, -150)],
-    w0: 2,
-    w1: 6,
-    v0: 100,
-    v1: 260,
+    v1: 340,
+    floor: 48,
+    drop: [[0, 1200], [0.1, 270], [0.3, 160], [0.5, 65], [0.72, 16], [0.92, 2], [1, 0]],
   },
 ];
 
-// ── Lacs, oasis et lagune (le Chott Blanc est à sec : voir CHOTT) ──
+/**
+ * Brèches du canyon : là, les parois cèdent la place à une rampe régulière (pente `g`) de part et d'autre du lit, sur
+ * `half` m de large ; ailleurs le canyon est infranchissable. Les Lacets du Canyon (pente 20 %) se montent en lacets.
+ */
+export interface Breach {
+  id: string;
+  name: string;
+  t: number;
+  g: number;
+  half: number;
+  lacets?: boolean;
+}
+export const BREACHES: Breach[] = [
+  { id: 'gue-des-sables', name: 'Le Gué des Sables', t: -0.92, g: 0.05, half: 240 },
+  { id: 'breche-de-l-erg', name: "La Brèche de l'Erg", t: -0.55, g: 0.055, half: 260 },
+  { id: 'breche-du-centre', name: 'La Brèche du Centre', t: -0.02, g: 0.06, half: 300 },
+  { id: 'lacets-du-canyon', name: 'Les Lacets du Canyon', t: 0.55, g: 0.2, half: 460, lacets: true },
+];
+
+// ── Oasis et guelta (le Chott Blanc est à sec : voir CHOTT) ──
 
 export interface Lake {
   id: string;
@@ -311,17 +345,26 @@ export interface Lake {
   depth: number;
 }
 
-const lagoonC = coastPoint(2.62, 720);
-const oasis = TOWNS.find((t) => t.id === 'l-oasis')!;
+const pond = (id: string, name: string, p: Vec2, rx: number, rz: number, rot: number): Lake => ({ id, name, kind: 'pond', x: Math.round(p[0]), z: Math.round(p[1]), rx, rz, rot, level: NaN, depth: 3 });
 export const LAKES: Lake[] = [
-  { id: 'lagune', name: 'Lagune des Flamants', kind: 'lake', x: lagoonC[0], z: lagoonC[1], rx: 1300, rz: 480, rot: 2.62 + Math.PI / 2, level: 0.35, depth: 1.4 },
-  { id: 'guelta-du-vautour', name: 'Guelta du Vautour', kind: 'lake', x: (P1[0] + P2[0]) / 2 + 600, z: (P1[1] + P2[1]) / 2 + 1000, rx: 240, rz: 160, rot: 0.5, level: NaN, depth: 6 },
-  { id: 'source-de-l-oasis', name: "Source de l'Oasis", kind: 'pond', x: oasis.x + 420, z: oasis.z + 430, rx: 150, rz: 95, rot: 0.4, level: NaN, depth: 3 },
-  { id: 'puits-des-dunes', name: 'Oasis des Dunes', kind: 'pond', x: -9900, z: 4700, rx: 120, rz: 80, rot: 0.8, level: NaN, depth: 2.5 },
+  pond('source-de-l-oasis', "Source de l'Oasis", polar(0.385, ARC.R - 2950), 150, 95, 0.4),
+  pond('puits-des-dunes', 'Oasis des Dunes', polar(-0.72, ARC.R + 2100), 120, 80, 0.8),
+  pond('oasis-de-sablons', 'Oasis de Sablons', polar(-0.93, ARC.R - 950), 110, 75, 0.2),
+  pond('oasis-de-l-etoile', "Oasis de l'Étoile", polar(0.03, ARC.R + 2650), 100, 70, 0.5),
+  pond('oasis-des-cairns', 'Oasis des Cairns', polar(0.31, ARC.R + 2500), 110, 70, 1.1),
+  pond('source-de-port-vent', 'Source de Port-Vent', polar(-0.11, ARC.R + 3700), 90, 60, 0.3),
+  { id: 'guelta-du-vautour', name: 'Guelta du Vautour', kind: 'lake', ...(() => { const p = polar(0.66, ARC.R + 3150); return { x: Math.round(p[0]), z: Math.round(p[1]) }; })(), rx: 220, rz: 150, rot: 0.5, level: NaN, depth: 6 },
 ];
 
 /** Oasis : sources entourées de palmeraies (land.ts, décor du client). */
 export const OASES = LAKES.filter((l) => l.kind === 'pond');
+
+/** Distance (m) à la source d'oasis la plus proche. */
+export function oasisDist(x: number, z: number): number {
+  let d = Infinity;
+  for (const o of LAKES) d = Math.min(d, Math.hypot(x - o.x, z - o.z));
+  return d;
+}
 
 // ── Ports : bassins creusés sous le niveau de la mer, quais autour ──
 
@@ -336,39 +379,38 @@ export interface Harbour {
   halfWid: number;
 }
 
-function harbourAt(id: string, name: string, ang: number, halfLen: number, halfWid: number): Harbour {
-  const [x, z] = coastPoint(ang, halfLen * 0.55);
-  return { id, name, x, z, dir: ang, halfLen, halfWid };
+function harbourAt(id: string, name: string, t: number, side: Side, halfLen: number, halfWid: number): Harbour {
+  const [x, z] = coastPoint(t, halfLen * 0.55, side);
+  return { id, name, x, z, dir: seaward(t, side), halfLen, halfWid };
 }
 
-export const HARBOURS: Harbour[] = [harbourAt('port-corail', 'Port de Port-Corail', 1.53, 230, 95), harbourAt('port-cap-brique', 'Port de Cap-Brique', 0.74, 140, 60), harbourAt('port-vent', 'Port de Port-Vent', -1.62, 150, 70)];
+export const HARBOURS: Harbour[] = [harbourAt('port-corail', 'Port de Port-Corail', 0.12, -1, 230, 95), harbourAt('port-cap-brique', 'Port de Cap-Brique', 0.95, -1, 140, 60), harbourAt('port-vent', 'Port de Port-Vent', -0.15, 1, 150, 70)];
 
 // ── Relief ──
 
 const gauss = (x: number, z: number, cx: number, cz: number, sx: number, sz: number) => Math.exp(-(((x - cx) / sx) ** 2 + ((z - cz) / sz) ** 2));
 
-/** Vallonnement (mètres d'amplitude), réglable pour un essai : ISLAND_RELIEF='{"hills":30,…}'. */
-const RELIEF = { wave: 30, hills: 40, knolls: 50, chain: 1, dunes: 1, ...(JSON.parse(process.env.ISLAND_RELIEF ?? '{}') as Record<string, number>) };
-
-/** Distance (m) à l'arête des Monts de Braise et hauteur de l'arête au point le plus proche. */
-export function chainAt(x: number, z: number): { d: number; h: number } {
-  const P = CHAIN.pts;
-  let best = Infinity;
-  let h = 0;
-  for (let k = 0; k + 1 < P.length; k++) {
-    const [ax, az] = P[k]!;
-    const [bx, bz] = P[k + 1]!;
-    const dx = bx - ax;
-    const dz = bz - az;
-    const L2 = dx * dx + dz * dz;
-    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
-    const d = Math.hypot(x - ax - dx * t, z - az - dz * t);
-    if (d < best) {
-      best = d;
-      h = lerp(CHAIN.h[k]!, CHAIN.h[k + 1]!, t);
-    }
+/** Hauteur du plateau (m) le long du croissant : bas dans l'erg, haut plateau à l'est. */
+const TILT: Array<[number, number]> = [[-1.3, 35], [-1.05, 40], [-0.6, 55], [-0.35, 85], [-0.1, 175], [0.2, 260], [0.5, 350], [0.75, 400], [0.95, 280], [1.12, 170], [1.4, 120]];
+function tiltAt(t: number): number {
+  if (t <= TILT[0]![0]) return TILT[0]![1];
+  for (let k = 0; k + 1 < TILT.length; k++) {
+    const [t0, h0] = TILT[k]!;
+    const [t1, h1] = TILT[k + 1]!;
+    if (t <= t1) return lerp(h0, h1, smoothstep(0, 1, (t - t0) / (t1 - t0)));
   }
-  return { d: best, h };
+  return TILT[TILT.length - 1]![1];
+}
+
+/** Masque du Grand Erg (0 … 1) : la corne ouest. */
+export function ergMask(x: number, z: number): number {
+  return smoothstep(-0.33, -0.5, arcT(x, z));
+}
+
+/** Montagne (0 … 1) : près du massif du Vautour. */
+export function mountainAt(x: number, z: number): number {
+  const dm = Math.min(Math.hypot(x - MASSIF.phare[0], z - MASSIF.phare[1]), Math.hypot(x - MASSIF.mont[0], z - MASSIF.mont[1]));
+  return 1 - smoothstep(1200, 3200, dm);
 }
 
 /** Distance normalisée au centre d'une ellipse tournée (1 = bord). */
@@ -385,11 +427,6 @@ export function chottE(x: number, z: number): number {
   return ellE(CHOTT.x, CHOTT.z, CHOTT.rx, CHOTT.rz, CHOTT.rot, x, z);
 }
 
-/** Masque du Grand Erg (0 … 1). */
-export function ergMask(x: number, z: number): number {
-  return smoothstep(0.08, 0.5, gauss(x, z, ERG.x, ERG.z, ERG.sx, ERG.sz));
-}
-
 /** Distance (m) à l'axe de la Piste Droite et position le long (0 … 1). */
 export function pisteAt(x: number, z: number): { d: number; s: number } {
   const [ax, az] = PISTE.a;
@@ -399,6 +436,13 @@ export function pisteAt(x: number, z: number): { d: number; s: number } {
   const s = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)));
   return { d: Math.hypot(x - ax - dx * s, z - az - dz * s), s };
 }
+
+const angDiff = (a: number, b: number) => {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+};
 
 /** Distance normalisée d'une mesa, bord dentelé (1 = pied de la paroi). */
 export function mesaE(m: Mesa, x: number, z: number): number {
@@ -425,78 +469,43 @@ export function mesaShare(m: Mesa, x: number, z: number): number {
   return f;
 }
 
-/** Relief de base : côte, campagne, Monts de Braise, plateau, massif, collines (sans mesas, dunes ni couloirs). */
+/** Relief de base : côte, plateau incliné en gradins, massif du Vautour (sans mesas, dunes ni canyon). */
 function base(x: number, z: number): number {
-  const ang = Math.atan2(z, x);
-  const d = coastRadius(ang) - Math.hypot(x, z);
-  const cliff = cliffiness(ang);
+  const d = shoreDist(x, z);
+  const cliff = cliffAt(x, z);
   // Mer : fond qui plonge doucement devant les plages, vite au pied des falaises.
   if (d < 0) return Math.max(-30, 0.25 + d * lerp(0.012, 0.12, cliff));
-  const beach = 0.25 + Math.min(d, 160) * 0.012 + 16 * smoothstep(160, 1800, d);
-  const wall = 0.25 + 44 * smoothstep(4, 70, d) + 18 * smoothstep(70, 1500, d);
-  let h = beach + (wall - beach) * cliff * (1 - smoothstep(1500, 4000, d));
-  const cl = cliff * (1 - smoothstep(1500, 4000, d));
-  const inland = smoothstep(150, 2400, d) * (1 - cl) + smoothstep(60, 900, d) * cl;
-  // Lieux qui doivent rester faciles : plaine de Rocherouge, chott, lagune, erg, dessus du plateau.
-  const calm = 1 - 0.8 * Math.max(gauss(x, z, CHOTT.x, CHOTT.z, 3300, 2000), gauss(x, z, -2600, 1500, 3200, 2000), gauss(x, z, lagoonC[0], lagoonC[1], 3200, 2400), gauss(x, z, ERG.x, ERG.z, ERG.sx, ERG.sz), gauss(x, z, PLATEAU.x, PLATEAU.z, 3000, 2200));
-  h += inland * (RELIEF.wave * (fbm(x / 7000, z / 7000, 3, 11) + 0.35) + (9 + (RELIEF.hills - 9) * calm) * fbm(x / 1500, z / 1500, 2, 12) + 2.5 * fbm(x / 350, z / 350, 2, 13));
-  h += inland * calm * RELIEF.knolls * Math.max(0, fbm(x / 2300 + 7, z / 2300 - 3, 2, 14) + 0.08) * 1.6;
-  const fade = smoothstep(120, 1200, d);
-  // Monts de Braise : versants raides, crêtes et ravins (bruit en crêtes), plus doux vers la plaine.
-  const c = chainAt(x, z);
-  // Versants des routes de montagne (col des Vents des deux côtés) : réguliers, sans bosses à franchir.
-  const even = 1 - 0.85 * Math.max(gauss(x, z, 2800, -4600, 1700, 2400), gauss(x, z, 2400, -8300, 1800, 2200));
-  if (c.d < CHAIN.width * 3) {
-    const prof = Math.exp(-((c.d / CHAIN.width) ** 1.6)) * (1 - smoothstep(CHAIN.width * 2, CHAIN.width * 3, c.d));
-    const rough = 0.74 + even * (0.44 * (ridged(x / 2100, z / 2100, 4, 81) - 0.45) + 0.1 * fbm(x / 600, z / 600, 2, 82));
-    h += fade * RELIEF.chain * c.h * prof * rough;
+  const t = arcT(x, z);
+  const tilt = tiltAt(t) * (1 + 0.08 * fbm(x / 5000, z / 5000, 2, 5));
+  const beach = 0.25 + Math.min(d, 160) * 0.012;
+  // Plage : montée douce vers le plateau ; falaise : paroi franche (110 m au plus), puis le plateau.
+  const soft = smoothstep(250, 3200, d);
+  const low = Math.min(tilt, 110);
+  const hard = (low * smoothstep(4, 80, d) + (tilt - low) * smoothstep(80, 2400, d)) / tilt;
+  let P = tilt * lerp(soft, hard, cliff) + 16 * fbm(x / 1600, z / 1600, 2, 12) * smoothstep(60, 700, d);
+  // Plateaux en gradins (hors de l'erg) : paliers de 45 m, contremarches raides ou adoucies (rampes) selon l'endroit.
+  const g = (1 - ergMask(x, z)) * smoothstep(100, 900, d) * smoothstep(30, 75, P);
+  if (g > 0.01 && P > 0) {
+    const q = P / 45;
+    const k = Math.floor(q);
+    const s = clamp(0.18 + 0.5 * Math.max(0, fbm(x / 2600, z / 2600, 2, 31) + 0.05), 0.18, 0.65);
+    P = lerp(P, 45 * (k + smoothstep(1 - s, 1, q - k)), 0.85 * g);
   }
-  // Collines Fauves (sud, autour de L'Oasis) : croupes douces et rocailleuses.
-  h += fade * 120 * gauss(x, z, 3600, 5700, 3600, 1500) * (0.85 + 0.3 * fbm(x / 1800, z / 1800, 2, 22));
-  // Plateau des Canyons : dessus presque plat, rebord en escarpement.
-  const pe = Math.hypot((x - PLATEAU.x) / PLATEAU.rx, (z - PLATEAU.z) / PLATEAU.rz);
-  h += fade * PLATEAU.h * (1 - smoothstep(0.62, 1.02, pe)) * (1 + 0.04 * fbm(x / 900, z / 900, 2, 23));
-  // Massif du Vautour : deux sommets, col entre les deux, arêtes.
+  let h = beach * (1 - cliff) + 0.25 * cliff + P + 2.5 * fbm(x / 350, z / 350, 2, 13) * smoothstep(100, 800, d);
+  // Jamais sous la mer dans les terres (bosses du bruit, cuvettes).
+  h = Math.max(h, 0.3 + Math.min(d, 600) * 0.01);
+  // Massif du Vautour : deux sommets, arêtes.
+  const fade = smoothstep(120, 1200, d);
   const M = MASSIF;
   const cone = (px: number, pz: number, H: number) => H * Math.exp(-((Math.hypot(x - px, z - pz) / M.spread) ** 1.7));
   const c1 = cone(M.phare[0], M.phare[1], M.h1);
   const c2 = cone(M.mont[0], M.mont[1], M.h2);
   const massif = (c1 ** 8 + c2 ** 8) ** (1 / 8);
-  if (massif > 0.05) h += smoothstep(30, 1600, d) * (massif + even * massif * 0.1 * (ridged(x / 1600, z / 1600, 3, 31) - 0.45));
-  // Socle du massif du Vautour : tout le col est relevé d'un bloc (col des Vents à ≈ 900 m).
-  h += fade * 100 * gauss(x, z, 2900, -6200, 5000, 4000);
-  // Selle du col des Vents, large et creusée : la route y arrive en pente régulière.
-  h -= fade * 170 * gauss(x, z, 2950, -6450, 800, 1700);
-  h -= fade * 190 * gauss(x, z, 2820, -7150, 750, 800);
-  // Passage du col des Vents : couloir nord-sud dessiné (col à ≈ 895 m, versants réguliers de 7,5 % et 9 %), le relief
-  // y est relevé ou entaillé ; les deux sommets restent entiers de part et d'autre.
-  {
-    const dx = x - 2920;
-    const w = Math.exp(-((dx / 900) ** 2)) * smoothstep(-8300, -7700, z) * (1 - smoothstep(-4700, -4100, z));
-    if (w > 0.001) {
-      const P = z > -6500 ? 895 - 0.075 * (z + 6500) : 895 - 0.09 * (-6500 - z);
-      h = lerp(h, P + 0.28 * Math.abs(dx), w);
-    }
-  }
-  // Vallée de Port-Vent : du col jusqu'au port, fond en pente régulière, versants raides de part et d'autre.
-  {
-    const [ax, az] = [2750, -7250];
-    const [bx, bz] = [1450, -9650];
-    const dx = bx - ax;
-    const dz = bz - az;
-    const t = ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz);
-    if (t > 0 && t < 1.1) {
-      const dist = Math.hypot(x - ax - dx * Math.min(1, t), z - az - dz * Math.min(1, t));
-      if (dist < 950) {
-        const floor = lerp(860, 230, Math.min(1, t)) + dist * 0.1;
-        h = lerp(h, lerp(Math.min(h, floor), h, smoothstep(550, 950, dist)), smoothstep(0, 0.18, t));
-      }
-    }
-  }
+  if (massif > 0.05) h += fade * (massif + massif * 0.12 * (ridged(x / 1400, z / 1400, 3, 31) - 0.45));
   return h;
 }
 
-/** Relief naturel sans les oueds, lacs, ports ni plateaux aplanis. */
+/** Relief naturel sans le canyon, les lacs, les ports ni les plateaux aplanis. */
 function natural(x: number, z: number): number {
   const d = shoreDist(x, z);
   const fade = smoothstep(120, 1200, d);
@@ -512,23 +521,23 @@ function natural(x: number, z: number): number {
     const top = m.top + 1.2 * fbm(x / 400, z / 400, 2, 92);
     if (top > h) h += (top - h) * f * fade;
   }
-  // Grand Erg : cordons de dunes de sable rouge, crêtes vers le nord-est.
+  // Grand Erg : cordons de dunes de sable rouge, crêtes vers le nord-est ; adoucies autour du cyclo-cross.
   const em = ergMask(x, z) * smoothstep(80, 600, d) * (1 - 0.7 * gauss(x, z, CROSS[0], CROSS[1], 450, 450));
   if (em > 0.001) {
     const u = x * Math.cos(ERG.ang) + z * Math.sin(ERG.ang);
     const phase = (2 * Math.PI * u) / ERG.wave + 2.4 * fbm(x / 1700, z / 1700, 2, 95);
     const ridge = (0.5 + 0.5 * Math.sin(phase)) ** 1.7;
     const swell = 0.6 + 0.5 * fbm(x / 1100, z / 1100, 2, 96);
-    h += em * RELIEF.dunes * (ERG.amp * ridge * swell + 3 * fbm(x / 120, z / 120, 2, 97));
+    h += em * (ERG.amp * ridge * swell + 3 * fbm(x / 120, z / 120, 2, 97));
   }
   // Villes du bord de mer (ports, petite ville) : arrière-pays en pente douce sur 1,4 km (pas de falaise sous les quais).
   for (const t of COAST_TOWNS) {
     const dt = Math.hypot(x - t.x, z - t.z);
     if (dt < 1800) h = lerp(Math.min(h, 6 + dt * 0.045), h, smoothstep(900, 1800, dt));
   }
-  // Cuvette du chott, plaine basse de la lagune.
-  h -= fade * 30 * gauss(x, z, CHOTT.x, CHOTT.z, CHOTT.rx * 1.5, CHOTT.rz * 2.2);
-  h -= fade * 14 * gauss(x, z, lagoonC[0], lagoonC[1], 2600, 1800);
+  // Cuvette du chott.
+  h -= fade * 25 * gauss(x, z, CHOTT.x, CHOTT.z, CHOTT.rx * 1.5, CHOTT.rz * 2.2);
+  h = Math.max(h, 0.3 + Math.min(d, 600) * 0.005);
   // La Piste Droite : couloir aplani, niveau en pente régulière d'un bout à l'autre.
   const p = pisteAt(x, z);
   if (p.d < PISTE.half + PISTE.blend) {
@@ -537,6 +546,8 @@ function natural(x: number, z: number): number {
   }
   return h;
 }
+
+const COAST_TOWNS = TOWNS.filter((t) => t.seaside || t.port);
 
 const pisteLv: number[] = [];
 /** Niveau de la Piste Droite à un bout (moyenne du relief de base autour). */
@@ -691,6 +702,86 @@ function valleyAt(x: number, z: number): { dist: number; bed: number; chan: numb
   return { dist, bed: lerp4(v.bed), chan: lerp4(v.chan), width: lerp4(v.width), floor: lerp4(v.floor) };
 }
 
+
+/** Brèche prête à l'emploi : point du lit, tangente (vers l'aval), normale (vers l'extérieur du croissant), pente du lit. */
+export interface BreachFrame extends Breach {
+  x: number;
+  z: number;
+  y: number;
+  tx: number;
+  tz: number;
+  nx: number;
+  nz: number;
+  slope: number;
+  /** Demi-largeur du fond plat (m). */
+  fl: number;
+  /** Indice du point du lit. */
+  k: number;
+}
+let frames: BreachFrame[] | null = null;
+
+export function breachFrames(): BreachFrame[] {
+  if (frames) return frames;
+  const b = riverBeds()[0]!;
+  frames = BREACHES.map((br) => {
+    const [cx, cz] = polar(br.t, canyonR(br.t));
+    let k = 0;
+    for (let i = 1; i < b.pts.length; i++) if (Math.hypot(b.pts[i]![0] - cx, b.pts[i]![1] - cz) < Math.hypot(b.pts[k]![0] - cx, b.pts[k]![1] - cz)) k = i;
+    const a = b.pts[Math.max(0, k - 8)]!;
+    const c = b.pts[Math.min(b.pts.length - 1, k + 8)]!;
+    const l = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1;
+    const tx = (c[0] - a[0]) / l;
+    const tz = (c[1] - a[1]) / l;
+    // Normale vers l'extérieur du croissant (côté nord).
+    let nx = -tz;
+    let nz = tx;
+    const [px, pz] = b.pts[k]!;
+    if (arcR(px + nx * 50, pz + nz * 50) < arcR(px, pz)) {
+      nx = -nx;
+      nz = -nz;
+    }
+    const slope = (b.bed[Math.max(0, k - 8)]! - b.bed[Math.min(b.pts.length - 1, k + 8)]!) / l;
+    return { ...br, x: px, z: pz, y: b.bed[k]!, tx, tz, nx, nz, slope, fl: b.floor[k]!, k };
+  });
+  return frames;
+}
+
+/** Paroi du canyon en gradins : quatre paliers entre le fond et la corniche. */
+function stairs(t: number): number {
+  const q = t * 4;
+  const k = Math.floor(q);
+  return Math.min(1, (k + smoothstep(0.5, 1, q - k)) / 4);
+}
+
+/** Canyon, brèches, lacs et ports creusés dans un relief. */
+function carve(h0: number, x: number, z: number): number {
+  let h = h0;
+  const v = valleyAt(x, z);
+  if (v && v.dist < v.width) {
+    // Vallée : le relief au-dessus du lit est abaissé vers lui (jamais remonté : continu au bord de la vallée).
+    // Canyon : fond plat jusqu'à `floor`, parois en gradins ensuite (corniche franche en haut).
+    const canyon = v.floor > v.chan + 2.5;
+    const t = canyon ? stairs(smoothstep(v.floor, v.width, v.dist) ** 0.8) : smoothstep(v.chan + 2, v.width, v.dist);
+    if (h > v.bed) h = v.bed + (h - v.bed) * t;
+    if (canyon && v.dist < v.floor) h = Math.min(h, v.bed + 0.6 + 0.02 * v.dist);
+    if (v.dist < v.chan + 2) h = Math.min(h, v.bed - 1.2 * (1 - smoothstep(v.chan * 0.6, v.chan + 2, v.dist)));
+  }
+  // Brèches : rampe régulière de part et d'autre du lit (les parois du canyon y sont entaillées).
+  for (const B of breachFrames()) {
+    const dx = x - B.x;
+    const dz = z - B.z;
+    const a = dx * B.tx + dz * B.tz;
+    if (Math.abs(a) > B.half + 260) continue;
+    const c = Math.abs(dx * B.nx + dz * B.nz);
+    if (c > 4000) continue;
+    const T = B.y - B.slope * a + 0.6 + B.g * Math.max(0, c - B.fl);
+    if (h <= T) continue;
+    const w = 1 - smoothstep(B.half, B.half + 260, Math.abs(a));
+    h = lerp(h, T, w);
+  }
+  return h;
+}
+
 /** Plateaux aplanis : Chott Blanc (et son Circuit) et villes (niveau pris au relief naturel du centre). */
 interface Flat {
   x: number;
@@ -730,21 +821,6 @@ function getFlats(): Flat[] {
     flats.push({ x: t.x, z: t.z, dist: (x, z) => Math.hypot(x - t.x, z - t.z), r0: t.r * (t.seaside ? 1.0 : 0.55), r1: t.r * (t.seaside ? 1.6 : 1.4) + (t.seaside ? 0 : 260), level: t.level });
   }
   return flats;
-}
-
-/** Rivières, lacs et ports creusés dans un relief. */
-function carve(h0: number, x: number, z: number): number {
-  let h = h0;
-  const v = valleyAt(x, z);
-  if (v && v.dist < v.width) {
-    // Vallée : le relief au-dessus du lit est abaissé vers lui (jamais remonté : continu au bord de la vallée).
-    // Canyon : fond plat jusqu'à `floor`, parois presque verticales ensuite (corniche franche en haut).
-    const t = v.floor > v.chan + 2.5 ? smoothstep(v.floor, v.width, v.dist) ** 0.8 : smoothstep(v.chan + 2, v.width, v.dist);
-    if (h > v.bed) h = v.bed + (h - v.bed) * t;
-    if (v.floor > v.chan + 2.5 && v.dist < v.floor) h = Math.min(h, v.bed + 0.6 + 0.02 * v.dist);
-    if (v.dist < v.chan + 2) h = Math.min(h, v.bed - 1.2 * (1 - smoothstep(v.chan * 0.6, v.chan + 2, v.dist)));
-  }
-  return h;
 }
 
 function lakeLevels(): void {
@@ -871,7 +947,7 @@ export function inHarbour(x: number, z: number, margin = 0): boolean {
   });
 }
 
-export { clamp };
+export { clamp, gauss };
 
 /** Mise au point : étapes du relief en un point. */
 export function terrainSteps(x: number, z: number) {

@@ -1,9 +1,9 @@
 /**
- * Occupation du sol du Désert rouge : sol nu ocre presque partout, palmeraies irriguées autour des oasis et le long
- * des oueds, bosquets d'acacias et de tamaris épars, sable de l'erg et des plages, roche rouge (sommets, falaises,
- * parois des mesas et du canyon), sel du Chott Blanc, lagune.
+ * Occupation du sol du Désert rouge : sol nu ocre presque partout, palmeraies irriguées autour des oasis seulement
+ * (aucun bois ailleurs), sable de l'erg et des plages, roche rouge (sommets, falaises, parois des mesas et du canyon),
+ * sel du Chott Blanc et des Salines.
  */
-import { CHOTT, HARBOURS, LAKES, MASSIF, MESAS, OASES, TOWNS, chainAt, chottE, cliffiness, coastPoint, ergMask, inHarbour, inLake, inRiver, lakeE, mesaShare, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
+import { ARC, CHOTT, HARBOURS, LAKES, MESAS, TOWNS, chottE, cliffAt, coastPoint, ergMask, inHarbour, inLake, inRiver, lakeE, mesaShare, mountainAt, oasisDist, riverBeds, shoreDist, terrain, type Side, type Vec2 } from './design.ts';
 import { clipPolygon, orientedRect, polygonArea } from './geom.ts';
 import { fbm, rng, smoothstep } from './noise.ts';
 import type { Area } from './types.ts';
@@ -12,12 +12,7 @@ export interface LandCtx {
   farms: Vec2[];
 }
 
-/** Montagne : près des Monts de Braise ou du massif du Vautour. */
-function mountain(x: number, z: number): number {
-  const c = chainAt(x, z);
-  const dm = Math.min(Math.hypot(x - MASSIF.phare[0], z - MASSIF.phare[1]), Math.hypot(x - MASSIF.mont[0], z - MASSIF.mont[1]));
-  return Math.max(1 - smoothstep(2500, 6000, c.d), 1 - smoothstep(3000, 6000, dm));
-}
+const mountain = mountainAt;
 
 /** Pente (fraction) au point. */
 function slopeAt(x: number, z: number, h = terrain(x, z)): number {
@@ -39,28 +34,19 @@ function clearing(x: number, z: number, ctx: LandCtx): number {
   return c;
 }
 
-/** Distance (m) à la source d'oasis la plus proche. */
-function oasisDist(x: number, z: number): number {
-  return Math.min(...OASES.map((o) => Math.hypot(x - o.x, z - o.z)));
-}
-
 /** Sur une mesa ou une butte (sommet ou paroi). */
 function onMesa(x: number, z: number): boolean {
   return MESAS.some((m) => Math.abs(x - m.x) < m.rx * 1.6 && Math.abs(z - m.z) < m.rx * 1.6 && mesaShare(m, x, z) > 0.3);
 }
 
-/** Masque des bosquets : > 0 boisé (tamaris des oueds, acacias épars, couronne des oasis). */
+/** Masque des bosquets : > 0 boisé. Seulement la couronne de palmiers des oasis : le désert reste nu. */
 export function forestMask(x: number, z: number, ctx: LandCtx): number {
   const d = shoreDist(x, z);
   if (d < 140) return -1;
-  // Acacias épars sur le reg : petites taches.
-  let f = 0.9 * fbm(x / 520, z / 520, 2, 41) - 0.42;
-  if (mountain(x, z) > 0.3 || terrain(x, z) > 420 || ergMask(x, z) > 0.2 || onMesa(x, z)) f = -1;
-  // Tamaris le long des oueds (hors du lit).
-  if (inRiver(x, z, 40) && !inRiver(x, z, 5)) f = Math.max(f, 0.25);
-  // Couronne verte autour des sources d'oasis.
   const od = oasisDist(x, z);
-  if (od < 700) f = Math.max(f, 0.35 - od / 700 + 0.25 * fbm(x / 120, z / 120, 2, 43));
+  if (od > 700) return -1;
+  let f = 0.35 - od / 700 + 0.25 * fbm(x / 120, z / 120, 2, 43);
+  if (mountain(x, z) > 0.6 || onMesa(x, z)) f = -1;
   f = Math.min(f, clearing(x, z, ctx), (d - 200) / 100);
   for (const l of LAKES) if (lakeE(l, x, z) < 1.6) f = Math.min(f, (lakeE(l, x, z) - 1.25) * 2);
   if (inHarbour(x, z, 120)) f = -1;
@@ -92,7 +78,7 @@ export function sandMask(x: number, z: number): number {
 /** Rochers : falaises du rivage, sommets, parois raides (mesas, canyon, crêtes). */
 export function rockMask(x: number, z: number): number {
   const d = shoreDist(x, z);
-  const cliff = cliffiness(Math.atan2(z, x));
+  const cliff = cliffAt(x, z);
   let m = cliff > 0.5 ? (85 - d) / 20 : -1;
   if (d < 0) return -1;
   const h = terrain(x, z);
@@ -258,17 +244,15 @@ export function parcels(ctx: LandCtx, avoid: (x: number, z: number) => boolean):
       if (Math.abs(cx) > 17500 || Math.abs(cz) > 11500) continue;
       if (shoreDist(cx, cz) < 300) continue;
       if (q.some(([x, z]) => shoreDist(x, z) < 220 || inLake(x, z, 1.3) || inRiver(x, z, 20) || avoid(x, z))) continue;
-      if (forestMask(cx, cz, ctx) > 0.1 || ergMask(cx, cz) > 0.25) continue;
+      if (forestMask(cx, cz, ctx) > 0.1) continue;
       if (clearing(cx, cz, ctx) < 0.2) continue;
       // Pente : pas de culture au-delà de 15 %.
       const h = q.map(([x, z]) => terrain(x, z));
       if (Math.max(...h) - Math.min(...h) > S * 0.15) continue;
       const roll = r();
-      // Cultures irriguées seulement : palmeraies autour des oasis, jardins des oueds et des villages.
+      // Cultures irriguées seulement : palmeraies et jardins autour des sources d'oasis.
       const od = oasisDist(cx, cz);
-      const wadi = inRiver(cx, cz, 170) && !inRiver(cx, cz, 25);
-      const garden = TOWNS.some((t) => Math.hypot(t.x - cx, t.z - cz) < t.r * 2.1);
-      const kind = od < 950 ? (roll < 0.72 ? 'orchard' : 'farmland') : wadi ? (roll < 0.55 ? 'farmland' : roll < 0.85 ? 'orchard' : null) : garden && roll < 0.22 ? (roll < 0.1 ? 'orchard' : 'farmland') : null;
+      const kind = od < 950 ? (roll < 0.72 ? 'orchard' : 'farmland') : null;
       if (!kind) continue;
       // Haies : parcelle rétrécie de 3 m (bandes en herbe entre les champs). Parfois coupée en deux.
       const shrink = (poly: Vec2[]) => {
@@ -289,27 +273,26 @@ export function parcels(ctx: LandCtx, avoid: (x: number, z: number) => boolean):
   return out;
 }
 
-/** Plages de sable (secteurs sans falaise), zones humides de la lagune, lacs. */
+/** Plages de sable (secteurs sans falaise), Salines, croûte de sel du Chott Blanc. */
 export function shoreAreas(skip: (x: number, z: number) => boolean): Area[] {
   const out: Area[] = [];
-  const n = 2400;
-  for (let k = 0; k < n; k++) {
-    const a0 = -Math.PI + (k / n) * 2 * Math.PI;
-    const a1 = -Math.PI + ((k + 1) / n) * 2 * Math.PI;
-    if (cliffiness((a0 + a1) / 2) > 0.3) continue;
-    const mid = coastPoint((a0 + a1) / 2, 50);
-    if (skip(mid[0], mid[1]) || inHarbour(mid[0], mid[1], 150) || inRiver(mid[0], mid[1], 30)) continue;
-    out.push({ id: `plage-${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -45), coastPoint(a1, -45), coastPoint(a1, 105), coastPoint(a0, 105)] });
+  const n = 1400;
+  for (const side of [1, -1] as Side[])
+    for (let k = 0; k < n; k++) {
+      const a0 = ARC.t0 + (k / n) * (ARC.t1 - ARC.t0);
+      const a1 = ARC.t0 + ((k + 1) / n) * (ARC.t1 - ARC.t0);
+      const mid = coastPoint((a0 + a1) / 2, 50, side);
+      if (cliffAt(mid[0], mid[1]) > 0.3) continue;
+      if (skip(mid[0], mid[1]) || inHarbour(mid[0], mid[1], 150) || inRiver(mid[0], mid[1], 30)) continue;
+      out.push({ id: `plage-${side > 0 ? 'n' : 's'}${k}`, kind: 'sand', layer: 'fields', ring: [coastPoint(a0, -45, side), coastPoint(a1, -45, side), coastPoint(a1, 105, side), coastPoint(a0, 105, side)] });
+    }
+  // Les Salines : bassins de sel blanc au bord du golfe, près du hameau.
+  const sal = TOWNS.find((t) => t.id === 'les-salines')!;
+  for (let k = 0; k < 6; k++) {
+    const t = (sal.t ?? 0) + 0.025 + k * 0.011;
+    const ring = [coastPoint(t, 160, -1), coastPoint(t + 0.009, 160, -1), coastPoint(t + 0.009, 420, -1), coastPoint(t, 420, -1)];
+    out.push({ id: `saline-${k}`, kind: 'quarry', layer: 'landuse', ring, ...(k === 0 ? { name: 'Les Salines' } : {}) });
   }
-  const lag = LAKES.find((l) => l.id === 'lagune')!;
-  const ring: Vec2[] = [];
-  for (let k = 0; k < 40; k++) {
-    const a = (k / 40) * Math.PI * 2;
-    const ex = Math.cos(a) * lag.rx * 1.45;
-    const ez = Math.sin(a) * lag.rz * 1.7;
-    ring.push([lag.x + ex * Math.cos(lag.rot) - ez * Math.sin(lag.rot), lag.z + ex * Math.sin(lag.rot) + ez * Math.cos(lag.rot)]);
-  }
-  out.push({ id: 'marais', kind: 'wetland', layer: 'fields', ring, name: 'Salines de la Lagune' });
   // Chott Blanc : croûte de sel (sol clair).
   const salt: Vec2[] = [];
   for (let k = 0; k < 72; k++) {

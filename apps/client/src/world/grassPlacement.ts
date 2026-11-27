@@ -19,6 +19,8 @@ export interface GrassEnv {
   season: Season;
   /** Herbe des champs cultivés éclaircie (P2.1c, voir fieldGrassDensity) ; absent : `?grassfields=1`. */
   grassFields?: boolean;
+  /** Quantité d'herbe du monde (biome d'un monde Poly, world/lands/) ; absent : 1. */
+  amount?: number;
 }
 
 /**
@@ -251,7 +253,7 @@ export function generateGrassBlock(bx: number, bz: number, tries: number, env: G
     // Style jeu vidéo : marge plus large autour des routes OSM (rien ne dépasse sur l'enrobé).
     const plantable = 1 - urban * (1 - Math.max(meadow, forest, field));
     const density = road > 0.12 || water > 0.3 || rock > 0.2 || sand > 0.3 ? 0 : (0.35 + meadow * 0.65 - forest * 0.25 + field * 0.1 + verge * 0.8) * plantable;
-    if (uDensity > density) continue;
+    if (uDensity > density * (env.amount ?? 1)) continue;
     // Champs cultivés (P2.1c) : densité réduite, calculée seulement pour les essais que l'ancienne règle accepte
     // (même tirage, aucun nombre aléatoire de plus : le bloc reste identique d'une regénération à l'autre).
     if (fields && d && field >= 0.05 && uDensity > fieldGrassDensity(density, field, fieldGrassPatch(x, z), fieldEdge(tile, d, x, z), roadEdgeDistance(tile, x, z))) continue;

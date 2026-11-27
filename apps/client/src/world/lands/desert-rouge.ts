@@ -1,7 +1,8 @@
 /**
  * Le Désert rouge (mode Poly) : données du monde pour le client (généré par tools/desert-rouge, voir
- * docs/DESERT_ROUGE.md). Plateau désertique bordé de falaises rouges, canyon de l'Oued Rouge, mesas et buttes, Grand
- * Erg, Chott Blanc (lac salé à sec), oasis et palmeraies, villages en terre crue, Citadelle Rouge, col des Vents.
+ * docs/DESERT_ROUGE.md). Croissant de terre rouge ouvert sur le golfe de Corail : Grand Canyon de l'Oued Rouge d'une
+ * corne à l'autre (Lacets du Canyon), Grand Erg sur la corne ouest, plateaux en gradins et massif du Vautour à l'est,
+ * Chott Blanc (lac salé à sec), oasis reliées en étoile au Puits de l'Étoile, villages en terre crue, Citadelle Rouge.
  */
 import { rng } from '../../engine/noise.ts';
 import type { TileBuilding } from '../types.ts';
@@ -17,7 +18,22 @@ function shade(hex: string, k: number): string {
   return `#${((f(n >> 16) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
-/** Toits plats en terrasse, de la couleur des murs ; hangars des tribunes remplacés par de vrais gradins (décor). */
+/** Briques et rouges trop vifs ramenés vers l'ocre de la terre crue. */
+function earthen(hex: string): string {
+  const n = Number.parseInt(hex.slice(1), 16);
+  const r = n >> 16;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  // Rouge brique (vert faible devant le rouge) : teinte remontée vers l'ocre.
+  if (r > 150 && g < r * 0.62) return `#${((r << 16) | (Math.round(r * 0.68) << 8) | Math.round(Math.max(b, r * 0.42))).toString(16).padStart(6, '0')}`;
+  return hex;
+}
+
+/**
+ * Terre crue : murs ocre sans volets ni fenêtres à la française (nature « ruins » pour le rendu : murs pleins et
+ * portes de bois), toits plats en terrasse de la couleur des murs ; chaux blanche au bord de la mer (fenêtres
+ * gardées). Hangars des tribunes remplacés par de vrais gradins (décor).
+ */
 function desertBuilding(b: TileBuilding): TileBuilding {
   // Tribunes du Circuit du Chott (générateur) : remplacées par les gradins du décor.
   if (b.kind === 'industrial' && Math.abs(b.pts[0]! - DESERT_RING.x) < 100 && Math.abs(b.pts[1]! - (DESERT_RING.z + DESERT_RING.radius + 24)) < 12) return { ...b, pts: [] };
@@ -31,10 +47,13 @@ function desertBuilding(b: TileBuilding): TileBuilding {
   x /= b.pts.length / 2;
   z /= b.pts.length / 2;
   const r = rng(Math.imul(Math.round(x * 10), 73856093) ^ Math.imul(Math.round(z * 10), 19349663));
-  const colour = b.colour ?? EARTH[Math.floor(r() * EARTH.length)]!;
+  const colour = earthen(b.colour ?? EARTH[Math.floor(r() * EARTH.length)]!);
   const white = Number.parseInt(colour.slice(1, 3), 16) > 225;
+  // Maisons, fermes, maison commune (générées en « hut ») : murs pleins, sans volets.
+  const adobe = !white && ['hut', 'house', 'apartments', 'farm', 'public', 'commercial'].includes(b.kind);
   return {
     ...b,
+    ...(adobe ? { kind: 'ruins' } : {}),
     colour,
     material: b.material === 'stone' ? 'stone' : 'plaster',
     roofColour: shade(colour, white ? 0.97 : 0.9 + r() * 0.14),
@@ -48,67 +67,70 @@ export const DESERT_ROUGE: PolyLand = {
   world: {
     id: 'desert-rouge',
     title: { fr: 'Le Désert rouge', en: 'The Red Desert' },
-    hint: { fr: 'Canyons, mesas et oasis', en: 'Canyons, mesas and oases' },
+    hint: { fr: 'Croissant de sable, grand canyon et oasis', en: 'Sand crescent, grand canyon and oases' },
     map: { fr: 'Carte topographique — Le Désert rouge', en: 'Topographic map — The Red Desert' },
     priority: [
-      'decouverte-du-desert', 'classique-des-canyons', 'classique-des-dunes', 'chrono-de-la-piste-droite', 'mesa-de-nuit', 'col-des-vents', 'circuit-du-chott',
-      'route-du-canyon', 'corniche-du-canyon', 'promenade-de-port-corail', 'pic-du-vautour', 'col-par-port-vent', 'montee-de-la-grande-mesa', 'criterium-de-rocherouge',
-      'tour-du-desert', 'golfe-et-oasis', 'plateau-du-ksar', 'gravel-de-la-mesa', 'gravel-de-la-palmeraie', 'cyclo-cross-des-sables',
-      'bike-park-des-buttes', 'descente-du-vautour', 'vtt-des-arches',
+      'decouverte-du-desert', 'classique-des-canyons', 'classique-des-dunes', 'chrono-de-la-piste-droite', 'mesa-de-nuit', 'lacets-du-canyon', 'circuit-du-chott',
+      'grande-montee-du-vautour', 'pic-du-vautour', 'route-du-canyon', 'corniche-du-canyon', 'promenade-de-port-corail', 'montee-de-la-grande-mesa', 'criterium-de-rocherouge',
+      'tour-du-desert', 'gravel-de-l-etoile', 'golfe-et-oasis', 'plateau-du-ksar', 'gravel-de-la-mesa', 'gravel-des-oasis', 'cyclo-cross-des-sables',
+      'bike-park-des-buttes', 'descente-du-vautour', 'vtt-du-canyon', 'vtt-des-arches',
     ],
     places: [
-      { x: -2600, z: 1200, label: 'Rocherouge', labelEn: 'Rocherouge', route: 'decouverte-du-desert', gravel: 'cyclo-cross-des-sables' },
-      { x: -438, z: 8891, label: 'Port-Corail', labelEn: 'Port-Corail', route: 'promenade-de-port-corail', gravel: 'grande-traversee' },
-      { x: -5600, z: -2500, label: 'Circuit du Chott', labelEn: 'Salt lake circuit', route: 'circuit-du-chott', gravel: 'gravel-des-buttes' },
-      { x: -5600, z: -800, label: 'Puits-Salé', labelEn: 'Puits-Salé', route: 'tour-du-chott' },
-      { x: -10320, z: -3380, label: 'Grande Mesa', labelEn: 'Great Mesa', route: 'mesa-de-nuit', gravel: 'gravel-de-la-mesa' },
-      { x: -12300, z: 900, label: 'Sablons', labelEn: 'Sablons', route: 'chrono-de-la-piste-droite', gravel: 'classique-des-dunes' },
-      { x: -9900, z: 4700, label: 'Oasis des Dunes', labelEn: 'Dunes oasis', route: 'route-des-dunes', gravel: 'classique-des-dunes' },
-      { x: -13774, z: 4897, label: 'Les Salines', labelEn: 'Les Salines', route: 'lagune-et-salines', gravel: 'chemin-de-la-pointe' },
-      { x: -900, z: -2900, label: 'Buttes Rouges', labelEn: 'Red Buttes', route: 'decouverte-du-desert', gravel: 'gravel-des-buttes', mtb: 'bike-park-des-buttes' },
-      { x: -3200, z: -4100, label: 'Les Arches', labelEn: 'Stone arches', route: 'tour-du-chott', mtb: 'vtt-des-arches' },
-      { x: 2933, z: -6513, label: 'Col des Vents', labelEn: 'Wind Pass', route: 'col-des-vents', mtb: 'descente-du-vautour' },
-      { x: 1600, z: -6900, label: 'Pic du Vautour', labelEn: 'Vulture Peak', route: 'pic-du-vautour', mtb: 'vtt-de-la-dent-rouge' },
-      { x: -483, z: -9801, label: 'Port-Vent', labelEn: 'Port-Vent', route: 'col-par-port-vent', mtb: 'vtt-des-monts-de-braise' },
-      { x: 2700, z: -2700, label: 'Les Cairns', labelEn: 'Les Cairns', route: 'route-du-canyon', mtb: 'descente-du-vautour' },
-      { x: 7000, z: 300, label: 'Le Canyon', labelEn: 'The Canyon', route: 'classique-des-canyons', mtb: 'vtt-du-canyon' },
-      { x: 11800, z: -600, label: 'Ksar-Rouge', labelEn: 'Ksar-Rouge', route: 'plateau-du-ksar', gravel: 'gravel-du-plateau', mtb: 'vtt-du-canyon' },
-      { x: 10171, z: 9287, label: 'Cap-Brique', labelEn: 'Cap-Brique', route: 'corniche-des-falaises', gravel: 'chemin-des-falaises', mtb: 'vtt-des-falaises' },
-      { x: 3800, z: 5600, label: 'L’Oasis', labelEn: 'The Oasis', route: 'golfe-et-oasis', gravel: 'gravel-de-la-palmeraie' },
+      { x: -572, z: -2589, label: 'Rocherouge', labelEn: 'Rocherouge', route: 'decouverte-du-desert', gravel: 'gravel-des-oasis' },
+      { x: 351, z: -4, label: 'Port-Corail', labelEn: 'Port-Corail', route: 'promenade-de-port-corail', gravel: 'gravel-des-oasis' },
+      { x: -3625, z: -1926, label: 'Circuit du Chott', labelEn: 'Salt lake circuit', route: 'circuit-du-chott', gravel: 'gravel-des-oasis' },
+      { x: -5994, z: -1722, label: 'Puits-Salé', labelEn: 'Puits-Salé', route: 'tour-du-chott', gravel: 'cyclo-cross-des-sables' },
+      { x: -7060, z: -6817, label: 'Grande Mesa', labelEn: 'Great Mesa', route: 'mesa-de-nuit', gravel: 'gravel-de-la-mesa' },
+      { x: -12142, z: 2065, label: 'Sablons', labelEn: 'Sablons', route: 'chrono-de-la-piste-droite', gravel: 'grande-traversee' },
+      { x: -12594, z: -2659, label: 'Oasis des Dunes', labelEn: 'Dunes oasis', route: 'route-des-dunes', gravel: 'classique-des-dunes' },
+      { x: -11829, z: 3419, label: 'Les Salines', labelEn: 'Les Salines', route: 'salines-et-sablons', gravel: 'chemin-de-la-pointe' },
+      { x: 1942, z: -1154, label: 'Buttes Rouges', labelEn: 'Red Buttes', route: 'boucle-de-rocherouge', gravel: 'cyclo-cross-des-sables', mtb: 'bike-park-des-buttes' },
+      { x: 0, z: -7600, label: "Puits de l'Étoile", labelEn: 'Star Well', route: 'classique-des-canyons', gravel: 'gravel-de-l-etoile', mtb: 'vtt-du-canyon' },
+      { x: -3287, z: -10048, label: 'Port-Vent', labelEn: 'Port-Vent', route: 'corniche-des-falaises', gravel: 'gravel-de-l-etoile' },
+      { x: 9086, z: -3115, label: 'Lacets du Canyon', labelEn: 'Canyon hairpins', route: 'lacets-du-canyon', mtb: 'vtt-du-canyon' },
+      { x: 4469, z: -6561, label: 'Les Cairns', labelEn: 'Les Cairns', route: 'corniche-du-canyon', gravel: 'gravel-des-oasis', mtb: 'vtt-du-canyon' },
+      { x: 13156, z: -2422, label: 'Pic du Vautour', labelEn: 'Vulture Peak', route: 'pic-du-vautour', mtb: 'vtt-du-vautour' },
+      { x: 3680, z: -5482, label: 'Grand Canyon', labelEn: 'Grand Canyon', route: 'route-du-canyon', mtb: 'vtt-du-canyon' },
+      { x: 10384, z: 328, label: 'Ksar-Rouge', labelEn: 'Ksar-Rouge', route: 'plateau-du-ksar', mtb: 'vtt-de-la-dent-rouge' },
+      { x: 11551, z: 3440, label: 'Cap-Brique', labelEn: 'Cap-Brique', route: 'tour-du-desert' },
+      { x: 5073, z: -1777, label: 'L’Oasis', labelEn: 'The Oasis', route: 'golfe-et-oasis', gravel: 'gravel-des-oasis', mtb: 'vtt-des-arches' },
     ],
     discover: [
-      { id: 'observatoire', name: { fr: "L'Observatoire du Pic du Vautour", en: 'Vulture Peak observatory' }, x: 1600, z: -6900, r: 180 },
-      { id: 'col-des-vents', name: { fr: 'Le Col des Vents', en: 'Wind Pass' }, x: 2933, z: -6513, r: 170 },
-      { id: 'guelta', name: { fr: 'La Guelta du Vautour', en: 'Vulture rock pool' }, x: 3750, z: -5450, r: 350 },
-      { id: 'dent-rouge', name: { fr: 'Le Cairn de la Dent Rouge', en: 'Red Tooth cairn' }, x: 4580, z: -5920, r: 260 },
-      { id: 'citadelle', name: { fr: 'La Citadelle Rouge', en: 'Red Citadel' }, x: 12300, z: -1300, r: 300 },
-      { id: 'canyon', name: { fr: "Le Canyon de l'Oued Rouge", en: 'Red Wadi canyon' }, x: 6900, z: -300, r: 450 },
-      { id: 'chott', name: { fr: 'Le Chott Blanc', en: 'White salt lake' }, x: -6900, z: -2300, r: 900 },
-      { id: 'grande-mesa', name: { fr: 'Mesa-Haute, sur la Grande Mesa', en: 'Mesa-Haute on the Great Mesa' }, x: -10320, z: -3380, r: 300 },
-      { id: 'buttes', name: { fr: 'Les Buttes Rouges', en: 'Red Buttes' }, x: -600, z: -3200, r: 450 },
-      { id: 'arches', name: { fr: 'Les Arches de pierre', en: 'Stone arches' }, x: -3350, z: -4300, r: 350 },
-      { id: 'source', name: { fr: "La Source de l'Oasis", en: 'Oasis spring' }, x: 4220, z: 6030, r: 300 },
-      { id: 'oasis-des-dunes', name: { fr: "L'Oasis des Dunes", en: 'Dunes oasis' }, x: -9900, z: 4700, r: 300 },
-      { id: 'grand-erg', name: { fr: 'Le Grand Erg', en: 'Great Erg' }, x: -10000, z: 4300, r: 1200 },
-      { id: 'piste-droite', name: { fr: 'La Piste Droite', en: 'The Straight Road' }, x: -7650, z: 1050, r: 500 },
-      { id: 'caravanserail', name: { fr: 'Le Caravansérail du Chott', en: 'Salt lake caravanserai' }, x: -3300, z: -1500, r: 250 },
-      { id: 'lagune', name: { fr: 'La Lagune des Flamants', en: 'Flamingo lagoon' }, x: -12560, z: 7218, r: 900 },
-      { id: 'promenade', name: { fr: 'La Promenade de Port-Corail', en: 'Port-Corail promenade' }, x: -438, z: 8650, r: 500 },
-      { id: 'cap-brique', name: { fr: 'Le Port de Cap-Brique', en: 'Cap-Brique harbour' }, x: 10424, z: 9518, r: 400 },
-      { id: 'port-vent', name: { fr: 'Le Port de Port-Vent', en: 'Port-Vent harbour' }, x: -499, z: -10138, r: 400 },
-      { id: 'mesa-du-lion', name: { fr: 'La Mesa du Lion', en: 'Lion Mesa' }, x: 1300, z: 2700, r: 500 },
-      { id: 'rocherouge', name: { fr: 'La place de Rocherouge', en: 'Rocherouge square' }, x: -2600, z: 1200, r: 130 },
+      { id: 'observatoire', name: { fr: "L'Observatoire du Pic du Vautour", en: 'Vulture Peak observatory' }, x: 13156, z: -2422, r: 180 },
+      { id: 'lacets', name: { fr: 'Les Lacets du Canyon', en: 'Canyon hairpins' }, x: 9086, z: -3115, r: 300 },
+      { id: 'guelta', name: { fr: 'La Guelta du Vautour', en: 'Vulture rock pool' }, x: 12354, z: -4218, r: 350 },
+      { id: 'tete-du-vautour', name: { fr: 'Le Cairn de la Tête du Vautour', en: "Vulture's Head cairn" }, x: 14173, z: -278, r: 260 },
+      { id: 'citadelle', name: { fr: 'La Citadelle Rouge', en: 'Red Citadel' }, x: 11259, z: 544, r: 300 },
+      { id: 'canyon', name: { fr: "Le Grand Canyon de l'Oued Rouge", en: 'Red Wadi grand canyon' }, x: 3680, z: -5482, r: 450 },
+      { id: 'breche', name: { fr: 'La Brèche du Centre', en: 'Central breach' }, x: -347, z: -5535, r: 300 },
+      { id: 'gue-des-sables', name: { fr: 'Le Gué des Sables', en: 'Sand ford' }, x: -14045, z: 984, r: 300 },
+      { id: 'chott', name: { fr: 'Le Chott Blanc', en: 'White salt lake' }, x: -4925, z: -1926, r: 700 },
+      { id: 'grande-mesa', name: { fr: 'Mesa-Haute, sur la Grande Mesa', en: 'Mesa-Haute on the Great Mesa' }, x: -7060, z: -6817, r: 300 },
+      { id: 'buttes', name: { fr: 'Les Buttes Rouges', en: 'Red Buttes' }, x: 1942, z: -1154, r: 450 },
+      { id: 'arches', name: { fr: 'Les Arches de pierre', en: 'Stone arches' }, x: 2773, z: -1308, r: 350 },
+      { id: 'source', name: { fr: "La Source de l'Oasis", en: 'Oasis spring' }, x: 5277, z: -1322, r: 300 },
+      { id: 'oasis-des-dunes', name: { fr: "L'Oasis des Dunes", en: 'Dunes oasis' }, x: -12594, z: -2659, r: 300 },
+      { id: 'etoile', name: { fr: "Le Puits de l'Étoile", en: 'Star Well' }, x: 0, z: -7600, r: 250 },
+      { id: 'grand-erg', name: { fr: 'Le Grand Erg', en: 'Great Erg' }, x: -11210, z: -1081, r: 1500 },
+      { id: 'piste-droite', name: { fr: 'La Piste Droite', en: 'The Straight Road' }, x: -9023, z: -8, r: 500 },
+      { id: 'caravanserail', name: { fr: 'Le Caravansérail du Chott', en: 'Salt lake caravanserai' }, x: -3593, z: -1408, r: 250 },
+      { id: 'salines', name: { fr: 'Les Salines', en: 'Salt pans' }, x: -11829, z: 3419, r: 600 },
+      { id: 'promenade', name: { fr: 'La Promenade de Port-Corail', en: 'Port-Corail promenade' }, x: 351, z: 260, r: 500 },
+      { id: 'cap-brique', name: { fr: 'Le Port de Cap-Brique', en: 'Cap-Brique harbour' }, x: 11377, z: 3564, r: 400 },
+      { id: 'port-vent', name: { fr: 'Le Port de Port-Vent', en: 'Port-Vent harbour' }, x: -3317, z: -10245, r: 400 },
+      { id: 'rocherouge', name: { fr: 'La place de Rocherouge', en: 'Rocherouge square' }, x: -572, z: -2589, r: 130 },
     ],
     foundKey: 'ar.found.desert-rouge',
     tour: { fr: 'Tour du Désert rouge', en: 'Tour of the Red Desert' },
-    tags: { coast: 'promenade-de-port-corail', ring: 'circuit-du-chott', climb: 'col-des-vents' },
+    tags: { coast: 'promenade-de-port-corail', ring: 'circuit-du-chott', climb: 'lacets-du-canyon' },
   },
   theme: {
+    // Sol ocre partout ; champs (seulement autour des sources) en vert de palmeraie ; abords des maisons en terre battue.
     ground: {
-      spring: { forest: '#5e6b3a', field: '#3f5f2c', field2: '#71803c', meadow: '#c47a45', urban: '#ece3d2', dirt: '#a8562e' },
-      summer: { forest: '#5a6436', field: '#3c5a2a', field2: '#7a7f3e', meadow: '#c8804a', urban: '#efe6d5', dirt: '#ad5a30' },
-      autumn: { forest: '#5f6337', field: '#405a2c', field2: '#86803e', meadow: '#c27644', urban: '#ece2d0', dirt: '#a5532d' },
-      winter: { forest: '#59603a', field: '#3e5a2e', field2: '#6f7a40', meadow: '#bb7444', urban: '#e9e0d0', dirt: '#9f522e' },
+      spring: { forest: '#4f6a2e', field: '#557a32', field2: '#6d8a3a', meadow: '#c47a45', urban: '#c8925e', dirt: '#a8562e' },
+      summer: { forest: '#4c652c', field: '#527530', field2: '#6a8438', meadow: '#c8804a', urban: '#cc9862', dirt: '#ad5a30' },
+      autumn: { forest: '#52662e', field: '#587632', field2: '#738638', meadow: '#c27644', urban: '#c6905c', dirt: '#a5532d' },
+      winter: { forest: '#4d622e', field: '#537230', field2: '#687f3a', meadow: '#bb7444', urban: '#c28c5a', dirt: '#9f522e' },
     },
     sand: ['#c46f42', '#e0955a'],
     rock: '#9c4a2c',
@@ -123,6 +145,9 @@ export const DESERT_ROUGE: PolyLand = {
     treelineM: 3000,
     water: '#2fbfbd',
   },
+  // Palmiers à la place des feuillus, cactus à la place des sapins, presque pas d'herbe, ni bétail ni mobilier de
+  // village européen. Les bois du générateur ne sont plus que les palmeraies des oasis : on en garde l'essentiel.
+  biome: { tree: 'palm', conifer: 'cactus', grass: 0.08, trees: 0.7, noVillageProps: true, noHerds: true, grassColours: { spring: ['#9a8a4c', '#d6c37a'], summer: ['#a48a4a', '#dcc478'], autumn: ['#9c7e46', '#d2b070'], winter: ['#958a5a', '#cfc08a'] } },
   ring: DESERT_RING,
   sites: desertRougeSites,
   building: desertBuilding,

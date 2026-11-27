@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RouteData, WorldMeta, WorldTile } from '../../../packages/shared/src/route.ts';
-import { ANNEAU, GLACIER, HARBOURS, ISLAND, LAKES, MASSIF, TOWNS, anneauLoop, chainAt, coastPoint, inGlacier, inHarbour, inLake, inRiver, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
+import { ANNEAU, CAP, GLACIER, HARBOURS, ISLAND, MASSIF, SPOTS, TOWNS, anneauLoop, capE, coastPoint, inGlacier, inHarbour, inLake, inRiver, mountainous, riverBeds, shoreDist, terrain, type Vec2 } from './design.ts';
 import { chaikin, clipPolygon, clipPolyline, polygonArea, resample, type Vec3 } from './geom.ts';
 import { forestMask, lakes, parcels, shoreAreas, waterways, type LandCtx } from './land.ts';
 import { fbm, rng } from './noise.ts';
@@ -92,14 +92,17 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
     const nz = (b[0] - a[0]) / l;
     const s = (col[0] - x) * nx + (col[1] - z) * nz > 0 ? 1 : -1;
     const q: Vec2 = [x + nx * s * (aber.chan[k]! + 45), z + nz * s * (aber.chan[k]! + 45)];
-    if (terrain(q[0], q[1]) < colY - 450 && shoreDist(q[0], q[1]) > 500) {
+    if (terrain(q[0], q[1]) < Math.min(colY - 450, 110) && shoreDist(q[0], q[1]) > 400) {
       foot = q;
       break;
     }
   }
   const lacets = (from: Vec2, to: Vec2, grade: number, half: number): Vec2[] => simplifyPath(switchbacks(from, to, { grade, halfWidth: half, turn: 30, blocked: wet }), 3);
   const southPts = [lc.p, ...lacets(ahead(lc, 60), col, 0.062, 420)];
-  const northPts = lacets(foot, col, 0.062, 240).reverse();
+  // Versant nord : départ du col droit vers le pied (prolongement de la montée sud, sans revenir sur elle).
+  const toFoot = Math.hypot(foot[0] - col[0], foot[1] - col[1]) || 1;
+  const leadN: Vec2 = [col[0] + ((foot[0] - col[0]) / toFoot) * 60, col[1] + ((foot[1] - col[1]) / toFoot) * 60];
+  const northPts = lacets(foot, leadN, 0.062, 260).reverse();
   /** Dernier point où `a` coupe `b` : la route `a` part de là (carrefour en T), sans recroiser `b` ensuite. */
   const fromLastCross = (a: Vec2[], b: Vec2[]): Vec2[] => {
     let cut = -1;
@@ -119,7 +122,7 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
     return at && cut > 0 ? [at, ...a.slice(cut + 1)] : a;
   };
   const sudPath = fillet(southPts, 16);
-  const nordPath = fromLastCross(fillet([col, ...northPts.slice(1)], 16), sudPath);
+  const nordPath = fillet([col, ...northPts], 16);
   const sudRoad = makeRoad({ id: 'col-sud', name: "Route du Col du Renne", kind: 'tertiary', width: 6, pts: sudPath, designed: true, gmax: 0.12, smooth: 0, y0: lc.y, y1: colY });
   const ySud = (p: Vec2) => nearestOn(sudRoad, p[0], p[1]).y;
   const colRoads = [sudRoad, makeRoad({ id: 'col-nord', name: "Route du Col du Renne", kind: 'tertiary', width: 6, pts: nordPath, designed: true, gmax: 0.12, smooth: 0, y0: ySud(nordPath[0]!) })];
@@ -132,29 +135,21 @@ export function designedRoads(): { roads: Road[]; layouts: TownLayout[]; anneau:
     if (i > 20 && i < sud.pts.length - 20 && score(p) < score(sud.pts[bi]!)) bi = i;
   });
   const branch = sud.pts[bi]!;
-  const phareUp = lacets([branch[0], branch[2]], phareEnd, 0.068, 300);
-  const obsPath = fromLastCross(fillet([[branch[0], branch[2]], ...phareUp.slice(1)], 14), sudPath);
+  // Départ en biais dans le sens de la montée (pas d'épingle au carrefour), du côté du belvédère.
+  const nx = sud.pts[Math.min(sud.pts.length - 1, bi + 6)]!;
+  const ul = Math.hypot(nx[0] - branch[0], nx[2] - branch[2]) || 1;
+  const ub: Vec2 = [(nx[0] - branch[0]) / ul, (nx[2] - branch[2]) / ul];
+  const sb = (MASSIF.phare[0] - branch[0]) * -ub[1] + (MASSIF.phare[1] - branch[2]) * ub[0] > 0 ? 1 : -1;
+  const lead: Vec2 = [branch[0] + ub[0] * 55 - ub[1] * 22 * sb, branch[2] + ub[1] * 55 + ub[0] * 22 * sb];
+  const phareUp = lacets(lead, phareEnd, 0.068, 300);
+  const obsPath = fromLastCross(fillet([[branch[0], branch[2]], ...phareUp], 14), sudPath);
   colRoads.push(makeRoad({ id: 'col-observatoire', name: 'Route du Belvédère', kind: 'unclassified', width: 4.5, pts: obsPath, designed: true, gmax: 0.12, smooth: 0, y0: ySud(obsPath[0]!) }));
-  const top: Vec3 = colRoads[0]!.pts[colRoads[0]!.pts.length - 1]!;
+  const colTop: Vec3 = colRoads[0]!.pts[colRoads[0]!.pts.length - 1]!;
   const footEnd: Vec3 = colRoads[1]!.pts[colRoads[1]!.pts.length - 1]!;
   const fp = colRoads[1]!.pts[Math.max(0, colRoads[1]!.pts.length - 8)]!;
   roads.push(...colRoads);
   gates.push({ p: [footEnd[0], footEnd[2]], y: footEnd[1], dir: [footEnd[0] - fp[0], footEnd[2] - fp[2]], town: 'col-nord' });
-  gates.push({ p: [top[0], top[2]], y: top[1], dir: [axis[0] / al, axis[1] / al], town: 'col' });
-  // Route de Pralong : de son pied (ouest du lac) à la station, en lacets.
-  const pralongBas: Vec2 = [-9100, -3100];
-  const pg = gates.filter((g) => g.town === 'fjellheim').sort((a, b) => Math.hypot(a.p[0] - pralongBas[0], a.p[1] - pralongBas[1]) - Math.hypot(b.p[0] - pralongBas[0], b.p[1] - pralongBas[1]))[0]!;
-  pg.town = 'fjellheim-station';
-  const pgAhead = ((): Vec2 => {
-    const l = Math.hypot(pg.dir[0], pg.dir[1]) || 1;
-    return [pg.p[0] + (pg.dir[0] / l) * 50, pg.p[1] + (pg.dir[1] / l) * 50];
-  })();
-  const climb = [...simplifyPath(switchbacks(pralongBas, pgAhead, { grade: 0.06, halfWidth: 320, turn: 30, blocked: wet }), 3), pg.p];
-  const station = makeRoad({ id: 'route-de-pralong', name: 'Route de Fjellheim', kind: 'tertiary', width: 6, pts: fillet(climb, 18), designed: true, gmax: 0.09, smooth: 0, y0: terrain(pralongBas[0], pralongBas[1]), y1: pg.y });
-  roads.push(station);
-  const s0 = station.pts[0]!;
-  const s1 = station.pts[Math.min(6, station.pts.length - 1)]!;
-  gates.push({ p: [s0[0], s0[2]], y: s0[1], dir: [s0[0] - s1[0], s0[2] - s1[2]], town: 'fjellheim-bas' });
+  gates.push({ p: [colTop[0], colTop[2]], y: colTop[1], dir: [axis[0] / al, axis[1] / al], town: 'col' });
   for (const g of ANNEAU_GATES) {
     let best = anneau.pts[0]!;
     for (const p of anneau.pts) if (Math.hypot(p[0] - g[0], p[2] - g[1]) < Math.hypot(best[0] - g[0], best[2] - g[1])) best = p;
@@ -316,22 +311,24 @@ const shorePath = (from: number, to: number, n: number, inset: number): Vec2[] =
 
 /** Pistes gravel et sentiers VTT : boucles (centre, rayon) et traversées (points de passage). */
 const TRAILS: Trail[] = [
-  { name: 'Chemin de Vidda', at: [11000, 600], r: 1700, n: 9 },
-  { name: 'Chemin des Mille-Lacs', at: [3600, 6700], r: 1300, n: 8 },
-  { name: 'Chemin de la Saumonée', at: [-13300, 2600], r: 1200, n: 8 },
-  { name: 'Sentier des Bouleaux', mtb: true, at: [-900, -4200], r: 1200, n: 8 },
-  { name: 'Chemin des Pêcheurs', line: shorePath(0.52, 0.95, 7, 210) },
-  { name: 'Chemin des Galets', line: shorePath(2.12, 2.5, 6, 280) },
-  { name: 'Chemin de la Toundra', line: [[-10600, 3600], [-8200, 5600], [-5200, 6000], [-2200, 6300], [1200, 7300]] },
-  { name: 'Sentier des Lemmings', mtb: true, at: [-7600, -6300], r: 900, n: 8 },
-  { name: 'Sentier de la Dent du Renne', mtb: true, at: [6300, -3500], r: 900, n: 8 },
-  { name: 'Descente du Renne', mtb: true, line: [[3150, -5900], [3100, -5300], [2700, -4200], [2200, -3300]] },
-  { name: 'Sentier des Gorges', mtb: true, at: [9200, -2400], r: 800, n: 8 },
-  { name: 'Sentier de Skarvik', mtb: true, at: [9300, 7500], r: 850, n: 8 },
-  { name: 'Sentier du Grand Lac', mtb: true, at: [-2500, -3900], r: 700, n: 8 },
+  { name: 'Chemin de Vidda', at: [7700, 2100], r: 1100, n: 9 },
+  { name: 'Chemin des Mille-Lacs', at: [4700, 1800], r: 850, n: 8 },
+  { name: 'Chemin des Skerries', at: coastPoint(2.45, 1350), r: 800, n: 8 },
+  { name: 'Chemin des Marais', at: coastPoint(2.84, 1150), r: 650, n: 7 },
+  { name: 'Chemin des Pêcheurs', line: shorePath(2.38, 2.56, 5, 300) },
+  { name: 'Chemin de la Toundra', line: [[6700, 3900], [5000, 3900], [3500, 3600], [2100, 2200], [900, 1950]] },
+  { name: 'Chemin des Tourbières', at: coastPoint(1.97, 1000), r: 600, n: 7 },
+  { name: 'Chemin du Glacier', line: [[-300, -7450], [-130, -6900]] },
+  { name: 'Sentier des Lemmings', mtb: true, line: [[300, -7250], [1100, -7450], [1900, -7350], [2700, -7100]] },
+  { name: 'Sentier de la Dent du Renne', mtb: true, at: [6300, -2200], r: 550, n: 8 },
+  { name: 'Descente du Renne', mtb: true, line: [[4500, -3100], [4450, -2400], [4550, -1500]] },
+  { name: 'Sentier des Gorges', mtb: true, at: [9900, 1700], r: 500, n: 7 },
+  { name: 'Sentier de Skarvik', mtb: true, at: [9300, 6700], r: 650, n: 8 },
+  { name: 'Sentier du Grand Fjord', mtb: true, at: [-4300, -400], r: 650, n: 8 },
+  { name: 'Sentier des Bouleaux', mtb: true, at: [-1600, 3300], r: 800, n: 8 },
   // Petites boucles : cyclo-cross sur la toundra des Mille-Lacs (mousses, sable, terre) et bike park de Fjellheim.
-  { name: 'Cyclo-cross de la Toundra', at: [5000, 4300], r: 340, n: 6 },
-  { name: 'Bike park de Fjellheim', mtb: true, at: [-7650, -4750], r: 380, n: 7, seed: 3 },
+  { name: 'Cyclo-cross de la Toundra', at: SPOTS.cycloCross, r: 340, n: 6 },
+  { name: 'Bike park de Fjellheim', mtb: true, at: SPOTS.bikePark, r: 380, n: 7, seed: 3 },
 ];
 
 /**
@@ -340,21 +337,21 @@ const TRAILS: Trail[] = [
  * mousses (grass), roche (rock). Les sentiers restent étroits, quelques chemins s'ouvrent à 4,4 m.
  */
 const SKIN: Record<string, Array<[surface: string, width: number]>> = {
-  'Chemin des Rennes': [['pebblestone', 3], ['gravel', 3.4], ['fine_gravel', 2.8]],
   'Chemin de Vidda': [['fine_gravel', 4.2], ['gravel', 3.2], ['pebblestone', 3.4]],
   'Chemin des Mille-Lacs': [['fine_gravel', 3.6], ['pebblestone', 2.8], ['gravel', 3.2]],
-  'Chemin de la Saumonée': [['fine_gravel', 4.4], ['gravel', 3.4], ['fine_gravel', 2.8]],
-  'Sentier des Bouleaux': [['dirt', 2.4], ['earth', 2.2], ['grass', 2.6]],
+  'Chemin des Skerries': [['pebblestone', 3], ['gravel', 3.4], ['fine_gravel', 2.8]],
   'Chemin des Marais': [['fine_gravel', 3.6], ['gravel', 2.8]],
   'Chemin des Pêcheurs': [['pebblestone', 2.8], ['fine_gravel', 3.2], ['gravel', 3.6]],
-  'Chemin des Galets': [['pebblestone', 3], ['gravel', 2.6], ['fine_gravel', 3.4]],
   'Chemin de la Toundra': [['gravel', 3.6], ['fine_gravel', 4.4], ['pebblestone', 2.8], ['gravel', 2.6]],
+  'Chemin des Tourbières': [['fine_gravel', 4.4], ['gravel', 3.4], ['fine_gravel', 2.8]],
+  'Chemin du Glacier': [['pebblestone', 3], ['gravel', 2.6], ['fine_gravel', 3.4]],
   'Sentier des Lemmings': [['grass', 2.6], ['rock', 2.2], ['dirt', 2]],
   'Sentier de la Dent du Renne': [['rock', 2.4], ['dirt', 2], ['grass', 2.6], ['rock', 2]],
   'Descente du Renne': [['dirt', 2.2], ['rock', 2.6], ['earth', 2]],
   'Sentier des Gorges': [['earth', 2], ['rock', 2.4], ['dirt', 2.2]],
   'Sentier de Skarvik': [['rock', 2.2], ['earth', 2], ['grass', 2.4]],
-  'Sentier du Grand Lac': [['dirt', 2.2], ['earth', 1.9], ['grass', 2.6]],
+  'Sentier du Grand Fjord': [['dirt', 2.2], ['earth', 1.9], ['grass', 2.6]],
+  'Sentier des Bouleaux': [['dirt', 2.4], ['earth', 2.2], ['grass', 2.6]],
   'Cyclo-cross de la Toundra': [['grass', 3], ['sand', 2.8], ['earth', 2.6], ['grass', 3.2]],
   'Bike park de Fjellheim': [['dirt', 2.4], ['earth', 2.2], ['rock', 2.4]],
 };
@@ -374,8 +371,8 @@ export function pruneMesh(roads: Road[], profiles: boolean): Road[] {
     const graph = buildGraph(list);
     const bad = new Set<Road>();
     const near = (r: Road, x: number, z: number) => r.pts.some((p) => Math.hypot(p[0] - x, p[2] - z) < 2.5);
-    const drop = (name: string, x: number, z: number) => {
-      if (!MESH_NAMES.has(name)) return false;
+    const drop = (name: string, x: number, z: number, island = false) => {
+      if (!MESH_NAMES.has(name) && !island) return false;
       const r = list.find((q) => q.name === name && !bad.has(q) && near(q, x, z));
       if (r) bad.add(r);
       return !!r;
@@ -458,12 +455,17 @@ export function pruneMesh(roads: Road[], profiles: boolean): Road[] {
     for (let i = 0; i < parent.length; i++) size.set(find(i), (size.get(find(i)) ?? 0) + 1);
     const main = [...size].sort((a, b) => b[1] - a[1])[0]![0];
     for (const e of graph.edges) {
-      if (!MESH_NAMES.has(e.name ?? '')) continue;
       const mid = Math.floor(e.pts.length / 6) * 3;
+      // Bouts de chemins détachés du réseau (raccord impossible en montagne) : retirés aussi.
+      if (e.kind === 'track' && find(e.a) !== main) {
+        drop(e.name ?? '', e.pts[mid]!, e.pts[mid + 2]!, true);
+        continue;
+      }
+      if (!MESH_NAMES.has(e.name ?? '')) continue;
       if (find(e.a) !== main || ((deg.get(e.a) === 1 || deg.get(e.b) === 1) && e.len < 320)) drop(e.name ?? '', e.pts[mid]!, e.pts[mid + 2]!);
     }
     if (!bad.size) break;
-    list = list.filter((r) => !bad.has(r) || !mesh(r));
+    list = list.filter((r) => !bad.has(r) || !(mesh(r) || r.kind === 'track'));
   }
   return list;
 }
@@ -514,95 +516,56 @@ function meshRoads(P: Plan): void {
   log(`maillage : ${pts.length} carrefours, ${made} petites routes`);
 }
 
-/** Tour du lac de Robert : points sur une ellipse autour de la rive (à `k` × les demi-axes). */
-export function lakeRing(k: number, n: number): Vec2[] {
-  const l = LAKES.find((q) => q.id === 'lac-de-robert')!;
-  return Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
-    const ex = Math.cos(a) * (l.rx * k + 160);
-    const ez = Math.sin(a) * (l.rz * k + 260);
-    return [l.x + ex * Math.cos(l.rot) - ez * Math.sin(l.rot), l.z + ex * Math.sin(l.rot) + ez * Math.cos(l.rot)] as Vec2;
-  });
-}
+/** Point de la vallée du Grand Fjord où part la vallée de la Myra (vers Port-Boréal). */
+export const MYRA: Vec2 = [-2900, 1050];
 
-export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, farms: Array<{ gate: Vec2 }>): { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; foot: Vec2; lake: Vec2[] } {
-  // Grand Nord : pas de grandes routes (« secondary ») ; en terrain accidenté, leurs virages restent trop serrés.
+export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, farms: Array<{ gate: Vec2 }>): { col: Vec2; foot: Vec2; top: Vec2 } {
+  // Grand Nord : pas de grandes routes (« secondary ») ; en montagne, leurs virages restent trop serrés.
   const C = { ...CLASSES, secondary: CLASSES.tertiary };
   const town = (id: string) => TOWNS.find((t) => t.id === id)!;
   const G = (id: string, toward: Vec2 | string) => nearestGate(gates, id, typeof toward === 'string' ? [town(toward).x, town(toward).z] : toward);
-  // a. Route du tour du pays : points le long de la côte, villes côtières traversées par leurs rues.
-  const ring: Array<{ p: Vec2; ang: number }> = [];
-  for (let k = 0; k < 30; k++) {
-    const ang = -Math.PI + (k / 30) * 2 * Math.PI;
-    let inset = 520;
-    let p = coastPoint(ang, inset);
-    const steepAt = (q: Vec2) => {
-      const h = terrain(q[0], q[1]);
-      return Math.max(...[[60, 0], [-60, 0], [0, 60], [0, -60]].map(([dx, dz]) => Math.abs(terrain(q[0] + dx!, q[1] + dz!) - h))) > 4.5;
-    };
-    while (inset < 3600 && (P.grid.block[P.grid.cellAt(p[0], p[1])] || P.grid.water[P.grid.cellAt(p[0], p[1])] || steepAt(p) || TOWNS.some((t) => Math.hypot(t.x - p[0], t.z - p[1]) < t.r * 1.6))) {
-      inset += 120;
-      p = coastPoint(ang, inset);
-    }
-    // Massif de l'Aigle : pas de point imposé, la route le contourne d'elle-même.
-    if (Math.min(Math.hypot(p[0] - MASSIF.phare[0], p[1] - MASSIF.phare[1]), Math.hypot(p[0] - MASSIF.mont[0], p[1] - MASSIF.mont[1])) < 3600 || inset >= 3600) continue;
-    ring.push({ p, ang });
-  }
-  for (const id of ['port-boreal', 'skarvik', 'nordvik', 'myrbu', 'isbrevik', 'ferjeby', 'utnes']) {
-    const t = town(id);
-    const ang = Math.atan2(t.z, t.x);
-    const tg = gates.filter((g) => g.town === id);
-    const ga = tg.map((g) => ({ p: g.p, ang: Math.atan2(g.p[1], g.p[0]) }));
-    ga.sort((a, b) => a.ang - b.ang);
-    const first = ga[0]!;
-    const last = ga[ga.length - 1]!;
-    for (let k = ring.length - 1; k >= 0; k--) if (Math.abs(angle(ring[k]!.ang - ang)) < 0.12) ring.splice(k, 1);
-    ring.push({ p: first.p, ang: first.ang - 1e-4 }, { p: last.p, ang: last.ang + 1e-4 });
-  }
-  ring.sort((a, b) => a.ang - b.ang);
   const steep = { ...C.lane, gmax: 0.14 };
-  for (let k = 0; k < ring.length; k++) {
-    const a = ring[k]!;
-    const b = ring[(k + 1) % ring.length]!;
-    const sameTown = gates.find((g) => g.p === a.p)?.town && gates.find((g) => g.p === a.p)?.town === gates.find((g) => g.p === b.p)?.town;
-    if (sameTown) continue;
-    // En montagne, route de rang inférieur : ses lacets peuvent être serrés (rayon de 2,5 m admis, 7,5 m pour les grandes routes).
-    const high = [a.p, b.p].some((p) => terrain(p[0], p[1]) > 140 || chainAt(p[0], p[1]).d < 5000);
-    connect(P, a.p, b.p, high ? [C.tertiary, C.lane, steep] : [C.secondary, C.tertiary, C.lane, steep], 'Route du Tour du Grand Nord', 220);
-  }
-  // b. Grands axes depuis Valrobert, route des Gorges (Pont-de-Robine → Le Planay, au fond de la Robine).
-  for (const to of ['port-boreal', 'vatnby', 'granlia', 'mille-lacs']) connect(P, G('nordrobert', to), G(to, 'nordrobert'), [C.secondary, C.tertiary, C.lane], routeTo(town(to).name));
-  connect(P, G('mille-lacs', 'fossbru'), G('fossbru', 'mille-lacs'), [C.secondary, C.tertiary, C.lane], 'Route des Mille-Lacs');
-  connect(P, G('fossbru', 'rennesby'), G('rennesby', 'fossbru'), [C.secondary, C.tertiary, C.lane, steep], 'Route des Gorges', 240);
-  // c. Routes communales.
-  const tert: Array<[string, string]> = [
-    ['rennesby', 'nordrobert'], ['rennesby', 'vatnby'], ['vatnby', 'granlia'], ['skarvik', 'fossbru'],
-    ['vidda', 'fossbru'], ['vidda', 'skarvik'], ['granlia', 'myrbu'],
-  ];
-  tert.push(['ferjeby', 'vidda'], ['utnes', 'vidda']);
-  for (const [a, b] of tert) connect(P, G(a, b), G(b, a), [C.tertiary, C.lane, steep], routeTo(town(b).name), 200);
-  // Pralong : la route de la station (lacets dessinés) descend jusqu'au pied, raccordé à Bellerive et Sainte-Marthe.
-  const pb = gates.find((g) => g.town === 'fjellheim-bas')!.p;
-  connect(P, pb, G('vatnby', pb), [C.tertiary, C.lane, steep], 'Route de Fjellheim', 200);
-  connect(P, pb, G('granlia', pb), [C.tertiary, C.lane, steep], 'Route de Fjellheim', 200);
-  // Lac de Robert : pas de tour complet (la rive nord, au pied de la chaîne, est trop raide) ; voie verte et routes au sud.
-  const lake: Vec2[] = [];
+  const road = [C.tertiary, C.lane, steep];
+  const link = (a: string, b: string, name = routeTo(town(b).name), box = 240) => connect(P, G(a, b), G(b, a), road, name, box);
+  // a. Haut-plateau de Vidda : Nordrobert, Vidda, les Mille-Lacs, Rennesby, le Circuit.
+  link('nordrobert', 'vidda');
+  link('nordrobert', 'mille-lacs');
+  link('vidda', 'mille-lacs');
+  link('rennesby', 'nordrobert');
+  link('rennesby', 'vidda');
   const anneauGate = (k: number) => gates.filter((g) => g.town === 'anneau')[k]!.p;
-  connect(P, anneauGate(0), G('nordrobert', anneauGate(0)), [C.tertiary, C.lane, steep], 'Route du Circuit');
-  connect(P, anneauGate(3), G('port-boreal', anneauGate(3)), [C.tertiary, C.lane, steep], 'Route du Circuit');
-  connect(P, anneauGate(1), G('granlia', anneauGate(1)), [C.tertiary, C.lane, steep], 'Route du Circuit');
-  // d. Col de l'Aigle (routes dessinées en lacets) : le pied du versant nord rejoint le réseau.
+  connect(P, anneauGate(0), G('nordrobert', anneauGate(0)), road, 'Route du Circuit');
+  connect(P, anneauGate(3), G('mille-lacs', anneauGate(3)), road, 'Route du Circuit');
+  // b. Vallées qui descendent du plateau aux fonds de fjords.
+  link('mille-lacs', 'sorvik', 'Route de Sørvik');
+  link('vidda', 'skarvik', 'Route de Skarvik');
+  link('vidda', 'fossbru', 'Route des Gorges');
+  connect(P, anneauGate(1), G('vatnby', anneauGate(1)), road, 'Route du Grand Fjord', 260);
+  // Vallée de la Myra : de la route du Grand Fjord jusqu'à Port-Boréal ; strandflat et rive du Grand Fjord.
+  connect(P, G('port-boreal', MYRA), MYRA, road, 'Route de la Myra', 260);
+  link('port-boreal', 'myrbu', 'Route du Strandflat');
+  link('myrbu', 'granlia', 'Route du Strandflat');
+  link('granlia', 'vatnby', 'Route du Grand Fjord', 300);
+  link('vatnby', 'fjellheim', 'Route du Col de Vatnby', 260);
+  // c. Fjord du Bac (les deux rives jusqu'aux embarcadères), vallée des Lemmings (Isbrevik → Nordvik).
+  link('fossbru', 'ferjeby', 'Route du Bac');
+  link('fossbru', 'utnes', 'Route du Bac');
+  link('isbrevik', 'nordvik', 'Route des Lemmings', 260);
+  // d. Col du Renne (routes dessinées en lacets) : le pied du versant nord rejoint Nordvik.
   const col = gates.find((g) => g.town === 'col')!.p;
   const foot = gates.find((g) => g.town === 'col-nord')!.p;
-  if (!connect(P, foot, G('nordvik', foot), [{ ...C.tertiary, gmax: 0.1 }, steep], "Route du Col du Renne", 250)) {
+  if (!connect(P, foot, G('nordvik', foot), [{ ...C.tertiary, gmax: 0.1 }, steep], 'Route du Col du Renne', 250)) {
     P.failed.pop();
-    spur(P, foot, steep, 5, "Route du Col du Renne", 300);
+    spur(P, foot, steep, 5, 'Route du Col du Renne', 300);
   }
-  // e. Pistes cyclables.
+  // Montée de la Calotte : de Fjellheim, au fond de son fjord, jusqu'au refuge au bord de la glace, par le vallon.
+  const top: Vec2 = SPOTS.refuge;
+  connect(P, G('fjellheim', top), top, [{ ...C.lane, gmax: 0.12 }, steep], 'Route de la Calotte', 300);
+  // e. Pistes cyclables et voies vertes (plateau, strandflat).
   const cyc = [C.cycleway, { ...C.cycleway, gmax: 0.06 }];
   connect(P, G('nordrobert', anneauGate(2)), anneauGate(2), cyc, 'La Piste du Circuit');
-  connect(P, G('granlia', 'myrbu'), G('myrbu', 'granlia'), cyc, 'Voie verte de la Saumonée');
-  connect(P, G('vatnby', 'nordrobert'), G('nordrobert', 'vatnby'), cyc, 'Voie verte du Grand Lac');
+  connect(P, G('port-boreal', 'myrbu'), G('myrbu', 'port-boreal'), cyc, 'Voie verte des Skerries');
+  connect(P, G('nordrobert', 'mille-lacs'), G('mille-lacs', 'nordrobert'), cyc, 'Voie verte des Mille-Lacs');
   // f. Chemins des fermes, puis maillage de petites routes.
   for (const f of farms) spur(P, f.gate, C.lane, 5, 'Chemin rural');
   meshRoads(P);
@@ -621,28 +584,29 @@ export function planNetwork(P: Plan, gates: Array<{ p: Vec2; town?: string }>, f
   const loopConnect = (pts: Vec2[], cls: RoadClass[], label: string) => {
     const good = pts.filter(okPt);
     for (let k = 0; k < good.length; k++) connect(P, good[k]!, good[(k + 1) % good.length]!, cls, label);
-    if (good[0]) spur(P, good[0], cls[0]!, 5, label);
-    if (good.length > 3) spur(P, good[Math.floor(good.length / 2)]!, cls[0]!, 5, label);
+    // Raccords aux routes principales (le maillage de petites routes peut être retiré ensuite).
+    const hook = (p: Vec2) => {
+      if (!spur(P, p, cls[0]!, 6, label, 200)) {
+        P.failed.pop();
+        spur(P, p, cls[0]!, 5, label);
+      }
+    };
+    if (good[0]) hook(good[0]);
+    if (good.length > 3) hook(good[Math.floor(good.length / 2)]!);
     return good;
   };
-  // g. Gravel : chemin des Alpages (au-dessus de Pralong), chemin des Salins (autour de l'étang).
-  const bois: Vec2[] = [];
-  loopConnect(loopPts(LAKES[0]!.x, LAKES[0]!.z, 1500, 7, 0.3), [C.track], 'Chemin des Marais');
-  // h. VTT : sentiers de chaque région (TRAILS).
-  let mtb: Vec2[] = [];
+  // g. Gravel et VTT : chemins et sentiers de chaque région (TRAILS).
   for (const [k0, t] of TRAILS.entries()) {
     const cls = t.mtb ? [C.mtb, { ...C.mtb, gmax: 0.24 }] : [C.track, { ...C.track, gmax: 0.16 }];
-    if ('r' in t) {
-      const good = loopConnect(loopPts(t.at[0], t.at[1], t.r, t.n, t.mtb ? 0.65 : 0.45, rng(7100 + k0 + (t.seed ?? 0))), cls, t.name);
-      if (t.name === 'Sentier des Lemmings') mtb = good;
-    } else {
+    if ('r' in t) loopConnect(loopPts(t.at[0], t.at[1], t.r, t.n, t.mtb ? 0.65 : 0.45, rng(7100 + k0 + (t.seed ?? 0))), cls, t.name);
+    else {
       const pts = t.line.filter(okPt);
       const occ0 = new Set(pts.filter((p) => P.grid.occ[P.grid.cellAt(p[0], p[1])]! >= 5));
       for (let k = 0; k + 1 < pts.length; k++) connect(P, pts[k]!, pts[k + 1]!, cls, t.name);
       for (const p of [pts[0], pts[pts.length - 1]]) if (p && !occ0.has(p)) spur(P, p, cls[0]!, 5, t.name);
     }
   }
-  return { ring: ring.map((q) => q.p), bois, mtb, col, foot, lake };
+  return { col, foot, top };
 }
 
 const angle = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -686,6 +650,48 @@ function fillet(pts: Vec2[], R: number): Vec2[] {
   }
   out.push(pts[pts.length - 1]!);
   return out;
+}
+
+/**
+ * Chemins et sentiers : les virages trop serrés (rayon < 5 m sur une corde de 2 × 6 m, contrôle à 4 m) sont adoucis
+ * en rapprochant le point du milieu de ses voisins ; les bouts (carrefours) ne bougent pas.
+ */
+function easeTracks(roads: Road[]): void {
+  const radius = (a: Vec3, b: Vec3, c: Vec3) => {
+    const ab = Math.hypot(b[0] - a[0], b[2] - a[2]);
+    const bc = Math.hypot(c[0] - b[0], c[2] - b[2]);
+    const ca = Math.hypot(a[0] - c[0], a[2] - c[2]);
+    const area2 = Math.abs((b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0]));
+    return area2 < 1e-9 ? Infinity : (ab * bc * ca) / (2 * area2);
+  };
+  for (const r of roads) {
+    if (r.kind !== 'track' || !GRAVELLY.has(r.surface) || r.pts.length < 9) continue;
+    const P = r.pts;
+    let touched = false;
+    for (let it = 0; it < 40; it++) {
+      let moved = false;
+      for (let i = 4; i < P.length - 4; i++) {
+        if (radius(P[i - 3]!, P[i]!, P[i + 3]!) >= 5) continue;
+        for (let k = i - 2; k <= i + 2; k++) {
+          P[k]![0] = (P[k - 1]![0] + 2 * P[k]![0] + P[k + 1]![0]) / 4;
+          P[k]![2] = (P[k - 1]![2] + 2 * P[k]![2] + P[k + 1]![2]) / 4;
+        }
+        moved = true;
+        touched = true;
+      }
+      if (!moved) break;
+    }
+    if (!touched) continue;
+    // Tracé rééchantillonné tous les 2 m, profil recalculé sur le relief (bouts à leur altitude : carrefours).
+    const ya = P[0]![1];
+    const yb = P[P.length - 1]![1];
+    const xz = resample(P.map((p) => [p[0], p[2]] as Vec2), 2);
+    const last = P[P.length - 1]!;
+    if (Math.hypot(xz[xz.length - 1]![0] - last[0], xz[xz.length - 1]![1] - last[2]) > 0.3) xz.push([last[0], last[2]]);
+    else xz[xz.length - 1] = [last[0], last[2]];
+    const y = profile(xz, false, 24, 0.165, ya, yb);
+    r.pts = xz.map(([x, z], i) => [x, y[i]!, z] as Vec3);
+  }
 }
 
 /** Douglas-Peucker : retire les marches de la grille (écart toléré `tol` m), extrémités gardées. */
@@ -879,7 +885,7 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
     const held = new Uint8Array(n);
     if (STRAIGHT_M <= 0 || n < 150) return { pts: d, held };
     // Versants du Phare : les lacets suivent la pente.
-    if (d.some((p) => chainAt(p[0], p[1]).d < 2500 || Math.hypot(p[0] - MASSIF.mont[0], p[1] - MASSIF.mont[1]) < 4500 || Math.hypot(p[0] - MASSIF.phare[0], p[1] - MASSIF.phare[1]) < 4500)) return { pts: d, held };
+    if (d.some((p) => mountainous(p[0], p[1]) > 0.5 || Math.hypot(p[0] - MASSIF.mont[0], p[1] - MASSIF.mont[1]) < 4500 || Math.hypot(p[0] - MASSIF.phare[0], p[1] - MASSIF.phare[1]) < 4500)) return { pts: d, held };
     const busy = new Uint8Array(n);
     for (const p of pins) {
       let best = 0;
@@ -1047,7 +1053,7 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
       if (skins) counts.set(`·${e.label}`, nth + 1);
       const [surface, width] = skins ? skins[nth % skins.length]! : [cls.surface, cls.width];
       // Plafond un peu sous les limites des contrôles (route 17 %, chemin gravel 20 %, sentier 27 %, mesurées sur 10 m).
-      const cap = Math.min(cls.kind === 'track' ? (GRAVELLY.has(surface) ? 0.185 : 0.26) : cls.kind === 'cycleway' ? 0.05 : 0.145, Math.max(cls.gmax + 0.005, steepest * 1.05));
+      const cap = Math.min(cls.kind === 'track' ? (GRAVELLY.has(surface) ? 0.165 : 0.235) : cls.kind === 'cycleway' ? 0.05 : 0.145, Math.max(cls.gmax + 0.005, steepest * 1.05));
       const y = profile(xz, false, cls.id === 'track' ? 24 : cls.id === 'mtb' ? 40 : 30, cap, endY(xz[0]!), endY(xz[xz.length - 1]!));
       const n = (counts.get(cls.id) ?? 0) + 1;
       counts.set(cls.id, n);
@@ -1085,12 +1091,13 @@ export function networkRoads(grid: Grid, designed: Road[], gates: Array<{ p: Vec
 
 // ── 4. Itinéraires ──
 
-export function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: Vec2; foot: Vec2; lake: Vec2[]; pralongBas: Vec2 }): RouteSpec[] {
+export function routeSpecs(net: { col: Vec2; foot: Vec2; top: Vec2; climbFoot: Vec2 }): RouteSpec[] {
   const t = (id: string): Vec2 => {
     const q = TOWNS.find((x) => x.id === id)!;
     return [q.x, q.z];
   };
   const L = (name: string, p: Vec2) => ({ name, x: p[0], z: p[1] });
+  const S = (name: string, p: Vec2, lengthM?: number) => ({ name, x: p[0], z: p[1], ...(lengthM ? { lengthM } : {}) });
   const pa = TOWNS.find((x) => x.id === 'port-boreal')!;
   const ang = Math.atan2(pa.z, pa.x);
   const east = ang - 0.055;
@@ -1100,54 +1107,64 @@ export function routeSpecs(net: { ring: Vec2[]; bois: Vec2[]; mtb: Vec2[]; col: 
   const u: Vec2 = [Math.cos(vr.angle), Math.sin(vr.angle)];
   const v: Vec2 = [-u[1], u[0]];
   const V = (a: number, b: number): Vec2 => [vr.x + (a * u[0] + b * v[0]) * vr.r, vr.z + (a * u[1] + b * v[1]) * vr.r];
-  const lake = LAKES.find((l) => l.id === 'lac-de-robert')!;
   const glacierFront: Vec2 = [(GLACIER.to[0] + GLACIER.head[0]) / 2, (GLACIER.to[1] + GLACIER.head[1]) / 2];
+  const cap: Vec2 = [CAP.x, CAP.z];
+  const myraMid: Vec2 = [-5200, 6000];
+  const skerries = coastPoint(2.45, 1350);
+  const marais = coastPoint(2.84, 1150);
+  /** Quatre points autour d'un centre (boucle gravel ou VTT suivie par ses chemins). */
+  const ring4 = (c: Vec2, R: number): Vec2[] => [0, 1, 2, 3].map((k) => [c[0] + Math.cos((k * Math.PI) / 2) * R * 1.15, c[1] + Math.sin((k * Math.PI) / 2) * R * 0.9] as Vec2);
   return [
-    // Découverte (≈ 8 km, en tête de liste) : de Nordrobert au Circuit par la piste et la route du Circuit.
-    { id: 'decouverte-du-grand-nord', name: 'Découverte du Grand Nord', nameEn: 'Far North discovery ride', loop: true, mode: 'road', waypoints: [t('nordrobert'), [-4200, 1800], [-3600, 2900]], landmarks: [L('Nordrobert', t('nordrobert')), L('Église de Nordrobert', V(0.1, -0.1))] },
-    // Classiques et chrono.
-    { id: 'classique-des-fjords', name: 'La Classique des Fjords', nameEn: 'Fjords Classic', loop: false, mode: 'road', waypoints: [t('port-boreal'), t('mille-lacs'), t('nordrobert'), t('vatnby'), t('rennesby'), net.col, t('isbrevik')], hairpins: true, climbNames: ['Col du Renne'], sprints: [{ name: 'Sprint des Mille-Lacs', x: t('mille-lacs')[0], z: t('mille-lacs')[1] }, { name: 'Sprint de Vatnby', x: t('vatnby')[0], z: t('vatnby')[1] }], landmarks: [L('Port-Boréal', t('port-boreal')), L('Les Mille-Lacs', t('mille-lacs')), L('Nordrobert', t('nordrobert')), L('Le Grand Lac', [lake.x, lake.z]), L('Col du Renne', net.col), L('Fjord du Glacier', glacierFront), L('Isbrevik', t('isbrevik'))] },
-    { id: 'chrono-du-fjord', name: 'Le chrono du Fjord', nameEn: 'Fjord time trial', loop: false, mode: 'road', waypoints: [t('nordvik'), t('isbrevik')], landmarks: [L('Nordvik', t('nordvik')), L('Isbrevik', t('isbrevik')), L('Fjord du Glacier', glacierFront)] },
+    // Découverte (≈ 8 km, en tête de liste) : de Nordrobert au Circuit et aux Mille-Lacs, sur la toundra du plateau.
+    { id: 'decouverte-du-grand-nord', name: 'Découverte du Grand Nord', nameEn: 'Far North discovery ride', loop: true, mode: 'road', waypoints: [t('nordrobert'), ANNEAU_GATES[0]!, t('mille-lacs')], landmarks: [L('Nordrobert', t('nordrobert')), L('Circuit du Grand Nord', [ANNEAU.cx, ANNEAU.cz]), L('Les Mille-Lacs', t('mille-lacs'))] },
+    // Classiques et chronos.
+    { id: 'classique-des-fjords', name: 'La Classique des Fjords', nameEn: 'Fjords Classic', loop: false, mode: 'road', waypoints: [t('port-boreal'), myraMid, t('nordrobert'), t('rennesby'), net.col, t('nordvik'), t('isbrevik')], hairpins: true, climbNames: ['Col du Renne'], sprints: [S('Sprint de la Myra', myraMid), S('Sprint de Nordrobert', t('nordrobert'))], landmarks: [L('Port-Boréal', t('port-boreal')), L('Vallée de la Myra', myraMid), L('Nordrobert', t('nordrobert')), L('Col du Renne', net.col), L('Nordvik', t('nordvik')), L('Fjord du Glacier', glacierFront), L('Isbrevik', t('isbrevik'))] },
+    { id: 'chrono-du-fjord', name: 'Le chrono du Fjord', nameEn: 'Fjord time trial', loop: false, mode: 'road', waypoints: [t('nordvik'), t('isbrevik')], landmarks: [L('Nordvik', t('nordvik')), L('Vallée des Lemmings', [2200, -6900]), L('Isbrevik', t('isbrevik'))] },
+    { id: 'chrono-de-la-saumonee', name: 'Le chrono de la Saumonée', nameEn: 'Salmon river time trial', loop: false, mode: 'road', waypoints: [ANNEAU_GATES[1]!, t('vatnby')], landmarks: [L('Circuit du Grand Nord', [ANNEAU.cx, ANNEAU.cz]), L('Vallée du Grand Fjord', [-1500, 1500]), L('Vatnby', t('vatnby'))] },
     { id: 'aurores-de-nuit', name: 'Les Aurores de nuit', nameEn: 'Northern lights night climb', loop: false, mode: 'road', waypoints: [t('rennesby'), MASSIF.phare], hairpins: true, climbNames: ['Montée du Belvédère des Aurores'], landmarks: [L('Rennesby', t('rennesby')), L('Belvédère des Aurores', MASSIF.phare)] },
-    // Route.
-    { id: 'col-du-renne', name: 'La traversée du Col du Renne', nameEn: 'Reindeer pass traverse', loop: false, mode: 'road', waypoints: [t('rennesby'), net.col, net.foot], hairpins: true, climbNames: ['Col du Renne, versant sud'], landmarks: [L('Rennesby', t('rennesby')), L('Col du Renne', net.col), L('Vallée de la Vik', net.foot)] },
-    { id: 'col-du-renne-par-nordvik', name: 'Le Col du Renne par Nordvik', nameEn: 'Reindeer pass from the north', loop: false, mode: 'road', waypoints: [net.foot, net.col, t('rennesby')], hairpins: true, climbNames: ['Col du Renne, versant nord'], landmarks: [L('Vallée de la Vik', net.foot), L('Col du Renne', net.col), L('Rennesby', t('rennesby'))] },
-    { id: 'montee-de-fjellheim', name: 'La montée de Fjellheim', nameEn: 'Fjellheim climb', loop: false, mode: 'road', waypoints: [net.pralongBas, [-8469, -5096]], hairpins: true, climbNames: ['Montée de Fjellheim'], landmarks: [L('Fjellheim', t('fjellheim')), L('Lac de Fjellheim', [-8950, -5850])] },
-    { id: 'gorges-de-la-renne', name: 'Les gorges de la Renne', nameEn: 'Renne gorges', loop: false, mode: 'road', waypoints: [t('fossbru'), [6900, -300], t('rennesby')], landmarks: [L('Fossbru', t('fossbru')), L('Les Gorges', [6900, -300]), L('Rennesby', t('rennesby'))] },
-    { id: 'tour-du-grand-nord', name: 'Le Tour du Grand Nord', nameEn: 'Round the Far North', loop: true, mode: 'road', waypoints: [t('port-boreal'), t('myrbu'), t('granlia'), t('vatnby'), t('rennesby'), t('fossbru'), t('vidda'), t('utnes'), t('skarvik')], sprints: [{ name: 'Sprint de Granlia', x: t('granlia')[0], z: t('granlia')[1] }, { name: 'Sprint de Port-Boréal', x: t('port-boreal')[0], z: t('port-boreal')[1] }], landmarks: TOWNS.filter((x) => ['port-boreal', 'myrbu', 'granlia', 'vatnby', 'rennesby', 'vidda', 'utnes', 'skarvik'].includes(x.id)).map((x) => L(x.name, [x.x, x.z])) },
+    // Route : cols et montées.
+    { id: 'col-du-renne', name: 'La traversée du Col du Renne', nameEn: 'Reindeer pass traverse', loop: false, mode: 'road', waypoints: [t('rennesby'), net.col, net.foot], hairpins: true, climbNames: ['Col du Renne, versant sud'], landmarks: [L('Rennesby', t('rennesby')), L('Col du Renne', net.col), L('Combe de Nordvik', net.foot)] },
+    { id: 'col-du-renne-par-nordvik', name: 'Le Col du Renne par Nordvik', nameEn: 'Reindeer pass from the north', loop: false, mode: 'road', waypoints: [t('nordvik'), net.foot, net.col, t('rennesby')], hairpins: true, climbNames: ['Col du Renne, versant nord'], landmarks: [L('Nordvik', t('nordvik')), L('Col du Renne', net.col), L('Rennesby', t('rennesby'))] },
+    { id: 'montee-de-fjellheim', name: 'La montée de la Calotte', nameEn: 'Ice cap climb from Fjellheim', loop: false, mode: 'road', waypoints: [net.climbFoot, net.top], hairpins: true, climbNames: ['Montée de la Calotte'], landmarks: [L('Fjellheim', t('fjellheim')), L('Refuge de la Calotte', SPOTS.refuge), L('Calotte de Robert', cap)] },
     { id: 'grand-tour-du-col', name: 'De Nordrobert à Nordvik par le col', nameEn: 'Nordrobert to Nordvik over the pass', loop: false, mode: 'road', waypoints: [t('nordrobert'), t('rennesby'), net.col, t('nordvik')], hairpins: true, climbNames: ['Col du Renne'], landmarks: [L('Nordrobert', t('nordrobert')), L('Col du Renne', net.col), L('Nordvik', t('nordvik'))] },
-    { id: 'criterium-de-nordrobert', name: 'Le critérium de Nordrobert', nameEn: 'Nordrobert criterium', loop: true, mode: 'road', waypoints: [V(-0.55, -0.36), V(0.55, -0.36), V(0.55, 0.36), V(-0.55, 0.36)], sprints: [{ name: 'Sprint de la Grand-Rue', x: V(0.3, 0)[0], z: V(0.3, 0)[1] }], landmarks: [L('Place de Nordrobert', t('nordrobert'))] },
-    { id: 'boucle-de-nordrobert', name: 'La boucle de Nordrobert', nameEn: 'Nordrobert loop', loop: true, mode: 'road', waypoints: [t('nordrobert'), ANNEAU_GATES[0]!, ANNEAU_GATES[3]!, t('mille-lacs')], sprints: [{ name: 'Sprint des Mille-Lacs', x: t('mille-lacs')[0], z: t('mille-lacs')[1] }], landmarks: [L('Nordrobert', t('nordrobert')), L('Circuit du Grand Nord', [ANNEAU.cx, ANNEAU.cz]), L('Les Mille-Lacs', t('mille-lacs'))] },
-    { id: 'route-des-pecheurs', name: 'La route des Pêcheurs', nameEn: 'Fishermen’s road', loop: true, mode: 'road', waypoints: [t('port-boreal'), t('skarvik'), t('mille-lacs')], sprints: [{ name: 'Sprint de Skarvik', x: t('skarvik')[0], z: t('skarvik')[1] }], landmarks: [L('Port-Boréal', t('port-boreal')), L('Skarvik', t('skarvik')), L('Les Mille-Lacs', t('mille-lacs'))] },
-    { id: 'haut-plateau-de-vidda', name: 'Le haut-plateau de Vidda', nameEn: 'Vidda high plateau', loop: true, mode: 'road', waypoints: [t('vidda'), t('skarvik'), t('fossbru')], landmarks: [L('Vidda', t('vidda')), L('Station météo de Vidda', [12700, -1700]), L('Fossbru', t('fossbru'))] },
-    { id: 'baie-et-mille-lacs', name: 'La baie et les Mille-Lacs', nameEn: 'Bay and thousand lakes', loop: true, mode: 'road', waypoints: [t('port-boreal'), t('mille-lacs'), t('nordrobert')], sprints: [{ name: 'Sprint des Bouleaux', x: coastPoint(ang, 800)[0], z: coastPoint(ang, 800)[1] }], landmarks: [L('Port-Boréal', t('port-boreal')), L('Cabane des Mille-Lacs', [4700, 4800])] },
-    { id: 'marais-de-myrbu', name: 'Les marais de Myrbu', nameEn: 'Myrbu marshes', loop: true, mode: 'road', waypoints: [t('granlia'), t('myrbu'), ANNEAU_GATES[1]!], landmarks: [L('Granlia', t('granlia')), L('Lagune des Cygnes', [LAKES[0]!.x, LAKES[0]!.z]), L('Myrbu', t('myrbu'))] },
-    { id: 'route-du-bac', name: 'La route du Bac', nameEn: 'Ferry road', loop: false, mode: 'road', waypoints: [t('vidda'), t('utnes')], landmarks: [L('Vidda', t('vidda')), L('Embarcadère d’Utnes', t('utnes'))] },
-    { id: 'chrono-de-la-saumonee', name: 'Le chrono de la Saumonée', nameEn: 'Salmon river time trial', loop: false, mode: 'road', waypoints: [t('nordrobert'), t('granlia')], landmarks: [L('Nordrobert', t('nordrobert')), L('Granlia', t('granlia'))] },
+    // Route : fjords et vallées.
+    { id: 'gorges-de-la-renne', name: 'Les gorges de la Renne', nameEn: 'Renne gorges', loop: false, mode: 'road', waypoints: [t('vidda'), t('fossbru')], landmarks: [L('Vidda', t('vidda')), L('Les Gorges', [9900, 100]), L('Fossbru', t('fossbru'))] },
+    { id: 'route-du-bac', name: 'La route du Bac', nameEn: 'Ferry road', loop: false, mode: 'road', waypoints: [t('ferjeby'), t('fossbru'), t('utnes')], landmarks: [L('Embarcadère de Ferjeby', t('ferjeby')), L('Fossbru', t('fossbru')), L('Embarcadère d’Utnes', t('utnes'))] },
+    { id: 'route-de-sorvik', name: 'La descente sur Sørvik', nameEn: 'Down to Sørvik', loop: false, mode: 'road', waypoints: [t('mille-lacs'), t('sorvik')], landmarks: [L('Les Mille-Lacs', t('mille-lacs')), L('Sørvik', t('sorvik'))] },
+    { id: 'route-de-skarvik', name: 'La route de Skarvik', nameEn: 'Skarvik road', loop: false, mode: 'road', waypoints: [t('vidda'), t('skarvik')], landmarks: [L('Vidda', t('vidda')), L('Skarvik', t('skarvik'))] },
+    { id: 'col-de-vatnby', name: 'Le col de Vatnby', nameEn: 'Vatnby pass', loop: false, mode: 'road', waypoints: [t('vatnby'), t('fjellheim')], landmarks: [L('Vatnby', t('vatnby')), L('Col de Vatnby', [-6700, -2900]), L('Fjellheim', t('fjellheim'))] },
+    { id: 'route-de-la-myra', name: 'La vallée de la Myra', nameEn: 'Myra valley', loop: false, mode: 'road', waypoints: [t('vatnby'), myraMid, t('port-boreal')], landmarks: [L('Vatnby', t('vatnby')), L('Vallée de la Myra', myraMid), L('Port-Boréal', t('port-boreal'))] },
+    { id: 'tour-du-grand-nord', name: 'Le Tour du Grand Nord', nameEn: 'Round the Far North', loop: true, mode: 'road', waypoints: [t('port-boreal'), t('myrbu'), t('granlia'), t('vatnby'), myraMid], sprints: [S('Sprint de Granlia', t('granlia')), S('Sprint de Vatnby', t('vatnby'))], landmarks: TOWNS.filter((x) => ['port-boreal', 'myrbu', 'granlia', 'vatnby'].includes(x.id)).map((x) => L(x.name, [x.x, x.z])) },
+    { id: 'route-des-pecheurs', name: 'La route des Pêcheurs', nameEn: 'Fishermen’s road', loop: false, mode: 'road', waypoints: [t('port-boreal'), t('myrbu'), t('granlia')], sprints: [S('Sprint de Myrbu', t('myrbu'))], landmarks: [L('Port-Boréal', t('port-boreal')), L('Myrbu', t('myrbu')), L('Granlia', t('granlia'))] },
+    { id: 'rive-du-grand-fjord', name: 'La rive du Grand Fjord', nameEn: 'Great fjord shore road', loop: false, mode: 'road', waypoints: [t('granlia'), t('vatnby')], landmarks: [L('Granlia', t('granlia')), L('Le Grand Fjord', [-10600, -800]), L('Vatnby', t('vatnby'))] },
+    // Route : le haut-plateau.
+    { id: 'criterium-de-nordrobert', name: 'Le critérium de Nordrobert', nameEn: 'Nordrobert criterium', loop: true, mode: 'road', waypoints: [V(-0.55, -0.36), V(0.55, -0.36), V(0.55, 0.36), V(-0.55, 0.36)], sprints: [S('Sprint de la Grand-Rue', V(0.3, 0))], landmarks: [L('Place de Nordrobert', t('nordrobert'))] },
+    { id: 'boucle-de-nordrobert', name: 'La boucle de Nordrobert', nameEn: 'Nordrobert loop', loop: true, mode: 'road', waypoints: [t('nordrobert'), t('vidda'), t('mille-lacs')], sprints: [S('Sprint de Vidda', t('vidda'))], landmarks: [L('Nordrobert', t('nordrobert')), L('Vidda', t('vidda')), L('Les Mille-Lacs', t('mille-lacs'))] },
+    { id: 'haut-plateau-de-vidda', name: 'Le haut-plateau de Vidda', nameEn: 'Vidda high plateau', loop: true, mode: 'road', waypoints: [t('vidda'), t('rennesby'), t('nordrobert'), t('mille-lacs')], landmarks: [L('Vidda', t('vidda')), L('Rennesby', t('rennesby')), L('Station météo de Vidda', SPOTS.meteo)] },
     // Pistes cyclables et voies vertes.
-    { id: 'promenade-de-port-boreal', name: 'La promenade de Port-Boréal', nameEn: 'Port-Boréal boardwalk', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], sprints: [{ name: 'Sprint de la Promenade', x: coastPoint(ang + 0.1, 125)[0], z: coastPoint(ang + 0.1, 125)[1], lengthM: 400 }], landmarks: [L('La Promenade', coastPoint(ang, 125)), L('Halle aux poissons', coastPoint(ang + 0.018, 230))] },
+    { id: 'promenade-de-port-boreal', name: 'La promenade de Port-Boréal', nameEn: 'Port-Boréal boardwalk', loop: true, mode: 'cycle', waypoints: [coastPoint(east + 0.006, 185), coastPoint(east + 0.006, 125), coastPoint(west - 0.006, 125), coastPoint(west - 0.006, 185), coastPoint(ang, 480)], sprints: [S('Sprint de la Promenade', coastPoint(ang + 0.1, 125), 400)], landmarks: [L('La Promenade', coastPoint(ang, 125)), L('Halle aux poissons', coastPoint(ang + 0.018, 230))] },
     { id: 'piste-du-circuit', name: 'La piste du Circuit', nameEn: 'Circuit cycleway', loop: true, mode: 'cycle', waypoints: [t('nordrobert'), ANNEAU_GATES[2]!, ANNEAU_GATES[0]!], landmarks: [L('Circuit du Grand Nord', [ANNEAU.cx, ANNEAU.cz]), L('Nordrobert', t('nordrobert'))] },
-    { id: 'voie-verte-de-la-saumonee', name: 'La voie verte de la Saumonée', nameEn: 'Salmon river greenway', loop: false, mode: 'cycle', waypoints: [t('granlia'), t('myrbu')], landmarks: [L('Myrbu', t('myrbu'))] },
-    { id: 'voie-verte-du-grand-lac', name: 'La voie verte du Grand Lac', nameEn: 'Great lake greenway', loop: false, mode: 'cycle', waypoints: [t('nordrobert'), t('vatnby')], landmarks: [L('Vatnby', t('vatnby')), L('Le Grand Lac', [lake.x, lake.z])] },
-    { id: 'velo-de-la-baie', name: 'La Vélo de la Baie', nameEn: 'Bay greenway', loop: false, mode: 'cycle', waypoints: [t('port-boreal'), t('mille-lacs')], landmarks: [L('Les Mille-Lacs', t('mille-lacs'))] },
+    { id: 'voie-verte-des-skerries', name: 'La voie verte des Skerries', nameEn: 'Skerries greenway', loop: false, mode: 'cycle', waypoints: [t('port-boreal'), t('myrbu')], landmarks: [L('Tourbière des Skerries', skerries), L('Myrbu', t('myrbu'))] },
+    { id: 'voie-verte-des-mille-lacs', name: 'La voie verte des Mille-Lacs', nameEn: 'Thousand lakes greenway', loop: false, mode: 'cycle', waypoints: [t('nordrobert'), t('mille-lacs')], landmarks: [L('Les Mille-Lacs', t('mille-lacs'))] },
     // Gravel.
-    { id: 'classique-de-la-toundra', name: 'La Classique de la Toundra', nameEn: 'Tundra Classic', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [[-10600, 3600], [-8200, 5600], [-5200, 6000], [-2200, 6300], [1200, 7300], t('mille-lacs')], sprints: [{ name: 'Sprint de la Toundra', x: -5200, z: 6000 }], landmarks: [L('Granlia', t('granlia')), L('La Toundra', [-5200, 6000]), L('Les Mille-Lacs', t('mille-lacs'))] },
-    { id: 'gravel-de-vidda', name: 'Gravel de Vidda', nameEn: 'Vidda gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin de Vidda', landmarks: [L('Haut-plateau de Vidda', [11000, 600])] },
-    { id: 'gravel-des-mille-lacs', name: 'Gravel des Mille-Lacs', nameEn: 'Thousand lakes gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Mille-Lacs', landmarks: [L('Cabane des Mille-Lacs', [4700, 4800])] },
-    { id: 'gravel-de-la-saumonee', name: 'Gravel de la Saumonée', nameEn: 'Salmon river gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin de la Saumonée', landmarks: [L('Delta de la Saumonée', [-13300, 2600])] },
-    { id: 'vtt-des-bouleaux', name: 'VTT des Bouleaux', nameEn: 'Birch MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Bouleaux', landmarks: [L('Les Bouleaux', [-900, -4200])] },
-    { id: 'gravel-des-marais', name: 'Gravel des Marais', nameEn: 'Marsh gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Marais', landmarks: [L('Lagune des Cygnes', [LAKES[0]!.x, LAKES[0]!.z])] },
-    { id: 'chemin-des-pecheurs', name: 'Le chemin des Pêcheurs', nameEn: 'Fishermen’s path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(0.52, 210), coastPoint(0.74, 210), coastPoint(0.95, 210)], landmarks: [L('Skarvik', t('skarvik'))] },
-    { id: 'chemin-des-galets', name: 'Le chemin des Galets', nameEn: 'Pebble point path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(2.12, 280), coastPoint(2.5, 280)], landmarks: [L('Pointe des Galets', coastPoint(2.32, 300))] },
-    { id: 'cyclo-cross-de-la-toundra', name: 'Le cyclo-cross de la Toundra', nameEn: 'Tundra cyclocross', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Cyclo-cross de la Toundra', landmarks: [L('Cyclo-cross', [5000, 4300])] },
+    { id: 'classique-de-la-toundra', name: 'La Classique de la Toundra', nameEn: 'Tundra Classic', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [[6700, 3900], [5000, 3900], [3500, 3600], [2100, 2200], [900, 1950]], sprints: [S('Sprint de la Toundra', [5000, 3900])], landmarks: [L('Les Mille-Lacs', t('mille-lacs')), L('La Toundra', [3500, 3600]), L('Vallée du Grand Fjord', [900, 1950])] },
+    { id: 'gravel-de-vidda', name: 'Gravel de Vidda', nameEn: 'Vidda gravel', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [t('mille-lacs'), [8550, 2570], t('vidda')], landmarks: [L('Haut-plateau de Vidda', [7700, 2100])] },
+    { id: 'gravel-des-mille-lacs', name: 'Gravel des Mille-Lacs', nameEn: 'Thousand lakes gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Mille-Lacs', landmarks: [L('Les Mille-Lacs', [4700, 1800])] },
+    { id: 'gravel-des-skerries', name: 'Gravel des Skerries', nameEn: 'Skerries gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: ring4(skerries, 800), landmarks: [L('Tourbière des Skerries', skerries)] },
+    { id: 'gravel-des-marais', name: 'Gravel des Marais', nameEn: 'Marsh gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Marais', landmarks: [L('Marais de Granlia', marais)] },
+    { id: 'chemin-des-pecheurs', name: 'Le chemin des Pêcheurs', nameEn: 'Fishermen’s path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [coastPoint(2.38, 300), coastPoint(2.56, 300)], landmarks: [L('Grève des Pêcheurs', coastPoint(2.47, 300))] },
+    { id: 'gravel-des-tourbieres', name: 'Gravel des Tourbières', nameEn: 'Peat bog gravel', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Chemin des Tourbières', landmarks: [L('Les Tourbières', coastPoint(1.97, 1000))] },
+    { id: 'chemin-du-glacier', name: 'Le chemin du Glacier', nameEn: 'Glacier path', loop: false, mode: 'gravel', bike: 'gravel', waypoints: [[-300, -7450], [-130, -6900]], landmarks: [L('Isbrevik', t('isbrevik')), L('Front du glacier', glacierFront)] },
+    { id: 'cyclo-cross-de-la-toundra', name: 'Le cyclo-cross de la Toundra', nameEn: 'Tundra cyclocross', loop: true, mode: 'gravel', bike: 'gravel', waypoints: [], along: 'Cyclo-cross de la Toundra', landmarks: [L('Cyclo-cross', SPOTS.cycloCross)] },
     // VTT.
-    { id: 'vtt-des-lemmings', name: 'VTT des Lemmings', nameEn: 'Lemming MTB trail', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[-7590, -7130], [-8413, -6849], [-8450, -6310], [-7708, -5550], [-7910, -4989]], landmarks: [L('Les Lemmings', [-7600, -6300])] },
-    { id: 'vtt-de-la-dent-du-renne', name: 'VTT de la Dent du Renne', nameEn: 'Reindeer tooth MTB loop', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier de la Dent du Renne', landmarks: [L('Dent du Renne', MASSIF.mont)] },
-    { id: 'descente-du-renne', name: 'La descente du Renne', nameEn: 'Reindeer downhill', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[3100, -5300], [2200, -3300]], sprints: [{ name: 'Chrono de la descente', x: 2200, z: -3300, lengthM: 1500 }], landmarks: [L('Balcon du Renne', [3100, -5300]), L('Rennesby', t('rennesby'))] },
-    { id: 'vtt-des-gorges', name: 'VTT des Gorges', nameEn: 'Gorges MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Gorges', landmarks: [L('Les Gorges', [7000, -300])] },
-    { id: 'vtt-de-skarvik', name: 'VTT de Skarvik', nameEn: 'Skarvik MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier de Skarvik', landmarks: [L('Landes de Skarvik', [9300, 7500])] },
-    { id: 'vtt-du-grand-lac', name: 'VTT du Grand Lac', nameEn: 'Great lake MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Grand Lac', landmarks: [L('Le Grand Lac', [lake.x, lake.z])] },
-    { id: 'bike-park-de-fjellheim', name: 'Le bike park de Fjellheim', nameEn: 'Fjellheim bike park', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[-7270, -5110], [-7830, -5170], [-7910, -4989], [-7148, -4687]], landmarks: [L('Bike park', [-7650, -4750])] },
+    { id: 'vtt-des-lemmings', name: 'VTT des Lemmings', nameEn: 'Lemming MTB trail', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[300, -7250], [2700, -7100]], landmarks: [L('Vallée des Lemmings', [1500, -7400])] },
+    { id: 'vtt-de-la-dent-du-renne', name: 'VTT de la Dent du Renne', nameEn: 'Reindeer tooth MTB trail', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[6690, -2490], [5710, -2130], [6749, -1650], [6310, -1530]], landmarks: [L('Dent du Renne', MASSIF.mont)] },
+    { id: 'descente-du-renne', name: 'La descente du Renne', nameEn: 'Reindeer downhill', loop: false, mode: 'mtb', bike: 'mtb', waypoints: [[4500, -3100], [4550, -1500]], sprints: [S('Chrono de la descente', [4550, -1500], 1300)], landmarks: [L('Balcon du Renne', [4500, -3100]), L('Lac du Renne', [3900, -2500])] },
+    { id: 'vtt-des-gorges', name: 'VTT des Gorges', nameEn: 'Gorges MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: ring4([9900, 1700], 500), landmarks: [L('Rebord des Gorges', [9900, 1700])] },
+    { id: 'vtt-de-skarvik', name: 'VTT de Skarvik', nameEn: 'Skarvik MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier de Skarvik', landmarks: [L('Landes de Skarvik', [9300, 6700])] },
+    { id: 'vtt-du-grand-fjord', name: 'VTT du Grand Fjord', nameEn: 'Great fjord MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier du Grand Fjord', landmarks: [L('Le Grand Fjord', [-4300, -400])] },
+    { id: 'vtt-des-bouleaux', name: 'VTT des Bouleaux', nameEn: 'Birch MTB trail', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Sentier des Bouleaux', landmarks: [L('Les Bouleaux', [-1600, 3300])] },
+    { id: 'bike-park-de-fjellheim', name: 'Le bike park de Fjellheim', nameEn: 'Fjellheim bike park', loop: true, mode: 'mtb', bike: 'mtb', waypoints: [], along: 'Bike park de Fjellheim', landmarks: [L('Bike park', SPOTS.bikePark)] },
   ];
 }
 
@@ -1210,6 +1227,7 @@ async function main(): Promise<void> {
   for (const f of P.failed) console.log(`   · impossible : ${f}`);
   const netRoads = networkRoads(grid, D.roads, D.gates);
   const quays = portRoads([...D.roads, ...netRoads]);
+  easeTracks(netRoads);
   const kept = pruneMesh([...D.roads, ...netRoads, ...quays], false);
   joinCrossings(kept);
   const roads = pruneMesh(kept, true);
@@ -1225,6 +1243,29 @@ async function main(): Promise<void> {
     const count = new Map<string, number>();
     const key = (p: Vec3) => `${Math.round(p[0] * 20)}_${Math.round(p[2] * 20)}`;
     for (const r of roads) for (const p of r.pts) count.set(key(p), (count.get(key(p)) ?? 0) + 1);
+    // Chemins : pente bornée pas à pas (sous les seuils des contrôles), sans toucher aux carrefours ni aux bouts.
+    const clampTracks = () => {
+    for (const r of roads) {
+      if (r.kind !== 'track' || r.loop) continue;
+      const lim = (GRAVELLY.has(r.surface) ? 0.19 : 0.26) * 0.97;
+      const P = r.pts;
+      const n = P.length;
+      const fixed = (i: number) => i === 0 || i === n - 1 || (count.get(key(P[i]!)) ?? 0) > 1;
+      const run = (from: number, to: number, step: number) => {
+        for (let i = from; i !== to; i += step) {
+          if (fixed(i)) continue;
+          const q = P[i - step]!;
+          const dmax = lim * Math.hypot(P[i]![0] - q[0], P[i]![2] - q[2]);
+          P[i]![1] = Math.min(q[1] + dmax, Math.max(q[1] - dmax, P[i]![1]));
+        }
+      };
+      for (let pass = 0; pass < 3; pass++) {
+        run(1, n - 1, 1);
+        run(n - 2, 0, -1);
+      }
+    }
+    };
+    clampTracks();
     let lifted = 0;
     for (const r of roads) {
       if (r.loop || r.id === 'anneau') continue;
@@ -1243,6 +1284,32 @@ async function main(): Promise<void> {
           }
           ch = true;
           lifted++;
+        }
+        if (!ch) break;
+      }
+    }
+    clampTracks();
+    // Creux restants des chemins (après le bornage des pentes) : point bas remonté si la pente le permet.
+    for (const r of roads) {
+      if (r.kind !== 'track' || r.loop) continue;
+      const P = r.pts;
+      const lim = GRAVELLY.has(r.surface) ? 0.195 : 0.265;
+      for (let it = 0; it < 60; it++) {
+        let ch = false;
+        for (let i = 4; i < P.length - 4; i++) {
+          const sag = (P[i - 4]![1] + P[i + 4]![1]) / 2 - P[i]![1];
+          if (sag <= 0.1 || (count.get(key(P[i]!)) ?? 0) > 1) continue;
+          const y = P[i]![1] + Math.min(0.03, sag - 0.08);
+          // Pente jugée sur ± 4 points (≈ 8 m, comme les contrôles), pas d'un point au suivant.
+          const arcTo = (j: number) => {
+            let d = 0;
+            for (let k = Math.min(i, j); k < Math.max(i, j); k++) d += Math.hypot(P[k + 1]![0] - P[k]![0], P[k + 1]![2] - P[k]![2]);
+            return d;
+          };
+          const ok = [i - 4, i + 4].every((j) => Math.abs(y - P[j]![1]) <= lim * arcTo(j));
+          if (!ok) continue;
+          P[i]![1] = y;
+          ch = true;
         }
         if (!ch) break;
       }
@@ -1315,7 +1382,20 @@ async function main(): Promise<void> {
       ice.push([ax + (bx - ax) * t + uz * w, az + (bz - az) * t - ux * w]);
     }
   }
-  const areas: Area[] = [...B.areas, ...fields.filter((a) => !a.ring.some(([x, z]) => inGlacier(x, z, 30))), ...shore, { id: 'glacier', kind: 'glacier', layer: 'fields', ring: ice, name: 'Glacier de Robert' }];
+  // Calotte de Robert : contour de la glace (capE = 1), cherché rayon par rayon.
+  const capRing: Vec2[] = [];
+  for (let k = 0; k < 96; k++) {
+    const a = (k / 96) * Math.PI * 2;
+    let lo = 0;
+    let hi = 1.6;
+    for (let it = 0; it < 24; it++) {
+      const m = (lo + hi) / 2;
+      if (capE(CAP.x + Math.cos(a) * CAP.rx * m, CAP.z + Math.sin(a) * CAP.rz * m) < 1) lo = m;
+      else hi = m;
+    }
+    capRing.push([CAP.x + Math.cos(a) * CAP.rx * lo, CAP.z + Math.sin(a) * CAP.rz * lo]);
+  }
+  const areas: Area[] = [...B.areas, ...fields.filter((a) => !a.ring.some(([x, z]) => inGlacier(x, z, 30))), ...shore, { id: 'glacier', kind: 'glacier', layer: 'fields', ring: ice, name: 'Glacier de Robert' }, { id: 'calotte', kind: 'glacier', layer: 'fields', ring: capRing, name: 'Calotte de Robert' }];
   const water = lakes();
   const ways = waterways((x, z) => idx.edgeDist(x, z) < 8);
   log(`${fields.length} parcelles, ${shore.length} morceaux de plage, ${water.length} plans d'eau, ${ways.length} cours d'eau`);
@@ -1348,7 +1428,8 @@ async function main(): Promise<void> {
   const anLen = acc + Math.hypot(anPoints[0]!.x - anPoints[anPoints.length - 1]!.x, anPoints[0]!.z - anPoints[anPoints.length - 1]!.z);
   void dd;
   routes.push({ id: 'anneau', name: 'Le Circuit du Grand Nord', nameEn: 'Far North circuit', loop: true, lengthM: r2(anLen), elevationGainM: 0, points: anPoints, segments: timedSegments({ id: 'anneau', sprints: [{ name: 'Sprint de la ligne opposée', x: ANNEAU.cx + 60, z: ANNEAU.cz - ANNEAU.radius, lengthM: 400 }, { name: 'Sprint des Tribunes', x: ANNEAU.cx + 30, z: ANNEAU.cz + ANNEAU.radius, lengthM: 400 }] }, { points: anPoints, lengthM: r2(anLen) } as RouteData), roadWidthM: ANNEAU.widthM, attribution: ATTRIBUTION, roadWidths: [{ startM: 0, endM: r2(anLen), widthM: ANNEAU.widthM }], surfaces: [{ startM: 0, endM: r2(anLen), surface: 'asphalt' }], landmarks: [{ name: 'Tribunes', d: 0 }], stepM: 2, minElevationM: ANNEAU.level, maxElevationM: ANNEAU.level, maxGradePct: 0, markings: 'full' });
-  const netPts = { ...net, pralongBas: D.gates.find((g) => g.town === 'fjellheim-bas')!.p };
+  const fj = TOWNS.find((t) => t.id === 'fjellheim')!;
+  const netPts = { ...net, climbFoot: [fj.x, fj.z] as Vec2 };
   // Tracé seul : points du réseau gardés pour la mise au point des itinéraires (sans refaire le tracé).
   if (process.env.ISLAND_PLAN) writeFileSync(join(OUT, 'net.json'), JSON.stringify(netPts));
   for (const spec of routeSpecs(netPts)) {
