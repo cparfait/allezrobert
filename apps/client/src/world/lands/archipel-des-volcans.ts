@@ -9,7 +9,13 @@ import type { TileBuilding } from '../types.ts';
 import { ARCHIPEL_RING, archipelNoFence, archipelSites } from './archipel-des-volcansSites.ts';
 
 /** Façades et toits vifs de Sainte-Iris et de Port-Lave (tôles peintes), gradins du Circuit remplacés par le décor. */
-const ROOFS = ['#c8423a', '#2f8f8a', '#3c6fb0', '#e2a23a', '#5b8f3e', '#8a4fa8'];
+/**
+ * Village d'île volcanique (27/11/2026 : l'arc-en-ciel de façades n'était ni naturel ni joli) : enduits blancs et
+ * crème, sable, ocres doux, quelques pierres claires ; toits de tuiles cuites et d'ardoise de basalte.
+ */
+const WALLS = ['#f1ece2', '#ece3d1', '#e6d6b8', '#dcc39a', '#d8b48a', '#c99a72', '#e8ddcc', '#cfc6b6'];
+const ROOFS = ['#a5503a', '#b4613f', '#8e4a36', '#5a5652', '#9a5b3e'];
+
 function archipelBuilding(b: TileBuilding): TileBuilding {
   if (b.pts.length < 6) return b;
   let x = 0;
@@ -23,9 +29,10 @@ function archipelBuilding(b: TileBuilding): TileBuilding {
   // Hangars des tribunes du Circuit : remplacés par de vrais gradins (décor).
   if (b.kind === 'industrial' && Math.abs(x - ARCHIPEL_RING.x) < 90 && Math.abs(z - (ARCHIPEL_RING.z + ARCHIPEL_RING.radius + 24)) < 12) return { ...b, pts: [] };
   const colourful = Math.hypot(x + 400, z - 8500) < 1900 || Math.hypot(x + 9300, z - 5300) < 700 || Math.hypot(x - 12900, z - 8900) < 600;
-  if (!colourful || (b.kind !== 'house' && b.kind !== 'apartments' && b.kind !== 'commercial')) return b;
+  if (b.kind !== 'house' && b.kind !== 'apartments' && b.kind !== 'commercial') return b;
   const i = Math.abs(Math.round(x * 0.37 + z * 0.61));
-  return { ...b, roofMaterial: 'metal', roofColour: ROOFS[i % ROOFS.length]!, roofOverhang: 0.35 };
+  const j = Math.abs(Math.round(x * 0.53 - z * 0.29));
+  return { ...b, colour: WALLS[i % WALLS.length]!, roofMaterial: 'tiles', roofColour: ROOFS[j % ROOFS.length]!, ...(colourful ? { roofOverhang: 0.35 } : {}) };
 }
 
 export const ARCHIPEL: PolyLand = {
