@@ -167,6 +167,8 @@ function clearGlass(root: THREE.Object3D, names: string[]): void {
       g.opacity = 0.55;
       g.depthWrite = false;
       g.needsUpdate = true;
+      // Vitre transparente : pas d'ombre portée (voir prepare).
+      mesh.castShadow = false;
     }
   });
 }
@@ -175,7 +177,9 @@ function prepare(root: THREE.Object3D, shadows: boolean): void {
   root.traverse((o) => {
     const mesh = o as THREE.Mesh;
     if (!mesh.isMesh) return;
-    mesh.castShadow = shadows;
+    // Pas d'ombre portée pour un maillage transparent (vitrage) : voir splitBody de lowPolyVehicles.ts.
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    mesh.castShadow = shadows && !mats.some((m) => m?.transparent);
     mesh.receiveShadow = shadows;
   });
 }

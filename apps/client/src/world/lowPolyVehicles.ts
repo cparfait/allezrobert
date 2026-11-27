@@ -574,6 +574,33 @@ function bodyMaterials(color: string): THREE.Material[] {
   return m;
 }
 
+/**
+ * Caisse coupée en deux maillages qui partagent les mêmes sommets : tout sauf le vitrage (ombre portée), et le vitrage
+ * seul (sans ombre portée). Une vitre transparente dans la passe d'ombre faisait basculer le matériau d'ombre partagé
+ * entre opaque et transparent plusieurs fois par image : three.js reconstruisait l'objet et détruisait un tampon encore
+ * utilisé dans la même image (erreur WebGPU « used in submit while destroyed », 27/11/2026).
+ */
+const GLASS_SLOT = 1;
+const splitBodies = new WeakMap<THREE.BufferGeometry, { solid: THREE.BufferGeometry; glass: THREE.BufferGeometry | null }>();
+function splitBody(g: THREE.BufferGeometry): { solid: THREE.BufferGeometry; glass: THREE.BufferGeometry | null } {
+  let out = splitBodies.get(g);
+  if (out) return out;
+  const part = (keep: (i: number) => boolean) => {
+    const groups = g.groups.filter((gr) => keep(gr.materialIndex ?? 0));
+    if (!groups.length) return null;
+    const p = new THREE.BufferGeometry();
+    for (const name of Object.keys(g.attributes)) p.setAttribute(name, g.getAttribute(name));
+    if (g.index) p.setIndex(g.index);
+    for (const gr of groups) p.addGroup(gr.start, gr.count, gr.materialIndex);
+    p.boundingBox = g.boundingBox;
+    p.boundingSphere = g.boundingSphere;
+    return p;
+  };
+  out = g.groups.some((gr) => gr.materialIndex === GLASS_SLOT) ? { solid: part((i) => i !== GLASS_SLOT) ?? g, glass: part((i) => i === GLASS_SLOT) } : { solid: g, glass: null };
+  splitBodies.set(g, out);
+  return out;
+}
+
 function wheelGeo(r: number, w: number): THREE.BufferGeometry {
   const key = `${r}|${w}`;
   let g = wheelGeos.get(key);
@@ -607,10 +634,19 @@ export function buildLowPolyVehicle(variant: LowPolyVariant, color: string, rand
   const s = sharedMaterials();
   const group = new THREE.Group();
   group.name = `vehicle-${variant}`;
-  const body = new THREE.Mesh(shape.body, bodyMaterials(shape.paint ?? color));
+  const mats = bodyMaterials(shape.paint ?? color);
+  const split = splitBody(shape.body);
+  const body = new THREE.Mesh(split.solid, mats);
   body.castShadow = true;
   body.receiveShadow = true;
   group.add(body);
+  if (split.glass) {
+    const glass = new THREE.Mesh(split.glass, mats);
+    glass.name = 'glass';
+    glass.castShadow = false;
+    glass.receiveShadow = true;
+    group.add(glass);
+  }
   if (shape.seat) {
     const driver = buildDriver(shape.look ?? 'driver', rand);
     driver.position.set(...shape.seat);
