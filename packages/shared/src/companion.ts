@@ -54,6 +54,8 @@ export type PhoneCommand =
   | { kind: 'pause' }
   | { kind: 'resume' }
   | { kind: 'camera'; camera: CameraMode }
+  /** Caméra de poursuite : un cran plus haut (+1) ou plus bas (−1), regard un cran plus plongeant (+1) ou plus levé (−1) ; `reset` : réglage d'origine. */
+  | { kind: 'cameraTune'; height?: -1 | 1; tilt?: -1 | 1; reset?: boolean }
   | { kind: 'fan'; percent: number }
   /** Mode du ventilateur (le jeu calcule ensuite la vitesse). `fan` passe, lui, en fixe. */
   | { kind: 'fanMode'; mode: PairFanMode }
@@ -188,6 +190,8 @@ export interface PairState {
   /** Position et cap dans le repère du monde (carte). */
   pos?: { x: number; z: number; heading: number };
   camera?: CameraMode;
+  /** Réglage de la caméra de poursuite (crans, voir CAMERA_TUNE), gardé par le jeu d'une sortie à l'autre. */
+  cameraTune?: PairCameraTune;
   fanPercent?: number;
   /** Mode du ventilateur réglé dans le jeu (absent : pas de ventilateur ou source sans réglage). */
   fanMode?: PairFanMode;
@@ -216,6 +220,28 @@ export interface PairState {
   riders?: PairRider[];
   /** Chat vocal de la sortie : connecté (le téléphone peut prêter son micro), micro du téléphone ouvert. */
   voice?: { available: boolean; phoneMic: boolean };
+}
+
+/**
+ * Réglage de la caméra de poursuite en crans : hauteur (`height` × `heightStepM` m au-dessus de la hauteur d'origine) et
+ * inclinaison (`tilt` × `tiltStepDeg`°, positif = regard plus plongeant vers la route, négatif = plus levé vers l'horizon).
+ */
+export interface PairCameraTune {
+  height: number;
+  tilt: number;
+}
+export const CAMERA_TUNE = { heightStepM: 0.25, heightMin: -2, heightMax: 8, tiltStepDeg: 2, tiltMin: -5, tiltMax: 6 } as const;
+
+/** Réglage ramené dans les bornes (crans entiers ; valeur absente ou invalide : 0). */
+export function clampCameraTune(t: Partial<PairCameraTune> | null | undefined): PairCameraTune {
+  const c = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(Math.max(Math.round(v), lo), hi) : 0);
+  return { height: c(t?.height, CAMERA_TUNE.heightMin, CAMERA_TUNE.heightMax), tilt: c(t?.tilt, CAMERA_TUNE.tiltMin, CAMERA_TUNE.tiltMax) };
+}
+
+/** Réglage après une commande « cameraTune » du téléphone. */
+export function stepCameraTune(cur: PairCameraTune, cmd: { height?: number; tilt?: number; reset?: boolean }): PairCameraTune {
+  if (cmd.reset) return { height: 0, tilt: 0 };
+  return clampCameraTune({ height: cur.height + (cmd.height ?? 0), tilt: cur.tilt + (cmd.tilt ?? 0) });
 }
 
 /** Résultat d'une recherche Spotify montré sur le téléphone. */

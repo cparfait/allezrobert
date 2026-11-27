@@ -4,7 +4,7 @@
  * `depart` (course à lancer), `menu`. `&d=1200` : départ à 1 200 m ; `&fige=1` : le vélo n'avance pas (captures).
  */
 import type { PairState, PhoneCommand } from '@allezrobert/shared';
-import { PAIR_SOUND_BUSES } from '@allezrobert/shared';
+import { PAIR_SOUND_BUSES, stepCameraTune } from '@allezrobert/shared';
 import type { LinkHandlers } from '../link.ts';
 import { link, S } from '../state.ts';
 
@@ -27,6 +27,7 @@ export function startDemo(kind: string, h: LinkHandlers): void {
     open: kind === 'solo',
     team,
     camera: 'chase',
+    cameraTune: { height: 0, tilt: 0 },
     fanPercent: 40,
     fanMode: 'speed',
     roadFeel: { percent: 35, supported: true, surface: 'cobblestonesSoft' },
@@ -48,6 +49,7 @@ export function startDemo(kind: string, h: LinkHandlers): void {
     if (c.kind === 'pause') st.phase = 'paused';
     else if (c.kind === 'resume') st.phase = 'ride';
     else if (c.kind === 'camera') st.camera = c.camera;
+    else if (c.kind === 'cameraTune') st.cameraTune = stepCameraTune(st.cameraTune ?? { height: 0, tilt: 0 }, c);
     else if (c.kind === 'fan') [st.fanPercent, st.fanMode] = [c.percent, 'manual'];
     else if (c.kind === 'fanMode') st.fanMode = c.mode;
     else if (c.kind === 'roadFeel') st.roadFeel!.percent = c.percent;

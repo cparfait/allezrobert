@@ -3,7 +3,7 @@
  * son, écran, message tout prêt, Ride On (grosses touches, retour automatique au bout de 20 s sans appui). À l'arrêt :
  * réglages, chat écrit, recherche de musique ou de destination.
  */
-import { PAIR_FAN_MODES, PAIR_SOUND_BUSES, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type PairFanMode, type PairSoundBus } from '@allezrobert/shared';
+import { CAMERA_TUNE, PAIR_FAN_MODES, PAIR_SOUND_BUSES, ROAD_FEEL, ROAD_FEEL_SURFACE_LABEL, ROAD_FEEL_TEXT, roadFeelLevel, type CameraMode, type PairFanMode, type PairSoundBus } from '@allezrobert/shared';
 import { $, esc, setHtml, setText } from './dom.ts';
 import { icon, tile, type IconId } from './icons.ts';
 import type { Density } from './logic.ts';
@@ -16,7 +16,7 @@ const FAN_ICONS: Record<PairFanMode, IconId> = { off: 'off', manual: 'fan', spee
 const SOUND_ICONS: Record<PairSoundBus, IconId> = { ambience: 'tree', wind: 'wind', bike: 'bike', breath: 'breath', crowd: 'crowd', traffic: 'car', voice: 'mic' };
 
 /** Panneaux utilisés en pédalant : ils se referment seuls si on les oublie. */
-const RIDE_PANELS: PanelId[] = ['camera', 'fan', 'sound', 'screen', 'quick', 'rideon'];
+const RIDE_PANELS: PanelId[] = ['camera', 'view', 'fan', 'sound', 'screen', 'quick', 'rideon'];
 const IDLE_MS = 20_000;
 let idle: ReturnType<typeof setTimeout> | undefined;
 
@@ -60,6 +60,7 @@ export function renderPanel(): void {
 function titleOf(id: PanelId): string {
   const titles: Record<PanelId, string> = {
     camera: t.camera,
+    view: t.viewTitle,
     fan: t.fan,
     sound: t.sound,
     screen: t.screenSub,
@@ -78,7 +79,14 @@ function bodyOf(id: PanelId): string {
   const st = S.st;
   switch (id) {
     case 'camera':
-      return `<div class="tiles fill">${CAMERAS.map((c) => tile(`data-cam="${c}"`, c === 'photo' ? 'photo' : 'camera', esc(t.cameras[c]))).join('')}</div>`;
+      return `<div class="tiles fill">${CAMERAS.map((c) => tile(`data-cam="${c}"`, c === 'photo' ? 'photo' : 'camera', esc(t.cameras[c]))).join('')}${st?.cameraTune ? tile('data-panel="view"', 'gear', esc(t.viewTune), { sub: esc(t.viewSub) }) : ''}</div>`;
+    case 'view':
+      // Hauteur et regard de la caméra arrière : deux grandes rangées « − valeur + », retour au réglage d'origine.
+      return `<div class="view-tune">
+        <div class="stepper tall"><button data-tune="height:-1" aria-label="${esc(t.viewLower)}">${icon('down')}</button><div><span>${esc(t.viewHeight)}</span><b id="p-vh"></b></div><button data-tune="height:1" aria-label="${esc(t.viewHigher)}">${icon('up')}</button></div>
+        <div class="stepper tall"><button data-tune="tilt:-1" aria-label="${esc(t.viewTiltUp)}">${icon('tiltUp')}</button><div><span>${esc(t.viewTilt)}</span><b id="p-vt"></b></div><button data-tune="tilt:1" aria-label="${esc(t.viewTiltDown)}">${icon('tiltDown')}</button></div>
+        ${tile('data-tune="reset"', 'camera', esc(t.viewReset), { id: 'p-vreset', cls: 'wide' })}
+      </div>`;
     case 'fan':
       return `<div class="stepper tall"><button data-fan="-1" aria-label="−">${icon('minus')}</button><div><span>${esc(t.fanPower)}</span><b id="p-fan"></b></div><button data-fan="1" aria-label="+">${icon('plus')}</button></div>
         ${st?.fanMode ? `<div class="tiles fill">${PAIR_FAN_MODES.map((m) => tile(`data-fanmode="${m}"`, FAN_ICONS[m], esc(t.fanModes[m]))).join('')}</div>` : ''}`;
@@ -139,6 +147,15 @@ export function updatePanel(): void {
     case 'camera': {
       const cam = withLocal('camera', st?.camera);
       on('[data-cam]', (el) => el.dataset.cam === cam);
+      break;
+    }
+    case 'view': {
+      const v = withLocal('cameraTune', st?.cameraTune ?? { height: 0, tilt: 0 });
+      const cm = v.height * CAMERA_TUNE.heightStepM * 100;
+      setText($('p-vh'), v.height ? `${cm > 0 ? '+' : '−'}${Math.abs(cm)} cm` : t.viewOrigin);
+      const deg = v.tilt * CAMERA_TUNE.tiltStepDeg;
+      setText($('p-vt'), v.tilt ? `${Math.abs(deg)}° ${deg > 0 ? t.viewDown : t.viewUp}` : t.viewOrigin);
+      ($('p-vreset') as HTMLButtonElement | null)?.toggleAttribute('disabled', !v.height && !v.tilt);
       break;
     }
     case 'fan': {

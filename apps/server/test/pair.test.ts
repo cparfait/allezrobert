@@ -59,6 +59,11 @@ describe('salle pair', () => {
     phone.send(PAIR_MSG.cmd, { kind: 'fanMode', mode: 'turbo' });
     phone.send(PAIR_MSG.cmd, { kind: 'fanMode', mode: 'heartRate' });
     expect(await fanMode).toEqual({ kind: 'fanMode', mode: 'heartRate' });
+    // Réglage de la caméra : un cran à la fois seulement.
+    const tune = next<PhoneCommand>(game, PAIR_MSG.cmd);
+    phone.send(PAIR_MSG.cmd, { kind: 'cameraTune', height: 5 });
+    phone.send(PAIR_MSG.cmd, { kind: 'cameraTune', tilt: -1 });
+    expect(await tune).toEqual({ kind: 'cameraTune', tilt: -1 });
     // Ressenti route : intensité plafonnée (protection du moteur du trainer).
     const roadFeel = next<PhoneCommand>(game, PAIR_MSG.cmd);
     phone.send(PAIR_MSG.cmd, { kind: 'roadFeel', percent: 100 });

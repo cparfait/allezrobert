@@ -8,7 +8,7 @@ import type { RouteGeo } from './map.ts';
 export type FieldId = keyof Strings['fields'];
 export type Metrics = NonNullable<PairState['metrics']>;
 /** Panneau ouvert par-dessus la page. */
-export type PanelId = 'camera' | 'fan' | 'sound' | 'screen' | 'quick' | 'rideon' | 'chat' | 'search' | 'dest' | 'settings' | 'pick';
+export type PanelId = 'camera' | 'view' | 'fan' | 'sound' | 'screen' | 'quick' | 'rideon' | 'chat' | 'search' | 'dest' | 'settings' | 'pick';
 
 export const DEFAULT_FIELDS: FieldId[] = ['power3s', 'speed', 'cadence', 'hr', 'time', 'distance', 'grade'];
 export const ALL_FIELDS = Object.keys(STRINGS.fr.fields) as FieldId[];

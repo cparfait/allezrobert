@@ -1,5 +1,5 @@
 /** Ce que fait chaque touche : commande envoyée au jeu, réponse immédiate à l'écran, panneau ouvert ou refermé. */
-import { ROAD_FEEL, type CameraMode, type PairFanMode, type PairSoundBus, type PhoneCommand } from '@allezrobert/shared';
+import { ROAD_FEEL, stepCameraTune, type CameraMode, type PairFanMode, type PairSoundBus, type PhoneCommand } from '@allezrobert/shared';
 import { flash, showToast } from './dom.ts';
 import { junctionArmed } from './junction.ts';
 import { unpair } from './link.ts';
@@ -11,7 +11,7 @@ import { DEFAULT_FIELDS, haptic, lang, S, send, setLang, setLocal, setTabPref, t
 import { refresh, render } from './shell.ts';
 import { syncWake } from './wake.ts';
 
-export const TOUCHABLE = '[data-act],[data-tab],[data-panel],[data-cmd],[data-cam],[data-turn],[data-music],[data-vol],[data-mplay],[data-pgo],[data-quick],[data-rideon],[data-fan],[data-fanmode],[data-sound],[data-dens],[data-slot],[data-pick],[data-road]';
+export const TOUCHABLE = '[data-act],[data-tab],[data-panel],[data-cmd],[data-cam],[data-tune],[data-turn],[data-music],[data-vol],[data-mplay],[data-pgo],[data-quick],[data-rideon],[data-fan],[data-fanmode],[data-sound],[data-dens],[data-slot],[data-pick],[data-road]';
 
 /** Change de page et referme ce qui est ouvert par-dessus. */
 export function goTab(tab: Tab): void {
@@ -193,6 +193,22 @@ export function press(el: HTMLElement, mic: PhoneMic): void {
     setLocal('camera', d.cam);
     send({ kind: 'camera', camera: d.cam as CameraMode });
     closePanel();
+    return refresh();
+  }
+  if (d.tune) {
+    const cur = withLocal('cameraTune', S.st?.cameraTune ?? { height: 0, tilt: 0 });
+    const [axis, step] = d.tune.split(':');
+    const cmd = d.tune === 'reset' ? { reset: true } : axis === 'height' ? { height: step === '1' ? (1 as const) : (-1 as const) } : { tilt: step === '1' ? (1 as const) : (-1 as const) };
+    const next = stepCameraTune(cur, cmd);
+    if (next.height === cur.height && next.tilt === cur.tilt) return haptic([10, 40, 10]);
+    haptic();
+    // Le réglage ne vaut que pour la caméra arrière : on y passe si une autre vue est affichée.
+    if (withLocal('camera', S.st?.camera) !== 'chase') {
+      setLocal('camera', 'chase');
+      send({ kind: 'camera', camera: 'chase' });
+    }
+    setLocal('cameraTune', next);
+    send({ kind: 'cameraTune', ...cmd });
     return refresh();
   }
   if (d.fan) {

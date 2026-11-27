@@ -4,7 +4,7 @@
 
 - **Windows (recommandé)** : installeur de l'app (`Allez Robert !_x.y.z_x64_fr-FR.msi`). Bluetooth natif avec choix de l'adaptateur (intégré ou dongle), Wahoo Direct Connect et clé ANT+ en option.
 - **Navigateur** : Chrome ou Edge (Windows, Mac), à l'adresse de test `https://allezrobert.cparfait.ovh`. Bluetooth via le navigateur ; pas d'ANT+ ni de Direct Connect.
-- **Téléphone / tablette** : appli compagnon (PWA, « Ajouter à l'écran d'accueil »), faite pour être touchée en pédalant. Pages en bas (ou en balayant) : Compteur, Carte, Actions, Groupe, Musique ; la puissance reste affichée partout. Carrefours, montées, séance, départ et pause s'affichent d'eux-mêmes. Le demi-tour demande un appui maintenu. Réglages (chiffres affichés, ressenti route, langue) : bouton en haut à droite, à l'arrêt.
+- **Téléphone / tablette** : appli compagnon (PWA, « Ajouter à l'écran d'accueil »), faite pour être touchée en pédalant. Pages en bas (ou en balayant) : Compteur, Carte, Actions, Groupe, Musique ; la puissance reste affichée partout. Carrefours, montées, séance, départ et pause s'affichent d'eux-mêmes. Le demi-tour demande un appui maintenu. Actions › Caméra › Régler : hauteur et regard (vers le bas, vers le haut) de la caméra arrière, réglés en direct et gardés pour les sorties suivantes. Réglages (chiffres affichés, ressenti route, langue) : bouton en haut à droite, à l'arrêt.
 
 ## 2. Premier lancement
 

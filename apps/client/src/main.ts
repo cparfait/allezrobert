@@ -19,6 +19,7 @@ import { syncV3Offline } from './v3/offline.ts';
 import { readV3BikeSetup } from './v3/physics.ts';
 import { CROWD_FAMILIES, onBikeFamilyLoaded } from './rider/bikes.ts';
 import { CameraRig } from './game/cameras.ts';
+import { loadCameraTune, saveCameraTune } from './game/cameraTune.ts';
 import { buzzLevel } from './game/roadBuzz.ts';
 import { roadFeelFor } from './game/roadFeel.ts';
 import { FreeFlyCamera } from './game/freecam.ts';
@@ -29,7 +30,7 @@ import { LEADER_V3_JERSEY } from './game/v3Crowd.ts';
 import { nearFadeProxies, releaseNearFade, updateNearFade } from './game/nearFade.ts';
 import { riderLightWarmup } from './game/riderLight.ts';
 import { riderMidWarmup } from './game/riderMid.ts';
-import { aiEffortTag, energyPercent } from '@allezrobert/shared';
+import { aiEffortTag, energyPercent, stepCameraTune } from '@allezrobert/shared';
 import { DirecteurSportif } from './game/directeur.ts';
 import { DirectorVoice } from './audio/directorVoice.ts';
 import { MotoSchedule, RaceMoto, gapsLine, raceGroups } from './world/raceMoto.ts';
@@ -1579,6 +1580,8 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
   // Source d'entrées après la ligne : mêmes capteurs, mais sans puissance ni pédalage.
   const coastInput: InputSource = Object.create(input, { read: { value: () => ({ ...input.read(), watts: 0, cadence: 0 }) } });
   const rig = new CameraRig(engine.camera, track, (x, z) => world.terrain.heightAt(x, z), engine.renderer.domElement);
+  // Hauteur et inclinaison de la poursuite réglées sur le téléphone, gardées d'une sortie à l'autre.
+  rig.tune = loadCameraTune();
   const footprints = world.buildings.footprints;
   rig.occlusion = (a, b) => footprints.firstHit(a.x, a.y, a.z, b.x, b.y, b.z);
   // Public sur les côtes et foule d'arrivée : seulement en course (pas en sortie libre, itinéraire, séance, défi…).
@@ -3693,6 +3696,7 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
       },
       pos: { x: pos.x, z: pos.z, heading: Number.isFinite(prevHeading) ? prevHeading : 0 },
       camera: rig.mode === 'free' ? 'chase' : rig.mode,
+      cameraTune: rig.tune,
       ...(fanPercent !== undefined ? { fanPercent } : {}),
       ...(input.fanMode ? { fanMode: input.fanMode() } : {}),
       roadFeel: { percent: clampRoadFeel(s.roadFeelPercent), supported: input.roadFeelSupported?.() ?? false, surface: roadFeelNow },
@@ -3735,6 +3739,10 @@ async function startRide(scene: Scene3D, s: Settings, input: InputSource, extras
         break;
       case 'camera':
         rig.setMode(c.camera);
+        break;
+      case 'cameraTune':
+        rig.tune = stepCameraTune(rig.tune, c);
+        saveCameraTune(rig.tune);
         break;
       case 'fan':
         fanPercent = c.percent;

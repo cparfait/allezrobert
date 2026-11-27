@@ -1,10 +1,11 @@
 import * as THREE from 'three/webgpu';
-import type { CameraMode, RouteTrack } from '@allezrobert/shared';
+import type { CameraMode, PairCameraTune, RouteTrack } from '@allezrobert/shared';
 import { FreeFlyCamera } from './freecam.ts';
 import { getLang } from '../i18n/index.ts';
 import { buzzOffset } from './roadBuzz.ts';
 import { LOW_POLY } from '../engine/style.ts';
 import { CameraBoom, keepInFrame, type Occlusion } from './chaseFraming.ts';
+import { cameraTuneOffsets } from './cameraTune.ts';
 
 /** Modes de la caméra du jeu : ceux du protocole (appli compagnon) plus la caméra libre, locale. */
 export type RigMode = CameraMode | 'free';
@@ -124,6 +125,13 @@ export class CameraRig {
    */
   private arrival = false;
   private arrivalBlend = 0;
+  /**
+   * Réglage de la poursuite choisi sur le téléphone (crans de hauteur et d'inclinaison, voir cameraTune.ts). Les
+   * décalages suivent la valeur choisie en ≈ 0,5 s (lissés) : un appui ne fait pas sauter l'image.
+   */
+  tune: PairCameraTune = { height: 0, tilt: 0 };
+  private tuneUp = 0;
+  private tuneTilt = 0;
 
   showArrival(on: boolean): void {
     this.arrival = on;
@@ -265,7 +273,13 @@ export class CameraRig {
         const orbit = this.chaseYaw + ARRIVAL_YAW * side;
         const tp = this.turnPull;
         const back = CHASE_BACK * (1 + 0.7 * this.uturnPull + 0.5 * tp) + (ARRIVAL_BACK - CHASE_BACK) * side;
-        const up = CHASE_UP + 0.9 * this.uturnPull + 0.45 * tp + (ARRIVAL_UP - CHASE_UP) * side;
+        // Réglage du téléphone : hauteur en plus (retirée à l'arrivée, qui a son propre plan).
+        const tune = cameraTuneOffsets(this.tune);
+        // (recalage sans lissage : départ, changement de vue)
+        const kTune = this.initialized ? 1 - Math.exp(-dt * 6) : 1;
+        this.tuneUp += (tune.upM - this.tuneUp) * kTune;
+        this.tuneTilt += (tune.tiltRad - this.tuneTilt) * kTune;
+        const up = CHASE_UP + this.tuneUp * (1 - side) + 0.9 * this.uturnPull + 0.45 * tp + (ARRIVAL_UP - CHASE_UP) * side;
         desired.set(t.position.x - Math.sin(orbit) * back, t.position.y + up, t.position.z - Math.cos(orbit) * back);
         // En virage, le regard se pose un peu plus sur le coureur (moins sur la sortie) : il reste au centre du cadre.
         look.set(ahead.x, ahead.y + 1.0, ahead.z).lerp(_tmp.copy(t.position).setY(t.position.y + 1.1), Math.min(1, 0.55 + 0.15 * tp + 0.45 * side));
@@ -402,6 +416,8 @@ export class CameraRig {
       const subject = t.uturn && t.subject ? t.subject : t.position;
       this.boom.update(subject, this.smoothPos, dt, this.occlusion, cam.position);
       this.frameSubject(subject, dt);
+      // Inclinaison choisie sur le téléphone : après le cadrage (qui la ramènerait sinon), lissée plus haut ; retirée à l'arrivée.
+      if (this.tuneTilt !== 0) cam.rotateX(-this.tuneTilt * (1 - this.arrivalBlend));
     } else cam.lookAt(this.smoothLook);
     cam.position.y += vib;
     // Vibration du revêtement : forte en vue embarquée (solidaire du vélo), légère en poursuite.
