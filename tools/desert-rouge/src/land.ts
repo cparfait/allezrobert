@@ -216,6 +216,13 @@ function simplify(ring: Vec2[], tol: number): Vec2[] {
 
 // ── Parcelles, plages, eau (calculées une fois pour toute l'île) ──
 
+/** Distance (m) à la rive de la source d'oasis la plus proche (la guelta du Vautour n'a pas de jardins). */
+function gardenDist(x: number, z: number): number {
+  let d = Infinity;
+  for (const o of LAKES) if (o.kind === 'pond') d = Math.min(d, Math.hypot(x - o.x, z - o.z) - Math.max(o.rx, o.rz));
+  return d;
+}
+
 export function parcels(ctx: LandCtx, avoid: (x: number, z: number) => boolean): Area[] {
   const out: Area[] = [];
   const r = rng(2024);
@@ -250,10 +257,12 @@ export function parcels(ctx: LandCtx, avoid: (x: number, z: number) => boolean):
       const h = q.map(([x, z]) => terrain(x, z));
       if (Math.max(...h) - Math.min(...h) > S * 0.15) continue;
       const roll = r();
-      // Cultures irriguées seulement : palmeraies et jardins autour des sources d'oasis.
-      const od = oasisDist(cx, cz);
-      const kind = od < 950 ? (roll < 0.72 ? 'orchard' : 'farmland') : null;
-      if (!kind) continue;
+      // Cultures irriguées seulement : palmeraies et jardins serrés autour des sources d'oasis (pas la guelta), à
+      // moins de 200 à 320 m de l'eau ; tout le reste du désert garde son sol ocre (27/11/2026 : l'ancien rayon de
+      // 950 m faisait de grandes étendues vertes en plein désert, jusqu'au pied des buttes).
+      const gd = gardenDist(cx, cz);
+      if (gd > 260 + 60 * fbm(cx / 300, cz / 300, 2, 44)) continue;
+      const kind = roll < 0.72 ? 'orchard' : 'farmland';
       // Haies : parcelle rétrécie de 3 m (bandes en herbe entre les champs). Parfois coupée en deux.
       const shrink = (poly: Vec2[]) => {
         const mx = poly.reduce((a, p) => a + p[0], 0) / poly.length;

@@ -851,8 +851,8 @@
      "id": "route-du-canyon",
      "name": "La route du Canyon",
      "nameEn": "Canyon floor road",
-     "lengthM": 20312.7,
-     "elevationGainM": 3.26,
+     "lengthM": 20338.6,
+     "elevationGainM": 3.27,
      "loop": false
     },
     {
@@ -867,64 +867,64 @@
      "id": "tour-du-desert",
      "name": "Le Tour du Désert",
      "nameEn": "Round the desert",
-     "lengthM": 93678.01,
-     "elevationGainM": 932.36,
+     "lengthM": 95050.36,
+     "elevationGainM": 915.8,
      "loop": true
     },
     {
      "id": "corniche-des-falaises",
      "name": "La corniche des Falaises Rouges",
      "nameEn": "Red cliffs corniche",
-     "lengthM": 29045.71,
-     "elevationGainM": 367.81,
+     "lengthM": 29047.64,
+     "elevationGainM": 367.77,
      "loop": false
     },
     {
      "id": "plateau-du-ksar",
      "name": "Le plateau du Ksar",
      "nameEn": "Ksar plateau",
-     "lengthM": 33424.8,
-     "elevationGainM": 306.49,
+     "lengthM": 33509.15,
+     "elevationGainM": 308.17,
      "loop": true
     },
     {
      "id": "golfe-et-oasis",
      "name": "Le golfe et l'Oasis",
      "nameEn": "Gulf and oasis",
-     "lengthM": 40285.02,
-     "elevationGainM": 433.35,
+     "lengthM": 40811.49,
+     "elevationGainM": 454.51,
      "loop": true
     },
     {
      "id": "salines-et-sablons",
      "name": "Les Salines et Sablons",
      "nameEn": "Salt pans and Sablons",
-     "lengthM": 33738.05,
-     "elevationGainM": 312.84,
+     "lengthM": 14747.5,
+     "elevationGainM": 125.32,
      "loop": true
     },
     {
      "id": "tour-du-chott",
      "name": "Le tour du Chott Blanc",
      "nameEn": "White salt lake loop",
-     "lengthM": 23734.71,
-     "elevationGainM": 228.57,
+     "lengthM": 21971.41,
+     "elevationGainM": 214.64,
      "loop": true
     },
     {
      "id": "boucle-de-rocherouge",
      "name": "La boucle de Rocherouge",
      "nameEn": "Rocherouge loop",
-     "lengthM": 40348.12,
-     "elevationGainM": 433.33,
+     "lengthM": 40874.58,
+     "elevationGainM": 454.49,
      "loop": true
     },
     {
      "id": "route-des-dunes",
      "name": "La route des Dunes",
      "nameEn": "Dunes road",
-     "lengthM": 18390.58,
-     "elevationGainM": 190.3,
+     "lengthM": 18415.23,
+     "elevationGainM": 190.28,
      "loop": false
     },
     {
@@ -963,7 +963,7 @@
      "id": "velo-du-golfe",
      "name": "La Vélo du Golfe",
      "nameEn": "Gulf greenway",
-     "lengthM": 12852.44,
+     "lengthM": 12852.79,
      "elevationGainM": 269.29,
      "loop": false
     },
@@ -972,7 +972,7 @@
      "name": "La classique des Dunes",
      "nameEn": "Dunes classic",
      "lengthM": 9379.03,
-     "elevationGainM": 155.3,
+     "elevationGainM": 155.31,
      "loop": true,
      "bike": "gravel"
     },
@@ -998,8 +998,8 @@
      "id": "chemin-des-falaises",
      "name": "Le chemin des Falaises Rouges",
      "nameEn": "Red cliffs path",
-     "lengthM": 20091.48,
-     "elevationGainM": 266,
+     "lengthM": 20092.44,
+     "elevationGainM": 265.98,
      "loop": false,
      "bike": "gravel"
     },
@@ -1016,8 +1016,8 @@
      "id": "grande-traversee",
      "name": "La Grande Traversée",
      "nameEn": "Great gravel traverse",
-     "lengthM": 14344.99,
-     "elevationGainM": 233.19,
+     "lengthM": 14324.48,
+     "elevationGainM": 233.59,
      "loop": false,
      "bike": "gravel"
     },
@@ -1068,10 +1068,10 @@
     }
    ],
    "pack": {
-    "version": "72324c5b6545",
-    "bytes": 258193422,
+    "version": "80ff45767b50",
+    "bytes": 257701553,
     "files": 2412,
-    "gzBytes": 39595015
+    "gzBytes": 39769978
    },
    "l93": {
     "minE": 1311000,

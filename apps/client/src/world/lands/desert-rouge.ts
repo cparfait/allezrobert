@@ -9,8 +9,11 @@ import type { TileBuilding } from '../types.ts';
 import type { PolyLand } from './types.ts';
 import { DESERT_RING, desertRougeNoFence, desertRougeSites } from './desert-rougeSites.ts';
 
-/** Terre crue : murs ocre, terrasses à peine plus claires ou plus sombres ; chaux blanche au bord de la mer. */
-const EARTH = ['#c98b55', '#d29a62', '#b97a4a', '#dcae7a', '#c4834e', '#e0b88a', '#cf9466', '#b56f45'] as const;
+/**
+ * Terre crue sourde et claire (27/11/2026 : « rouge fluo ») : sable, beige rosé, ocre doux, terre claire, quelques
+ * enduits blanc cassé ; chaux blanche au bord de la mer.
+ */
+const EARTH = ['#d8bf9a', '#cfae8c', '#c49a6c', '#b98d66', '#d3b691', '#c9a580', '#bf9672', '#e6d8c0'] as const;
 
 function shade(hex: string, k: number): string {
   const n = Number.parseInt(hex.slice(1), 16);
@@ -18,15 +21,15 @@ function shade(hex: string, k: number): string {
   return `#${((f(n >> 16) << 16) | (f((n >> 8) & 255) << 8) | f(n & 255)).toString(16).padStart(6, '0')}`;
 }
 
-/** Briques et rouges trop vifs ramenés vers l'ocre de la terre crue. */
-function earthen(hex: string): string {
+/** Couleurs trop vives (briques, ocres saturés, oranges) ramenées à la terre crue sourde : une teinte de EARTH. */
+function earthen(hex: string, r: () => number): string {
   const n = Number.parseInt(hex.slice(1), 16);
-  const r = n >> 16;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  // Rouge brique (vert faible devant le rouge) : teinte remontée vers l'ocre.
-  if (r > 150 && g < r * 0.62) return `#${((r << 16) | (Math.round(r * 0.68) << 8) | Math.round(Math.max(b, r * 0.42))).toString(16).padStart(6, '0')}`;
-  return hex;
+  const R = n >> 16;
+  const G = (n >> 8) & 255;
+  const B = n & 255;
+  const hi = Math.max(R, G, B);
+  const sat = hi > 0 ? (hi - Math.min(R, G, B)) / hi : 0;
+  return sat > 0.5 ? EARTH[Math.floor(r() * EARTH.length)]! : hex;
 }
 
 /**
@@ -47,8 +50,8 @@ function desertBuilding(b: TileBuilding): TileBuilding {
   x /= b.pts.length / 2;
   z /= b.pts.length / 2;
   const r = rng(Math.imul(Math.round(x * 10), 73856093) ^ Math.imul(Math.round(z * 10), 19349663));
-  const colour = earthen(b.colour ?? EARTH[Math.floor(r() * EARTH.length)]!);
-  const white = Number.parseInt(colour.slice(1, 3), 16) > 225;
+  const colour = earthen(b.colour ?? EARTH[Math.floor(r() * EARTH.length)]!, r);
+  const white = Number.parseInt(colour.slice(1, 3), 16) > 231;
   // Maisons, fermes, maison commune (générées en « hut ») : murs pleins, sans volets.
   const adobe = !white && ['hut', 'house', 'apartments', 'farm', 'public', 'commercial'].includes(b.kind);
   return {
@@ -56,7 +59,7 @@ function desertBuilding(b: TileBuilding): TileBuilding {
     ...(adobe ? { facade: 'adobe' as const } : {}),
     colour,
     material: b.material === 'stone' ? 'stone' : 'plaster',
-    roofColour: shade(colour, white ? 0.97 : 0.9 + r() * 0.14),
+    roofColour: shade(colour, white ? 0.97 : 0.92 + r() * 0.1),
     roofOverhang: 0,
     // Hauteurs un peu inégales d'une maison à l'autre (terrasses décalées).
     height: b.kind === 'house' ? b.height * (0.92 + r() * 0.16) : b.height,
@@ -126,12 +129,13 @@ export const DESERT_ROUGE: PolyLand = {
   },
   theme: {
     // Sud-Ouest américain (27/11/2026) : plaine de terre rouge-orangé, roche plus rouge en strates, sable clair des
-    // dunes ; champs (seulement autour des sources) en vert de palmeraie ; abords des maisons en terre battue.
+    // dunes ; champs (seulement autour des sources) en vert de palmeraie ; abords des maisons en terre battue, un
+    // peu plus foncée que les murs de terre crue (27/11/2026).
     ground: {
-      spring: { forest: '#4f6a2e', field: '#557a32', field2: '#6d8a3a', meadow: '#c4703f', urban: '#c8925e', dirt: '#a8502b' },
-      summer: { forest: '#4c652c', field: '#527530', field2: '#6a8438', meadow: '#c97745', urban: '#cc9862', dirt: '#ad552d' },
-      autumn: { forest: '#52662e', field: '#587632', field2: '#738638', meadow: '#c16c3e', urban: '#c6905c', dirt: '#a54e2a' },
-      winter: { forest: '#4d622e', field: '#537230', field2: '#687f3a', meadow: '#ba6c40', urban: '#c28c5a', dirt: '#9f4e2b' },
+      spring: { forest: '#4f6a2e', field: '#557a32', field2: '#6d8a3a', meadow: '#c4703f', urban: '#b08b65', dirt: '#a8502b' },
+      summer: { forest: '#4c652c', field: '#527530', field2: '#6a8438', meadow: '#c97745', urban: '#b38d67', dirt: '#ad552d' },
+      autumn: { forest: '#52662e', field: '#587632', field2: '#738638', meadow: '#c16c3e', urban: '#ae8963', dirt: '#a54e2a' },
+      winter: { forest: '#4d622e', field: '#537230', field2: '#687f3a', meadow: '#ba6c40', urban: '#aa8661', dirt: '#9f4e2b' },
     },
     sand: ['#d09062', '#ecc594'],
     rock: '#a8482a',

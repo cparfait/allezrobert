@@ -48,6 +48,13 @@ clair des dunes, longues routes droites, yuccas, armoises, grands cactus à bras
 pompage, troupeaux menés par des cavaliers, virevoltants, lumière chaude et sèche, couleurs franches. Les buttes
 témoins (`SENTINEL_SPOTS` dans `design.ts`) sont posées à plus de 500 m de toute route, sur un sol plat : aucun tracé
 n'a changé. Leur talus d'éboulis porte 30 % de la hauteur (`skirt` des mesas, 16 % par défaut).
+Depuis le 27/11/2026 (« on dirait des réservoirs »), chaque butte a sa forme tirée au sort (`butteForm`,
+`butteShare`) : contour modulé par l'angle (harmoniques, échancrures, contreforts ; 0,72 à 1,08 fois le rayon dessiné,
+jamais au-delà de l'ancienne emprise), une ou deux corniches en retrait de largeur variable (parfois nulle : la paroi
+monte d'un jet), parois presque verticales, talus concave de portée et de hauteur inégales, sommet plat au contour
+irrégulier ; aiguilles plus effilées, une sur deux à deux têtes (`twinOf`). Le décor du client habille ces gradins
+depuis le cœur du sommet jusqu'au talus (`BUTTE_WALL`) ; les strates (`BEDS`, `dip`) ont des épaisseurs inégales,
+ondulent et pendent un peu, les blocs avancent ou reculent, se décalent, se coupent en deux ou manquent.
 
 Relief (`design.ts`) : rivage (`shoreDist`, `cliffAt` : falaises sur la côte nord sauf l'anse de Port-Vent et la côte
 des Dunes, plages dans le golfe, falaises du Levant au fond est du golfe), plateau incliné (`TILT`) et gradins
@@ -55,15 +62,18 @@ des Dunes, plages dans le golfe, falaises du Levant au fond est du golfe), plate
 (`CHOTT`), couloir de la Piste Droite (`PISTE`), canyon (`RIVERS` : `floor`, `drop`, parois en gradins dans `carve`),
 brèches (`BREACHES`, `breachFrames`). Aucun lac d'eau douce : six petites sources d'oasis et la guelta.
 Occupation du sol (`land.ts`) : sol nu ocre partout ; palmiers et jardins irrigués **seulement autour des sources**
-(`orchard`, `farmland`) ; sable de l'erg et des plages, roche rouge sur les parois et les sommets, sel du chott et des
+(`orchard`, `farmland`), à moins de 200 à 320 m de la rive des sources (27/11/2026 : l'ancien rayon de 950 m
+faisait de grandes étendues vertes en plein désert, jusqu'au pied des buttes) ; sable de l'erg et des plages, roche rouge sur les parois et les sommets, sel du chott et des
 Salines (`quarry`).
-Bâtiments (`settle.ts`) : terre crue ocre, toits plats en terrasse ; les maisons sont écrites en nature `hut` (le jeu
+Bâtiments (`settle.ts`) : terre crue sourde et claire (sable #d8bf9a, beige rosé #cfae8c, ocre doux #c49a6c, terre
+claire #b98d66, enduits blanc cassé #e6d8c0 ; plus de rouge vif ni d'orange saturé), toits plats en terrasse ; les maisons sont écrites en nature `hut` (le jeu
 n'y pose ni boîtes aux lettres, ni poubelles, ni poules) ; chaux blanche à Port-Corail ; tours de guet, maisons
 communes à tour basse, Citadelle Rouge, caravansérails du Chott et de l'Étoile.
-Villages en pueblo (`Builder.pueblo`) : maisons de 1 à 2 niveaux, volumes accolés en gradins (avant d'un niveau sur
-rue avec terrasse, arrière d'un ou deux niveaux, parfois plus étroit et décalé), rangées mitoyennes coupées d'une
-ruelle toutes les trois maisons ; dans Rocherouge et le long des grandes rues, seconde rangée plus haute derrière une
-ruelle de service. Place au centre de chaque village, quatre placettes aux bouts des rues de derrière de Rocherouge.
+Villages en pueblo (`Builder.pueblo`, refait le 27/11/2026 : « on dirait une forteresse ») : petits groupes de une à
+trois maisons et maisons isolées, coupés de ruelles de 3 à 7 m et de placettes ; chaque groupe en retrait de 3 à 10 m
+de la rue (cour devant, fermée d'un muret bas par le décor du client, un palmier de temps en temps), chaque maison un
+léger décroché ; volumes en gradins (avant d'un niveau sur rue, arrière d'un ou deux niveaux, parfois un seul bloc bas
+ou haut) ; dans les bourgs, de loin en loin, une maison de seconde rangée. Place au centre de chaque village, quatre placettes aux bouts des rues de derrière de Rocherouge.
 Seule Port-Corail garde des maisons blanches de 2 à 3 niveaux (et ses hôtels du front de mer).
 
 ## Réseau et parcours
@@ -124,7 +134,7 @@ Sans `ISLAND_OUT`, `build.ts` écrit dans `apps/client/public/worlds/desert-roug
   découvrir, nom du Tour, thème, biome, circuit, restyle des bâtiments, clôtures).
 - Biome : palmiers à la place des feuillus, cactus à la place des sapins, presque pas d'herbe (0,08), ni bétail ni
   mobilier de village européen.
-- Bâtiments : terre crue ocre (les rouges brique ramenés vers l'ocre), murs pleins sans volets (rendu en nature
+- Bâtiments : terre crue sourde (toute couleur saturée remplacée par une teinte de `EARTH`), murs pleins sans volets (rendu en nature
   `ruins` : portes de bois), terrasses de la couleur des murs ; maisons blanches du bord de mer inchangées.
 - Clôtures : nulle part, sauf autour des oasis (jardins de la palmeraie).
 - Thème : plaine rouge-orangé (`meadow` #c97745 l'été), terre battue ocre près des maisons (`urban`), terre rouge

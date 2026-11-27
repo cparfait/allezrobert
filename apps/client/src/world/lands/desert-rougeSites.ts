@@ -4,6 +4,7 @@ import { box, part, prism, template, type Template } from '../lowPolyKit.ts';
 import { buildHarbour, harbourCorners, harbourTemplates, type HarbourSite, type HarbourTemplates } from '../polyHarbour.ts';
 import { islandClock } from '../polyOutdoor.ts';
 import { meshOf, strollPath, type Site, type SiteContext } from '../polySites.ts';
+import type { LoadedTile } from '../types.ts';
 
 /**
  * Décor propre du Désert rouge (mode Poly, tools/desert-rouge), d'après le Sud-Ouest américain (identité du
@@ -156,6 +157,8 @@ function kit() {
     /** Rotor de l'éolienne : 12 pales autour du moyeu, dans le plan xy, centré (144 triangles). */
     rotor: template(Array.from({ length: 12 }, (_, i) => part(box(0.32, 1.35, 0.03, 0, 1.0, 0).rotateY(0.35).rotateZ((i / 12) * Math.PI * 2), '#f2efe6'))),
     /** Réservoir rond en tôle sur son muret (120 triangles). */
+    /** Muret de terre crue (bloc unité posé sur sa base, teinté ; mis à l'échelle à la pose). */
+    muret: template([part(box(1, 1, 1, 0, 0.5, 0), '#ffffff', 1)]),
     tank: template([part(prism(2.6, 2.6, 0, 1.5, 10), '#a9aeb0'), part(prism(2.62, 2.62, 1.5, 1.6, 10), '#7f8588'), part(prism(2.0, 2.0, 1.55, 1.58, 10), '#3a6b7a')]),
     /** Barre d'attache des chevaux (36 triangles). */
     rail: template([...[-1.6, 1.6].map((x) => part(box(0.14, 1.1, 0.14, x, 0.55), '#6f5236')), part(box(3.5, 0.12, 0.12, 0, 1.0), '#7f6040')]),
@@ -533,8 +536,100 @@ function village(k: () => Kit, v: (typeof VILLAGES)[number], i: number): Site {
         const tk = freeNear(c, m[0] + 7, m[1], 10, 3.5);
         if (tk) putOn(c, K.tank, tk[0], tk[1], 0);
       }
+      yield* courtyards(c, K, v, r);
     },
   };
+}
+
+const MURETS = [C('#c9a882'), C('#bf9a74'), C('#d2b48f'), C('#b88e68')];
+const scratch: Array<{ tile: LoadedTile; i: number }> = [];
+
+/**
+ * Cours devant les maisons (27/11/2026) : le générateur recule les maisons de 3 à 10 m de la rue ; on ferme la cour
+ * d'un muret bas de terre crue le long de la rue (porte au milieu), retourné jusqu'à la maison, et l'on y plante de
+ * temps en temps un palmier. Côté rue d'une maison : celui où la chaussée est la plus proche ; rien si une autre
+ * maison est devant.
+ */
+function* courtyards(c: SiteContext, K: Kit, v: (typeof VILLAGES)[number], r: () => number): Generator<void, void, unknown> {
+  const R = v.r * 1.3;
+  c.probe.buildingsIn(v.x - R, v.z - R, v.x + R, v.z + R, scratch);
+  const list = scratch.slice();
+  let put = 0;
+  for (const { tile, i } of list) {
+    const b = tile.features.buildings[i] as { kind?: string; pts: number[]; colour?: string };
+    if (b.kind !== 'hut' || b.pts.length !== 8) continue;
+    const P = [0, 1, 2, 3].map((k) => [b.pts[2 * k]!, b.pts[2 * k + 1]!] as const);
+    const cx = (P[0]![0] + P[2]![0]) / 2;
+    const cz = (P[0]![1] + P[2]![1]) / 2;
+    if (Math.hypot(cx - v.x, cz - v.z) > R) continue;
+    // Côté rue : arête dont la normale extérieure touche la chaussée le plus tôt (2 à 13 m).
+    let best: { a: readonly [number, number]; b: readonly [number, number]; nx: number; nz: number; d: number } | null = null;
+    for (let k = 0; k < 4; k++) {
+      const A = P[k]!;
+      const B = P[(k + 1) % 4]!;
+      const mx = (A[0] + B[0]) / 2;
+      const mz = (A[1] + B[1]) / 2;
+      let nx = mx - cx;
+      let nz = mz - cz;
+      const l = Math.hypot(nx, nz) || 1;
+      nx /= l;
+      nz /= l;
+      for (let d = 2; d <= 13; d += 1) {
+        if (!c.probe.read(mx + nx * d, mz + nz * d)) break;
+        if (c.probe.road > 0.3) {
+          if (!best || d < best.d) best = { a: A, b: B, nx, nz, d };
+          break;
+        }
+      }
+    }
+    if (!best || best.d < 4) continue;
+    const { a, b: bb, nx, nz } = best;
+    // Une autre maison entre celle-ci et la rue : pas de cour (rangée de derrière, arrière d'une maison).
+    const mx = (a[0] + bb[0]) / 2;
+    const mz = (a[1] + bb[1]) / 2;
+    if (c.probe.buildingNear(mx + nx * best.d * 0.6, mz + nz * best.d * 0.6, 0.8)) continue;
+    const off = best.d - 1.3;
+    const ex = bb[0] - a[0];
+    const ez = bb[1] - a[1];
+    const L = Math.hypot(ex, ez);
+    const ux = ex / L;
+    const uz = ez / L;
+    const yaw = Math.atan2(nx, nz);
+    const col = MURETS[Math.floor(r() * MURETS.length)]!;
+    const h = 1 + r() * 0.35;
+    /** Pan de muret de s0 à s1 (le long de l'arête), à `o` m devant elle. */
+    const span = (s0: number, s1: number, o: number, alongNormal = false) => {
+      const sx = alongNormal ? a[0] + ux * s0 : a[0] + ux * (s0 + s1) / 2 + nx * o;
+      const sz = alongNormal ? a[1] + uz * s0 : a[1] + uz * (s0 + s1) / 2 + nz * o;
+      const px = alongNormal ? sx + nx * (o / 2) : sx;
+      const pz = alongNormal ? sz + nz * (o / 2) : sz;
+      if (!c.probe.read(px, pz) || c.probe.road > 0.02 || c.probe.buildingNear(px, pz, 0.3)) return;
+      const y = c.probe.heightAt(px, pz);
+      if (!Number.isFinite(y)) return;
+      if (alongNormal) c.mesh.put(K.muret, px, y - 0.3, pz, yaw, 0.4, h + 0.3, o, col);
+      else c.mesh.put(K.muret, px, y - 0.3, pz, yaw, s1 - s0, h + 0.3, 0.4, col);
+      put++;
+    };
+    // Façade sur rue en deux pans, porte de 1,4 m (au milieu ou décalée), puis retours jusqu'à la maison.
+    const door = L * (0.3 + r() * 0.4);
+    span(-0.2, door - 0.7, off);
+    span(door + 0.7, L + 0.2, off);
+    span(-0.2, 0, off, true);
+    span(L + 0.2, 0, off, true);
+    // De temps en temps, un palmier dans la cour.
+    if (off > 3.5 && r() < 0.18) {
+      const s = L * (0.2 + r() * 0.6);
+      const px = a[0] + ux * s + nx * (off * 0.5);
+      const pz = a[1] + uz * s + nz * (off * 0.5);
+      if (c.probe.read(px, pz) && c.probe.road < 0.02 && !c.probe.buildingNear(px, pz, 1.2)) palm(c, K, px, pz, r, 0.7 + r() * 0.25);
+    }
+    if (put > 200) {
+      c.flush();
+      put = 0;
+      yield;
+    }
+  }
+  c.flush();
 }
 
 // ── Éoliennes de pompage (rotor qui tourne au vent) ──
@@ -906,12 +1001,34 @@ function summits(k: () => Kit): Site {
 // ── Parois en strates, éboulis, plantes des fissures, arbres à pompons ──
 //
 // Les parois du Grand Canyon et des mesas sont lues dans le relief des tuiles (le générateur y creuse des gradins) :
-// chaque contremarche raide est habillée de gros blocs taillés posés en gradins, une strate par tranche de
-// STRATE m d'altitude (couleur par tranche : les strates se suivent le long de la paroi), avec quelques surplombs à
+// chaque contremarche raide est habillée de gros blocs taillés posés en gradins, un bloc par banc de grès (BEDS :
+// couleur par banc, les strates se suivent le long de la paroi), avec quelques surplombs à
 // la corniche, des éboulis au pied et des touffes ou des fleurs sur les replats.
 
-/** Épaisseur d'une strate (m) : les blocs sont coupés aux mêmes altitudes d'une station à l'autre. */
-const STRATE = 18;
+/**
+ * Strates du grès (27/11/2026, contre les « anneaux réguliers ») : bancs d'épaisseur inégale (4 à 26 m, tirés une
+ * fois pour toutes), légèrement ondulés et inclinés (`dip`) : une même strate se suit d'une station à l'autre, mais
+ * ne tombe pas à la même altitude partout ni avec la même épaisseur.
+ */
+const BEDS: number[] = (() => {
+  const r = rng(6161);
+  const out = [-200];
+  while (out[out.length - 1]! < 1400) out.push(out[out.length - 1]! + (r() < 0.3 ? 4 + r() * 5 : 10 + r() * 16));
+  return out;
+})();
+/** Ondulation des bancs (m) : pendage doux et ondes lentes. */
+const dip = (x: number, z: number) => 0.012 * x - 0.008 * z + 4 * Math.sin(x / 310 + 0.7) + 3 * Math.sin(z / 230 - x / 520);
+/** Indice du banc qui contient l'altitude h (déjà corrigée du pendage). */
+function bedAt(h: number): number {
+  let lo = 0;
+  let hi = BEDS.length - 1;
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1;
+    if (BEDS[m]! <= h) lo = m;
+    else hi = m;
+  }
+  return lo;
+}
 /** Strates du grès : rouges et orangés, de temps en temps une bande crème (comme les grès du Sud-Ouest). */
 const STRATES = ['#a9482a', '#c8683a', '#b5552f', '#e0b07a', '#9a3f26', '#cf7a46', '#b04e2c', '#d9925a', '#a3442a', '#c2603a'].map(C);
 const CORNICHE = C('#e4bf8c');
@@ -1068,9 +1185,10 @@ function dressRiser(c: SiteContext, K: StoneKit, S: WallStyle, mx: number, mz: n
     for (let i = ia; i < ib; i++) if (hs[i + 1]! >= h) return (i - N + (h - hs[i]!) / Math.max(1e-3, hs[i + 1]! - hs[i]!)) * ds;
     return (ib - N) * ds;
   };
-  // Coupes des strates : altitudes multiples de STRATE, sans tranche plus mince que 3 m.
+  // Coupes des strates : limites des bancs (pendage compris), sans tranche plus mince que 2,5 m.
+  const dp = dip(mx, mz);
   const cuts = [ha];
-  for (let h = Math.ceil((ha + 3) / STRATE) * STRATE; h < hb - 3; h += STRATE) cuts.push(h);
+  for (let k = bedAt(ha - dp) + 1; k < BEDS.length && BEDS[k]! + dp < hb - 2.5; k++) if (BEDS[k]! + dp > cuts[cuts.length - 1]! + 2.5) cuts.push(BEDS[k]! + dp);
   cuts.push(hb);
   const W = S.step * (1.15 + r() * 0.3);
   const yaw = Math.atan2(-ux, -uz);
@@ -1086,17 +1204,35 @@ function dressRiser(c: SiteContext, K: StoneKit, S: WallStyle, mx: number, mz: n
     const h1 = cuts[j + 1]!;
     const sb = sAt(h0);
     const st = sAt(h1);
-    const front = sb - 1.2;
+    // Bloc en saillie ou en retrait (−1,6 à +1 m), décalé et tourné un peu ; parfois coupé en deux blocs inégaux ;
+    // de loin en loin, pas de bloc du tout (niche : la roche du relief reste à nu).
+    const front = sb - 1.2 - (r() - 0.62) * 2.6;
     const D = st - sb + 5.2;
     if (!free(front, front + D, W / 2)) {
       top = null;
       continue;
     }
     const y0 = h0 - (j === 0 ? 3 : 1.5);
-    const band = Math.floor((h0 + h1) / 2 / STRATE + 1000);
-    const col = STRATES[band % STRATES.length]!.clone().multiplyScalar(0.93 + r() * 0.12);
-    c.mesh.put(j % 2 ? K.blocB : K.blocA, mx + ux * front, y0, mz + uz * front, yaw, W, h1 + 0.3 - y0, D, col);
-    n++;
+    const band = bedAt((h0 + h1) / 2 - dp);
+    const col = STRATES[band % STRATES.length]!.clone().multiplyScalar(0.9 + r() * 0.16);
+    if (j > 0 && r() < 0.08) {
+      top = { sb, st, ht: h1 };
+      continue;
+    }
+    const shift = (r() - 0.5) * W * 0.3;
+    const twist = (r() - 0.5) * 0.14;
+    if (r() < 0.3) {
+      const cut = W * (0.3 + r() * 0.4);
+      const back = (r() - 0.5) * 1.6;
+      for (const [w0, w1, f] of [[-W / 2, -W / 2 + cut, 0], [-W / 2 + cut, W / 2, back]] as const) {
+        const e = (w0 + w1) / 2 + shift;
+        c.mesh.put(r() < 0.5 ? K.blocB : K.blocA, mx + ux * (front + f) + wx * e, y0 + (r() - 0.5) * 0.8, mz + uz * (front + f) + wz * e, yaw + twist + (r() - 0.5) * 0.08, w1 - w0 + 0.3, h1 + 0.3 - y0, D, col.clone().multiplyScalar(0.95 + r() * 0.1));
+        n++;
+      }
+    } else {
+      c.mesh.put(j % 2 ? K.blocB : K.blocA, mx + ux * front + wx * shift, y0, mz + uz * front + wz * shift, yaw + twist, W * (0.85 + r() * 0.3), h1 + 0.3 - y0, D, col);
+      n++;
+    }
     top = { sb, st, ht: h1 };
     // Replat de la strate : touffe ou fleurs dans la fissure.
     if (st - sb > 3 && r() < 0.16) {
@@ -1197,6 +1333,8 @@ function dressLine(c: SiteContext, K: StoneKit, S: WallStyle, x: number, z: numb
 
 const CANYON_WALL: WallStyle = { step: 36, slope: 0.5, rise: 4, footBand: 6, scree: 0.35, overhang: 0.2, spread: 16 };
 const MESA_WALL: WallStyle = { step: 32, slope: 0.6, rise: 6, footBand: Infinity, scree: 0.55, overhang: 0.12, spread: 26 };
+/** Buttes témoins : stations plus serrées (parois plus courtes, gradins), éboulis plus fréquents et plus loin. */
+const BUTTE_WALL: WallStyle = { step: 18, slope: 0.6, rise: 5, footBand: Infinity, scree: 0.75, overhang: 0.18, spread: 40 };
 
 /** Tracé dessiné du canyon (design.ts : canyonR) ; méandres : ± 180 m au plus, retrouvés dans le relief. */
 const canyonR = (t: number) => 17300 + 350 * Math.sin(t * 5.3);
@@ -1270,6 +1408,8 @@ interface MesaShape {
   h: number;
   wall: number;
   apron: number;
+  /** Butte témoin au contour irrégulier et en gradins (design.ts : butteForm) : coupes depuis loin dedans. */
+  butte?: boolean;
 }
 const MESA_SHAPES: MesaShape[] = (() => {
   const mesa = (id: string, p: [number, number], rx: number, rz: number, rot: number, h: number, wall?: number, apron?: number): MesaShape => ({
@@ -1290,7 +1430,7 @@ const MESA_SHAPES: MesaShape[] = (() => {
     // Buttes témoins et aiguilles de la plaine (SENTINEL_SPOTS de design.ts) : [x, z, rayon, hauteur].
     ...SENTINEL_SPOTS.map(([x, z, r, h], i) => {
       const spire = r < 70;
-      return mesa(`sentinelle-${i}`, [x, z], r, r * (spire ? 0.85 : 0.72), i * 1.3, h, spire ? Math.max(8, r * 0.18) : Math.max(12, r * 0.09), spire ? Math.min(150, h * 1.3) : Math.min(230, h * 1.5));
+      return { ...mesa(`sentinelle-${i}`, [x, z], r, r * (spire ? 0.8 : 0.72), i * 1.3, h, spire ? Math.max(8, r * 0.18) : Math.max(12, r * 0.09), spire ? Math.min(150, h * 1.3) : Math.min(230, h * 1.5)), butte: true };
     }),
   ];
 })();
@@ -1308,7 +1448,8 @@ function mesaWalls(sk: () => StoneKit, m: MesaShape, part0: number, a0: number, 
     *build(c) {
       const K = sk();
       const r = rng(5300 + m.x * 7 + part0 * 131);
-      const S = c.density < 0.6 ? { ...MESA_WALL, step: 44, scree: 0.4 } : MESA_WALL;
+      const W0 = m.butte ? BUTTE_WALL : MESA_WALL;
+      const S = c.density < 0.6 ? { ...W0, step: W0.step * 1.4, scree: W0.scree * 0.7 } : W0;
       const placed: Placed = [];
       const rm = Math.sqrt(m.rx * m.rz);
       const slack = 0.09 * Math.max(m.rx, m.rz) + m.wall + 30;
@@ -1319,7 +1460,8 @@ function mesaWalls(sk: () => StoneKit, m: MesaShape, part0: number, a0: number, 
         const a = a0 + ((k + 0.5) / n) * (a1 - a0);
         const [px, pz] = ell(m, 1, a);
         const d = Math.hypot(px - m.x, pz - m.z) || 1;
-        put += dressLine(c, K, S, px, pz, (px - m.x) / d, (pz - m.z) / d, -slack, slack + m.apron * 0.3, placed, r);
+        // Butte : du cœur du sommet (corniches en retrait) jusqu'au talus (contour rentré jusqu'à 28 %).
+        put += dressLine(c, K, S, px, pz, (px - m.x) / d, (pz - m.z) / d, m.butte ? -0.8 * d : -slack, m.butte ? 30 : slack + m.apron * 0.3, placed, r);
         if (put > 260) {
           c.flush();
           put = 0;
@@ -1388,7 +1530,10 @@ function stoneSites(sk: () => StoneKit): Site[] {
   const [t0, t1] = CANYON_T;
   const n = Math.ceil((Math.abs(t1 - t0) * 17300) / CANYON_SEG);
   for (let i = 0; i < n; i++) out.push(canyonWalls(sk, i, t0 + ((t1 - t0) * i) / n, t0 + ((t1 - t0) * (i + 1)) / n));
+  // Buttes témoins de la plaine : relief seul, sans blocs de strates (28/11/2026 : vues de loin, elles faisaient un tas
+  // de blocs gris et blancs, pas un rocher). Les mesas et le canyon gardent leurs blocs.
   for (const m of MESA_SHAPES) {
+    if (m.butte) continue;
     const rm = Math.sqrt(m.rx * m.rz);
     const parts = Math.max(1, Math.ceil((2 * Math.PI * rm) / 900));
     for (let p = 0; p < parts; p++) out.push(mesaWalls(sk, m, p, (p / parts) * Math.PI * 2, ((p + 1) / parts) * Math.PI * 2));

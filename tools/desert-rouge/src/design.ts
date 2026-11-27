@@ -10,7 +10,7 @@
  * Tout est déterministe : deux générations donnent le même monde.
  */
 import { chaikin, resample } from './geom.ts';
-import { clamp, fbm, lerp, noise2, ridged, smoothstep } from './noise.ts';
+import { clamp, fbm, lerp, noise2, ridged, rng, smoothstep } from './noise.ts';
 
 export type Vec2 = [number, number];
 
@@ -200,8 +200,67 @@ export interface Mesa {
   ramp?: { ang: number; len: number; half: number };
   /** Part de la hauteur portée par le talus d'éboulis (0,16 par défaut ; les buttes témoins : un vrai cône d'éboulis). */
   skirt?: number;
+  /** Butte témoin : contour et gradins tirés au sort (voir butteForm, butteShare). */
+  form?: ButteForm;
+  /** Seconde tête d'une aiguille : niveau du sommet pris sur la tête principale (même pied). */
+  twinOf?: Mesa;
   /** Niveau du sommet (m), calculé au premier appel. */
   top: number;
+}
+
+/**
+ * Forme d'une butte témoin (27/11/2026, contre les « réservoirs » : contour rond, flancs lisses, bandes régulières).
+ * Rayon modulé par l'angle : harmoniques (lobes), échancrures et contreforts ; une ou deux corniches en retrait, dont
+ * la largeur varie autour de la butte (parfois nulle : la paroi monte d'un jet) ; talus d'éboulis concave, de portée
+ * et de hauteur inégales. Le rayon reste entre 0,72 et 1,08 fois le rayon dessiné et le talus plus court qu'avant :
+ * la butte ne déborde jamais de son ancienne emprise (règle des 500 m loin des routes).
+ */
+export interface ButteForm {
+  /** Harmoniques du contour : [ordre, amplitude, phase]. */
+  harm: Array<[number, number, number]>;
+  /** Échancrures (< 0) et contreforts (> 0) : [angle, amplitude, demi-largeur angulaire]. */
+  bumps: Array<[number, number, number]>;
+  /** Gradins de bas en haut : fraction de la hauteur atteinte, largeur de la paroi (m), largeur moyenne de la corniche au-dessus (m), harmonique de cette largeur. */
+  tiers: Array<{ f: number; wall: number; ledge: number; k: number; ph: number }>;
+  /** Talus : variation de portée et de hauteur avec l'angle [ordre, phase]. */
+  apronK: [number, number];
+  skirtK: [number, number];
+}
+
+/** Forme tirée au sort d'une butte (`seed` propre à chaque butte). */
+function butteForm(seed: number, r: number, h: number, spire: boolean): ButteForm {
+  const R = rng(seed);
+  const harm: ButteForm['harm'] = [];
+  for (let k = 2; k <= 9; k++) harm.push([k, (spire ? 0.05 : 0.075) * (0.35 + R()) / k ** 0.55, R() * Math.PI * 2]);
+  const bumps: ButteForm['bumps'] = [];
+  const notches = (spire ? 1 : 2) + Math.floor(R() * 3);
+  for (let i = 0; i < notches; i++) bumps.push([R() * Math.PI * 2, -(0.12 + R() * 0.16), 0.1 + R() * 0.16]);
+  const spurs = 1 + Math.floor(R() * (spire ? 2 : 3));
+  for (let i = 0; i < spurs; i++) bumps.push([R() * Math.PI * 2, 0.08 + R() * 0.1, 0.07 + R() * 0.12]);
+  // Gradins : une ou deux corniches. La paroi la plus haute est en bas, la tête en retrait au sommet.
+  const two = spire ? R() < 0.7 : R() < 0.6;
+  const fs = two ? [0.42 + R() * 0.12, 0.68 + R() * 0.12, 1] : [0.5 + R() * 0.22, 1];
+  const rm = r * 0.92;
+  const tiers: ButteForm['tiers'] = [];
+  let prev = 0.3;
+  for (let i = 0; i < fs.length; i++) {
+    const dh = (fs[i]! - prev) * h;
+    // Parois presque verticales : 5 à 6 m de haut par mètre de recul ; les aiguilles s'effilent (corniches plus larges).
+    tiers.push({ f: fs[i]!, wall: Math.max(3, dh / (spire ? 4.2 : 5.5)), ledge: i + 1 < fs.length ? rm * (spire ? 0.2 + R() * 0.1 : 0.12 + R() * 0.1) : 0, k: 2 + Math.floor(R() * 4), ph: R() * Math.PI * 2 });
+    prev = fs[i]!;
+  }
+  return { harm, bumps, tiers, apronK: [2 + Math.floor(R() * 3), R() * Math.PI * 2], skirtK: [3 + Math.floor(R() * 3), R() * Math.PI * 2] };
+}
+
+/** Multiplicateur du rayon d'une butte à l'angle a (repère de l'ellipse), entre 0,72 et 1,08. */
+export function butteRadius(F: ButteForm, a: number): number {
+  let p = 0.93;
+  for (const [k, amp, ph] of F.harm) p += amp * Math.sin(k * a + ph);
+  for (const [b, amp, w] of F.bumps) {
+    const d = angDiff(a, b) / w;
+    if (Math.abs(d) < 3) p += amp * Math.exp(-d * d);
+  }
+  return clamp(p, 0.72, 1.08);
 }
 
 const mesa = (id: string, name: string | undefined, p: Vec2, rx: number, rz: number, rot: number, h: number, extra: Partial<Mesa> = {}): Mesa => ({ id, ...(name ? { name } : {}), x: Math.round(p[0]), z: Math.round(p[1]), rx, rz, rot, h, wall: Math.max(18, Math.min(60, Math.min(rx, rz) * 0.08)), apron: Math.min(260, h * 1.4), top: NaN, ...extra });
@@ -231,11 +290,21 @@ const SENTINEL_SPOTS: ReadonlyArray<readonly [number, number, number, number, st
   [5500, -3500, 95, 80],
   [-5000, -750, 220, 115],
 ];
-const SENTINELLES: Mesa[] = SENTINEL_SPOTS.map(([x, z, r, h, name], i) => {
+const SENTINELLES: Mesa[] = SENTINEL_SPOTS.flatMap(([x, z, r, h, name], i) => {
   const spire = r < 70;
-  return mesa(`sentinelle-${i}`, name, [x, z], r, r * (spire ? 0.85 : 0.72), i * 1.3, h, spire
-    ? { wall: Math.max(8, r * 0.18), apron: Math.min(150, h * 1.3), skirt: 0.32 }
-    : { wall: Math.max(12, r * 0.09), apron: Math.min(230, h * 1.5), skirt: 0.3 });
+  const m = mesa(`sentinelle-${i}`, name, [x, z], r, r * (spire ? 0.8 : 0.72), i * 1.3, h, spire
+    ? { wall: Math.max(8, r * 0.18), apron: Math.min(150, h * 1.3), skirt: 0.3, form: butteForm(7100 + i * 97, r, h, true) }
+    : { wall: Math.max(12, r * 0.09), apron: Math.min(230, h * 1.5), skirt: 0.28, form: butteForm(7100 + i * 97, r, h, false) });
+  // Aiguilles à deux têtes (une sur deux) : seconde tête plus basse, accolée dans l'emprise de la première.
+  if (!spire || i % 2 === 0) return [m];
+  const a = i * 2.1;
+  const R = rng(9300 + i * 31);
+  const off = r * (0.42 + R() * 0.12);
+  const twin = mesa(`sentinelle-${i}-b`, undefined, [x + Math.cos(a) * off, z + Math.sin(a) * off], r * 0.5, r * 0.42, a, h * (0.72 + R() * 0.12), {
+    wall: Math.max(6, r * 0.12), apron: Math.min(90, h * 0.7), skirt: 0.36, form: butteForm(8100 + i * 97, r * 0.5, h * 0.8, true),
+  });
+  twin.twinOf = m;
+  return [m, twin];
 });
 
 /** Buttes Rouges (bike park, sentier des Arches) : petites tours à sommet plat entre Rocherouge et L'Oasis. */
@@ -487,6 +556,7 @@ export function mesaE(m: Mesa, x: number, z: number): number {
 
 /** Part du relief de la mesa (0 : plaine, 1 : sommet), rampe comprise. */
 export function mesaShare(m: Mesa, x: number, z: number): number {
+  if (m.form) return butteShare(m, m.form, x, z);
   const rm = Math.sqrt(m.rx * m.rz);
   const e = mesaE(m, x, z);
   const w = m.wall / rm;
@@ -503,6 +573,62 @@ export function mesaShare(m: Mesa, x: number, z: number): number {
     }
   }
   return f;
+}
+
+/**
+ * Part du relief d'une butte témoin (0 : plaine, 1 : sommet) : talus d'éboulis concave, puis parois presque
+ * verticales séparées par une ou deux corniches en retrait ; sommet plat au contour irrégulier (retraits inégaux).
+ */
+function butteShare(m: Mesa, F: ButteForm, x: number, z: number): number {
+  const dx = x - m.x;
+  const dz = z - m.z;
+  const u = (dx * Math.cos(m.rot) + dz * Math.sin(m.rot)) / m.rx;
+  const w = (-dx * Math.sin(m.rot) + dz * Math.cos(m.rot)) / m.rz;
+  const rm = Math.sqrt(m.rx * m.rz);
+  const e0 = Math.hypot(u, w);
+  if ((e0 - 1.1) * rm > m.apron) return 0;
+  const a = Math.atan2(w, u);
+  // Bord rocheux : contour modulé, plus un bruit fin (dents de quelques mètres).
+  const P = butteRadius(F, a) + 0.03 * noise2(x / 22, z / 22, 93) * Math.min(1, 60 / rm);
+  /** Distance au pied de la paroi (m) : > 0 dehors (talus), < 0 dedans. */
+  const s = (e0 - P) * rm;
+  const wave = (k: number, ph: number) => 0.5 + 0.5 * Math.sin(k * a + ph);
+  const A = m.apron * (0.6 + 0.32 * wave(F.apronK[0], F.apronK[1]) + 0.06 * noise2(x / 70, z / 70, 94));
+  const k0 = (m.skirt ?? 0.28) * (0.72 + 0.5 * wave(F.skirtK[0], F.skirtK[1]));
+  if (s >= A) return 0;
+  if (s > 0) {
+    // Talus concave (raide contre la paroi, couché au loin), bosselé par les blocs tombés.
+    const q = 1 - s / A;
+    return Math.max(0, k0 * q ** 2.2 + 0.018 * q * noise2(x / 18, z / 18, 95));
+  }
+  const d = -s;
+  let f = k0;
+  let prev = k0;
+  // Corniches : largeur variable autour de la butte, parfois nulle ; retraits cumulés bornés à 55 % du rayon local
+  // (le sommet garde au moins 45 % du rayon, sans pétales qui convergent au centre).
+  const n = F.tiers.length;
+  const Ls = F.tiers.map((T, i) => (i + 1 < n ? T.ledge * clamp(0.1 + 1.1 * wave(T.k, T.ph) + 0.3 * noise2(x / 40, z / 40, 96 + i), 0, 1.5) : 0));
+  const walls = F.tiers.reduce((acc, T) => acc + T.wall, 0);
+  const ledges = Ls.reduce((acc, L) => acc + L, 0);
+  const cap = 0.55 * P * rm;
+  const kw = Math.min(1, cap / walls);
+  const kl = ledges > 0 ? clamp((cap - walls * kw) / ledges, 0, 1) : 0;
+  let B = 0;
+  for (let i = 0; i < n; i++) {
+    const T = F.tiers[i]!;
+    // Corniche : légère pente vers le vide (2 % de la hauteur).
+    const lip = i + 1 < n ? 0.02 : 0;
+    const W = T.wall * kw;
+    f += Math.max(0, T.f - prev - lip) * smoothstep(B, B + W, d);
+    B += W;
+    if (lip) {
+      const L = Ls[i]! * kl;
+      f += lip * (L < 0.5 ? (d > B ? 1 : 0) : clamp((d - B) / L, 0, 1));
+      B += L;
+    }
+    prev = T.f;
+  }
+  return Math.min(1, f);
 }
 
 /** Relief de base : côte, plateau incliné en gradins, massif du Vautour (sans mesas, dunes ni canyon). */
@@ -553,7 +679,7 @@ function natural(x: number, z: number): number {
     if (Math.abs(x - m.x) > R || Math.abs(z - m.z) > R) continue;
     const f = mesaShare(m, x, z);
     if (f <= 0) continue;
-    if (Number.isNaN(m.top)) m.top = base(m.x, m.z) + m.h;
+    if (Number.isNaN(m.top)) m.top = m.twinOf ? base(m.twinOf.x, m.twinOf.z) + m.h : base(m.x, m.z) + m.h;
     const top = m.top + 1.2 * fbm(x / 400, z / 400, 2, 92);
     if (top > h) h += (top - h) * f * fade;
   }
