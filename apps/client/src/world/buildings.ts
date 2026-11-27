@@ -1196,7 +1196,8 @@ export class Buildings {
       if (arch) wc.offsetHSL((r() - 0.5) * 0.02, (r() - 0.5) * 0.1, (r() - 0.5) * 0.08);
       acc.set(arch ? pick(arch.shutters.length ? arch.shutters : DOORS) : pick(bld.bdtopo ? SHUTTERS_LOCAL : SHUTTERS));
       // Style jeu vidéo : palettes des archétypes et couleurs OSM ravivées (les palettes locales le sont déjà).
-      if (LOW_POLY && (arch || bld.colour)) vivid(wc, 0.15, 0.05);
+      // Façades de style (terre crue, bois) : couleurs du monde telles quelles, sans les raviver (27/11/2026 : adobe fluo).
+      if (LOW_POLY && (arch || bld.colour) && !bld.facade) vivid(wc, 0.15, 0.05);
       if (LOW_POLY && arch) vivid(acc, 0.35, 0.04);
       // Style de façade non européen (mondes Poly seulement : le matériau réaliste ne le lit pas) : couleur des portes.
       const facadeStyle = LOW_POLY && !arch ? bld.facade : undefined;

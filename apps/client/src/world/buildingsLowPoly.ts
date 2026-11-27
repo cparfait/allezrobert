@@ -64,6 +64,11 @@ export function createLowPolyBuildingMaterial(night: THREE.UniformNode<'float', 
   // Terre crue : angles arrondis suggérés (le mur s'assombrit sur ses 35 derniers centimètres).
   const edgeDist = min(u, facade.x.sub(u));
   wall = mix(wall, wall.mul(mix(float(0.86), float(1), smoothstep(0.0, 0.35, edgeDist))), isAdobe.mul(styledWall));
+  // Terre crue : enduit irrégulier (taches douces de 1 à 3 m, plus claires et plus sombres), bas du mur taché par la
+  // poussière et le rejaillissement de la pluie ; au loin, les taches s'estompent vers la teinte moyenne.
+  const mottle = float(0.95).add(u.mul(1.7).add(v.mul(2.3).sin()).sin().mul(v.mul(1.3).add(u.mul(0.6)).sin()).mul(0.05)).add(u.mul(5.1).add(v.mul(4.3)).sin().mul(0.02).mul(fine));
+  wall = mix(wall, wall.mul(mottle), isAdobe.mul(styledWall));
+  wall = mix(wall, wall.mul(0.88), isAdobe.mul(styledWall).mul(float(1).sub(smoothstep(0.0, 0.9, v))));
   // Maison de bois asiatique : soubassement sombre (socle de pierre, 0,8 m) et poutre sombre sous le toit (25 cm).
   wall = mix(wall, vec3(0.16, 0.15, 0.14), isAsian.mul(isWall).mul(step(v, float(0.8))));
   wall = mix(wall, base.mul(0.55), isAsian.mul(styledWall).mul(step(wallH.sub(0.25), v)));
